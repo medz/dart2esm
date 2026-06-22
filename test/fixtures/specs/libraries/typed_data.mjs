@@ -20,6 +20,18 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
 function __dartListIndexOf(list, needle, start = 0) {
   const begin = Math.max(0, Math.trunc(start));
   for (let index = begin; index < list.length; index++) {
@@ -142,7 +154,7 @@ export function main() {
   const queryRange = __dartIterableJoin(queries.slice(1, 3), ",");
   const queryMap = __dartListAsMap(queries);
   (queries.fill(9, 1, 3), null);
-  __dartPrint("typedQueries " + __dartStr(queryRange) + " " + __dartStr(queryMap.size) + ":" + __dartStr(queryMap.get(2)) + " " + __dartStr(__dartListIndexOf(queries, 4, 0)) + " " + __dartStr(__dartListIndexOf(queries, 4, 1)) + " " + __dartStr(__dartListLastIndexOf(queries, 4, null)) + " " + __dartStr(__dartListLastIndexOf(queries, 4, 2)) + " " + __dartStr(__dartIterableJoin(queries, ",")));
+  __dartPrint("typedQueries " + __dartStr(queryRange) + " " + __dartStr(queryMap.size) + ":" + __dartStr(__dartMapGet(queryMap, 2)) + " " + __dartStr(__dartListIndexOf(queries, 4, 0)) + " " + __dartStr(__dartListIndexOf(queries, 4, 1)) + " " + __dartStr(__dartListLastIndexOf(queries, 4, null)) + " " + __dartStr(__dartListLastIndexOf(queries, 4, 2)) + " " + __dartStr(__dartIterableJoin(queries, ",")));
 }
 
 main();

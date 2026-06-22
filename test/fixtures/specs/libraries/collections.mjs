@@ -65,21 +65,52 @@ function __dartSetRemove(set, needle) {
   }
   return false;
 }
+function __dartIdentityMap() {
+  const map = new Map();
+  Object.defineProperty(map, "__dartIdentityMap", { value: true });
+  return map;
+}
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapContainsKey(map, key) {
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+function __dartMapAddAll(map, entries) {
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return null;
+}
 function __dartMapAddEntries(map, entries) {
-  for (const entry of entries) map.set(entry.key, entry.value);
+  for (const entry of entries) __dartMapSet(map, entry.key, entry.value);
   return null;
 }
 function __dartMapMap(map, convert) {
   const result = new Map();
   for (const [key, value] of map) {
     const entry = convert(key, value);
-    result.set(entry.key, entry.value);
+    __dartMapSet(result, entry.key, entry.value);
   }
   return result;
 }
 function __dartMapRemove(map, key) {
-  const value = map.has(key) ? map.get(key) : null;
-  map.delete(key);
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey === __dartMapMissingKey) return null;
+  const value = map.get(actualKey);
+  map.delete(actualKey);
   return value;
 }
 function __dartMapContainsValue(map, needle) {
@@ -89,15 +120,17 @@ function __dartMapContainsValue(map, needle) {
   return false;
 }
 function __dartMapPutIfAbsent(map, key, ifAbsent) {
-  if (map.has(key)) return map.get(key);
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey !== __dartMapMissingKey) return map.get(actualKey);
   const value = ifAbsent();
   map.set(key, value);
   return value;
 }
 function __dartMapUpdate(map, key, update, ifAbsent = null) {
-  if (map.has(key)) {
-    const value = update(map.get(key));
-    map.set(key, value);
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey !== __dartMapMissingKey) {
+    const value = update(map.get(actualKey));
+    map.set(actualKey, value);
     return value;
   }
   if (typeof ifAbsent === "function") {
@@ -410,7 +443,7 @@ export function main() {
   (mutable.splice(1, 0, 9), null);
   __dartPrint("mutable " + __dartStr(__dartIterableJoin(mutable, ",")) + " " + __dartStr(removed) + " " + __dartStr(__dartIterableJoin(mutable.slice(1), ",")) + " " + __dartStr(__dartIterableJoin(Array.from(mutable).reverse(), ",")));
   const indexed = __dartListAsMap(mutable);
-  __dartPrint("asMap " + __dartStr(indexed.size) + " " + __dartStr(indexed.get(1)));
+  __dartPrint("asMap " + __dartStr(indexed.size) + " " + __dartStr(__dartMapGet(indexed, 1)));
   const removedValue = __dartListRemove(mutable, 9);
   const removedMissing = __dartListRemove(mutable, 99);
   const removedLast = mutable.pop();
@@ -492,8 +525,8 @@ export function main() {
   })());
   __dartPrint("setEquality " + __dartStr(firstBoxAdd) + " " + __dartStr(duplicateBoxAdd) + " " + __dartStr(eqSet.size) + " " + __dartStr(containsBox) + " " + __dartStr(removedBox) + " " + __dartStr(eqSet.size) + " " + __dartStr(eqUnion.size) + " " + __dartStr(eqIntersection.size) + " " + __dartStr(eqDifference.size));
   const counts = new Map([["one", 1]]);
-  counts.set("two", 2);
-  __dartPrint("map " + __dartStr(counts.size) + " " + __dartStr(counts.has("two")) + " " + __dartStr(counts.get("one")));
+  __dartMapSet(counts, "two", 2);
+  __dartPrint("map " + __dartStr(counts.size) + " " + __dartStr(__dartMapContainsKey(counts, "two")) + " " + __dartStr(__dartMapGet(counts, "one")));
   __dartPrint("map iter " + __dartStr(__dartIterableJoin(counts.keys(), ",")) + " " + __dartStr(__dartIterableJoin(counts.values(), ",")));
   const three = __dartMapPutIfAbsent(counts, "three", function() { return 3; });
   __dartMapUpdate(counts, "two", function(value) { return (value * 10); }, null);
@@ -502,14 +535,28 @@ export function main() {
   (counts.forEach((value, key) => (function(key, value) {
     (mapPairs.push(__dartStr(key) + "=" + __dartStr(value)), null);
 })(key, value)), null);
-  __dartPrint("map ops " + __dartStr(three) + " " + __dartStr(counts.get("two")) + " " + __dartStr(counts.get("missing")) + " " + __dartStr(__dartIterableJoin(mapPairs, "|")));
+  __dartPrint("map ops " + __dartStr(three) + " " + __dartStr(__dartMapGet(counts, "two")) + " " + __dartStr(__dartMapGet(counts, "missing")) + " " + __dartStr(__dartIterableJoin(mapPairs, "|")));
   const transformSource = new Map([["a", 1], ["b", 2]]);
   __dartMapAddEntries(transformSource, [Object.freeze({ key: "c", value: 3 })]);
   const transformed = __dartMapMap(transformSource, function(key, value) { return Object.freeze({ key: __dartStr(key) + __dartStr(value), value: (value + 10) }); });
   const transformedCast = new Map(Array.from(transformSource, ([key, value]) => [__dartAs(key, (key) => typeof key === "string", "InterfaceType(String)"), __dartAs(value, (value) => typeof value === "number", "InterfaceType(num)")]));
-  __dartPrint("map transforms " + __dartStr(transformSource.get("c")) + " " + __dartStr(transformed.get("b2")) + " " + __dartStr(((() => { let v = transformedCast.get("a"); return ((v === null) ? 0 : v); })() + 1)));
+  __dartPrint("map transforms " + __dartStr(__dartMapGet(transformSource, "c")) + " " + __dartStr(__dartMapGet(transformed, "b2")) + " " + __dartStr(((() => { let v = __dartMapGet(transformedCast, "a"); return ((v === null) ? 0 : v); })() + 1)));
+  const eqMap = new Map([]);
+  __dartMapSet(eqMap, new EqBox(1), "one");
+  __dartMapSet(eqMap, new EqBox(1), "uno");
+  const eqContains = __dartMapContainsKey(eqMap, new EqBox(1));
+  const eqRead = __dartMapGet(eqMap, new EqBox(1));
+  const eqExisting = __dartMapPutIfAbsent(eqMap, new EqBox(1), function() { return "new"; });
+  const eqMissing = __dartMapPutIfAbsent(eqMap, new EqBox(2), function() { return "two"; });
+  const eqUpdated = __dartMapUpdate(eqMap, new EqBox(2), function(value) { return __dartStr(value) + "!"; }, null);
+  const eqRemoved = __dartMapRemove(eqMap, new EqBox(1));
+  __dartMapAddAll(eqMap, new Map([[new EqBox(2), "twoAgain"], [new EqBox(3), "three"]]));
+  __dartMapAddEntries(eqMap, [Object.freeze({ key: new EqBox(3), value: "tres" })]);
+  const identityMap = __dartIdentityMap();
+  __dartMapSet(identityMap, new EqBox(1), "one");
+  __dartPrint("mapEquality " + __dartStr(eqContains) + " " + __dartStr(eqRead) + " " + __dartStr(eqExisting) + " " + __dartStr(eqMissing) + " " + __dartStr(eqUpdated) + " " + __dartStr(eqRemoved) + " " + __dartStr(__dartMapGet(eqMap, new EqBox(2))) + " " + __dartStr(__dartMapGet(eqMap, new EqBox(3))) + " " + __dartStr(eqMap.size) + " " + __dartStr(__dartMapContainsKey(identityMap, new EqBox(1))) + " " + __dartStr(identityMap.size));
   __dartMapRemove(counts, "one");
-  __dartPrint("map removed " + __dartStr(counts.size) + " " + __dartStr(counts.get("one")));
+  __dartPrint("map removed " + __dartStr(counts.size) + " " + __dartStr(__dartMapGet(counts, "one")));
   __dartMapUpdateAll(counts, function(key, value) { return (value + key.length); });
   const entries = Array.from(Array.from(counts, ([key, value]) => ({ key, value })), function(entry) { return __dartStr(entry.key) + ":" + __dartStr(entry.value); });
   __dartPrint("map more " + __dartStr(__dartMapContainsValue(counts, 27)) + " " + __dartStr(__dartIterableJoin(entries, "|")));

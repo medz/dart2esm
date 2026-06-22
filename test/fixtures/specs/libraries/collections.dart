@@ -166,6 +166,24 @@ void main() {
     'map transforms ${transformSource['c']} ${transformed['b2']} '
     '${(transformedCast['a'] ?? 0) + 1}',
   );
+  final eqMap = <EqBox, String>{};
+  eqMap[EqBox(1)] = 'one';
+  eqMap[EqBox(1)] = 'uno';
+  final eqContains = eqMap.containsKey(EqBox(1));
+  final eqRead = eqMap[EqBox(1)];
+  final eqExisting = eqMap.putIfAbsent(EqBox(1), () => 'new');
+  final eqMissing = eqMap.putIfAbsent(EqBox(2), () => 'two');
+  final eqUpdated = eqMap.update(EqBox(2), (value) => '$value!');
+  final eqRemoved = eqMap.remove(EqBox(1));
+  eqMap.addAll({EqBox(2): 'twoAgain', EqBox(3): 'three'});
+  eqMap.addEntries([MapEntry(EqBox(3), 'tres')]);
+  final identityMap = Map<EqBox, String>.identity();
+  identityMap[EqBox(1)] = 'one';
+  print(
+    'mapEquality $eqContains $eqRead $eqExisting $eqMissing $eqUpdated '
+    '$eqRemoved ${eqMap[EqBox(2)]} ${eqMap[EqBox(3)]} ${eqMap.length} '
+    '${identityMap.containsKey(EqBox(1))} ${identityMap.length}',
+  );
   counts.remove('one');
   print('map removed ${counts.length} ${counts['one']}');
   counts.updateAll((key, value) => value + key.length);

@@ -33,10 +33,42 @@ function __dartSetAdd(set, value) {
   set.add(value);
   return true;
 }
+function __dartIdentityMap() {
+  const map = new Map();
+  Object.defineProperty(map, "__dartIdentityMap", { value: true });
+  return map;
+}
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapContainsKey(map, key) {
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+function __dartMapFromEntries(entries) {
+  const map = new Map();
+  for (const [key, value] of entries) {
+    __dartMapSet(map, key, value);
+  }
+  return map;
+}
 function __dartMapFromIterable(iterable, key = null, value = null) {
   const map = new Map();
   for (const element of iterable) {
-    map.set(key == null ? element : key(element), value == null ? element : value(element));
+    __dartMapSet(map, key == null ? element : key(element), value == null ? element : value(element));
   }
   return map;
 }
@@ -44,7 +76,11 @@ function __dartMapFromIterables(keys, values) {
   const keyList = Array.from(keys);
   const valueList = Array.from(values);
   if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
-  return new Map(keyList.map((key, index) => [key, valueList[index]]));
+  const map = new Map();
+  for (let index = 0; index < keyList.length; index++) {
+    __dartMapSet(map, keyList[index], valueList[index]);
+  }
+  return map;
 }
 function __dartIterableContains(iterable, needle) {
   for (const value of iterable) {
@@ -95,17 +131,17 @@ export function main() {
   const setOf = new Set(set);
   const setFixed = __dartConstSet(setOf);
   __dartPrint("set " + __dartStr(setFixed.size) + " " + __dartStr(__dartIterableContains(setFixed, "a")) + " " + __dartStr(__dartIterableJoin(setFixed, "|")));
-  const map = new Map(new Map([["one", 1], ["two", 2]]));
-  const mapOf = new Map(map);
+  const map = __dartMapFromEntries(new Map([["one", 1], ["two", 2]]));
+  const mapOf = __dartMapFromEntries(map);
   const mapFixed = __dartConstMap(mapOf);
-  __dartPrint("map " + __dartStr(mapFixed.size) + " " + __dartStr(mapFixed.get("one")) + " " + __dartStr(__dartIterableJoin(mapFixed.keys(), ",")));
-  const entries = new Map(Array.from([Object.freeze({ key: "three", value: 3 }), Object.freeze({ key: "four", value: 4 })], (entry) => [entry.key, entry.value]));
+  __dartPrint("map " + __dartStr(mapFixed.size) + " " + __dartStr(__dartMapGet(mapFixed, "one")) + " " + __dartStr(__dartIterableJoin(mapFixed.keys(), ",")));
+  const entries = __dartMapFromEntries(Array.from([Object.freeze({ key: "three", value: 3 }), Object.freeze({ key: "four", value: 4 })], (entry) => [entry.key, entry.value]));
   const iterable = __dartMapFromIterable(["aa", "bbb"], function(value) { return __dartAs(__dartGet(value, "length"), value => typeof value === "number", "int"); }, function(value) { return __dartAs(value.toUpperCase(), value => typeof value === "string", "String"); });
   const iterables = __dartMapFromIterables(["x", "y"], [10, 20]);
-  const identity = new Map();
+  const identity = __dartIdentityMap();
   const identityKey = [1];
-  identity.set(identityKey, "same");
-  __dartPrint("mapFactories " + __dartStr(entries.get("four")) + " " + __dartStr(iterable.get(3)) + " " + __dartStr(iterables.get("y")) + " " + __dartStr(identity.has(identityKey)));
+  __dartMapSet(identity, identityKey, "same");
+  __dartPrint("mapFactories " + __dartStr(__dartMapGet(entries, "four")) + " " + __dartStr(__dartMapGet(iterable, 3)) + " " + __dartStr(__dartMapGet(iterables, "y")) + " " + __dartStr(__dartMapContainsKey(identity, identityKey)));
 }
 
 main();

@@ -33,8 +33,21 @@ function __dartSetAddAll(set, values) {
   for (const value of values) __dartSetAdd(set, value);
   return null;
 }
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
 function __dartMapAddAll(map, entries) {
-  for (const [key, value] of entries) map.set(key, value);
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
 }
 function __dartIterableContains(iterable, needle) {
@@ -127,16 +140,16 @@ export function main() {
   })();
   const map = (() => {
     const v = new Map([]);
-    v.set("a", 1);
+    __dartMapSet(v, "a", 1);
     if (isEnabled()) {
-      v.set("b", 2);
+      __dartMapSet(v, "b", 2);
     }
     {
       let _sync_for_iterator = __dartIterator([3, 4]);
       for (; _sync_for_iterator.moveNext(); ) {
         {
           const value = _sync_for_iterator.current;
-          v.set("k" + __dartStr(value), value);
+          __dartMapSet(v, "k" + __dartStr(value), value);
         }
       }
     }

@@ -3336,7 +3336,10 @@ final class _EsmEmitter {
         return '$left.get(${positionalArgs.single})';
       }
       if (_isCoreMember(target, 'Map', '[]')) {
-        return '$left.get(${positionalArgs.single})';
+        _usedHelpers.add('__dartMapGet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
+        return '__dartMapGet($left, ${positionalArgs.single})';
       }
       if (!_isNativeOperatorTarget(target)) {
         return '${_emitPropertyGet(left, name)}(${positionalArgs.single})';
@@ -3350,7 +3353,10 @@ final class _EsmEmitter {
         return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
       }
       if (_isCoreMember(target, 'Map', '[]=')) {
-        return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
+        _usedHelpers.add('__dartMapSet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
+        return '__dartMapSet($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
       }
       if (!_isNativeOperatorTarget(target)) {
         return '${_emitPropertyGet(left, name)}(${positionalArgs.join(', ')})';
@@ -4182,6 +4188,9 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', 'addAll')) {
       _usedHelpers.add('__dartMapAddAll');
+      _usedHelpers.add('__dartMapSet');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
       return '__dartMapAddAll($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4201,6 +4210,9 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', name)) {
       _usedHelpers.add('__dartMapAddEntries');
+      _usedHelpers.add('__dartMapSet');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
       return '__dartMapAddEntries($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4208,6 +4220,9 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', name)) {
       _usedHelpers.add('__dartMapMap');
+      _usedHelpers.add('__dartMapSet');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
       return '__dartMapMap($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4255,6 +4270,8 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', 'remove')) {
       _usedHelpers.add('__dartMapRemove');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
       return '__dartMapRemove($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4267,7 +4284,10 @@ final class _EsmEmitter {
         name == 'containsKey' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', 'containsKey')) {
-      return '$left.has(${positionalArgs.single})';
+      _usedHelpers.add('__dartMapContainsKey');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
+      return '__dartMapContainsKey($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'containsValue' &&
@@ -4282,12 +4302,16 @@ final class _EsmEmitter {
         positionalArgs.length == 2 &&
         _isCoreMember(target, 'Map', name)) {
       _usedHelpers.add('__dartMapPutIfAbsent');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
       return '__dartMapPutIfAbsent($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (name == 'update' &&
         positionalArgs.length == 2 &&
         _isCoreMember(target, 'Map', name)) {
       _usedHelpers.add('__dartMapUpdate');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
       final ifAbsent = _namedArgument(expression.arguments, 'ifAbsent');
       return '__dartMapUpdate($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${ifAbsent ?? 'null'})';
     }
@@ -5588,19 +5612,38 @@ final class _EsmEmitter {
     final name = path.split('::').last;
     return switch (name) {
       '' when positionalArgs.isEmpty => 'new Map()',
-      'identity' when positionalArgs.isEmpty => 'new Map()',
-      'of' || 'from' when positionalArgs.length == 1 =>
-        'new Map(${positionalArgs.single})',
-      'fromEntries' when positionalArgs.length == 1 =>
-        'new Map(Array.from(${positionalArgs.single}, (entry) => [entry.key, entry.value]))',
+      'identity' when positionalArgs.isEmpty => () {
+        _usedHelpers.add('__dartIdentityMap');
+        return '__dartIdentityMap()';
+      }(),
+      'of' || 'from' when positionalArgs.length == 1 => () {
+        _usedHelpers.add('__dartMapFromEntries');
+        _usedHelpers.add('__dartMapSet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
+        return '__dartMapFromEntries(${positionalArgs.single})';
+      }(),
+      'fromEntries' when positionalArgs.length == 1 => () {
+        _usedHelpers.add('__dartMapFromEntries');
+        _usedHelpers.add('__dartMapSet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
+        return '__dartMapFromEntries(Array.from(${positionalArgs.single}, (entry) => [entry.key, entry.value]))';
+      }(),
       'fromIterable' when positionalArgs.length == 1 => () {
         _usedHelpers.add('__dartMapFromIterable');
+        _usedHelpers.add('__dartMapSet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
         final key = _namedArgument(arguments, 'key') ?? 'null';
         final value = _namedArgument(arguments, 'value') ?? 'null';
         return '__dartMapFromIterable(${positionalArgs.single}, $key, $value)';
       }(),
       'fromIterables' when positionalArgs.length == 2 => () {
         _usedHelpers.add('__dartMapFromIterables');
+        _usedHelpers.add('__dartMapSet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
         return '__dartMapFromIterables(${positionalArgs[0]}, ${positionalArgs[1]})';
       }(),
       'unmodifiable' when positionalArgs.length == 1 => () {
@@ -8036,10 +8079,57 @@ final class _EsmEmitter {
       helper.writeln('  return false;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartIdentityMap')) {
+      helper.writeln('function __dartIdentityMap() {');
+      helper.writeln('  const map = new Map();');
+      helper.writeln(
+        '  Object.defineProperty(map, "__dartIdentityMap", { value: true });',
+      );
+      helper.writeln('  return map;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapKey')) {
+      helper.writeln(
+        'const __dartMapMissingKey = Symbol("dart.mapMissingKey");',
+      );
+      helper.writeln('function __dartMapKey(map, key) {');
+      helper.writeln(
+        '  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;',
+      );
+      helper.writeln('  for (const candidate of map.keys()) {');
+      helper.writeln('    if (__dartEquals(candidate, key)) return candidate;');
+      helper.writeln('  }');
+      helper.writeln('  return __dartMapMissingKey;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapContainsKey')) {
+      helper.writeln('function __dartMapContainsKey(map, key) {');
+      helper.writeln(
+        '  return __dartMapKey(map, key) !== __dartMapMissingKey;',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapGet')) {
+      helper.writeln('function __dartMapGet(map, key) {');
+      helper.writeln('  const actualKey = __dartMapKey(map, key);');
+      helper.writeln(
+        '  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapSet')) {
+      helper.writeln('function __dartMapSet(map, key, value) {');
+      helper.writeln('  const actualKey = __dartMapKey(map, key);');
+      helper.writeln(
+        '  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);',
+      );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartMapAddAll')) {
       helper.writeln('function __dartMapAddAll(map, entries) {');
       helper.writeln(
-        '  for (const [key, value] of entries) map.set(key, value);',
+        '  for (const [key, value] of entries) __dartMapSet(map, key, value);',
       );
       helper.writeln('  return null;');
       helper.writeln('}');
@@ -8047,7 +8137,7 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartMapAddEntries')) {
       helper.writeln('function __dartMapAddEntries(map, entries) {');
       helper.writeln(
-        '  for (const entry of entries) map.set(entry.key, entry.value);',
+        '  for (const entry of entries) __dartMapSet(map, entry.key, entry.value);',
       );
       helper.writeln('  return null;');
       helper.writeln('}');
@@ -8057,15 +8147,17 @@ final class _EsmEmitter {
       helper.writeln('  const result = new Map();');
       helper.writeln('  for (const [key, value] of map) {');
       helper.writeln('    const entry = convert(key, value);');
-      helper.writeln('    result.set(entry.key, entry.value);');
+      helper.writeln('    __dartMapSet(result, entry.key, entry.value);');
       helper.writeln('  }');
       helper.writeln('  return result;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartMapRemove')) {
       helper.writeln('function __dartMapRemove(map, key) {');
-      helper.writeln('  const value = map.has(key) ? map.get(key) : null;');
-      helper.writeln('  map.delete(key);');
+      helper.writeln('  const actualKey = __dartMapKey(map, key);');
+      helper.writeln('  if (actualKey === __dartMapMissingKey) return null;');
+      helper.writeln('  const value = map.get(actualKey);');
+      helper.writeln('  map.delete(actualKey);');
       helper.writeln('  return value;');
       helper.writeln('}');
     }
@@ -8077,6 +8169,15 @@ final class _EsmEmitter {
       helper.writeln('  return false;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartMapFromEntries')) {
+      helper.writeln('function __dartMapFromEntries(entries) {');
+      helper.writeln('  const map = new Map();');
+      helper.writeln('  for (const [key, value] of entries) {');
+      helper.writeln('    __dartMapSet(map, key, value);');
+      helper.writeln('  }');
+      helper.writeln('  return map;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartMapFromIterable')) {
       helper.writeln(
         'function __dartMapFromIterable(iterable, key = null, value = null) {',
@@ -8084,7 +8185,7 @@ final class _EsmEmitter {
       helper.writeln('  const map = new Map();');
       helper.writeln('  for (const element of iterable) {');
       helper.writeln(
-        '    map.set(key == null ? element : key(element), value == null ? element : value(element));',
+        '    __dartMapSet(map, key == null ? element : key(element), value == null ? element : value(element));',
       );
       helper.writeln('  }');
       helper.writeln('  return map;');
@@ -8097,14 +8198,23 @@ final class _EsmEmitter {
       helper.writeln(
         '  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");',
       );
+      helper.writeln('  const map = new Map();');
       helper.writeln(
-        '  return new Map(keyList.map((key, index) => [key, valueList[index]]));',
+        '  for (let index = 0; index < keyList.length; index++) {',
       );
+      helper.writeln(
+        '    __dartMapSet(map, keyList[index], valueList[index]);',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return map;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartMapPutIfAbsent')) {
       helper.writeln('function __dartMapPutIfAbsent(map, key, ifAbsent) {');
-      helper.writeln('  if (map.has(key)) return map.get(key);');
+      helper.writeln('  const actualKey = __dartMapKey(map, key);');
+      helper.writeln(
+        '  if (actualKey !== __dartMapMissingKey) return map.get(actualKey);',
+      );
       helper.writeln('  const value = ifAbsent();');
       helper.writeln('  map.set(key, value);');
       helper.writeln('  return value;');
@@ -8114,9 +8224,10 @@ final class _EsmEmitter {
       helper.writeln(
         'function __dartMapUpdate(map, key, update, ifAbsent = null) {',
       );
-      helper.writeln('  if (map.has(key)) {');
-      helper.writeln('    const value = update(map.get(key));');
-      helper.writeln('    map.set(key, value);');
+      helper.writeln('  const actualKey = __dartMapKey(map, key);');
+      helper.writeln('  if (actualKey !== __dartMapMissingKey) {');
+      helper.writeln('    const value = update(map.get(actualKey));');
+      helper.writeln('    map.set(actualKey, value);');
       helper.writeln('    return value;');
       helper.writeln('  }');
       helper.writeln('  if (typeof ifAbsent === "function") {');
@@ -9319,6 +9430,7 @@ const _generatedGlobalNames = {
   '__dartHtmlEscape',
   '__dartHtmlEscapeChar',
   '__dartIdentityHashes',
+  '__dartIdentityMap',
   '__dartIsRecord',
   '__dartIterator',
   '__dartJsonCodec',
@@ -9343,12 +9455,18 @@ const _generatedGlobalNames = {
   '__dartListWhereMutate',
   '__dartMapAddAll',
   '__dartMapAddEntries',
+  '__dartMapContainsKey',
   '__dartMapContainsValue',
+  '__dartMapFromEntries',
   '__dartMapFromIterable',
   '__dartMapFromIterables',
+  '__dartMapGet',
+  '__dartMapKey',
   '__dartMapMap',
+  '__dartMapMissingKey',
   '__dartMapPutIfAbsent',
   '__dartMapRemove',
+  '__dartMapSet',
   '__dartMapUpdate',
   '__dartMapUpdateAll',
   '__dartNullCheck',

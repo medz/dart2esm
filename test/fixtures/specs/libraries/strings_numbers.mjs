@@ -203,8 +203,26 @@ function __dartIsCoreError(value, typeName) {
   if (typeName === "TypeError" && value instanceof TypeError) return true;
   return typeName === "Error" && value instanceof Error;
 }
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+}
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 function __dartRoundToInt(value) {
   return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5);
@@ -242,7 +260,7 @@ export function main() {
   const uri = __dartUriParse("https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag", false);
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
   __dartPrint("uri meta " + __dartStr(uri.authority) + " " + __dartStr(uri.userInfo) + " " + __dartStr(uri.port) + " " + __dartStr(__dartIterableJoin(uri.pathSegments, "|")) + " " + __dartStr(uri.hasScheme) + " " + __dartStr(uri.hasAuthority) + " " + __dartStr(uri.hasPort) + " " + __dartStr(uri.hasQuery) + " " + __dartStr(uri.hasFragment) + " " + __dartStr(uri.isAbsolute));
-  __dartPrint("uri query " + __dartStr(uri.queryParameters.get("x")) + " " + __dartStr(uri.queryParameters.get("empty")) + " " + __dartStr(__dartIterableJoin(__dartNullCheck(uri.queryParametersAll.get("x")), "|")));
+  __dartPrint("uri query " + __dartStr(__dartMapGet(uri.queryParameters, "x")) + " " + __dartStr(__dartMapGet(uri.queryParameters, "empty")) + " " + __dartStr(__dartIterableJoin(__dartNullCheck(__dartMapGet(uri.queryParametersAll, "x")), "|")));
   __dartPrint("uri string " + __dartStr(__dartStr(uri)));
   const https = __dartUriBuild("https", "example.test", "/a/b", new Map([["q", "dart esm"], ["page", "1"]]));
   const http = __dartUriBuild("http", "example.test:8080", "plain path", new Map([["x", "a/b"]]));

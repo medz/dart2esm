@@ -25,6 +25,26 @@ function __dartSetAdd(set, value) {
   set.add(value);
   return true;
 }
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapContainsKey(map, key) {
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
 function __dartListRemove(list, needle) {
   const index = list.findIndex((value) => __dartEquals(value, needle));
   if (index < 0) return false;
@@ -59,9 +79,9 @@ function __dartEquals(left, right) {
 
 export function main() {
   const map = new Map();
-  map.set("one", 1);
-  map.set("two", 2);
-  __dartPrint("hashMap " + __dartStr(map.size) + " " + __dartStr(map.has("two")) + " " + __dartStr(map.get("one")));
+  __dartMapSet(map, "one", 1);
+  __dartMapSet(map, "two", 2);
+  __dartPrint("hashMap " + __dartStr(map.size) + " " + __dartStr(__dartMapContainsKey(map, "two")) + " " + __dartStr(__dartMapGet(map, "one")));
   const set = new Set();
   __dartSetAdd(set, "a");
   __dartSetAdd(set, "b");

@@ -9,6 +9,7 @@ int init(String name, int value) {
 int readFirst = init('readFirst', 10);
 int assignFirst = init('assignFirst', 20);
 final finalValue = init('finalValue', 30);
+const constValue = 40;
 
 void main() {
   assignFirst = 99;
@@ -16,5 +17,6 @@ void main() {
   print('read $readFirst');
   print('read again $readFirst');
   print('final $finalValue');
+  print('const $constValue');
   print('count $initCount');
 }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dart2esm/src/cli.dart';
 import 'package:dart2esm/src/compiler.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
@@ -72,11 +73,72 @@ void main() {
     expect(component.mainMethod?.function.body, isNotNull);
   });
 
+  test('can emit an ESM module without running main', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
+      ),
+      expectedEsm: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.mjs'),
+      ),
+    );
+    final tempDir = await Directory.systemTemp.createTemp('dart2esm-no-main-');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'basic_functions.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: fixture.source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        runMain: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+  });
+
+  test('CLI --no-run-main omits the main invocation', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
+      ),
+      expectedEsm: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.mjs'),
+      ),
+    );
+    final tempDir = await Directory.systemTemp.createTemp('dart2esm-cli-');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'basic_functions.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [fixture.source.path, '-o', output.path, '--no-run-main'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.success);
+    expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+  });
+
   for (final fixture in _goldenFixtures(fixtureDir)) {
     test('matches ${fixture.id} ESM golden and runtime behavior', () async {
       await _expectGoldenFixture(fixture);
     });
   }
+}
+
+String _withoutMainCall(String code) {
+  const mainCall = '\nmain();\n';
+  expect(code.endsWith(mainCall), isTrue);
+  return '${code.substring(0, code.length - mainCall.length)}\n';
 }
 
 List<_GoldenFixture> _goldenFixtures(Directory fixtureDir) {
@@ -136,6 +198,8 @@ final class _GoldenFixture {
   final Directory root;
   final File source;
   final File expectedEsm;
+
+  String get expectedCode => expectedEsm.readAsStringSync();
 
   String get id => p.withoutExtension(p.relative(source.path, from: root.path));
 

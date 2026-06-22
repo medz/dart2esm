@@ -73,10 +73,10 @@ export function main() {
       }
     default:
       {
-        __dartPrint(__dartStr("other ") + __dartStr(total));
+        __dartPrint("other " + __dartStr(total));
       }
   }
-  __dartPrint(__dartStr("total ") + __dartStr(total));
+  __dartPrint("total " + __dartStr(total));
 }
 
 main();

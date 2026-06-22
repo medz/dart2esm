@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:kernel/kernel.dart' as k;
 
-EsmBackendResult emitEsm(k.Component component) {
-  final emitter = _EsmEmitter(component);
+EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
+  final emitter = _EsmEmitter(component, runMain: runMain);
   return emitter.emit();
 }
 
@@ -26,9 +26,10 @@ final class UnsupportedKernelNode implements Exception {
 }
 
 final class _EsmEmitter {
-  _EsmEmitter(this.component);
+  _EsmEmitter(this.component, {required this.runMain});
 
   final k.Component component;
+  final bool runMain;
   var _buffer = StringBuffer();
   final _diagnostics = <String>[];
   final _procedureNames = <k.Procedure, String>{};
@@ -65,7 +66,9 @@ final class _EsmEmitter {
         writeln();
       }
     }
-    _emitMainCall(main);
+    if (runMain) {
+      _emitMainCall(main);
+    }
     final body = _buffer.toString();
     final helpers = _emitHelpers();
     return EsmBackendResult(
@@ -90,10 +93,7 @@ final class _EsmEmitter {
 
   _TopLevelFieldNames _freshTopLevelFieldNames(String name) {
     final base = _sanitizeIdentifier(name);
-    return _TopLevelFieldNames(
-      value: _freshName(base),
-      cell: _freshName('\$$base'),
-    );
+    return _TopLevelFieldNames(value: _freshName(base));
   }
 
   void _emitTopLevelField(k.Field field) {
@@ -105,20 +105,38 @@ final class _EsmEmitter {
     }
     final names = _fieldName(field);
     final initializer = field.initializer;
+    if (field.isConst) {
+      writeln(
+        'export const ${names.value} = ${_emitTopLevelConstInitializer(field)};',
+      );
+      return;
+    }
     _usedHelpers.add('__dartLazyField');
-    writeln('export let ${names.value};');
     final initializerCode = initializer == null
         ? 'null'
         : emitExpression(initializer);
-    if (field.hasSetter) {
-      writeln(
-        'const ${names.cell} = __dartLazyField(${jsonEncode(field.name.text)}, () => ${names.value}, (value) => ${names.value} = value, () => $initializerCode);',
-      );
-    } else {
-      writeln(
-        'const ${names.cell} = __dartFinalLazyField(${jsonEncode(field.name.text)}, () => ${names.value}, (value) => ${names.value} = value, () => $initializerCode);',
-      );
+    writeln(
+      'export const ${names.value} = __dartLazyField(${jsonEncode(field.name.text)}, () => $initializerCode, ${field.hasSetter});',
+    );
+  }
+
+  String _emitTopLevelConstInitializer(k.Field field) {
+    final initializer = field.initializer;
+    if (initializer == null) {
+      return 'null';
     }
+    if (initializer is k.ConstantExpression) {
+      return _emitEsmConst(initializer.constant);
+    }
+    return switch (initializer) {
+      k.NullLiteral() ||
+      k.BoolLiteral() ||
+      k.IntLiteral() ||
+      k.DoubleLiteral() ||
+      k.StringLiteral() ||
+      k.StaticTearOff() => emitExpression(initializer),
+      _ => throw UnsupportedKernelNode(field, 'top-level const initializer'),
+    };
   }
 
   void _emitClass(k.Class klass) {
@@ -137,6 +155,9 @@ final class _EsmEmitter {
         if (constructor.name.text.isNotEmpty) {
           throw UnsupportedKernelNode(constructor, 'named constructor');
         }
+        if (_canOmitConstructor(constructor, klass)) {
+          continue;
+        }
         _emitConstructor(constructor, klass);
       }
     }
@@ -152,11 +173,40 @@ final class _EsmEmitter {
   }
 
   void _emitDefaultConstructor(k.Class klass) {
+    if (!klass.fields.any((field) => !field.isStatic)) {
+      return;
+    }
     writeln('constructor() {');
     _indent++;
     _emitInstanceFieldDefaults(klass);
     _indent--;
     writeln('}');
+  }
+
+  bool _canOmitConstructor(k.Constructor constructor, k.Class klass) {
+    final function = constructor.function;
+    if (klass.fields.any((field) => !field.isStatic) ||
+        function.positionalParameters.isNotEmpty ||
+        function.namedParameters.isNotEmpty ||
+        constructor.initializers.any(_isEffectiveInitializer)) {
+      return false;
+    }
+    return _isEmptyBody(function.body);
+  }
+
+  bool _isEffectiveInitializer(k.Initializer initializer) {
+    return switch (initializer) {
+      k.SuperInitializer(:final isSynthetic) => !isSynthetic,
+      _ => true,
+    };
+  }
+
+  bool _isEmptyBody(k.Statement? body) {
+    return switch (body) {
+      null || k.EmptyStatement() => true,
+      k.Block(:final statements) => statements.every(_isEmptyBody),
+      _ => false,
+    };
   }
 
   void _emitConstructor(k.Constructor constructor, k.Class klass) {
@@ -166,7 +216,10 @@ final class _EsmEmitter {
     }
     writeln('constructor(${_emitParameterList(function)}) {');
     _indent++;
-    _emitInstanceFieldDefaults(klass);
+    _emitInstanceFieldDefaults(
+      klass,
+      skipFields: _initializedFields(constructor.initializers),
+    );
     for (final initializer in constructor.initializers) {
       _emitInitializer(initializer);
     }
@@ -201,9 +254,25 @@ final class _EsmEmitter {
     }
   }
 
-  void _emitInstanceFieldDefaults(k.Class klass) {
+  Set<k.Field> _initializedFields(List<k.Initializer> initializers) {
+    final fields = <k.Field>{};
+    for (final initializer in initializers) {
+      if (initializer is k.FieldInitializer) {
+        final field = initializer.fieldReference.node;
+        if (field is k.Field) {
+          fields.add(field);
+        }
+      }
+    }
+    return fields;
+  }
+
+  void _emitInstanceFieldDefaults(
+    k.Class klass, {
+    Set<k.Field> skipFields = const {},
+  }) {
     for (final field in klass.fields) {
-      if (field.isStatic) {
+      if (field.isStatic || skipFields.contains(field)) {
         continue;
       }
       final initializer = field.initializer;
@@ -355,7 +424,7 @@ final class _EsmEmitter {
         _indent--;
         writeln('}');
       case k.EmptyStatement():
-        writeln(';');
+        break;
       case k.ReturnStatement():
         final expression = statement.expression;
         writeln(
@@ -559,13 +628,10 @@ final class _EsmEmitter {
       case k.VariableSet():
         return '${_variableName(expression.variable)} = ${emitExpression(expression.value)}';
       case k.StringConcatenation():
-        _usedHelpers.add('__dartStr');
         if (expression.expressions.isEmpty) {
           return '""';
         }
-        return expression.expressions
-            .map((part) => '__dartStr(${emitExpression(part)})')
-            .join(' + ');
+        return expression.expressions.map(_emitStringPart).join(' + ');
       case k.StaticInvocation():
         return _emitStaticInvocation(expression);
       case k.StaticTearOff():
@@ -628,7 +694,7 @@ final class _EsmEmitter {
       case k.ThisExpression():
         return 'this';
       case k.ConstantExpression():
-        return _emitConstant(expression.constant);
+        return _emitEsmConst(expression.constant);
       case k.FunctionExpression():
         return _emitFunctionExpression(expression);
       default:
@@ -675,7 +741,15 @@ final class _EsmEmitter {
     return localBuffer.toString();
   }
 
-  String _emitConstant(k.Constant constant) {
+  String _emitStringPart(k.Expression expression) {
+    if (expression is k.StringLiteral) {
+      return emitExpression(expression);
+    }
+    _usedHelpers.add('__dartStr');
+    return '__dartStr(${emitExpression(expression)})';
+  }
+
+  String _emitEsmConst(k.Constant constant) {
     switch (constant) {
       case k.NullConstant():
         return 'null';
@@ -687,14 +761,13 @@ final class _EsmEmitter {
         return _emitDouble(constant.value);
       case k.StringConstant():
         return jsonEncode(constant.value);
-      case k.ListConstant():
-        return '[${constant.entries.map(_emitConstant).join(', ')}]';
-      case k.SetConstant():
-        return 'new Set([${constant.entries.map(_emitConstant).join(', ')}])';
-      case k.MapConstant():
-        return 'new Map([${constant.entries.map((entry) => '[${_emitConstant(entry.key)}, ${_emitConstant(entry.value)}]').join(', ')}])';
       case k.StaticTearOffConstant():
         return _emitStaticTearOffReference(constant.targetReference, constant);
+      case k.ListConstant() || k.SetConstant() || k.MapConstant():
+        throw UnsupportedKernelNode(
+          constant,
+          'const collection with Dart immutability/canonicalization semantics',
+        );
       default:
         throw UnsupportedKernelNode(constant, 'constant');
     }
@@ -790,7 +863,10 @@ final class _EsmEmitter {
   String _emitStaticGet(k.StaticGet expression) {
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
-      return '${_fieldName(target).cell}.get()';
+      if (target.isConst) {
+        return _fieldName(target).value;
+      }
+      return '${_fieldName(target).value}.get()';
     }
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
       return _procedureName(target);
@@ -807,7 +883,7 @@ final class _EsmEmitter {
       if (!target.hasSetter) {
         throw UnsupportedKernelNode(expression, 'write to final field');
       }
-      return '${_fieldName(target).cell}.set(${emitExpression(expression.value)})';
+      return '${_fieldName(target).value}.set(${emitExpression(expression.value)})';
     }
     throw UnsupportedKernelNode(
       expression,
@@ -1033,43 +1109,54 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartLazyField')) {
-      helper.writeln(
-        'function __dartLazyField(name, read, write, initialize) {',
-      );
+      helper.writeln('function __dartLazyField(name, initialize, writable) {');
       helper.writeln('  let state = 0;');
-      helper.writeln('  return {');
-      helper.writeln('    get() {');
-      helper.writeln('      if (state === 2) return read();');
-      helper.writeln('      if (state === 1) {');
+      helper.writeln('  let value;');
+      helper.writeln('  function get() {');
+      helper.writeln('    if (state === 2) return value;');
+      helper.writeln('    if (state === 1) {');
       helper.writeln(
-        '        throw new Error("Cyclic initialization of top-level field " + name);',
+        '      throw new Error("Cyclic initialization of top-level field " + name);',
       );
-      helper.writeln('      }');
-      helper.writeln('      state = 1;');
-      helper.writeln('      try {');
-      helper.writeln('        const value = initialize();');
-      helper.writeln('        write(value);');
-      helper.writeln('        state = 2;');
-      helper.writeln('        return value;');
-      helper.writeln('      } catch (error) {');
-      helper.writeln('        state = 0;');
-      helper.writeln('        throw error;');
-      helper.writeln('      }');
-      helper.writeln('    },');
-      helper.writeln('    set(value) {');
-      helper.writeln('      write(value);');
+      helper.writeln('    }');
+      helper.writeln('    state = 1;');
+      helper.writeln('    try {');
+      helper.writeln('      value = initialize();');
       helper.writeln('      state = 2;');
       helper.writeln('      return value;');
+      helper.writeln('    } catch (error) {');
+      helper.writeln('      state = 0;');
+      helper.writeln('      throw error;');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  function set(next) {');
+      helper.writeln('    if (!writable) {');
+      helper.writeln(
+        '      throw new TypeError("Cannot assign to final top-level field " + name);',
+      );
+      helper.writeln('    }');
+      helper.writeln('    value = next;');
+      helper.writeln('    state = 2;');
+      helper.writeln('    return next;');
+      helper.writeln('  }');
+      helper.writeln('  return new Proxy({ get, set }, {');
+      helper.writeln('    get(target, property, receiver) {');
+      helper.writeln('      if (property === Symbol.toPrimitive) return get;');
+      helper.writeln('      if (property === "valueOf") return get;');
+      helper.writeln(
+        '      if (property === "toString") return () => String(get());',
+      );
+      helper.writeln('      if (property === "value") return get();');
+      helper.writeln('      return Reflect.get(target, property, receiver);');
       helper.writeln('    },');
-      helper.writeln('  };');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartFinalLazyField(name, read, write, initialize) {',
-      );
-      helper.writeln(
-        '  const field = __dartLazyField(name, read, write, initialize);',
-      );
-      helper.writeln('  return { get: field.get };');
+      helper.writeln('    set(_target, property, next) {');
+      helper.writeln('      if (property === "value") {');
+      helper.writeln('        set(next);');
+      helper.writeln('        return true;');
+      helper.writeln('      }');
+      helper.writeln('      return false;');
+      helper.writeln('    },');
+      helper.writeln('  });');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartIterator')) {
@@ -1106,10 +1193,9 @@ final class _EsmEmitter {
 }
 
 final class _TopLevelFieldNames {
-  const _TopLevelFieldNames({required this.value, required this.cell});
+  const _TopLevelFieldNames({required this.value});
 
   final String value;
-  final String cell;
 }
 
 const _binaryOperators = {

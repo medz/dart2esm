@@ -2,4 +2,5 @@
 .packages
 build/
 coverage/
+node_modules/
 pubspec.lock

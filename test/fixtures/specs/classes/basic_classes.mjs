@@ -9,9 +9,7 @@ function __dartPrint(value) {
 
 export class Counter {
   constructor(value) {
-    this.value = null;
     this.value = value;
-    ;
   }
   add(amount) {
     this.value = (this.value + amount);
@@ -24,8 +22,8 @@ export class Counter {
 export function main() {
   const counter = new Counter(3);
   counter.add(4);
-  __dartPrint(__dartStr("value ") + __dartStr(counter.value));
-  __dartPrint(__dartStr("double ") + __dartStr(counter.doubled));
+  __dartPrint("value " + __dartStr(counter.value));
+  __dartPrint("double " + __dartStr(counter.doubled));
 }
 
 main();

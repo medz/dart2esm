@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "vitest": "^4.1.9"
+  },
+  "scripts": {
+    "test:esm": "vitest run"
+  }
+}

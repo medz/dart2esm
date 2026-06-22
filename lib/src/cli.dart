@@ -56,6 +56,7 @@ Future<int> runDart2Esm(
         outputPath: output,
         workingDirectory: Directory.current,
         packagesPath: results['packages'] as String?,
+        runMain: results['run-main'] as bool,
       ),
     );
     for (final diagnostic in result.diagnostics) {
@@ -83,6 +84,11 @@ ArgParser _buildParser() {
       'packages',
       valueHelp: 'package_config.json',
       help: 'Use an explicit package configuration when compiling Dart input.',
+    )
+    ..addFlag(
+      'run-main',
+      defaultsTo: true,
+      help: 'Emit a top-level main() invocation after module declarations.',
     )
     ..addFlag('version', negatable: false, help: 'Print the dart2esm version.')
     ..addFlag(

@@ -28,7 +28,7 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
     }
     final component = kernel.loadComponentFromBytes(kernelBytes);
 
-    final backendResult = emitEsm(component);
+    final backendResult = emitEsm(component, runMain: options.runMain);
     output.parent.createSync(recursive: true);
     output.writeAsStringSync(backendResult.code);
     return Dart2EsmResult(
@@ -104,12 +104,14 @@ final class Dart2EsmOptions {
     required this.outputPath,
     required this.workingDirectory,
     this.packagesPath,
+    this.runMain = true,
   });
 
   final String inputPath;
   final String outputPath;
   final Directory workingDirectory;
   final String? packagesPath;
+  final bool runMain;
 }
 
 final class Dart2EsmResult {

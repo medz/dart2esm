@@ -312,7 +312,11 @@ void main() {
         "const id = new UserId(5);\n"
         "console.log(id.value);\n"
         "console.log(id.plus(2));\n"
-        "console.log(id instanceof UserId);\n",
+        "console.log(id instanceof UserId);\n"
+        "const parsed = UserId.parse('9');\n"
+        "console.log(parsed.value);\n"
+        "console.log(UserId.zeroValue);\n"
+        "console.log(id['+'](3).value);\n",
       );
 
     final result = await compileDartToEsm(
@@ -335,7 +339,10 @@ void main() {
       nodeRun.stdout,
       '5\n'
       '7\n'
-      'true\n',
+      'true\n'
+      '9\n'
+      '0\n'
+      '8\n',
     );
     expect(nodeRun.stderr, isEmpty);
   });

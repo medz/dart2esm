@@ -499,21 +499,30 @@ final class _EsmEmitter {
     writeln('${export ? 'export ' : ''}class $className {');
     _indent++;
     for (final descriptor in declaration.memberDescriptors) {
-      if (descriptor.isInternalImplementation || descriptor.isStatic) {
+      if (descriptor.isInternalImplementation) {
         continue;
       }
       switch (descriptor.kind) {
         case k.ExtensionTypeMemberKind.Constructor:
           _emitExtensionTypeConstructor(declaration, descriptor);
         case k.ExtensionTypeMemberKind.Method:
+          if (descriptor.isStatic) {
+            _emitExtensionTypeStaticMethod(declaration, descriptor);
+          } else {
+            _emitExtensionTypeMethod(declaration, descriptor);
+          }
+        case k.ExtensionTypeMemberKind.Operator:
           _emitExtensionTypeMethod(declaration, descriptor);
         case k.ExtensionTypeMemberKind.Getter:
-          _emitExtensionTypeGetter(declaration, descriptor);
+          if (descriptor.isStatic) {
+            _emitExtensionTypeStaticGetter(declaration, descriptor);
+          } else {
+            _emitExtensionTypeGetter(declaration, descriptor);
+          }
         case k.ExtensionTypeMemberKind.Factory ||
             k.ExtensionTypeMemberKind.RedirectingFactory ||
             k.ExtensionTypeMemberKind.Field ||
-            k.ExtensionTypeMemberKind.Setter ||
-            k.ExtensionTypeMemberKind.Operator:
+            k.ExtensionTypeMemberKind.Setter:
           throw UnsupportedKernelNode(
             declaration,
             'extension type member ${descriptor.kind}',
@@ -577,9 +586,32 @@ final class _EsmEmitter {
         declaration,
         member.function,
       );
-      writeln('${_memberName(descriptor.name.text)}($parameters) {');
+      writeln('${_propertyKey(descriptor.name.text)}($parameters) {');
       _indent++;
-      writeln('return ${_procedureName(member)}($args);');
+      writeln(
+        'return ${_emitExtensionTypeReturn('${_procedureName(member)}($args)')};',
+      );
+      _indent--;
+      writeln('}');
+    });
+  }
+
+  void _emitExtensionTypeStaticMethod(
+    k.ExtensionTypeDeclaration declaration,
+    k.ExtensionTypeMemberDescriptor descriptor,
+  ) {
+    final member = descriptor.memberReference?.asMember;
+    if (member is! k.Procedure) {
+      throw UnsupportedKernelNode(declaration, 'extension type static method');
+    }
+    _withFunctionNameScope(() {
+      final parameters = _emitParameterList(member.function);
+      final args = _emitParameterForwardingArguments(member.function);
+      writeln('static ${_propertyKey(descriptor.name.text)}($parameters) {');
+      _indent++;
+      writeln(
+        'return ${_emitExtensionTypeReturn('${_procedureName(member)}($args)')};',
+      );
       _indent--;
       writeln('}');
     });
@@ -600,11 +632,34 @@ final class _EsmEmitter {
       );
       writeln('get ${_memberName(descriptor.name.text)}() {');
       _indent++;
-      writeln('return ${_procedureName(member)}($args);');
+      writeln(
+        'return ${_emitExtensionTypeReturn('${_procedureName(member)}($args)')};',
+      );
       _indent--;
       writeln('}');
     });
   }
+
+  void _emitExtensionTypeStaticGetter(
+    k.ExtensionTypeDeclaration declaration,
+    k.ExtensionTypeMemberDescriptor descriptor,
+  ) {
+    final member = descriptor.memberReference?.asMember;
+    if (member is! k.Procedure) {
+      throw UnsupportedKernelNode(declaration, 'extension type static getter');
+    }
+    _withFunctionNameScope(() {
+      writeln('static get ${_memberName(descriptor.name.text)}() {');
+      _indent++;
+      writeln(
+        'return ${_emitExtensionTypeReturn('${_procedureName(member)}()')};',
+      );
+      _indent--;
+      writeln('}');
+    });
+  }
+
+  String _emitExtensionTypeReturn(String value) => value;
 
   String _emitExtensionTypeInstanceParameterList(k.FunctionNode function) {
     for (final parameter in function.positionalParameters.skip(1)) {
@@ -2510,11 +2565,16 @@ final class _EsmEmitter {
           return '$className.${_memberName(descriptor.name.text)}';
         }
         return _emitExtensionTypeInstanceGet(descriptor, arguments, node);
+      case k.ExtensionTypeMemberKind.Operator:
+        return _emitExtensionTypeInstanceInvocation(
+          descriptor,
+          arguments,
+          node,
+        );
       case k.ExtensionTypeMemberKind.Factory ||
           k.ExtensionTypeMemberKind.RedirectingFactory ||
           k.ExtensionTypeMemberKind.Field ||
-          k.ExtensionTypeMemberKind.Setter ||
-          k.ExtensionTypeMemberKind.Operator:
+          k.ExtensionTypeMemberKind.Setter:
         throw UnsupportedKernelNode(
           node,
           'extension type invocation ${descriptor.kind}',
@@ -2532,7 +2592,7 @@ final class _EsmEmitter {
     }
     final receiver = emitExpression(arguments.positional.first);
     final args = _emitArgumentsWithoutFirstPositional(arguments);
-    return '${_emitPropertyGet(receiver, _memberName(descriptor.name.text))}($args)';
+    return '${_emitPropertyGet(receiver, descriptor.name.text)}($args)';
   }
 
   String _emitExtensionTypeInstanceGet(
@@ -3562,8 +3622,19 @@ final class _EsmEmitter {
         variable.type.unalias is k.ExtensionType
             ? variable.type.unalias as k.ExtensionType
             : null,
+      k.StaticInvocation(:final targetReference) => _memberReturnExtensionType(
+        targetReference.node,
+      ),
       _ => null,
     };
+  }
+
+  k.ExtensionType? _memberReturnExtensionType(Object? node) {
+    if (node is! k.Procedure) {
+      return null;
+    }
+    final returnType = node.function.returnType.unalias;
+    return returnType is k.ExtensionType ? returnType : null;
   }
 
   String _emitExtensionTypeRepresentation(

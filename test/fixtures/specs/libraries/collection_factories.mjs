@@ -203,7 +203,7 @@ export function main() {
   const map = __dartMapFromEntries(new Map([["one", 1], ["two", 2]]));
   const mapOf = __dartMapFromEntries(map);
   const mapFixed = __dartConstMap(mapOf);
-  __dartPrint("map " + __dartStr(mapFixed.size) + " " + __dartStr(__dartMapGet(mapFixed, "one")) + " " + __dartStr(__dartIterableJoin(mapFixed.keys(), ",")));
+  __dartPrint("map " + __dartStr(mapFixed.size) + " " + __dartStr(__dartMapGet(mapFixed, "one")) + " " + __dartStr(__dartIterableJoin(Array.from(mapFixed.keys()), ",")));
   const eqMapSource = new Map([]);
   __dartMapSet(eqMapSource, new EqBox(1), "one");
   __dartMapSet(eqMapSource, new EqBox(1), "uno");

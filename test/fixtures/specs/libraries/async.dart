@@ -1,6 +1,10 @@
 import 'dart:async';
 
+String __dartTimer(String value) => 'user:$value';
+
 Future<void> main() async {
+  print(__dartTimer('timer'));
+
   final first = await Future<int>.value(1);
   final second = await Future<int>.sync(() => 2);
   final delayed = await Future<int>.delayed(

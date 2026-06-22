@@ -46,6 +46,16 @@ function __dartStringBuffer(initial = "") {
     get isNotEmpty() { return value.length !== 0; },
   };
 }
+function __dartExpando(name = null) {
+  const values = new WeakMap();
+  const expando = {
+    get(object) { return values.has(object) ? values.get(object) : null; },
+    set(object, value) { values.set(object, value); return null; },
+    toString() { return name == null ? "Expando" : "Expando:" + String(name); },
+  };
+  Object.defineProperty(expando, "__dartType", { value: "Expando" });
+  return Object.freeze(expando);
+}
 const __dartTypeCache = new Map();
 function __dartType(name) {
   if (__dartTypeCache.has(name)) return __dartTypeCache.get(name);
@@ -130,6 +140,10 @@ function __dartObjectHashUnordered(values) {
 export class PlainObject {
 }
 
+export function hide(value) {
+  return value;
+}
+
 export function main() {
   const buffer = __dartStringBuffer("hello");
   buffer.write(" ");
@@ -142,6 +156,10 @@ export function main() {
   __dartPrint("writeAll " + __dartStr(__dartIterableLast(__dartStr(buffer).split("\n"))));
   buffer.clear();
   __dartPrint("cleared " + __dartStr(buffer.isEmpty) + " " + __dartStr(__dartStr(buffer)));
+  const expando = __dartExpando("count");
+  const expandoKey = new PlainObject();
+  expando.set(expandoKey, 7);
+  __dartPrint("expando " + __dartStr(expando.get(expandoKey)) + " " + __dartStr(expando.get(new PlainObject())) + " " + __dartStr(hide(expando) != null && typeof hide(expando) === "object" && hide(expando).__dartType === "Expando") + " " + __dartStr(__dartStr(expando).includes("count")));
   const encoded = encodeURIComponent("a b/ç");
   __dartPrint("uri " + __dartStr(encoded) + " " + __dartStr(decodeURIComponent(encoded)));
   const full = encodeURI("https://example.test/a b?q=ç");

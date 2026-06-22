@@ -1,5 +1,7 @@
 class PlainObject {}
 
+dynamic hide(Object? value) => value;
+
 void main() {
   final buffer = StringBuffer('hello');
   buffer.write(' ');
@@ -14,6 +16,14 @@ void main() {
   print('writeAll ${buffer.toString().split('\n').last}');
   buffer.clear();
   print('cleared ${buffer.isEmpty} ${buffer.toString()}');
+
+  final expando = Expando<int>('count');
+  final expandoKey = PlainObject();
+  expando[expandoKey] = 7;
+  print(
+    'expando ${expando[expandoKey]} ${expando[PlainObject()]} '
+    '${hide(expando) is Expando} ${expando.toString().contains('count')}',
+  );
 
   final encoded = Uri.encodeComponent('a b/ç');
   print('uri $encoded ${Uri.decodeComponent(encoded)}');

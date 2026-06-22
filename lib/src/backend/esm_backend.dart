@@ -2718,6 +2718,12 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStreamIterator');
       return '__dartStreamIterator(${_emitArguments(expression.arguments)})';
     }
+    if (_isCoreExpandoConstructorReference(expression.targetReference) &&
+        positionalArgs.length <= 1) {
+      _usedHelpers.add('__dartExpando');
+      final name = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return '__dartExpando($name)';
+    }
     if (_isCollectionQueueConstructorReference(expression.targetReference)) {
       return '[]';
     }
@@ -3326,6 +3332,9 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == '[]' &&
         positionalArgs.length == 1) {
+      if (_isCoreMember(target, 'Expando', '[]')) {
+        return '$left.get(${positionalArgs.single})';
+      }
       if (_isCoreMember(target, 'Map', '[]')) {
         return '$left.get(${positionalArgs.single})';
       }
@@ -3337,6 +3346,9 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == '[]=' &&
         positionalArgs.length == 2) {
+      if (_isCoreMember(target, 'Expando', '[]=')) {
+        return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
       if (_isCoreMember(target, 'Map', '[]=')) {
         return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
       }
@@ -4864,6 +4876,8 @@ final class _EsmEmitter {
         'int' || 'double' || 'num' => 'typeof $operand === "number"',
         'bool' => 'typeof $operand === "boolean"',
         'Null' => '$operand === null',
+        'Expando' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "Expando"',
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
         'TypedData' => 'ArrayBuffer.isView($operand)',
@@ -5931,6 +5945,12 @@ final class _EsmEmitter {
     ).startsWith('dart:async::_StreamIterator::@constructors::');
   }
 
+  bool _isCoreExpandoConstructorReference(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:core::Expando::@constructors::');
+  }
+
   bool _isMathPointConstructorReference(k.Reference reference) {
     return _referencePath(
       reference,
@@ -6439,6 +6459,26 @@ final class _EsmEmitter {
       helper.writeln('    get isEmpty() { return value.length === 0; },');
       helper.writeln('    get isNotEmpty() { return value.length !== 0; },');
       helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartExpando')) {
+      helper.writeln('function __dartExpando(name = null) {');
+      helper.writeln('  const values = new WeakMap();');
+      helper.writeln('  const expando = {');
+      helper.writeln(
+        '    get(object) { return values.has(object) ? values.get(object) : null; },',
+      );
+      helper.writeln(
+        '    set(object, value) { values.set(object, value); return null; },',
+      );
+      helper.writeln(
+        '    toString() { return name == null ? "Expando" : "Expando:" + String(name); },',
+      );
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(expando, "__dartType", { value: "Expando" });',
+      );
+      helper.writeln('  return Object.freeze(expando);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStringPattern')) {
@@ -9061,6 +9101,7 @@ const _generatedGlobalNames = {
   '__dartDoubleParse',
   '__dartDoubleTryParse',
   '__dartDuration',
+  '__dartExpando',
   '__dartEquals',
   '__dartFormatException',
   '__dartFromJson',

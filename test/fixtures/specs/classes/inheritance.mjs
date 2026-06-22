@@ -11,6 +11,12 @@ export class Animal {
   constructor(name) {
     this.name = name;
   }
+  get label() {
+    return "animal " + __dartStr(this.name);
+  }
+  set label(value) {
+    this.name = value;
+  }
   describe() {
     return "animal " + __dartStr(this.name);
   }
@@ -22,25 +28,31 @@ export class Dog extends Animal {
     this.age = age;
   }
   describe() {
-    return "dog " + __dartStr(this.name) + " " + __dartStr(this.age);
+    return __dartStr(super.describe()) + " dog " + __dartStr(this.age);
   }
   birthday() {
     this.age = (this.age + 1);
     return this.describe();
   }
+  rename(value_1) {
+    super.label = value_1;
+    return super.label;
+  }
 }
 
-export function identity(value) {
-  return value;
+export function identity(value_2) {
+  return value_2;
 }
 
 export function main() {
   const dog = new Dog("Rex", 4);
-  const value_1 = identity(dog);
+  const value_3 = identity(dog);
   __dartPrint(dog.describe());
   __dartPrint(dog.birthday());
-  __dartPrint("animal " + __dartStr(value_1 instanceof Animal));
-  __dartPrint("dog " + __dartStr(value_1 instanceof Dog));
+  __dartPrint(dog.rename("Ada"));
+  __dartPrint(dog.describe());
+  __dartPrint("animal " + __dartStr(value_3 instanceof Animal));
+  __dartPrint("dog " + __dartStr(value_3 instanceof Dog));
 }
 
 main();

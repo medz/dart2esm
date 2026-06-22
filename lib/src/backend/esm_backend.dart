@@ -847,6 +847,8 @@ final class _EsmEmitter {
           expression.name.text,
           expression.arguments,
         );
+      case k.SuperMethodInvocation():
+        return _emitSuperMethodInvocation(expression);
       case k.FunctionInvocation():
         return _emitFunctionInvocation(expression);
       case k.LocalFunctionInvocation():
@@ -905,6 +907,10 @@ final class _EsmEmitter {
         return _emitInstanceGet(expression);
       case k.InstanceSet():
         return '${emitExpression(expression.receiver)}.${_memberName(expression.name.text)} = ${emitExpression(expression.value)}';
+      case k.SuperPropertyGet():
+        return _emitSuperPropertyGet(expression);
+      case k.SuperPropertySet():
+        return _emitSuperPropertySet(expression);
       case k.ThisExpression():
         return 'this';
       case k.ConstantExpression():
@@ -1283,6 +1289,18 @@ final class _EsmEmitter {
       return '__dartIterator(${emitExpression(expression.receiver)})';
     }
     return '${emitExpression(expression.receiver)}.${_memberName(name)}';
+  }
+
+  String _emitSuperMethodInvocation(k.SuperMethodInvocation expression) {
+    return 'super.${_memberName(expression.name.text)}(${_emitArguments(expression.arguments)})';
+  }
+
+  String _emitSuperPropertyGet(k.SuperPropertyGet expression) {
+    return 'super.${_memberName(expression.name.text)}';
+  }
+
+  String _emitSuperPropertySet(k.SuperPropertySet expression) {
+    return 'super.${_memberName(expression.name.text)} = ${emitExpression(expression.value)}';
   }
 
   String _emitDynamicInvocation(k.DynamicInvocation expression) {

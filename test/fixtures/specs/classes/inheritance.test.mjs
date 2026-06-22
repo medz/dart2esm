@@ -7,8 +7,10 @@ describe('classes/inheritance.mjs', () => {
       const module = await import('./inheritance.mjs');
 
       expect(log.mock.calls.map(([value]) => value)).toEqual([
-        'dog Rex 4',
-        'dog Rex 5',
+        'animal Rex dog 4',
+        'animal Rex dog 5',
+        'animal Ada',
+        'animal Ada dog 5',
         'animal true',
         'dog true',
       ]);
@@ -18,8 +20,10 @@ describe('classes/inheritance.mjs', () => {
       expect(dog).toBeInstanceOf(module.Animal);
       expect(dog.name).toBe('Ada');
       expect(dog.age).toBe(2);
-      expect(dog.describe()).toBe('dog Ada 2');
-      expect(dog.birthday()).toBe('dog Ada 3');
+      expect(dog.describe()).toBe('animal Ada dog 2');
+      expect(dog.birthday()).toBe('animal Ada dog 3');
+      expect(dog.rename('Grace')).toBe('animal Grace');
+      expect(dog.describe()).toBe('animal Grace dog 3');
     } finally {
       log.mockRestore();
     }

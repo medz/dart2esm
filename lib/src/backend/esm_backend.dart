@@ -106,7 +106,7 @@ final class _EsmEmitter {
       _emitTopLevelField(field, export: export);
       writeln();
     }
-    for (final klass in library.classes) {
+    for (final klass in _classesInEmitOrder(library)) {
       _emitClass(klass, export: export);
       writeln();
     }
@@ -116,6 +116,40 @@ final class _EsmEmitter {
         writeln();
       }
     }
+  }
+
+  List<k.Class> _classesInEmitOrder(k.Library library) {
+    final classes = library.classes.toSet();
+    final emitted = <k.Class>{};
+    final visiting = <k.Class>{};
+    final result = <k.Class>[];
+
+    void visit(k.Class klass) {
+      if (emitted.contains(klass)) {
+        return;
+      }
+      if (!visiting.add(klass)) {
+        throw UnsupportedKernelNode(klass, 'cyclic class hierarchy');
+      }
+      final supertype = klass.supertype;
+      if (supertype != null && !_isCoreClass(supertype.className, 'Object')) {
+        final superclassPath = _referencePath(supertype.className);
+        if (!superclassPath.startsWith('dart:')) {
+          final superclass = supertype.classNode;
+          if (classes.contains(superclass)) {
+            visit(superclass);
+          }
+        }
+      }
+      visiting.remove(klass);
+      emitted.add(klass);
+      result.add(klass);
+    }
+
+    for (final klass in library.classes) {
+      visit(klass);
+    }
+    return result;
   }
 
   void _declareTopLevelNames(k.Library library) {
@@ -686,6 +720,9 @@ final class _EsmEmitter {
   }
 
   void _emitSuperInitializer(k.SuperInitializer initializer) {
+    if (_isCoreObjectConstructorReference(initializer.targetReference)) {
+      return;
+    }
     final target = initializer.target;
     if (_isCoreClass(target.enclosingClass.reference, 'Object')) {
       return;
@@ -707,6 +744,30 @@ final class _EsmEmitter {
       }
     }
     return fields;
+  }
+
+  void _emitVariableDeclaration(k.VariableDeclaration statement) {
+    _declareVariable(statement);
+    final initializer = statement.initializer;
+    final keyword = statement.isFinal || statement.isConst ? 'const' : 'let';
+    writeln(
+      '$keyword ${_variableName(statement)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
+    );
+  }
+
+  void _emitVariableInitialization(k.VariableInitialization statement) {
+    final variable = statement.variable;
+    final initializer = statement.initializer == null
+        ? 'null'
+        : emitExpression(statement.initializer!);
+    final existingName = _variableNames[variable];
+    if (existingName == null) {
+      _declareVariable(variable);
+      final keyword = variable.isFinal || variable.isConst ? 'const' : 'let';
+      writeln('$keyword ${_variableName(variable)} = $initializer;');
+      return;
+    }
+    writeln('$existingName = $initializer;');
   }
 
   void _emitInstanceFieldDefaults(
@@ -979,14 +1040,9 @@ final class _EsmEmitter {
               : 'return ${emitExpression(expression)};',
         );
       case k.VariableDeclaration():
-        _declareVariable(statement);
-        final initializer = statement.initializer;
-        final keyword = statement.isFinal || statement.isConst
-            ? 'const'
-            : 'let';
-        writeln(
-          '$keyword ${_variableName(statement)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
-        );
+        _emitVariableDeclaration(statement);
+      case k.VariableInitialization():
+        _emitVariableInitialization(statement);
       case k.FunctionDeclaration():
         _emitFunctionDeclaration(statement);
       case k.IfStatement():
@@ -2367,6 +2423,12 @@ final class _EsmEmitter {
     return _referencePath(
       reference,
     ).startsWith('dart:core::_GrowableList::@factories::dart:core::_literal');
+  }
+
+  bool _isCoreObjectConstructorReference(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:core::Object::@constructors::');
   }
 
   bool _isCoreClass(k.Reference reference, String name) {

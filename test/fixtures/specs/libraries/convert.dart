@@ -58,6 +58,24 @@ void main() {
       .join(',');
   print('fuse $fusedEncoded $fusedDecoded $fusedConverter $fusedJsonUtf8');
 
+  final chunkedBytes = <int>[];
+  final byteSink = ByteConversionSink.withCallback((bytes) {
+    chunkedBytes.addAll(bytes);
+  });
+  final chunkedEncoder = const Utf8Encoder().startChunkedConversion(byteSink);
+  chunkedEncoder.add('h');
+  chunkedEncoder.add('é');
+  chunkedEncoder.close();
+  final chunkedText = <String>[];
+  final stringSink = StringConversionSink.withCallback((value) {
+    chunkedText.add(value);
+  });
+  final chunkedDecoder = const Utf8Decoder().startChunkedConversion(stringSink);
+  chunkedDecoder.add([104]);
+  chunkedDecoder.add([105]);
+  chunkedDecoder.close();
+  print('chunked ${chunkedBytes.join(',')} ${chunkedText.join('|')}');
+
   final escaped = const HtmlEscape().convert('<a&b>"\'/');
   print('html $escaped');
 

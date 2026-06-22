@@ -5912,6 +5912,16 @@ final class _EsmEmitter {
       final mode = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return '__dartHtmlEscape($mode)';
     }
+    if (path.startsWith('dart:convert::_ByteCallbackSink::@constructors::') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartByteConversionSink');
+      return '__dartByteConversionSink(${positionalArgs.single})';
+    }
+    if (path.startsWith('dart:convert::_StringCallbackSink::@constructors::') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStringConversionSink');
+      return '__dartStringConversionSink(${positionalArgs.single})';
+    }
     if (path.startsWith('dart:core::StringBuffer::@constructors::')) {
       if (positionalArgs.length > 1) {
         return null;
@@ -6549,6 +6559,17 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
+    if (path == 'dart:convert::ByteConversionSink::@factories::withCallback' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartByteConversionSink');
+      return '__dartByteConversionSink(${positionalArgs.single})';
+    }
+    if (path ==
+            'dart:convert::StringConversionSink::@factories::withCallback' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStringConversionSink');
+      return '__dartStringConversionSink(${positionalArgs.single})';
+    }
     if (path == 'dart:convert::LineSplitter::@methods::split' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartLineSplitter');
@@ -7395,7 +7416,9 @@ final class _EsmEmitter {
         usesLatin1 ||
         usesBase64 ||
         _usedHelpers.contains('__dartLineSplitter') ||
-        _usedHelpers.contains('__dartHtmlEscape');
+        _usedHelpers.contains('__dartHtmlEscape') ||
+        _usedHelpers.contains('__dartByteConversionSink') ||
+        _usedHelpers.contains('__dartStringConversionSink');
     if (usesRecord) {
       helper.writeln('const __dartRecordShape = Symbol("dart.recordShape");');
       helper.writeln('function __dartIsRecord(value) {');
@@ -8932,6 +8955,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartJsonDecoder(reviver = null) {');
@@ -8944,6 +8970,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -8958,6 +8987,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -8982,6 +9014,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9013,6 +9048,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartUtf8Decoder(allowMalformed = false) {');
@@ -9022,6 +9060,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9042,6 +9083,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9085,6 +9129,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartAsciiDecoder(allowInvalid = false) {');
@@ -9094,6 +9141,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9114,6 +9164,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9157,6 +9210,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartLatin1Decoder(allowInvalid = false) {');
@@ -9166,6 +9222,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9186,6 +9245,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9268,6 +9330,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartBase64Decoder() {');
@@ -9277,6 +9342,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9300,6 +9368,9 @@ final class _EsmEmitter {
       helper.writeln('    get decoder() { return __dartBase64Decoder(); },');
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9446,6 +9517,71 @@ final class _EsmEmitter {
       );
       helper.writeln('  }');
       helper.writeln('  return fused;');
+      helper.writeln('}');
+      helper.writeln('function __dartConverterStartChunked(converter, sink) {');
+      helper.writeln('  const chunks = [];');
+      helper.writeln('  const input = {');
+      helper.writeln('    add(value) { chunks.push(value); return null; },');
+      helper.writeln('    addSlice(value, start, end, isLast = false) {');
+      helper.writeln(
+        '      const slice = typeof value === "string" ? value.slice(start, end) : Array.from(value).slice(start, end);',
+      );
+      helper.writeln('      chunks.push(slice);');
+      helper.writeln('      if (isLast) this.close();');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    close() {');
+      helper.writeln('      let value;');
+      helper.writeln('      if (chunks.length === 0) value = "";');
+      helper.writeln(
+        '      else if (chunks.every((chunk) => typeof chunk === "string")) value = chunks.join("");',
+      );
+      helper.writeln(
+        '      else if (chunks.every((chunk) => Array.isArray(chunk) || ArrayBuffer.isView(chunk))) value = chunks.flatMap((chunk) => Array.from(chunk));',
+      );
+      helper.writeln(
+        '      else value = chunks.length === 1 ? chunks[0] : chunks;',
+      );
+      helper.writeln(
+        '      sink.add(__dartConverterConvert(converter, value));',
+      );
+      helper.writeln(
+        '      if (typeof sink.close === "function") sink.close();',
+      );
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('  return input;');
+      helper.writeln('}');
+      helper.writeln('function __dartByteConversionSink(callback) {');
+      helper.writeln('  const bytes = [];');
+      helper.writeln('  let closed = false;');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    add(chunk) { if (closed) return null; bytes.push(...Array.from(chunk)); return null; },',
+      );
+      helper.writeln(
+        '    addSlice(chunk, start, end, isLast = false) { if (closed) return null; bytes.push(...Array.from(chunk).slice(start, end)); if (isLast) this.close(); return null; },',
+      );
+      helper.writeln(
+        '    close() { if (closed) return null; closed = true; callback(bytes); return null; },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartStringConversionSink(callback) {');
+      helper.writeln('  let text = "";');
+      helper.writeln('  let closed = false;');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    add(chunk) { if (closed) return null; text += String(chunk); return null; },',
+      );
+      helper.writeln(
+        '    addSlice(chunk, start, end, isLast = false) { if (closed) return null; text += String(chunk).slice(start, end); if (isLast) this.close(); return null; },',
+      );
+      helper.writeln(
+        '    close() { if (closed) return null; closed = true; callback(text); return null; },',
+      );
+      helper.writeln('  };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSymbol')) {
@@ -11856,6 +11992,7 @@ const _generatedGlobalNames = {
   '__dartBind',
   '__dartBigIntBitLength',
   '__dartBigIntParse',
+  '__dartByteConversionSink',
   '__dartCompleter',
   '__dartConst',
   '__dartConstMap',
@@ -11863,6 +12000,7 @@ const _generatedGlobalNames = {
   '__dartConstValues',
   '__dartConverterConvert',
   '__dartConverterFuse',
+  '__dartConverterStartChunked',
   '__dartCoreError',
   '__dartDateTime',
   '__dartDateTimeCopyWith',
@@ -12057,6 +12195,7 @@ const _generatedGlobalNames = {
   '__dartStreamController',
   '__dartStreamIterator',
   '__dartStringBuffer',
+  '__dartStringConversionSink',
   '__dartStringAllMatches',
   '__dartStringContains',
   '__dartStringIndexOf',

@@ -321,12 +321,14 @@ function __dartUtf8Encoder() {
   return {
     convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },
     fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
   };
 }
 function __dartUtf8Decoder(allowMalformed = false) {
   return {
     convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },
     fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
   };
 }
 function __dartUtf8Codec(allowMalformed = false) {
@@ -337,6 +339,7 @@ function __dartUtf8Codec(allowMalformed = false) {
     get encoder() { return __dartUtf8Encoder(); },
     get decoder() { return __dartUtf8Decoder(allowMalformed); },
     fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
   };
 }
 function __dartBase64Encode(bytes, urlSafe = false) {
@@ -380,12 +383,14 @@ function __dartBase64Encoder(urlSafe = false) {
   return {
     convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },
     fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
   };
 }
 function __dartBase64Decoder() {
   return {
     convert(source, start = 0, end = null) { return __dartBase64Decode(String(source).slice(start, end ?? undefined)); },
     fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
   };
 }
 function __dartBase64Codec(urlSafe = false) {
@@ -397,6 +402,7 @@ function __dartBase64Codec(urlSafe = false) {
     get encoder() { return __dartBase64Encoder(urlSafe); },
     get decoder() { return __dartBase64Decoder(); },
     fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
   };
 }
 function __dartConverterConvert(converter, value) {
@@ -416,6 +422,47 @@ function __dartConverterFuse(first, second) {
     Object.defineProperty(fused, "decoder", { get() { return __dartConverterFuse(second.decoder, first.decoder); } });
   }
   return fused;
+}
+function __dartConverterStartChunked(converter, sink) {
+  const chunks = [];
+  const input = {
+    add(value) { chunks.push(value); return null; },
+    addSlice(value, start, end, isLast = false) {
+      const slice = typeof value === "string" ? value.slice(start, end) : Array.from(value).slice(start, end);
+      chunks.push(slice);
+      if (isLast) this.close();
+      return null;
+    },
+    close() {
+      let value;
+      if (chunks.length === 0) value = "";
+      else if (chunks.every((chunk) => typeof chunk === "string")) value = chunks.join("");
+      else if (chunks.every((chunk) => Array.isArray(chunk) || ArrayBuffer.isView(chunk))) value = chunks.flatMap((chunk) => Array.from(chunk));
+      else value = chunks.length === 1 ? chunks[0] : chunks;
+      sink.add(__dartConverterConvert(converter, value));
+      if (typeof sink.close === "function") sink.close();
+      return null;
+    },
+  };
+  return input;
+}
+function __dartByteConversionSink(callback) {
+  const bytes = [];
+  let closed = false;
+  return {
+    add(chunk) { if (closed) return null; bytes.push(...Array.from(chunk)); return null; },
+    addSlice(chunk, start, end, isLast = false) { if (closed) return null; bytes.push(...Array.from(chunk).slice(start, end)); if (isLast) this.close(); return null; },
+    close() { if (closed) return null; closed = true; callback(bytes); return null; },
+  };
+}
+function __dartStringConversionSink(callback) {
+  let text = "";
+  let closed = false;
+  return {
+    add(chunk) { if (closed) return null; text += String(chunk); return null; },
+    addSlice(chunk, start, end, isLast = false) { if (closed) return null; text += String(chunk).slice(start, end); if (isLast) this.close(); return null; },
+    close() { if (closed) return null; closed = true; callback(text); return null; },
+  };
 }
 function __dartNullCheck(value) {
   if (value == null) {

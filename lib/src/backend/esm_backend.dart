@@ -3420,6 +3420,21 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStreamController');
       return '__dartStreamController()';
     }
+    if (path == 'dart:async::Timer::@factories::' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartTimer');
+      return '__dartTimer(${positionalArgs[0]}, ${positionalArgs[1]}, false)';
+    }
+    if (path == 'dart:async::Timer::@factories::periodic' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartTimer');
+      return '__dartTimer(${positionalArgs[0]}, ${positionalArgs[1]}, true)';
+    }
+    if (path == 'dart:async::Timer::@methods::run' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartTimer');
+      return '(__dartTimer(0, ${positionalArgs.single}, false), null)';
+    }
     if (path == 'dart:async::Stream::@factories::fromIterable' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartStream');
@@ -5054,6 +5069,41 @@ final class _EsmEmitter {
       helper.writeln('      return null;');
       helper.writeln('    },');
       helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartTimer')) {
+      helper.writeln('function __dartTimer(duration, callback, periodic) {');
+      helper.writeln(
+        '  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);',
+      );
+      helper.writeln('  let active = true;');
+      helper.writeln('  let tick = 0;');
+      helper.writeln('  let id;');
+      helper.writeln('  const timer = {');
+      helper.writeln('    get tick() { return tick; },');
+      helper.writeln('    get isActive() { return active; },');
+      helper.writeln('    cancel() {');
+      helper.writeln('      if (!active) return null;');
+      helper.writeln('      active = false;');
+      helper.writeln('      periodic ? clearInterval(id) : clearTimeout(id);');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('  if (periodic) {');
+      helper.writeln('    id = setInterval(() => {');
+      helper.writeln('      if (!active) return;');
+      helper.writeln('      tick++;');
+      helper.writeln('      callback(timer);');
+      helper.writeln('    }, delay);');
+      helper.writeln('  } else {');
+      helper.writeln('    id = setTimeout(() => {');
+      helper.writeln('      if (!active) return;');
+      helper.writeln('      active = false;');
+      helper.writeln('      tick = 1;');
+      helper.writeln('      callback();');
+      helper.writeln('    }, delay);');
+      helper.writeln('  }');
+      helper.writeln('  return timer;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStreamController')) {

@@ -37,6 +37,36 @@ Future<void> main() async {
     print('completeError $error');
   }
 
+  final timerDone = Completer<String>();
+  final timer = Timer(const Duration(milliseconds: 1), () {
+    timerDone.complete('fired');
+  });
+  print('timer-start ${timer.isActive} ${timer.tick}');
+  print('timer ${await timerDone.future} ${timer.isActive}');
+
+  var canceledFired = false;
+  final canceled = Timer(const Duration(milliseconds: 5), () {
+    canceledFired = true;
+  });
+  canceled.cancel();
+  await Future<void>.delayed(const Duration(milliseconds: 10));
+  print('cancel ${canceled.isActive} $canceledFired');
+
+  final runDone = Completer<String>();
+  Timer.run(() {
+    runDone.complete('run');
+  });
+  print('run ${await runDone.future}');
+
+  final periodicDone = Completer<int>();
+  Timer.periodic(const Duration(milliseconds: 1), (timer) {
+    if (timer.tick >= 2) {
+      periodicDone.complete(timer.tick);
+      timer.cancel();
+    }
+  });
+  print('periodic ${await periodicDone.future}');
+
   try {
     await Future.error('boom');
   } catch (error) {

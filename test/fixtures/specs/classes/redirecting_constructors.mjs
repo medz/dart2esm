@@ -43,6 +43,100 @@ function $Point_alias($newTarget_2, value) {
   return $Point_named($newTarget_2, value, (value + 1), "alias");
 }
 
+export class Pair {
+  constructor() {
+    return $Pair_named(new.target, 0, 1, "default");
+  }
+  static named(left, right, label_1) {
+    return $Pair_named(Pair, left, right, label_1);
+  }
+  static mirror(value_1) {
+    return $Pair_mirror(Pair, value_1);
+  }
+  describe() {
+    return __dartStr(this.label) + ":" + __dartStr(this.left) + "," + __dartStr(this.right);
+  }
+}
+
+function $Pair_named($newTarget_3, left, right, label_1) {
+  const $self_3 = Object.create($newTarget_3.prototype);
+  $self_3.left = left;
+  $self_3.right = right;
+  $self_3.label = label_1;
+  return $self_3;
+}
+
+function $Pair_mirror($newTarget_4, value_1) {
+  return $Pair_named($newTarget_4, value_1, value_1, "mirror");
+}
+
+export class Range {
+  constructor() {
+    throw new TypeError("Class Range has no unnamed constructor");
+  }
+  static start(start = 0) {
+    return $Range_start(Range, start);
+  }
+  static between(start_1, end) {
+    return $Range_between(Range, start_1, end);
+  }
+  describe() {
+    return __dartStr(this.start) + ".." + __dartStr(this.end);
+  }
+}
+
+function $Range_start($newTarget_5, start = 0) {
+  return $Range_between($newTarget_5, start, (start + 10));
+}
+
+function $Range_between($newTarget_6, start_1, end) {
+  const $self_6 = Object.create($newTarget_6.prototype);
+  $self_6.start = start_1;
+  $self_6.end = end;
+  return $self_6;
+}
+
+export class Options {
+  constructor() {
+    throw new TypeError("Class Options has no unnamed constructor");
+  }
+  static named({ count, label: label_2 = "default", enabled = true } = {}) {
+    return $Options_named(Options, { count: count, label: label_2, enabled: enabled });
+  }
+  static defaults() {
+    return $Options_defaults(Options);
+  }
+  static from({ count: count_1, label: label_3 = "from" } = {}) {
+    return $Options_from(Options, { count: count_1, label: label_3 });
+  }
+  static disabled(count_2) {
+    return $Options_disabled(Options, count_2);
+  }
+  describe() {
+    return __dartStr(this.label) + ":" + __dartStr(this.count) + ":" + __dartStr(this.enabled);
+  }
+}
+
+function $Options_named($newTarget_7, { count, label: label_2 = "default", enabled = true } = {}) {
+  const $self_7 = Object.create($newTarget_7.prototype);
+  $self_7.count = count;
+  $self_7.label = label_2;
+  $self_7.enabled = enabled;
+  return $self_7;
+}
+
+function $Options_defaults($newTarget_8) {
+  return $Options_named($newTarget_8, { count: 1 });
+}
+
+function $Options_from($newTarget_9, { count: count_1, label: label_3 = "from" } = {}) {
+  return $Options_named($newTarget_9, { count: count_1, label: label_3 });
+}
+
+function $Options_disabled($newTarget_10, count_2) {
+  return $Options_named($newTarget_10, { count: count_2, label: "off", enabled: false });
+}
+
 export class Animal {
   constructor() {
     throw new TypeError("Class Animal has no unnamed constructor");
@@ -55,11 +149,11 @@ export class Animal {
   }
 }
 
-function $Animal_named($newTarget_3, name) {
-  const $self_3 = Object.create($newTarget_3.prototype);
-  $self_3.name = name;
-  $self_3.source = "animal";
-  return $self_3;
+function $Animal_named($newTarget_11, name) {
+  const $self_11 = Object.create($newTarget_11.prototype);
+  $self_11.name = name;
+  $self_11.source = "animal";
+  return $self_11;
 }
 
 export class Dog extends Animal {
@@ -69,24 +163,24 @@ export class Dog extends Animal {
   static named(name_1, age) {
     return $Dog_named(Dog, name_1, age);
   }
-  static full(name_2, age_1, label_1) {
-    return $Dog_full(Dog, name_2, age_1, label_1);
+  static full(name_2, age_1, label_4) {
+    return $Dog_full(Dog, name_2, age_1, label_4);
   }
   describe() {
     return __dartStr(super.describe()) + " " + __dartStr(this.label) + " " + __dartStr(this.age);
   }
 }
 
-function $Dog_named($newTarget_4, name_1, age) {
-  return $Dog_full($newTarget_4, name_1, age, "dog");
+function $Dog_named($newTarget_12, name_1, age) {
+  return $Dog_full($newTarget_12, name_1, age, "dog");
 }
 
-function $Dog_full($newTarget_5, name_2, age_1, label_1) {
-  const $self_5 = $Animal_named($newTarget_5, name_2);
-  $self_5.age = age_1;
-  $self_5.label = label_1;
-  $self_5.label = __dartStr($self_5.label) + "!";
-  return $self_5;
+function $Dog_full($newTarget_13, name_2, age_1, label_4) {
+  const $self_13 = $Animal_named($newTarget_13, name_2);
+  $self_13.age = age_1;
+  $self_13.label = label_4;
+  $self_13.label = __dartStr($self_13.label) + "!";
+  return $self_13;
 }
 
 export class Puppy extends Dog {
@@ -104,25 +198,71 @@ export class Puppy extends Dog {
   }
 }
 
-function $Puppy_named($newTarget_6, name_3) {
-  return $Puppy_full($newTarget_6, name_3, 1, "ball");
+function $Puppy_named($newTarget_14, name_3) {
+  return $Puppy_full($newTarget_14, name_3, 1, "ball");
 }
 
-function $Puppy_full($newTarget_7, name_4, age_2, toy) {
-  const $self_7 = $Dog_named($newTarget_7, name_4, age_2);
-  $self_7.toy = toy;
-  return $self_7;
+function $Puppy_full($newTarget_15, name_4, age_2, toy) {
+  const $self_15 = $Dog_named($newTarget_15, name_4, age_2);
+  $self_15.toy = toy;
+  return $self_15;
+}
+
+export class ColoredPoint extends Point {
+  constructor() {
+    throw new TypeError("Class ColoredPoint has no unnamed constructor");
+  }
+  static zero(color) {
+    return $ColoredPoint_zero(ColoredPoint, color);
+  }
+  describe() {
+    return __dartStr(super.describe()) + " " + __dartStr(this.color);
+  }
+}
+
+function $ColoredPoint_zero($newTarget_16, color) {
+  const $self_16 = $Point_zero($newTarget_16);
+  $self_16.color = color;
+  return $self_16;
+}
+
+export class WrappedPair extends Pair {
+  constructor(wrapper) {
+    super();
+    this.wrapper = wrapper;
+  }
+  describe() {
+    return __dartStr(super.describe()) + " " + __dartStr(this.wrapper);
+  }
 }
 
 export function main() {
   const zero = Point.zero();
   const alias = Point.alias(4);
+  const pair = new Pair();
+  const mirror = Pair.mirror(5);
+  const defaultRange = Range.start();
+  const shiftedRange = Range.start(5);
+  const defaults = Options.defaults();
+  const from = Options.from({ count: 2 });
+  const disabled = Options.disabled(3);
   const dog = Dog.named("Rex", 4);
   const puppy = Puppy.named("Tiny");
+  const colored = ColoredPoint.zero("red");
+  const wrapped = new WrappedPair("wrapped");
   __dartPrint(zero.describe());
   __dartPrint(alias.describe());
+  __dartPrint(pair.describe());
+  __dartPrint(mirror.describe());
+  __dartPrint(defaultRange.describe());
+  __dartPrint(shiftedRange.describe());
+  __dartPrint(defaults.describe());
+  __dartPrint(from.describe());
+  __dartPrint(disabled.describe());
   __dartPrint(dog.describe());
   __dartPrint(puppy.describe());
+  __dartPrint(colored.describe());
+  __dartPrint(wrapped.describe());
 }
 
 main();

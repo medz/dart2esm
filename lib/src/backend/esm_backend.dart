@@ -196,12 +196,17 @@ final class _EsmEmitter {
       '${export ? 'export ' : ''}class ${_className(klass)}$extendsClause {',
     );
     _indent++;
-    if (klass.constructors.isEmpty) {
+    final factories = klass.procedures
+        .where((procedure) => procedure.kind == k.ProcedureKind.Factory)
+        .toList();
+    if (klass.constructors.isEmpty && factories.isEmpty) {
       _emitDefaultConstructor(klass);
     } else {
-      final hasUnnamedConstructor = klass.constructors.any(
-        (constructor) => constructor.name.text.isEmpty,
-      );
+      final hasUnnamedConstructor =
+          klass.constructors.any(
+            (constructor) => constructor.name.text.isEmpty,
+          ) ||
+          factories.any((factory) => factory.name.text.isEmpty);
       if (!hasUnnamedConstructor) {
         _emitUnavailableUnnamedConstructor(klass);
       }
@@ -708,6 +713,10 @@ final class _EsmEmitter {
   }
 
   void _emitMethod(k.Procedure procedure) {
+    if (procedure.kind == k.ProcedureKind.Factory) {
+      _emitFactory(procedure);
+      return;
+    }
     final function = procedure.function;
     final asyncPrefix = switch (function.asyncMarker) {
       k.AsyncMarker.Sync => '',
@@ -724,7 +733,7 @@ final class _EsmEmitter {
       k.ProcedureKind.Setter => '${staticPrefix}set $name',
       k.ProcedureKind.Factory => throw UnsupportedKernelNode(
         procedure,
-        'factory procedure',
+        'factory',
       ),
     };
     writeln('$prefix(${_emitParameterList(function)}) {');
@@ -736,6 +745,52 @@ final class _EsmEmitter {
     _emitFunctionBody(body);
     _indent--;
     writeln('}');
+  }
+
+  void _emitFactory(k.Procedure procedure) {
+    final function = procedure.function;
+    if (function.asyncMarker != k.AsyncMarker.Sync) {
+      throw UnsupportedKernelNode(procedure, 'async factory');
+    }
+    if (!procedure.isRedirectingFactory) {
+      throw UnsupportedKernelNode(procedure, 'factory procedure');
+    }
+    final parameters = _emitParameterList(function);
+    final name = procedure.name.text;
+    if (name.isEmpty) {
+      writeln('constructor($parameters) {');
+    } else {
+      writeln('static ${_memberName(name)}($parameters) {');
+    }
+    _indent++;
+    writeln('return ${_emitRedirectingFactoryTarget(procedure)};');
+    _indent--;
+    writeln('}');
+  }
+
+  String _emitRedirectingFactoryTarget(k.Procedure procedure) {
+    final redirectingFactoryTarget =
+        procedure.function.redirectingFactoryTarget;
+    if (redirectingFactoryTarget == null || redirectingFactoryTarget.isError) {
+      throw UnsupportedKernelNode(procedure, 'redirecting factory target');
+    }
+    final target = redirectingFactoryTarget.target;
+    final args = _emitParameterForwardingArguments(procedure.function);
+    if (target is k.Constructor) {
+      if (target.name.text.isEmpty) {
+        return 'new ${_className(target.enclosingClass)}($args)';
+      }
+      return '${_className(target.enclosingClass)}.${_memberName(target.name.text)}($args)';
+    }
+    if (target is k.Procedure &&
+        target.kind == k.ProcedureKind.Factory &&
+        target.enclosingClass != null) {
+      if (target.name.text.isEmpty) {
+        return 'new ${_className(target.enclosingClass!)}($args)';
+      }
+      return '${_className(target.enclosingClass!)}.${_memberName(target.name.text)}($args)';
+    }
+    throw UnsupportedKernelNode(procedure, 'redirecting factory target');
   }
 
   void _emitClassStaticFields(k.Class klass) {
@@ -1102,6 +1157,8 @@ final class _EsmEmitter {
         return expression.expressions.map(_emitStringPart).join(' + ');
       case k.StaticInvocation():
         return _emitStaticInvocation(expression);
+      case k.RedirectingFactoryInvocation():
+        return emitExpression(expression.expression);
       case k.StaticTearOff():
         return _emitStaticTearOff(expression);
       case k.InstanceInvocation():
@@ -1373,6 +1430,14 @@ final class _EsmEmitter {
     return 'new ${_className(target.enclosingClass)}($args)';
   }
 
+  String _emitFactoryInvocation(k.Procedure target, k.Arguments arguments) {
+    final args = _emitArguments(arguments);
+    if (target.name.text.isEmpty) {
+      return 'new ${_className(target.enclosingClass!)}($args)';
+    }
+    return '${_className(target.enclosingClass!)}.${_memberName(target.name.text)}($args)';
+  }
+
   String _emitInstanceCreation(k.InstanceCreation expression) {
     final target = expression.classReference.node;
     if (target is! k.Class) {
@@ -1421,6 +1486,10 @@ final class _EsmEmitter {
     }
     if (target.isStatic && target.enclosingClass != null) {
       return '${_emitClassStaticMemberGet(target.enclosingClass!, target.name.text)}($args)';
+    }
+    if (target.kind == k.ProcedureKind.Factory &&
+        target.enclosingClass != null) {
+      return _emitFactoryInvocation(target, expression.arguments);
     }
     throw UnsupportedKernelNode(
       expression,

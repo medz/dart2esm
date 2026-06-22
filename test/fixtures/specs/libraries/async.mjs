@@ -159,6 +159,63 @@ async function __dartStreamFirst(stream) {
   for await (const value of stream) return value;
   throw new RangeError("No element");
 }
+async function __dartStreamLast(stream) {
+  let found = false;
+  let last;
+  for await (const value of stream) {
+    found = true;
+    last = value;
+  }
+  if (!found) throw new RangeError("No element");
+  return last;
+}
+async function __dartStreamSingle(stream) {
+  let found = false;
+  let single;
+  for await (const value of stream) {
+    if (found) throw new Error("Bad state: Too many elements");
+    found = true;
+    single = value;
+  }
+  if (!found) throw new RangeError("No element");
+  return single;
+}
+async function __dartStreamLength(stream) {
+  let count = 0;
+  for await (const _ of stream) count++;
+  return count;
+}
+async function __dartStreamIsEmpty(stream) {
+  for await (const _ of stream) return false;
+  return true;
+}
+async function __dartStreamAny(stream, test) {
+  for await (const value of stream) {
+    if (test(value)) return true;
+  }
+  return false;
+}
+async function __dartStreamEvery(stream, test) {
+  for await (const value of stream) {
+    if (!test(value)) return false;
+  }
+  return true;
+}
+async function __dartStreamContains(stream, needle) {
+  for await (const value of stream) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
+async function __dartStreamJoin(stream, separator = "") {
+  const values = [];
+  for await (const value of stream) values.push(__dartStr(value));
+  return values.join(String(separator));
+}
+async function __dartStreamDrain(stream, futureValue = null) {
+  for await (const _ of stream) {}
+  return futureValue;
+}
 function __dartEquals(left, right) {
   return left === right;
 }

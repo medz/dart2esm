@@ -3708,6 +3708,41 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamToList($left)';
     }
+    if (expression.arguments.named.isEmpty &&
+        (name == 'any' || name == 'every') &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      final helper = name == 'any' ? '__dartStreamAny' : '__dartStreamEvery';
+      return '$helper($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'contains' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartEquals');
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamContains($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'join' &&
+        positionalArgs.length <= 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStr');
+      _usedHelpers.add('__dartStream');
+      final separator = positionalArgs.isEmpty ? '""' : positionalArgs.single;
+      return '__dartStreamJoin($left, $separator)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'drain' &&
+        positionalArgs.length <= 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      final futureValue = positionalArgs.isEmpty
+          ? 'null'
+          : positionalArgs.single;
+      return '__dartStreamDrain($left, $futureValue)';
+    }
     if (name == 'then' &&
         positionalArgs.length == 1 &&
         _isAsyncFutureMember(target, name)) {
@@ -4215,6 +4250,26 @@ final class _EsmEmitter {
         _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
       _usedHelpers.add('__dartStream');
       return '__dartStreamFirst($receiver)';
+    }
+    if (name == 'last' &&
+        _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamLast($receiver)';
+    }
+    if (name == 'single' &&
+        _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamSingle($receiver)';
+    }
+    if (name == 'length' &&
+        _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamLength($receiver)';
+    }
+    if (name == 'isEmpty' &&
+        _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamIsEmpty($receiver)';
     }
     if (name == 'lengthInBytes' &&
         _isTypedDataMember(expression.interfaceTargetReference, name)) {
@@ -4903,6 +4958,11 @@ final class _EsmEmitter {
     if (path.startsWith('dart:core::MapEntry::@constructors::') &&
         positionalArgs.length == 2) {
       return 'Object.freeze({ key: ${positionalArgs[0]}, value: ${positionalArgs[1]} })';
+    }
+    if (path.startsWith('dart:async::_EmptyStream::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamFromIterable([])';
     }
     if (path.startsWith('dart:convert::Utf8Codec::@constructors::') &&
         positionalArgs.isEmpty) {
@@ -8121,6 +8181,71 @@ final class _EsmEmitter {
       helper.writeln('  for await (const value of stream) return value;');
       helper.writeln('  throw new RangeError("No element");');
       helper.writeln('}');
+      helper.writeln('async function __dartStreamLast(stream) {');
+      helper.writeln('  let found = false;');
+      helper.writeln('  let last;');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    found = true;');
+      helper.writeln('    last = value;');
+      helper.writeln('  }');
+      helper.writeln('  if (!found) throw new RangeError("No element");');
+      helper.writeln('  return last;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamSingle(stream) {');
+      helper.writeln('  let found = false;');
+      helper.writeln('  let single;');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '    if (found) throw new Error("Bad state: Too many elements");',
+      );
+      helper.writeln('    found = true;');
+      helper.writeln('    single = value;');
+      helper.writeln('  }');
+      helper.writeln('  if (!found) throw new RangeError("No element");');
+      helper.writeln('  return single;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamLength(stream) {');
+      helper.writeln('  let count = 0;');
+      helper.writeln('  for await (const _ of stream) count++;');
+      helper.writeln('  return count;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamIsEmpty(stream) {');
+      helper.writeln('  for await (const _ of stream) return false;');
+      helper.writeln('  return true;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamAny(stream, test) {');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    if (test(value)) return true;');
+      helper.writeln('  }');
+      helper.writeln('  return false;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamEvery(stream, test) {');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    if (!test(value)) return false;');
+      helper.writeln('  }');
+      helper.writeln('  return true;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamContains(stream, needle) {');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    if (__dartEquals(value, needle)) return true;');
+      helper.writeln('  }');
+      helper.writeln('  return false;');
+      helper.writeln('}');
+      helper.writeln(
+        'async function __dartStreamJoin(stream, separator = "") {',
+      );
+      helper.writeln('  const values = [];');
+      helper.writeln(
+        '  for await (const value of stream) values.push(__dartStr(value));',
+      );
+      helper.writeln('  return values.join(String(separator));');
+      helper.writeln('}');
+      helper.writeln(
+        'async function __dartStreamDrain(stream, futureValue = null) {',
+      );
+      helper.writeln('  for await (const _ of stream) {}');
+      helper.writeln('  return futureValue;');
+      helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartEquals')) {
       helper.writeln('function __dartEquals(left, right) {');
@@ -8557,9 +8682,18 @@ const _generatedGlobalNames = {
   '__dartSetUnion',
   '__dartStr',
   '__dartStream',
+  '__dartStreamAny',
+  '__dartStreamContains',
+  '__dartStreamDrain',
+  '__dartStreamEvery',
   '__dartStreamFirst',
   '__dartStreamFromIterable',
+  '__dartStreamIsEmpty',
+  '__dartStreamJoin',
+  '__dartStreamLast',
+  '__dartStreamLength',
   '__dartStreamMap',
+  '__dartStreamSingle',
   '__dartStreamToList',
   '__dartStreamWhere',
   '__dartStringBuffer',

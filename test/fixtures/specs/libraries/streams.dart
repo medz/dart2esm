@@ -15,6 +15,19 @@ Future<void> main() async {
   final single = await Stream<String>.value('ok').first;
   final listed = await Stream<String>.fromIterable(['a', 'b']).toList();
   print('future $single ${listed.join('|')}');
+  print(
+    'query ${await Stream<int>.fromIterable([1, 2, 3]).length} '
+    '${await Stream<int>.empty().isEmpty} '
+    '${await Stream<int>.fromIterable([1, 2, 3]).last} '
+    '${await Stream<int>.value(9).single}',
+  );
+  print(
+    'checks ${await Stream<int>.fromIterable([1, 2, 3]).any((value) => value > 2)} '
+    '${await Stream<int>.fromIterable([1, 2, 3]).every((value) => value > 0)} '
+    '${await Stream<int>.fromIterable([1, 2, 3]).contains(2)} '
+    '${await Stream<String>.fromIterable(['a', 'b']).join('-')} '
+    '${await Stream<int>.fromIterable([1, 2]).drain<String>('done')}',
+  );
 
   final controller = StreamController<int>();
   final controlledFuture = controller.stream.toList();

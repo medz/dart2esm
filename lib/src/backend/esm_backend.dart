@@ -2700,6 +2700,12 @@ final class _EsmEmitter {
       return '$left.includes(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'codeUnitAt' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'String', 'codeUnitAt')) {
+      return '$left.charCodeAt(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
         positionalArgs.length == 1 &&
         _isCoreCollectionMember(target, name)) {
@@ -3317,9 +3323,28 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartDateTime');
       return '__dartDateTimeParse(${positionalArgs.single})';
     }
+    final numberParse = _emitCoreNumberParseInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (numberParse != null) {
+      return numberParse;
+    }
+    final stringFactory = _emitCoreStringFactoryInvocation(
+      path,
+      positionalArgs,
+    );
+    if (stringFactory != null) {
+      return stringFactory;
+    }
     final listFactory = _emitCoreListFactoryInvocation(path, positionalArgs);
     if (listFactory != null) {
       return listFactory;
+    }
+    if (path == 'dart:core::Uri::@methods::parse' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriParse');
+      return '__dartUriParse(${positionalArgs.single})';
     }
     if (!path.startsWith('dart:core::Uri::@methods::')) {
       return null;
@@ -3338,6 +3363,54 @@ final class _EsmEmitter {
         'encodeURIComponent(${positionalArgs.single})',
       'decodeQueryComponent' when positionalArgs.length == 1 =>
         'decodeURIComponent(String(${positionalArgs.single}).replace(/\\+/g, " "))',
+      _ => null,
+    };
+  }
+
+  String? _emitCoreNumberParseInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    if (positionalArgs.length != 1) {
+      return null;
+    }
+    final path = _referencePath(expression.targetReference);
+    final radix = _namedArgument(expression.arguments, 'radix') ?? 'null';
+    switch (path) {
+      case 'dart:core::int::@methods::parse':
+        _usedHelpers.add('__dartNumberParse');
+        return '__dartIntParse(${positionalArgs.single}, $radix)';
+      case 'dart:core::int::@methods::tryParse':
+        _usedHelpers.add('__dartNumberParse');
+        return '__dartIntTryParse(${positionalArgs.single}, $radix)';
+      case 'dart:core::double::@methods::parse':
+        _usedHelpers.add('__dartNumberParse');
+        return '__dartDoubleParse(${positionalArgs.single})';
+      case 'dart:core::double::@methods::tryParse':
+        _usedHelpers.add('__dartNumberParse');
+        return '__dartDoubleTryParse(${positionalArgs.single})';
+      case 'dart:core::num::@methods::parse':
+        _usedHelpers.add('__dartNumberParse');
+        return '__dartNumParse(${positionalArgs.single})';
+      case 'dart:core::num::@methods::tryParse':
+        _usedHelpers.add('__dartNumberParse');
+        return '__dartNumTryParse(${positionalArgs.single})';
+      default:
+        return null;
+    }
+  }
+
+  String? _emitCoreStringFactoryInvocation(
+    String path,
+    List<String> positionalArgs,
+  ) {
+    return switch (path) {
+      'dart:core::String::@factories::fromCharCode'
+          when positionalArgs.length == 1 =>
+        'String.fromCharCode(${positionalArgs.single})',
+      'dart:core::String::@factories::fromCharCodes'
+          when positionalArgs.length == 1 =>
+        'String.fromCharCode(...Array.from(${positionalArgs.single}))',
       _ => null,
     };
   }
@@ -3960,6 +4033,65 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartNumberParse')) {
+      helper.writeln('function __dartFormatException(message) {');
+      helper.writeln('  const error = new Error(String(message));');
+      helper.writeln('  error.name = "FormatException";');
+      helper.writeln('  return error;');
+      helper.writeln('}');
+      helper.writeln('function __dartIntTryParse(source, radix = null) {');
+      helper.writeln('  const text = String(source).trim();');
+      helper.writeln('  let base = radix == null ? null : Number(radix);');
+      helper.writeln(
+        '  if (base != null && (!Number.isInteger(base) || base < 2 || base > 36)) return null;',
+      );
+      helper.writeln(
+        '  if (base == null && /^[+-]?0x[0-9a-f]+\$/i.test(text)) return Number.parseInt(text, 16);',
+      );
+      helper.writeln('  base ??= 10;');
+      helper.writeln('  const sign = /^[+-]/.test(text) ? text[0] : "";');
+      helper.writeln('  const digits = sign === "" ? text : text.slice(1);');
+      helper.writeln('  if (digits.length === 0) return null;');
+      helper.writeln('  for (const char of digits.toLowerCase()) {');
+      helper.writeln('    const code = char.charCodeAt(0);');
+      helper.writeln(
+        '    const value = code >= 48 && code <= 57 ? code - 48 : code >= 97 && code <= 122 ? code - 87 : -1;',
+      );
+      helper.writeln('    if (value < 0 || value >= base) return null;');
+      helper.writeln('  }');
+      helper.writeln('  return Number.parseInt(text, base);');
+      helper.writeln('}');
+      helper.writeln('function __dartIntParse(source, radix = null) {');
+      helper.writeln('  const value = __dartIntTryParse(source, radix);');
+      helper.writeln(
+        '  if (value == null) throw __dartFormatException("Invalid integer literal");',
+      );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+      helper.writeln('function __dartDoubleTryParse(source) {');
+      helper.writeln('  const text = String(source).trim();');
+      helper.writeln('  if (text === "") return null;');
+      helper.writeln('  const value = Number(text);');
+      helper.writeln('  return Number.isNaN(value) ? null : value;');
+      helper.writeln('}');
+      helper.writeln('function __dartDoubleParse(source) {');
+      helper.writeln('  const value = __dartDoubleTryParse(source);');
+      helper.writeln(
+        '  if (value == null) throw __dartFormatException("Invalid double literal");',
+      );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+      helper.writeln('function __dartNumTryParse(source) {');
+      helper.writeln('  return __dartDoubleTryParse(source);');
+      helper.writeln('}');
+      helper.writeln('function __dartNumParse(source) {');
+      helper.writeln('  const value = __dartNumTryParse(source);');
+      helper.writeln(
+        '  if (value == null) throw __dartFormatException("Invalid number literal");',
+      );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartDuration')) {
       helper.writeln('function __dartDuration(options = {}) {');
       helper.writeln(
@@ -4044,6 +4176,32 @@ final class _EsmEmitter {
         "  const isUtc = /(?:z|[+-]\\d\\d(?::?\\d\\d)?)\$/i.test(text);",
       );
       helper.writeln('  return __dartDateTime(millis, isUtc, 0);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartUriParse')) {
+      helper.writeln('function __dartUriParse(source) {');
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  let url;');
+      helper.writeln('  try {');
+      helper.writeln('    url = new URL(text);');
+      helper.writeln('  } catch (_) {');
+      helper.writeln('    url = new URL(text, "dart://relative");');
+      helper.writeln('  }');
+      helper.writeln('  const isRelative = url.protocol === "dart:";');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln(
+        '    get scheme() { return isRelative ? "" : url.protocol.slice(0, -1); },',
+      );
+      helper.writeln('    get host() { return isRelative ? "" : url.host; },');
+      helper.writeln('    get path() { return url.pathname; },');
+      helper.writeln(
+        '    get query() { return url.search.startsWith("?") ? url.search.slice(1) : ""; },',
+      );
+      helper.writeln(
+        '    get fragment() { return url.hash.startsWith("#") ? url.hash.slice(1) : ""; },',
+      );
+      helper.writeln('    toString() { return text; },');
+      helper.writeln('  });');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartRegExp')) {
@@ -4714,9 +4872,14 @@ const _generatedGlobalNames = {
   '__dartDateTime',
   '__dartDateTimeFromParts',
   '__dartDateTimeParse',
+  '__dartDoubleParse',
+  '__dartDoubleTryParse',
   '__dartDuration',
   '__dartEquals',
+  '__dartFormatException',
   '__dartFromJson',
+  '__dartIntParse',
+  '__dartIntTryParse',
   '__dartIterableContains',
   '__dartIterableFirst',
   '__dartIterableJoin',
@@ -4728,6 +4891,9 @@ const _generatedGlobalNames = {
   '__dartJsonEncode',
   '__dartLazyField',
   '__dartMapRemove',
+  '__dartNumParse',
+  '__dartNumberParse',
+  '__dartNumTryParse',
   '__dartPrint',
   '__dartRecord',
   '__dartRecordShape',
@@ -4737,6 +4903,7 @@ const _generatedGlobalNames = {
   '__dartStringBuffer',
   '__dartTruncDiv',
   '__dartToJson',
+  '__dartUriParse',
   '__dartUtf8Codec',
   '__dartUtf8Decode',
   '__dartUtf8Encode',

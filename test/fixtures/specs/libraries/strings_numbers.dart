@@ -1,0 +1,30 @@
+void main() {
+  final parsedInt = int.parse('42');
+  final parsedHex = int.parse('ff', radix: 16);
+  final maybeInt = int.tryParse('nope') ?? -1;
+  print('ints $parsedInt $parsedHex $maybeInt');
+
+  final parsedDouble = double.parse('3.5');
+  final maybeDouble = double.tryParse('bad') ?? 1.25;
+  final parsedNum = num.parse('7.25');
+  print('nums $parsedDouble $maybeDouble $parsedNum');
+
+  final char = String.fromCharCode(65);
+  final chars = String.fromCharCodes([68, 97, 114, 116]);
+  final text = '  hello,dart  ';
+  final trimmed = text.trim();
+  print(
+    'strings $char $chars ${trimmed.codeUnitAt(0)} ${trimmed.substring(1, 4)}',
+  );
+  print(
+    'checks ${trimmed.startsWith('he')} ${trimmed.endsWith('rt')} '
+    '${trimmed.indexOf('dart')} ${trimmed.split(',').join('|')}',
+  );
+  print('replace ${trimmed.replaceAll('l', 'L').toUpperCase()}');
+
+  final uri = Uri.parse('https://example.test/a/b?x=1#frag');
+  print(
+    'uri ${uri.scheme} ${uri.host} ${uri.path} ${uri.query} ${uri.fragment}',
+  );
+  print('uri string ${uri.toString()}');
+}

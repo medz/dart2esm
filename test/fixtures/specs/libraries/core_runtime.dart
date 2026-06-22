@@ -7,6 +7,9 @@ void main() {
   print(
     'buffer ${buffer.length} ${buffer.isNotEmpty} ${buffer.toString().contains('\n')}',
   );
+  buffer.writeAll(['x', 'y'], '-');
+  buffer.writeCharCode(33);
+  print('writeAll ${buffer.toString().split('\n').last}');
   buffer.clear();
   print('cleared ${buffer.isEmpty} ${buffer.toString()}');
 

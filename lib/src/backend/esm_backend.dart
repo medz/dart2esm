@@ -5348,6 +5348,12 @@ final class _EsmEmitter {
       helper.writeln('  return {');
       helper.writeln('    write(next) { value += String(next); },');
       helper.writeln(
+        '    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },',
+      );
+      helper.writeln(
+        '    writeCharCode(charCode) { value += String.fromCharCode(charCode); },',
+      );
+      helper.writeln(
         '    writeln(next = "") { value += String(next) + "\\n"; },',
       );
       helper.writeln('    clear() { value = ""; },');

@@ -134,6 +134,10 @@ Future<void> main() async {
       .toList();
   await Future<void>.delayed(const Duration(milliseconds: 5));
   print('streamTimeout ${(await timeoutValues).join(',')}');
+  final pipeController = StreamController<int>();
+  final pipeValues = pipeController.stream.toList();
+  await Stream<int>.fromIterable([10, 11]).pipe(pipeController);
+  print('pipe ${(await pipeValues).join(',')} ${pipeController.isClosed}');
   final listened = <int>[];
   final listenDone = Completer<String>();
   final subscription = Stream<int>.fromIterable([6, 7]).listen(

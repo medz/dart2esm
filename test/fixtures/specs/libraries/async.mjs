@@ -736,6 +736,14 @@ async function __dartStreamDrain(stream, futureValue = null) {
   for await (const _ of stream) {}
   return futureValue;
 }
+async function __dartStreamPipe(stream, consumer) {
+  if (typeof consumer.addStream === "function") {
+    await consumer.addStream(stream);
+  } else {
+    for await (const value of stream) consumer.add(value);
+  }
+  return typeof consumer.close === "function" ? await consumer.close() : null;
+}
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
   const iterator = stream[Symbol.asyncIterator]();
   let canceled = false;

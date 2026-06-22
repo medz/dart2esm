@@ -4048,6 +4048,13 @@ final class _EsmEmitter {
           : positionalArgs.single;
       return '__dartStreamDrain($left, $futureValue)';
     }
+    if (expression.arguments.named.isEmpty &&
+        name == 'pipe' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamPipe($left, ${positionalArgs.single})';
+    }
     if (name == 'listen' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
@@ -10923,6 +10930,18 @@ final class _EsmEmitter {
       helper.writeln('  for await (const _ of stream) {}');
       helper.writeln('  return futureValue;');
       helper.writeln('}');
+      helper.writeln('async function __dartStreamPipe(stream, consumer) {');
+      helper.writeln('  if (typeof consumer.addStream === "function") {');
+      helper.writeln('    await consumer.addStream(stream);');
+      helper.writeln('  } else {');
+      helper.writeln(
+        '    for await (const value of stream) consumer.add(value);',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  return typeof consumer.close === "function" ? await consumer.close() : null;',
+      );
+      helper.writeln('}');
       helper.writeln(
         'function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {',
       );
@@ -11599,6 +11618,7 @@ const _generatedGlobalNames = {
   '__dartStreamMap',
   '__dartStreamMulti',
   '__dartStreamPeriodic',
+  '__dartStreamPipe',
   '__dartStreamReduce',
   '__dartStreamSkip',
   '__dartStreamSkipWhile',

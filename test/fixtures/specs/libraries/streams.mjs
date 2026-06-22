@@ -637,6 +637,14 @@ async function __dartStreamDrain(stream, futureValue = null) {
   for await (const _ of stream) {}
   return futureValue;
 }
+async function __dartStreamPipe(stream, consumer) {
+  if (typeof consumer.addStream === "function") {
+    await consumer.addStream(stream);
+  } else {
+    for await (const value of stream) consumer.add(value);
+  }
+  return typeof consumer.close === "function" ? await consumer.close() : null;
+}
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
   const iterator = stream[Symbol.asyncIterator]();
   let canceled = false;
@@ -784,6 +792,10 @@ export async function main() {
 }));
   await new Promise((resolve, reject) => setTimeout(() => { try { resolve(null); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"5000\"]]]", () => __dartDuration({ microseconds: 5000 })).inMilliseconds)));
   __dartPrint("streamTimeout " + __dartStr(__dartIterableJoin(await timeoutValues, ",")));
+  const pipeController = __dartStreamController(false);
+  const pipeValues = __dartStreamToList(pipeController.stream);
+  await __dartStreamPipe(__dartStreamFromIterable([10, 11]), pipeController);
+  __dartPrint("pipe " + __dartStr(__dartIterableJoin(await pipeValues, ",")) + " " + __dartStr(pipeController.isClosed));
   const listened = new Array(0).fill(null);
   const listenDone = __dartCompleter();
   const subscription = __dartStreamListen(__dartStreamFromIterable([6, 7]), function(value) {

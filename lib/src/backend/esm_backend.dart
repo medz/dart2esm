@@ -2178,6 +2178,7 @@ final class _EsmEmitter {
         .toList();
     final coreConstructor = _emitCoreConstructorInvocation(
       expression.targetReference,
+      expression.arguments,
       positionalArgs,
     );
     if (coreConstructor != null) {
@@ -3136,6 +3137,7 @@ final class _EsmEmitter {
 
   String? _emitCoreConstructorInvocation(
     k.Reference reference,
+    k.Arguments arguments,
     List<String> positionalArgs,
   ) {
     final path = _referencePath(reference);
@@ -3146,6 +3148,31 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStringBuffer');
       final initial = positionalArgs.isEmpty ? '""' : positionalArgs.single;
       return '__dartStringBuffer($initial)';
+    }
+    if (path.startsWith('dart:core::Duration::@constructors::')) {
+      if (positionalArgs.isNotEmpty) {
+        return null;
+      }
+      _usedHelpers.add('__dartDuration');
+      return '__dartDuration({ days: ${_namedArgument(arguments, 'days') ?? '0'}, hours: ${_namedArgument(arguments, 'hours') ?? '0'}, minutes: ${_namedArgument(arguments, 'minutes') ?? '0'}, seconds: ${_namedArgument(arguments, 'seconds') ?? '0'}, milliseconds: ${_namedArgument(arguments, 'milliseconds') ?? '0'}, microseconds: ${_namedArgument(arguments, 'microseconds') ?? '0'} })';
+    }
+    if (path.startsWith('dart:core::DateTime::@constructors::')) {
+      _usedHelpers.add('__dartDateTime');
+      final constructorName = path.split('::').last;
+      if (constructorName == 'fromMillisecondsSinceEpoch') {
+        if (positionalArgs.length != 1) {
+          return null;
+        }
+        final isUtc = _namedArgument(arguments, 'isUtc') ?? 'false';
+        return '__dartDateTime(${positionalArgs.single}, $isUtc)';
+      }
+      final isUtc = constructorName == 'utc';
+      final defaults = ['0', '1', '1', '0', '0', '0', '0', '0'];
+      final values = <String>[
+        for (var i = 0; i < defaults.length; i++)
+          i < positionalArgs.length ? positionalArgs[i] : defaults[i],
+      ];
+      return '__dartDateTimeFromParts(${isUtc ? 'true' : 'false'}, ${values.join(', ')})';
     }
     return null;
   }
@@ -3168,6 +3195,11 @@ final class _EsmEmitter {
           _namedArgument(expression.arguments, 'unicode') ?? 'false';
       final dotAll = _namedArgument(expression.arguments, 'dotAll') ?? 'false';
       return '__dartRegExp(${positionalArgs.single}, { caseSensitive: $caseSensitive, multiLine: $multiLine, unicode: $unicode, dotAll: $dotAll })';
+    }
+    if (path == 'dart:core::DateTime::@methods::parse' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartDateTime');
+      return '__dartDateTimeParse(${positionalArgs.single})';
     }
     if (!path.startsWith('dart:core::Uri::@methods::')) {
       return null;
@@ -3700,6 +3732,92 @@ final class _EsmEmitter {
       helper.writeln('    get isEmpty() { return value.length === 0; },');
       helper.writeln('    get isNotEmpty() { return value.length !== 0; },');
       helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartDuration')) {
+      helper.writeln('function __dartDuration(options = {}) {');
+      helper.writeln(
+        '  const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));',
+      );
+      helper.writeln('  return {');
+      helper.writeln(
+        '    get inDays() { return Math.trunc(micros / 86400000000); },',
+      );
+      helper.writeln(
+        '    get inHours() { return Math.trunc(micros / 3600000000); },',
+      );
+      helper.writeln(
+        '    get inMinutes() { return Math.trunc(micros / 60000000); },',
+      );
+      helper.writeln(
+        '    get inSeconds() { return Math.trunc(micros / 1000000); },',
+      );
+      helper.writeln(
+        '    get inMilliseconds() { return Math.trunc(micros / 1000); },',
+      );
+      helper.writeln('    get inMicroseconds() { return micros; },');
+      helper.writeln('    toString() { return String(micros) + "us"; },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartDateTime')) {
+      helper.writeln(
+        'function __dartDateTimeFromParts(isUtc, year, month = 1, day = 1, hour = 0, minute = 0, second = 0, millisecond = 0, microsecond = 0) {',
+      );
+      helper.writeln(
+        '  const millis = isUtc ? Date.UTC(year, month - 1, day, hour, minute, second, millisecond) : new Date(year, month - 1, day, hour, minute, second, millisecond).getTime();',
+      );
+      helper.writeln('  return __dartDateTime(millis, isUtc, microsecond);');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartDateTime(millis, isUtc = false, microsecond = 0) {',
+      );
+      helper.writeln('  const date = new Date(millis);');
+      helper.writeln(
+        '  const read = (utcName, localName) => isUtc ? date[utcName]() : date[localName]();',
+      );
+      helper.writeln('  return {');
+      helper.writeln('    get millisecondsSinceEpoch() { return millis; },');
+      helper.writeln('    get microsecond() { return microsecond; },');
+      helper.writeln(
+        '    get millisecond() { return read("getUTCMilliseconds", "getMilliseconds"); },',
+      );
+      helper.writeln(
+        '    get second() { return read("getUTCSeconds", "getSeconds"); },',
+      );
+      helper.writeln(
+        '    get minute() { return read("getUTCMinutes", "getMinutes"); },',
+      );
+      helper.writeln(
+        '    get hour() { return read("getUTCHours", "getHours"); },',
+      );
+      helper.writeln(
+        '    get day() { return read("getUTCDate", "getDate"); },',
+      );
+      helper.writeln(
+        '    get month() { return read("getUTCMonth", "getMonth") + 1; },',
+      );
+      helper.writeln(
+        '    get year() { return read("getUTCFullYear", "getFullYear"); },',
+      );
+      helper.writeln('    get isUtc() { return isUtc; },');
+      helper.writeln(
+        '    toUtc() { return __dartDateTime(millis, true, microsecond); },',
+      );
+      helper.writeln(
+        '    toLocal() { return __dartDateTime(millis, false, microsecond); },',
+      );
+      helper.writeln('    toIso8601String() { return date.toISOString(); },');
+      helper.writeln('    toString() { return this.toIso8601String(); },');
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartDateTimeParse(source) {');
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const millis = Date.parse(text);');
+      helper.writeln(
+        "  const isUtc = /(?:z|[+-]\\d\\d(?::?\\d\\d)?)\$/i.test(text);",
+      );
+      helper.writeln('  return __dartDateTime(millis, isUtc, 0);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartRegExp')) {
@@ -4323,6 +4441,10 @@ const _generatedGlobalNames = {
   '__dartConstMap',
   '__dartConstSet',
   '__dartCoreError',
+  '__dartDateTime',
+  '__dartDateTimeFromParts',
+  '__dartDateTimeParse',
+  '__dartDuration',
   '__dartEquals',
   '__dartFromJson',
   '__dartIsRecord',

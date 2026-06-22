@@ -2891,15 +2891,23 @@ final class _EsmEmitter {
   }
 
   String _emitAsExpression(k.AsExpression expression) {
+    final value = emitExpression(expression.operand);
     final operandExtensionType = _expressionExtensionType(expression.operand);
-    if (operandExtensionType != null &&
-        expression.type.unalias is! k.ExtensionType) {
-      return _emitExtensionTypeRepresentation(
-        emitExpression(expression.operand),
-        operandExtensionType.extensionTypeDeclaration,
-      );
+    final castValue =
+        operandExtensionType != null &&
+            expression.type.unalias is! k.ExtensionType
+        ? _emitExtensionTypeRepresentation(
+            value,
+            operandExtensionType.extensionTypeDeclaration,
+          )
+        : value;
+    final targetType = expression.type.unalias;
+    if (targetType is k.DynamicType || targetType is k.VoidType) {
+      return castValue;
     }
-    return emitExpression(expression.operand);
+    _usedHelpers.add('__dartAs');
+    final typeName = _emitDartTypeName(expression.type);
+    return '__dartAs($castValue, value => ${_emitTypeTest('value', expression.type, expression)}, ${jsonEncode(typeName)})';
   }
 
   k.ExtensionType? _expressionExtensionType(k.Expression expression) {
@@ -3341,6 +3349,14 @@ final class _EsmEmitter {
       helper.writeln('  return value;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartAs')) {
+      helper.writeln('function __dartAs(value, test, typeName) {');
+      helper.writeln('  if (test(value)) return value;');
+      helper.writeln(
+        '  throw new TypeError("Type cast failed: expected " + typeName);',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartBind')) {
       helper.writeln('function __dartBind(receiver, name) {');
       helper.writeln('  const value = receiver[name];');
@@ -3676,6 +3692,7 @@ const _reservedNames = {
 };
 
 const _generatedGlobalNames = {
+  '__dartAs',
   '__dartConstMap',
   '__dartConstSet',
   '__dartEquals',

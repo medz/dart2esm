@@ -45,6 +45,12 @@ void main() {
   );
   final indexed = mutable.asMap();
   print('asMap ${indexed.length} ${indexed[1]}');
+  final removedValue = mutable.remove(9);
+  final removedMissing = mutable.remove(99);
+  final removedLast = mutable.removeLast();
+  print(
+    'list remove $removedValue $removedMissing $removedLast ${mutable.join(',')}',
+  );
 
   final names = <String>{'ada', 'bob'};
   names.add('cy');

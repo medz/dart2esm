@@ -57,6 +57,12 @@ function __dartListSort(list, compare = null) {
   }
   return null;
 }
+function __dartListRemove(list, needle) {
+  const index = list.findIndex((value) => __dartEquals(value, needle));
+  if (index < 0) return false;
+  list.splice(index, 1);
+  return true;
+}
 function __dartListAsMap(list) {
   return new Map(Array.from(list, (value, index) => [index, value]));
 }
@@ -131,6 +137,10 @@ export function main() {
   __dartPrint("mutable " + __dartStr(__dartIterableJoin(mutable, ",")) + " " + __dartStr(removed) + " " + __dartStr(__dartIterableJoin(mutable.slice(1), ",")) + " " + __dartStr(__dartIterableJoin(Array.from(mutable).reverse(), ",")));
   const indexed = __dartListAsMap(mutable);
   __dartPrint("asMap " + __dartStr(indexed.size) + " " + __dartStr(indexed.get(1)));
+  const removedValue = __dartListRemove(mutable, 9);
+  const removedMissing = __dartListRemove(mutable, 99);
+  const removedLast = mutable.pop();
+  __dartPrint("list remove " + __dartStr(removedValue) + " " + __dartStr(removedMissing) + " " + __dartStr(removedLast) + " " + __dartStr(__dartIterableJoin(mutable, ",")));
   const names = (() => {
     const v = new Set();
     __dartSetAdd(v, "ada");

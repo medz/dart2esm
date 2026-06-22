@@ -3511,6 +3511,20 @@ final class _EsmEmitter {
       return '$left.splice(${positionalArgs.single}, 1)[0]';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'remove' &&
+        positionalArgs.length == 1 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListRemove');
+      _usedHelpers.add('__dartEquals');
+      return '__dartListRemove($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeLast' &&
+        positionalArgs.isEmpty &&
+        _isCoreListMember(target, name)) {
+      return '$left.pop()';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'insert' &&
         positionalArgs.length == 2 &&
         _isCoreListMember(target, name)) {
@@ -6114,6 +6128,16 @@ final class _EsmEmitter {
       helper.writeln('  return null;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartListRemove')) {
+      helper.writeln('function __dartListRemove(list, needle) {');
+      helper.writeln(
+        '  const index = list.findIndex((value) => __dartEquals(value, needle));',
+      );
+      helper.writeln('  if (index < 0) return false;');
+      helper.writeln('  list.splice(index, 1);');
+      helper.writeln('  return true;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListAsMap')) {
       helper.writeln('function __dartListAsMap(list) {');
       helper.writeln(
@@ -6887,6 +6911,7 @@ const _generatedGlobalNames = {
   '__dartJsonDecode',
   '__dartJsonEncode',
   '__dartLazyField',
+  '__dartListRemove',
   '__dartMapRemove',
   '__dartNumParse',
   '__dartNumberParse',

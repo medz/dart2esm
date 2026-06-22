@@ -91,10 +91,8 @@ final class _EsmEmitter {
   _TopLevelFieldNames _freshTopLevelFieldNames(String name) {
     final base = _sanitizeIdentifier(name);
     return _TopLevelFieldNames(
-      getter: _freshName(base),
-      setter: _freshName('set_$base'),
-      state: _freshName('${base}_state'),
-      value: _freshName('${base}_value'),
+      value: _freshName(base),
+      cell: _freshName('\$$base'),
     );
   }
 
@@ -107,48 +105,46 @@ final class _EsmEmitter {
     }
     final names = _fieldName(field);
     final initializer = field.initializer;
-    writeln('let ${names.state} = 0;');
-    writeln('let ${names.value};');
-    writeln('function ${names.getter}() {');
-    _indent++;
-    writeln('if (${names.state} === 2) {');
-    _indent++;
-    writeln('return ${names.value};');
-    _indent--;
-    writeln('}');
-    writeln('if (${names.state} === 1) {');
-    _indent++;
-    writeln(
-      'throw new Error(${jsonEncode('Cyclic initialization of top-level field ${field.name.text}')});',
-    );
-    _indent--;
-    writeln('}');
-    writeln('${names.state} = 1;');
-    writeln('try {');
-    _indent++;
-    writeln(
-      '${names.value} = ${initializer == null ? 'null' : emitExpression(initializer)};',
-    );
-    writeln('${names.state} = 2;');
-    writeln('return ${names.value};');
-    _indent--;
-    writeln('} catch (error) {');
-    _indent++;
-    writeln('${names.state} = 0;');
-    writeln('throw error;');
-    _indent--;
-    writeln('}');
-    _indent--;
-    writeln('}');
-    if (field.hasSetter) {
-      writeln('function ${names.setter}(value) {');
-      _indent++;
-      writeln('${names.state} = 2;');
-      writeln('${names.value} = value;');
-      writeln('return value;');
-      _indent--;
-      writeln('}');
+    if (_isEagerTopLevelField(field)) {
+      final keyword = field.isFinal || field.isConst ? 'const' : 'let';
+      writeln(
+        '$keyword ${names.value} = ${initializer == null ? 'null' : emitExpression(initializer)};',
+      );
+      return;
     }
+    _usedHelpers.add('__dartLazyField');
+    writeln('let ${names.value};');
+    writeln(
+      'const ${names.cell} = __dartLazyField(${jsonEncode(field.name.text)}, () => ${names.value}, (value) => ${names.value} = value, () => ${initializer == null ? 'null' : emitExpression(initializer)});',
+    );
+  }
+
+  bool _isEagerTopLevelField(k.Field field) {
+    return _isEagerTopLevelInitializer(field.initializer);
+  }
+
+  bool _isEagerTopLevelInitializer(k.Expression? expression) {
+    return switch (expression) {
+      null => true,
+      k.NullLiteral() ||
+      k.BoolLiteral() ||
+      k.IntLiteral() ||
+      k.DoubleLiteral() ||
+      k.StringLiteral() => true,
+      k.ConstantExpression() => _isEagerTopLevelConstant(expression.constant),
+      _ => false,
+    };
+  }
+
+  bool _isEagerTopLevelConstant(k.Constant constant) {
+    return switch (constant) {
+      k.NullConstant() ||
+      k.BoolConstant() ||
+      k.IntConstant() ||
+      k.DoubleConstant() ||
+      k.StringConstant() => true,
+      _ => false,
+    };
   }
 
   void _emitClass(k.Class klass) {
@@ -725,7 +721,10 @@ final class _EsmEmitter {
   String _emitStaticGet(k.StaticGet expression) {
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
-      return '${_fieldName(target).getter}()';
+      if (_isEagerTopLevelField(target)) {
+        return _fieldName(target).value;
+      }
+      return '${_fieldName(target).cell}.get()';
     }
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
       return _procedureName(target);
@@ -742,7 +741,10 @@ final class _EsmEmitter {
       if (!target.hasSetter) {
         throw UnsupportedKernelNode(expression, 'write to final field');
       }
-      return '${_fieldName(target).setter}(${emitExpression(expression.value)})';
+      if (_isEagerTopLevelField(target)) {
+        return '${_fieldName(target).value} = ${emitExpression(expression.value)}';
+      }
+      return '${_fieldName(target).cell}.set(${emitExpression(expression.value)})';
     }
     throw UnsupportedKernelNode(
       expression,
@@ -963,6 +965,38 @@ final class _EsmEmitter {
       helper.writeln('  return Math.trunc(left / right);');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartLazyField')) {
+      helper.writeln(
+        'function __dartLazyField(name, read, write, initialize) {',
+      );
+      helper.writeln('  let state = 0;');
+      helper.writeln('  return {');
+      helper.writeln('    get() {');
+      helper.writeln('      if (state === 2) return read();');
+      helper.writeln('      if (state === 1) {');
+      helper.writeln(
+        '        throw new Error("Cyclic initialization of top-level field " + name);',
+      );
+      helper.writeln('      }');
+      helper.writeln('      state = 1;');
+      helper.writeln('      try {');
+      helper.writeln('        const value = initialize();');
+      helper.writeln('        write(value);');
+      helper.writeln('        state = 2;');
+      helper.writeln('        return value;');
+      helper.writeln('      } catch (error) {');
+      helper.writeln('        state = 0;');
+      helper.writeln('        throw error;');
+      helper.writeln('      }');
+      helper.writeln('    },');
+      helper.writeln('    set(value) {');
+      helper.writeln('      write(value);');
+      helper.writeln('      state = 2;');
+      helper.writeln('      return value;');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartIterator')) {
       helper.writeln('function __dartIterator(iterable) {');
       helper.writeln(
@@ -997,17 +1031,10 @@ final class _EsmEmitter {
 }
 
 final class _TopLevelFieldNames {
-  const _TopLevelFieldNames({
-    required this.getter,
-    required this.setter,
-    required this.state,
-    required this.value,
-  });
+  const _TopLevelFieldNames({required this.value, required this.cell});
 
-  final String getter;
-  final String setter;
-  final String state;
   final String value;
+  final String cell;
 }
 
 const _binaryOperators = {

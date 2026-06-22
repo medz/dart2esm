@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 class _ListSink<T> implements Sink<T> {
@@ -17,7 +18,7 @@ class _ListSink<T> implements Sink<T> {
   }
 }
 
-void main() {
+Future<void> main() async {
   final payload = {
     'name': 'dart2esm',
     'values': [1, 2, 3],
@@ -62,6 +63,39 @@ void main() {
   final lines = const LineSplitter().convert('a\nb\r\nc');
   final staticLines = LineSplitter.split('x\ry').join('/');
   print('lines ${lines.join('|')} $staticLines');
+
+  final boundUtf8 = await utf8.decoder
+      .bind(Stream<List<int>>.fromIterable([
+        [104],
+        [105],
+      ]))
+      .join('|');
+  final transformedUtf8 = await Stream<List<int>>.fromIterable([
+    [33],
+  ]).transform(utf8.decoder).join(',');
+  final lineBound = await const LineSplitter()
+      .bind(Stream<String>.fromIterable(['a\nb', '\nc']))
+      .join('|');
+  final lineSinkChunks = <String>[];
+  final lineSink = const LineSplitter().startChunkedConversion(
+    StringConversionSink.from(_ListSink<String>(lineSinkChunks)),
+  );
+  lineSink.add('x\ny');
+  lineSink.add('\nz');
+  lineSink.close();
+  final escapedChunks = <String>[];
+  final htmlSink = const HtmlEscape().startChunkedConversion(
+    StringConversionSink.withCallback((value) {
+      escapedChunks.add(value);
+    }),
+  );
+  htmlSink.add('<');
+  htmlSink.add('&');
+  htmlSink.close();
+  print(
+    'converterStreams $boundUtf8 $transformedUtf8 $lineBound '
+    '${lineSinkChunks.join('|')} ${escapedChunks.join('|')}',
+  );
 
   final fusedCodec = utf8.fuse(base64);
   final fusedEncoded = fusedCodec.encode('fuse');

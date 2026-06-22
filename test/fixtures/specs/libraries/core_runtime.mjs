@@ -315,10 +315,19 @@ function __dartConverterConvert(converter, value) {
   if (converter != null && typeof converter.encode === "function") return converter.encode(value);
   throw new TypeError("Converter.convert is not available");
 }
+function __dartConverterBind(converter, stream) {
+  return (async function*() {
+    for await (const value of stream) {
+      yield __dartConverterConvert(converter, value);
+    }
+  })();
+}
 function __dartConverterFuse(first, second) {
   const fused = {
     convert(value) { return __dartConverterConvert(second, __dartConverterConvert(first, value)); },
     fuse(next) { return __dartConverterFuse(fused, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(fused, sink); },
+    bind(stream) { return __dartConverterBind(fused, stream); },
   };
   if (typeof first?.encode === "function" && typeof first?.decode === "function" && typeof second?.encode === "function" && typeof second?.decode === "function") {
     fused.encode = (value) => second.encode(first.encode(value));

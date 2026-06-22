@@ -3902,6 +3902,7 @@ final class _EsmEmitter {
         _isAsyncStreamMember(target, name)) {
       _usedHelpers.add('__dartStream');
       _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartConverterBind');
       return '__dartStreamTransform($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4085,6 +4086,16 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStringConversionSinkAsUtf8Sink');
       _usedHelpers.add('__dartUtf8Decode');
       return '$left.asUtf8Sink(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'bind' &&
+        positionalArgs.length == 1 &&
+        _isConvertConverterMember(target, name)) {
+      if (_isConvertLineSplitterMember(target, name)) {
+        return '$left.bind(${positionalArgs.single})';
+      }
+      _usedHelpers.add('__dartConverterBind');
+      return '__dartConverterBind($left, ${positionalArgs.single})';
     }
     if (name == 'listen' &&
         positionalArgs.length == 1 &&
@@ -7202,6 +7213,37 @@ final class _EsmEmitter {
         path.contains('::_StringSinkConversionSink');
   }
 
+  bool _isConvertConverterMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.endsWith('::$name');
+    if (!hasMember || !path.startsWith('dart:convert::')) {
+      return false;
+    }
+    return path.contains('::Converter') ||
+        path.contains('::Codec') ||
+        path.contains('::Encoding') ||
+        path.contains('::Utf8') ||
+        path.contains('::Ascii') ||
+        path.contains('::Latin1') ||
+        path.contains('::Base64') ||
+        path.contains('::Json') ||
+        path.contains('::LineSplitter') ||
+        path.contains('::HtmlEscape') ||
+        path.contains('::_FusedConverter');
+  }
+
+  bool _isConvertLineSplitterMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.endsWith('::$name');
+    return hasMember && path.contains('::LineSplitter');
+  }
+
   bool _isCollectionQueueMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
     final hasMember =
@@ -7510,6 +7552,7 @@ final class _EsmEmitter {
         usesBase64 ||
         _usedHelpers.contains('__dartLineSplitter') ||
         _usedHelpers.contains('__dartHtmlEscape') ||
+        _usedHelpers.contains('__dartConverterBind') ||
         _usedHelpers.contains('__dartByteConversionSink') ||
         _usedHelpers.contains('__dartByteConversionSinkFrom') ||
         _usedHelpers.contains('__dartChunkedConversionSink') ||
@@ -9483,10 +9526,59 @@ final class _EsmEmitter {
       );
       helper.writeln('  return lines;');
       helper.writeln('}');
+      helper.writeln('function __dartLineSplitterSink(sink) {');
+      helper.writeln('  let carry = "";');
+      helper.writeln('  return {');
+      helper.writeln('    add(chunk) {');
+      helper.writeln('      const text = carry + String(chunk);');
+      helper.writeln('      const parts = text.split(/\\r\\n|\\n|\\r/);');
+      helper.writeln(
+        '      const terminated = text.endsWith("\\n") || text.endsWith("\\r");',
+      );
+      helper.writeln('      const stop = parts.length - 1;');
+      helper.writeln('      for (let i = 0; i < stop; i++) sink.add(parts[i]);');
+      helper.writeln('      carry = terminated ? "" : parts[stop];');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    addSlice(chunk, start, end, isLast = false) {');
+      helper.writeln('      this.add(String(chunk).slice(start, end));');
+      helper.writeln('      if (isLast) this.close();');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    close() {');
+      helper.writeln('      if (carry.length > 0) sink.add(carry);');
+      helper.writeln('      carry = "";');
+      helper.writeln('      if (typeof sink.close === "function") sink.close();');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartLineSplitterBind(stream) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    let carry = "";');
+      helper.writeln('    for await (const chunk of stream) {');
+      helper.writeln('      const text = carry + String(chunk);');
+      helper.writeln('      const parts = text.split(/\\r\\n|\\n|\\r/);');
+      helper.writeln(
+        '      const terminated = text.endsWith("\\n") || text.endsWith("\\r");',
+      );
+      helper.writeln('      const stop = parts.length - 1;');
+      helper.writeln('      for (let i = 0; i < stop; i++) yield parts[i];');
+      helper.writeln('      carry = terminated ? "" : parts[stop];');
+      helper.writeln('    }');
+      helper.writeln('    if (carry.length > 0) yield carry;');
+      helper.writeln('  })();');
+      helper.writeln('}');
       helper.writeln('function __dartLineSplitter() {');
       helper.writeln('  return {');
       helper.writeln(
         '    convert(source) { return __dartLineSplit(source); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartLineSplitterSink(sink); },',
+      );
+      helper.writeln(
+        '    bind(stream) { return __dartLineSplitterBind(stream); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9526,6 +9618,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9609,6 +9704,15 @@ final class _EsmEmitter {
         '  throw new TypeError("Converter.convert is not available");',
       );
       helper.writeln('}');
+      helper.writeln('function __dartConverterBind(converter, stream) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '      yield __dartConverterConvert(converter, value);',
+      );
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
       helper.writeln('function __dartConverterFuse(first, second) {');
       helper.writeln('  const fused = {');
       helper.writeln(
@@ -9616,6 +9720,12 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    fuse(next) { return __dartConverterFuse(fused, next); },',
+      );
+      helper.writeln(
+        '    startChunkedConversion(sink) { return __dartConverterStartChunked(fused, sink); },',
+      );
+      helper.writeln(
+        '    bind(stream) { return __dartConverterBind(fused, stream); },',
       );
       helper.writeln('  };');
       helper.writeln(
@@ -11352,6 +11462,9 @@ final class _EsmEmitter {
         '  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);',
       );
       helper.writeln(
+        '  if (transformer != null && typeof transformer.convert === "function") return __dartConverterBind(transformer, stream);',
+      );
+      helper.writeln(
         '  if (typeof transformer === "function") return transformer(stream);',
       );
       helper.writeln(
@@ -12229,6 +12342,7 @@ const _generatedGlobalNames = {
   '__dartConstMap',
   '__dartConstSet',
   '__dartConstValues',
+  '__dartConverterBind',
   '__dartConverterConvert',
   '__dartConverterFuse',
   '__dartConverterStartChunked',
@@ -12307,7 +12421,9 @@ const _generatedGlobalNames = {
   '__dartLatin1Encode',
   '__dartLatin1Encoder',
   '__dartLineSplit',
+  '__dartLineSplitterBind',
   '__dartLineSplitter',
+  '__dartLineSplitterSink',
   '__dartListAsMap',
   '__dartListCopyRange',
   '__dartListIndexOf',

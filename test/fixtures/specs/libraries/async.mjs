@@ -586,6 +586,7 @@ function __dartStreamTransformerFromHandlers({ handleData = null, handleError = 
 }
 function __dartStreamTransformerBind(transformer, stream) {
   if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);
+  if (transformer != null && typeof transformer.convert === "function") return __dartConverterBind(transformer, stream);
   if (typeof transformer === "function") return transformer(stream);
   throw new TypeError("StreamTransformer.bind is not available");
 }

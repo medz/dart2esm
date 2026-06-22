@@ -3269,6 +3269,22 @@ final class _EsmEmitter {
       return '($left < ${positionalArgs.single} ? -1 : ($left > ${positionalArgs.single} ? 1 : 0))';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'replaceFirst' &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3 &&
+        _isCoreMember(target, 'String', name)) {
+      _usedHelpers.add('__dartStringReplaceFirst');
+      final startIndex = positionalArgs.length == 3 ? positionalArgs[2] : '0';
+      return '__dartStringReplaceFirst($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'replaceRange' &&
+        positionalArgs.length == 3 &&
+        _isCoreMember(target, 'String', name)) {
+      _usedHelpers.add('__dartStringReplaceRange');
+      return '__dartStringReplaceRange($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
         positionalArgs.length == 1 &&
         _isCoreCollectionMember(target, name)) {
@@ -3697,6 +3713,10 @@ final class _EsmEmitter {
     if (name == 'isNotEmpty' &&
         _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
       return '$receiver.length !== 0';
+    }
+    if (name == 'codeUnits' &&
+        _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
+      return 'Array.from({ length: $receiver.length }, (_, index) => $receiver.charCodeAt(index))';
     }
     if (name == 'isOdd' &&
         _isCoreMember(expression.interfaceTargetReference, 'int', name)) {
@@ -5364,6 +5384,30 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartStringReplaceFirst')) {
+      helper.writeln(
+        'function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const needle = String(pattern);');
+      helper.writeln('  const index = text.indexOf(needle, startIndex);');
+      helper.writeln('  if (index < 0) return text;');
+      helper.writeln(
+        '  return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartStringReplaceRange')) {
+      helper.writeln(
+        'function __dartStringReplaceRange(source, start, end, replacement) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const actualEnd = end == null ? text.length : end;');
+      helper.writeln(
+        '  return text.slice(0, start) + String(replacement) + text.slice(actualEnd);',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartNumberParse')) {
       helper.writeln('function __dartFormatException(message) {');
       helper.writeln('  const error = new Error(String(message));');
@@ -6864,6 +6908,8 @@ const _generatedGlobalNames = {
   '__dartStreamToList',
   '__dartStreamWhere',
   '__dartStringBuffer',
+  '__dartStringReplaceFirst',
+  '__dartStringReplaceRange',
   '__dartTruncDiv',
   '__dartToJson',
   '__dartUriBuild',

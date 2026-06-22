@@ -27,6 +27,12 @@ void main() {
     '${'x'.padRight(3, '.')} ${'  left'.trimLeft()} '
     '${'right  '.trimRight()} ${'abc'.compareTo('abd')}',
   );
+  print(
+    'stringOps ${trimmed.replaceFirst('l', 'L')} '
+    '${trimmed.replaceFirst('l', 'L', 3)} '
+    '${trimmed.replaceRange(1, 4, 'EL')} '
+    '${trimmed.codeUnits.take(3).join('-')}',
+  );
 
   final uri = Uri.parse('https://example.test/a/b?x=1#frag');
   print(

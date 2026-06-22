@@ -20,6 +20,18 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {
+  const text = String(source);
+  const needle = String(pattern);
+  const index = text.indexOf(needle, startIndex);
+  if (index < 0) return text;
+  return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);
+}
+function __dartStringReplaceRange(source, start, end, replacement) {
+  const text = String(source);
+  const actualEnd = end == null ? text.length : end;
+  return text.slice(0, start) + String(replacement) + text.slice(actualEnd);
+}
 function __dartFormatException(message) {
   const error = new Error(String(message));
   error.name = "FormatException";
@@ -124,6 +136,7 @@ export function main() {
   __dartPrint("checks " + __dartStr(trimmed.startsWith("he")) + " " + __dartStr(trimmed.endsWith("rt")) + " " + __dartStr(trimmed.indexOf("dart")) + " " + __dartStr(__dartIterableJoin(trimmed.split(","), "|")));
   __dartPrint("replace " + __dartStr(trimmed.replaceAll("l", "L").toUpperCase()));
   __dartPrint("stringMeta " + __dartStr(trimmed.length) + " " + __dartStr(trimmed.length !== 0) + " " + __dartStr("".length === 0) + " " + __dartStr(trimmed.includes("l", 3)) + " " + __dartStr("7".padStart(3, "0")) + " " + __dartStr("x".padEnd(3, ".")) + " " + __dartStr("  left".trimStart()) + " " + __dartStr("right  ".trimEnd()) + " " + __dartStr(("abc" < "abd" ? -1 : ("abc" > "abd" ? 1 : 0))));
+  __dartPrint("stringOps " + __dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 0)) + " " + __dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 3)) + " " + __dartStr(__dartStringReplaceRange(trimmed, 1, 4, "EL")) + " " + __dartStr(__dartIterableJoin(Array.from(Array.from({ length: trimmed.length }, (_, index) => trimmed.charCodeAt(index))).slice(0, 3), "-")));
   const uri = __dartUriParse("https://example.test/a/b?x=1#frag");
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
   __dartPrint("uri string " + __dartStr(__dartStr(uri)));

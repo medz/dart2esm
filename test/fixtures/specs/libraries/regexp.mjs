@@ -64,6 +64,104 @@ function __dartStringReplaceAll(source, pattern, replacement) {
   const regexp = __dartPatternRegExp(pattern, true);
   return regexp == null ? text.split(String(pattern)).join(replacementText) : text.replace(regexp, () => replacementText);
 }
+function __dartStringReplaceAllMapped(source, pattern, replace) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, true);
+  if (regexp != null) {
+    return text.replace(regexp, (...args) => String(replace(__dartJsRegExpReplacementMatch(args))));
+  }
+  const needle = String(pattern);
+  return __dartStringReplaceStringMapped(text, needle, replace, true, 0);
+}
+function __dartStringReplaceFirstMapped(source, pattern, replace, startIndex = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const tail = text.slice(startIndex);
+    const match = regexp.exec(tail);
+    if (match == null) return text;
+    const dartMatch = __dartRegExpMatch(match, startIndex);
+    return text.slice(0, dartMatch.start) + String(replace(dartMatch)) + text.slice(dartMatch.end);
+  }
+  const needle = String(pattern);
+  return __dartStringReplaceStringMapped(text, needle, replace, false, startIndex);
+}
+function __dartStringReplaceStringMapped(text, needle, replace, all, startIndex) {
+  if (needle === "") return text;
+  let result = "";
+  let cursor = 0;
+  let index = text.indexOf(needle, startIndex);
+  let replaced = false;
+  while (index >= 0) {
+    result += text.slice(cursor, index);
+    result += String(replace(__dartStringMatch(text, index, needle)));
+    cursor = index + needle.length;
+    replaced = true;
+    if (!all) break;
+    index = text.indexOf(needle, cursor);
+  }
+  return replaced ? result + text.slice(cursor) : text;
+}
+function __dartStringSplitMapJoin(source, pattern, onMatch = null, onNonMatch = null) {
+  const text = String(source);
+  const matchMapper = typeof onMatch === "function" ? onMatch : (match) => match.group(0);
+  const nonMatchMapper = typeof onNonMatch === "function" ? onNonMatch : (part) => part;
+  const matches = __dartStringPatternMatches(text, pattern);
+  if (matches.length === 0) return String(nonMatchMapper(text));
+  let result = "";
+  let cursor = 0;
+  for (const match of matches) {
+    result += String(nonMatchMapper(text.slice(cursor, match.start)));
+    result += String(matchMapper(match));
+    cursor = match.end;
+  }
+  result += String(nonMatchMapper(text.slice(cursor)));
+  return result;
+}
+function __dartStringPatternMatches(text, pattern) {
+  const regexp = __dartPatternRegExp(pattern, true);
+  if (regexp != null) {
+    const matches = [];
+    let match;
+    while ((match = regexp.exec(text)) !== null) {
+      matches.push(__dartRegExpMatch(match));
+      if (match[0] === "") regexp.lastIndex++;
+    }
+    return matches;
+  }
+  const needle = String(pattern);
+  if (needle === "") return [];
+  const matches = [];
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    matches.push(__dartStringMatch(text, index, needle));
+    index = text.indexOf(needle, index + needle.length);
+  }
+  return matches;
+}
+function __dartStringMatch(input, start, value) {
+  return {
+    input,
+    start,
+    end: start + value.length,
+    get groupCount() { return 0; },
+    group(index) { return index === 0 ? value : null; },
+    groups(indices) { return Array.from(indices, (index) => this.group(index)); },
+    namedGroup() { return null; },
+    get groupNames() { return new Set(); },
+    0: value,
+  };
+}
+function __dartJsRegExpReplacementMatch(args) {
+  const hasNamedGroups = args.length > 0 && args[args.length - 1] != null && typeof args[args.length - 1] === "object";
+  const input = args[args.length - (hasNamedGroups ? 2 : 1)];
+  const offset = args[args.length - (hasNamedGroups ? 3 : 2)];
+  const match = Array.prototype.slice.call(args, 0, args.length - (hasNamedGroups ? 3 : 2));
+  match.index = offset;
+  match.input = input;
+  if (hasNamedGroups) match.groups = args[args.length - 1];
+  return __dartRegExpMatch(match);
+}
 function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {
   const text = String(source);
   const needle = String(pattern);
@@ -203,6 +301,9 @@ export function main() {
   const mixed = "a1 b22";
   __dartPrint("stringPattern " + __dartStr(__dartStringContains(mixed, digits, 0)) + " " + __dartStr(__dartStringContains(mixed, digits, 2)) + " " + __dartStr(__dartStringStartsWith(mixed, __dartRegExp("a\\d", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), 0)) + " " + __dartStr(__dartStringIndexOf(mixed, digits, 2)));
   __dartPrint("stringReplace " + __dartStr(__dartIterableJoin(__dartStringSplit(mixed, digits), "|")) + " " + __dartStr(__dartStringReplaceAll(mixed, digits, "#")) + " " + __dartStr(__dartStringReplaceFirstPattern(mixed, digits, "#", 0)));
+  __dartPrint("mapped " + __dartStr(__dartStringReplaceAllMapped(mixed, digits, function(match) { return "[" + __dartStr(match.group(0)) + ":" + __dartStr(match.start) + "]"; })) + " " + __dartStr(__dartStringReplaceFirstMapped(mixed, digits, function(match) { return "[" + __dartStr(match[0]) + "]"; }, 2)));
+  __dartPrint("splitMap " + __dartStr(__dartStringSplitMapJoin(mixed, digits, function(match) { return "<" + __dartStr(match[0]) + ">"; }, function(part) { return part.toUpperCase(); })));
+  __dartPrint("stringMapped " + __dartStr(__dartStringReplaceAllMapped("aa bb aa", "aa", function(match) { return __dartStr(match.start) + ":" + __dartStr(match.group(0)); })) + " " + __dartStr(__dartStringSplitMapJoin("aa bb aa", "bb", function(match) { return "<" + __dartStr(match.group(0)) + ">"; }, function(part) { return part.trim(); })));
   const prefix = __dartNullCheck(digits.matchAsPrefix(mixed, 1));
   __dartPrint("meta " + __dartStr(pattern.pattern) + " " + __dartStr(pattern.isCaseSensitive) + " " + __dartStr(pattern.isMultiLine) + " " + __dartStr(pattern.isUnicode) + " " + __dartStr(pattern.isDotAll));
   __dartPrint("prefix " + __dartStr(prefix.group(0)) + " " + __dartStr(prefix.start) + " " + __dartStr(prefix.end));

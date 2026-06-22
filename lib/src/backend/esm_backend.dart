@@ -3356,6 +3356,13 @@ final class _EsmEmitter {
       return '__dartStringReplaceAll($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'replaceAllMapped' &&
+        positionalArgs.length == 2 &&
+        _isCoreMember(target, 'String', name)) {
+      _usedHelpers.add('__dartStringPattern');
+      return '__dartStringReplaceAllMapped($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'replaceFirst' &&
         positionalArgs.length >= 2 &&
         positionalArgs.length <= 3 &&
@@ -3369,6 +3376,24 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStringReplaceFirst');
       _usedHelpers.add('__dartStringReplaceFirstPattern');
       return '__dartStringReplaceFirstPattern($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'replaceFirstMapped' &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3 &&
+        _isCoreMember(target, 'String', name)) {
+      _usedHelpers.add('__dartStringPattern');
+      final startIndex = positionalArgs.length == 3 ? positionalArgs[2] : '0';
+      return '__dartStringReplaceFirstMapped($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
+    }
+    if (name == 'splitMapJoin' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'String', name)) {
+      _usedHelpers.add('__dartStringPattern');
+      final onMatch = _namedArgument(expression.arguments, 'onMatch') ?? 'null';
+      final onNonMatch =
+          _namedArgument(expression.arguments, 'onNonMatch') ?? 'null';
+      return '__dartStringSplitMapJoin($left, ${positionalArgs[0]}, $onMatch, $onNonMatch)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'replaceRange' &&
@@ -5880,6 +5905,152 @@ final class _EsmEmitter {
         '  return regexp == null ? text.split(String(pattern)).join(replacementText) : text.replace(regexp, () => replacementText);',
       );
       helper.writeln('}');
+      helper.writeln(
+        'function __dartStringReplaceAllMapped(source, pattern, replace) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, true);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln(
+        '    return text.replace(regexp, (...args) => String(replace(__dartJsRegExpReplacementMatch(args))));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  const needle = String(pattern);');
+      helper.writeln(
+        '  return __dartStringReplaceStringMapped(text, needle, replace, true, 0);',
+      );
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringReplaceFirstMapped(source, pattern, replace, startIndex = 0) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln('    const tail = text.slice(startIndex);');
+      helper.writeln('    const match = regexp.exec(tail);');
+      helper.writeln('    if (match == null) return text;');
+      helper.writeln(
+        '    const dartMatch = __dartRegExpMatch(match, startIndex);',
+      );
+      helper.writeln(
+        '    return text.slice(0, dartMatch.start) + String(replace(dartMatch)) + text.slice(dartMatch.end);',
+      );
+      helper.writeln('  }');
+      helper.writeln('  const needle = String(pattern);');
+      helper.writeln(
+        '  return __dartStringReplaceStringMapped(text, needle, replace, false, startIndex);',
+      );
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringReplaceStringMapped(text, needle, replace, all, startIndex) {',
+      );
+      helper.writeln('  if (needle === "") return text;');
+      helper.writeln('  let result = "";');
+      helper.writeln('  let cursor = 0;');
+      helper.writeln('  let index = text.indexOf(needle, startIndex);');
+      helper.writeln('  let replaced = false;');
+      helper.writeln('  while (index >= 0) {');
+      helper.writeln('    result += text.slice(cursor, index);');
+      helper.writeln(
+        '    result += String(replace(__dartStringMatch(text, index, needle)));',
+      );
+      helper.writeln('    cursor = index + needle.length;');
+      helper.writeln('    replaced = true;');
+      helper.writeln('    if (!all) break;');
+      helper.writeln('    index = text.indexOf(needle, cursor);');
+      helper.writeln('  }');
+      helper.writeln('  return replaced ? result + text.slice(cursor) : text;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringSplitMapJoin(source, pattern, onMatch = null, onNonMatch = null) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln(
+        '  const matchMapper = typeof onMatch === "function" ? onMatch : (match) => match.group(0);',
+      );
+      helper.writeln(
+        '  const nonMatchMapper = typeof onNonMatch === "function" ? onNonMatch : (part) => part;',
+      );
+      helper.writeln(
+        '  const matches = __dartStringPatternMatches(text, pattern);',
+      );
+      helper.writeln(
+        '  if (matches.length === 0) return String(nonMatchMapper(text));',
+      );
+      helper.writeln('  let result = "";');
+      helper.writeln('  let cursor = 0;');
+      helper.writeln('  for (const match of matches) {');
+      helper.writeln(
+        '    result += String(nonMatchMapper(text.slice(cursor, match.start)));',
+      );
+      helper.writeln('    result += String(matchMapper(match));');
+      helper.writeln('    cursor = match.end;');
+      helper.writeln('  }');
+      helper.writeln('  result += String(nonMatchMapper(text.slice(cursor)));');
+      helper.writeln('  return result;');
+      helper.writeln('}');
+      helper.writeln('function __dartStringPatternMatches(text, pattern) {');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, true);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln('    const matches = [];');
+      helper.writeln('    let match;');
+      helper.writeln('    while ((match = regexp.exec(text)) !== null) {');
+      helper.writeln('      matches.push(__dartRegExpMatch(match));');
+      helper.writeln('      if (match[0] === "") regexp.lastIndex++;');
+      helper.writeln('    }');
+      helper.writeln('    return matches;');
+      helper.writeln('  }');
+      helper.writeln('  const needle = String(pattern);');
+      helper.writeln('  if (needle === "") return [];');
+      helper.writeln('  const matches = [];');
+      helper.writeln('  let index = text.indexOf(needle);');
+      helper.writeln('  while (index >= 0) {');
+      helper.writeln(
+        '    matches.push(__dartStringMatch(text, index, needle));',
+      );
+      helper.writeln(
+        '    index = text.indexOf(needle, index + needle.length);',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return matches;');
+      helper.writeln('}');
+      helper.writeln('function __dartStringMatch(input, start, value) {');
+      helper.writeln('  return {');
+      helper.writeln('    input,');
+      helper.writeln('    start,');
+      helper.writeln('    end: start + value.length,');
+      helper.writeln('    get groupCount() { return 0; },');
+      helper.writeln(
+        '    group(index) { return index === 0 ? value : null; },',
+      );
+      helper.writeln(
+        '    groups(indices) { return Array.from(indices, (index) => this.group(index)); },',
+      );
+      helper.writeln('    namedGroup() { return null; },');
+      helper.writeln('    get groupNames() { return new Set(); },');
+      helper.writeln('    0: value,');
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartJsRegExpReplacementMatch(args) {');
+      helper.writeln(
+        '  const hasNamedGroups = args.length > 0 && args[args.length - 1] != null && typeof args[args.length - 1] === "object";',
+      );
+      helper.writeln(
+        '  const input = args[args.length - (hasNamedGroups ? 2 : 1)];',
+      );
+      helper.writeln(
+        '  const offset = args[args.length - (hasNamedGroups ? 3 : 2)];',
+      );
+      helper.writeln(
+        '  const match = Array.prototype.slice.call(args, 0, args.length - (hasNamedGroups ? 3 : 2));',
+      );
+      helper.writeln('  match.index = offset;');
+      helper.writeln('  match.input = input;');
+      helper.writeln(
+        '  if (hasNamedGroups) match.groups = args[args.length - 1];',
+      );
+      helper.writeln('  return __dartRegExpMatch(match);');
+      helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStringReplaceFirst')) {
       helper.writeln(
@@ -7877,9 +8048,16 @@ const _generatedGlobalNames = {
   '__dartStringContains',
   '__dartStringIndexOf',
   '__dartStringPattern',
+  '__dartStringPatternMatches',
+  '__dartStringReplaceAllMapped',
   '__dartStringReplaceFirst',
+  '__dartStringReplaceFirstMapped',
   '__dartStringReplaceFirstPattern',
   '__dartStringReplaceAll',
+  '__dartStringReplaceStringMapped',
+  '__dartStringSplitMapJoin',
+  '__dartStringMatch',
+  '__dartJsRegExpReplacementMatch',
   '__dartStringReplaceRange',
   '__dartStringSplit',
   '__dartStringStartsWith',

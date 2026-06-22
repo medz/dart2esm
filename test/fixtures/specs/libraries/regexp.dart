@@ -26,6 +26,17 @@ void main() {
     'stringReplace ${mixed.split(digits).join('|')} '
     '${mixed.replaceAll(digits, '#')} ${mixed.replaceFirst(digits, '#')}',
   );
+  print(
+    'mapped ${mixed.replaceAllMapped(digits, (match) => '[${match.group(0)}:${match.start}]')} '
+    '${mixed.replaceFirstMapped(digits, (match) => '[${match[0]}]', 2)}',
+  );
+  print(
+    'splitMap ${mixed.splitMapJoin(digits, onMatch: (match) => '<${match[0]}>', onNonMatch: (part) => part.toUpperCase())}',
+  );
+  print(
+    'stringMapped ${'aa bb aa'.replaceAllMapped('aa', (match) => '${match.start}:${match.group(0)}')} '
+    '${'aa bb aa'.splitMapJoin('bb', onMatch: (match) => '<${match.group(0)}>', onNonMatch: (part) => part.trim())}',
+  );
 
   final prefix = digits.matchAsPrefix(mixed, 1)!;
   print(

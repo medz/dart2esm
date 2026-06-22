@@ -48,9 +48,20 @@ void main() {
     '${3.0.isFinite} ${(-0.0).isNegative}',
   );
 
-  final uri = Uri.parse('https://example.test/a/b?x=1#frag');
+  final uri = Uri.parse(
+    'https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag',
+  );
   print(
     'uri ${uri.scheme} ${uri.host} ${uri.path} ${uri.query} ${uri.fragment}',
+  );
+  print(
+    'uri meta ${uri.authority} ${uri.userInfo} ${uri.port} '
+    '${uri.pathSegments.join('|')} ${uri.hasScheme} ${uri.hasAuthority} '
+    '${uri.hasPort} ${uri.hasQuery} ${uri.hasFragment} ${uri.isAbsolute}',
+  );
+  print(
+    'uri query ${uri.queryParameters['x']} ${uri.queryParameters['empty']} '
+    '${uri.queryParametersAll['x']!.join('|')}',
   );
   print('uri string ${uri.toString()}');
 

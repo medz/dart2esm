@@ -6163,17 +6163,68 @@ final class _EsmEmitter {
       helper.writeln('    url = new URL(text, "dart://relative");');
       helper.writeln('  }');
       helper.writeln('  const isRelative = url.protocol === "dart:";');
+      helper.writeln(
+        '  const userInfo = isRelative ? "" : [url.username, url.password].filter((part) => part !== "").join(":");',
+      );
+      helper.writeln(
+        '  const defaultPort = url.protocol === "http:" ? 80 : url.protocol === "https:" ? 443 : 0;',
+      );
+      helper.writeln('  function queryParameters(all = false) {');
+      helper.writeln('    const map = new Map();');
+      helper.writeln('    for (const [key, value] of url.searchParams) {');
+      helper.writeln('      if (all) {');
+      helper.writeln('        const values = map.get(key) ?? [];');
+      helper.writeln('        values.push(value);');
+      helper.writeln('        map.set(key, values);');
+      helper.writeln('      } else {');
+      helper.writeln('        map.set(key, value);');
+      helper.writeln('      }');
+      helper.writeln('    }');
+      helper.writeln('    return map;');
+      helper.writeln('  }');
       helper.writeln('  return Object.freeze({');
       helper.writeln(
         '    get scheme() { return isRelative ? "" : url.protocol.slice(0, -1); },',
       );
-      helper.writeln('    get host() { return isRelative ? "" : url.host; },');
+      helper.writeln(
+        '    get host() { return isRelative ? "" : url.hostname; },',
+      );
+      helper.writeln(
+        '    get authority() { return isRelative ? "" : (userInfo === "" ? url.host : userInfo + "@" + url.host); },',
+      );
+      helper.writeln('    get userInfo() { return userInfo; },');
+      helper.writeln(
+        '    get port() { return isRelative ? 0 : (url.port === "" ? defaultPort : Number(url.port)); },',
+      );
       helper.writeln('    get path() { return url.pathname; },');
+      helper.writeln(
+        '    get pathSegments() { return url.pathname.split("/").filter((segment) => segment !== "").map(decodeURIComponent); },',
+      );
       helper.writeln(
         '    get query() { return url.search.startsWith("?") ? url.search.slice(1) : ""; },',
       );
       helper.writeln(
+        '    get queryParameters() { return queryParameters(false); },',
+      );
+      helper.writeln(
+        '    get queryParametersAll() { return queryParameters(true); },',
+      );
+      helper.writeln(
         '    get fragment() { return url.hash.startsWith("#") ? url.hash.slice(1) : ""; },',
+      );
+      helper.writeln(
+        '    get hasScheme() { return !isRelative && url.protocol !== ""; },',
+      );
+      helper.writeln(
+        '    get hasAuthority() { return !isRelative && url.host !== ""; },',
+      );
+      helper.writeln(
+        '    get hasPort() { return !isRelative && url.port !== ""; },',
+      );
+      helper.writeln('    get hasQuery() { return url.search !== ""; },');
+      helper.writeln('    get hasFragment() { return url.hash !== ""; },');
+      helper.writeln(
+        '    get isAbsolute() { return !isRelative && url.protocol !== "" && url.hash === ""; },',
       );
       helper.writeln('    toString() { return text; },');
       helper.writeln('  });');

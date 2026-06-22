@@ -86,12 +86,39 @@ function __dartUriParse(source) {
     url = new URL(text, "dart://relative");
   }
   const isRelative = url.protocol === "dart:";
+  const userInfo = isRelative ? "" : [url.username, url.password].filter((part) => part !== "").join(":");
+  const defaultPort = url.protocol === "http:" ? 80 : url.protocol === "https:" ? 443 : 0;
+  function queryParameters(all = false) {
+    const map = new Map();
+    for (const [key, value] of url.searchParams) {
+      if (all) {
+        const values = map.get(key) ?? [];
+        values.push(value);
+        map.set(key, values);
+      } else {
+        map.set(key, value);
+      }
+    }
+    return map;
+  }
   return Object.freeze({
     get scheme() { return isRelative ? "" : url.protocol.slice(0, -1); },
-    get host() { return isRelative ? "" : url.host; },
+    get host() { return isRelative ? "" : url.hostname; },
+    get authority() { return isRelative ? "" : (userInfo === "" ? url.host : userInfo + "@" + url.host); },
+    get userInfo() { return userInfo; },
+    get port() { return isRelative ? 0 : (url.port === "" ? defaultPort : Number(url.port)); },
     get path() { return url.pathname; },
+    get pathSegments() { return url.pathname.split("/").filter((segment) => segment !== "").map(decodeURIComponent); },
     get query() { return url.search.startsWith("?") ? url.search.slice(1) : ""; },
+    get queryParameters() { return queryParameters(false); },
+    get queryParametersAll() { return queryParameters(true); },
     get fragment() { return url.hash.startsWith("#") ? url.hash.slice(1) : ""; },
+    get hasScheme() { return !isRelative && url.protocol !== ""; },
+    get hasAuthority() { return !isRelative && url.host !== ""; },
+    get hasPort() { return !isRelative && url.port !== ""; },
+    get hasQuery() { return url.search !== ""; },
+    get hasFragment() { return url.hash !== ""; },
+    get isAbsolute() { return !isRelative && url.protocol !== "" && url.hash === ""; },
     toString() { return text; },
   });
 }
@@ -112,6 +139,12 @@ function __dartUriBuild(scheme, authority, path, queryParameters = null) {
     url.search = search.toString();
   }
   return __dartUriParse(url.toString());
+}
+function __dartNullCheck(value) {
+  if (value == null) {
+    throw new TypeError("Null check operator used on a null value");
+  }
+  return value;
 }
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
@@ -149,8 +182,10 @@ export function main() {
   __dartPrint("numOps " + __dartStr(Math.abs(numeric)) + " " + __dartStr(((Number.isNaN(numeric) ? Number.NaN : (numeric < 0 ? -1 : (numeric > 0 ? 1 : numeric))) < 0)) + " " + __dartStr(__dartRoundToInt(numeric)) + " " + __dartStr(Math.floor(numeric)) + " " + __dartStr(Math.ceil(numeric)) + " " + __dartStr(Math.trunc(numeric)));
   __dartPrint("numFormat " + __dartStr(__dartNumClamp(numeric, (-3), 2)) + " " + __dartStr((numeric % 2)) + " " + __dartStr(Number(3.14159).toFixed(2)) + " " + __dartStr(Number(3.14159).toPrecision(3)));
   __dartPrint("numMeta " + __dartStr(Number.isNaN(Number.NaN)) + " " + __dartStr((Infinity === Infinity || Infinity === -Infinity)) + " " + __dartStr(Number.isFinite(3.0)) + " " + __dartStr(((-0.0) < 0 || Object.is((-0.0), -0))));
-  const uri = __dartUriParse("https://example.test/a/b?x=1#frag");
+  const uri = __dartUriParse("https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag");
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
+  __dartPrint("uri meta " + __dartStr(uri.authority) + " " + __dartStr(uri.userInfo) + " " + __dartStr(uri.port) + " " + __dartStr(__dartIterableJoin(uri.pathSegments, "|")) + " " + __dartStr(uri.hasScheme) + " " + __dartStr(uri.hasAuthority) + " " + __dartStr(uri.hasPort) + " " + __dartStr(uri.hasQuery) + " " + __dartStr(uri.hasFragment) + " " + __dartStr(uri.isAbsolute));
+  __dartPrint("uri query " + __dartStr(uri.queryParameters.get("x")) + " " + __dartStr(uri.queryParameters.get("empty")) + " " + __dartStr(__dartIterableJoin(__dartNullCheck(uri.queryParametersAll.get("x")), "|")));
   __dartPrint("uri string " + __dartStr(__dartStr(uri)));
   const https = __dartUriBuild("https", "example.test", "/a/b", new Map([["q", "dart esm"], ["page", "1"]]));
   const http = __dartUriBuild("http", "example.test:8080", "plain path", new Map([["x", "a/b"]]));

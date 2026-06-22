@@ -4237,6 +4237,16 @@ final class _EsmEmitter {
       return '__dartSetAddAll($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        (name == 'removeWhere' || name == 'retainWhere') &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', name)) {
+      _usedHelpers.add('__dartSetWhereMutate');
+      final helper = name == 'removeWhere'
+          ? '__dartSetRemoveWhere'
+          : '__dartSetRetainWhere';
+      return '$helper($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         (name == 'difference' || name == 'intersection' || name == 'union') &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Set', name)) {
@@ -4348,6 +4358,13 @@ final class _EsmEmitter {
         positionalArgs.isEmpty &&
         _isCoreMember(target, 'Map', 'clear')) {
       return '($left.clear(), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeWhere' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', name)) {
+      _usedHelpers.add('__dartMapRemoveWhere');
+      return '__dartMapRemoveWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'containsKey' &&
@@ -8260,6 +8277,20 @@ final class _EsmEmitter {
       helper.writeln('  return false;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartSetWhereMutate')) {
+      helper.writeln('function __dartSetRemoveWhere(set, test) {');
+      helper.writeln('  for (const value of Array.from(set)) {');
+      helper.writeln('    if (test(value)) set.delete(value);');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+      helper.writeln('function __dartSetRetainWhere(set, test) {');
+      helper.writeln('  for (const value of Array.from(set)) {');
+      helper.writeln('    if (!test(value)) set.delete(value);');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartIdentityMap')) {
       helper.writeln('function __dartIdentityMap() {');
       helper.writeln('  const map = new Map();');
@@ -8340,6 +8371,14 @@ final class _EsmEmitter {
       helper.writeln('  const value = map.get(actualKey);');
       helper.writeln('  map.delete(actualKey);');
       helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapRemoveWhere')) {
+      helper.writeln('function __dartMapRemoveWhere(map, test) {');
+      helper.writeln('  for (const [key, value] of Array.from(map)) {');
+      helper.writeln('    if (test(key, value)) map.delete(key);');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartMapContainsValue')) {
@@ -9806,6 +9845,7 @@ const _generatedGlobalNames = {
   '__dartMapMissingKey',
   '__dartMapPutIfAbsent',
   '__dartMapRemove',
+  '__dartMapRemoveWhere',
   '__dartMapSet',
   '__dartMapUpdate',
   '__dartMapUpdateAll',
@@ -9842,7 +9882,10 @@ const _generatedGlobalNames = {
   '__dartSetRemoveAll',
   '__dartSetRemove',
   '__dartSetRetainAll',
+  '__dartSetRemoveWhere',
+  '__dartSetRetainWhere',
   '__dartSetUnion',
+  '__dartSetWhereMutate',
   '__dartStr',
   '__dartStream',
   '__dartStreamAny',

@@ -70,6 +70,18 @@ function __dartSetRemove(set, needle) {
   }
   return false;
 }
+function __dartSetRemoveWhere(set, test) {
+  for (const value of Array.from(set)) {
+    if (test(value)) set.delete(value);
+  }
+  return null;
+}
+function __dartSetRetainWhere(set, test) {
+  for (const value of Array.from(set)) {
+    if (!test(value)) set.delete(value);
+  }
+  return null;
+}
 function __dartIdentityMap() {
   const map = new Map();
   Object.defineProperty(map, "__dartIdentityMap", { value: true });
@@ -117,6 +129,12 @@ function __dartMapRemove(map, key) {
   const value = map.get(actualKey);
   map.delete(actualKey);
   return value;
+}
+function __dartMapRemoveWhere(map, test) {
+  for (const [key, value] of Array.from(map)) {
+    if (test(key, value)) map.delete(key);
+  }
+  return null;
 }
 function __dartMapContainsValue(map, needle) {
   for (const value of map.values()) {
@@ -483,6 +501,17 @@ export function main() {
   __dartSetRemoveAll(setBulk, ["b", "x"]);
   __dartSetRetainAll(setBulk, ["a", "z"]);
   __dartPrint("set bulk " + __dartStr(hasAll) + " " + __dartStr(__dartIterableJoin(setBulk, ",")));
+  const setWhere = (() => {
+    const v = new Set();
+    __dartSetAdd(v, 1);
+    __dartSetAdd(v, 2);
+    __dartSetAdd(v, 3);
+    __dartSetAdd(v, 4);
+    return v;
+  })();
+  __dartSetRemoveWhere(setWhere, function(value) { return (Math.trunc(value) % 2 !== 0); });
+  __dartSetRetainWhere(setWhere, function(value) { return (value > 2); });
+  __dartPrint("set where " + __dartStr(__dartIterableJoin(setWhere, ",")));
   const setUnion = __dartSetUnion(names, (() => {
     const v = new Set();
     __dartSetAdd(v, "ada");
@@ -565,6 +594,7 @@ export function main() {
   __dartMapRemove(counts, "one");
   __dartPrint("map removed " + __dartStr(counts.size) + " " + __dartStr(__dartMapGet(counts, "one")));
   __dartMapUpdateAll(counts, function(key, value) { return (value + key.length); });
+  __dartMapRemoveWhere(counts, function(key, value) { return (Math.trunc(value) % 2 === 0); });
   const entries = Array.from(Array.from(counts, ([key, value]) => ({ key, value })), function(entry) { return __dartStr(entry.key) + ":" + __dartStr(entry.value); });
   __dartPrint("map more " + __dartStr(__dartMapContainsValue(counts, 27)) + " " + __dartStr(__dartIterableJoin(entries, "|")));
   (counts.clear(), null);

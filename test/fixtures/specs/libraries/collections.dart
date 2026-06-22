@@ -119,6 +119,10 @@ void main() {
   setBulk.removeAll(['b', 'x']);
   setBulk.retainAll(['a', 'z']);
   print('set bulk $hasAll ${setBulk.join(',')}');
+  final setWhere = <int>{1, 2, 3, 4};
+  setWhere.removeWhere((value) => value.isOdd);
+  setWhere.retainWhere((value) => value > 2);
+  print('set where ${setWhere.join(',')}');
   final setUnion = names.union({'ada', 'zoe'});
   final setIntersection = setUnion.intersection({'ada', 'missing'});
   final setDifference = setUnion.difference({'cy'});
@@ -189,6 +193,7 @@ void main() {
   counts.remove('one');
   print('map removed ${counts.length} ${counts['one']}');
   counts.updateAll((key, value) => value + key.length);
+  counts.removeWhere((key, value) => value.isEven);
   final entries = counts.entries.map((entry) => '${entry.key}:${entry.value}');
   print('map more ${counts.containsValue(27)} ${entries.join('|')}');
   counts.clear();

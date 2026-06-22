@@ -4189,6 +4189,21 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartDateTime');
       return '__dartDateTimeParse(${positionalArgs.single})';
     }
+    if (path == 'dart:core::Object::@methods::hash' &&
+        positionalArgs.length >= 2) {
+      _usedHelpers.add('__dartObjectHash');
+      return '__dartObjectHash([${positionalArgs.join(', ')}])';
+    }
+    if (path == 'dart:core::Object::@methods::hashAll' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartObjectHash');
+      return '__dartObjectHash(Array.from(${positionalArgs.single}))';
+    }
+    if (path == 'dart:core::Object::@methods::hashAllUnordered' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartObjectHash');
+      return '__dartObjectHashUnordered(Array.from(${positionalArgs.single}))';
+    }
     final numberParse = _emitCoreNumberParseInvocation(
       expression,
       positionalArgs,
@@ -6153,6 +6168,71 @@ final class _EsmEmitter {
       }
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartObjectHash')) {
+      helper.writeln('const __dartIdentityHashes = new WeakMap();');
+      helper.writeln('let __dartNextIdentityHash = 1;');
+      helper.writeln('function __dartCombineHash(hash, value) {');
+      helper.writeln(
+        '  hash = (((hash + value) & 0x1fffffff) + (((hash & 0x0007ffff) << 10) & 0x1fffffff)) & 0x1fffffff;',
+      );
+      helper.writeln('  return hash ^ (hash >> 6);');
+      helper.writeln('}');
+      helper.writeln('function __dartFinishHash(hash) {');
+      helper.writeln(
+        '  hash = (((hash + (((hash & 0x03ffffff) << 3) & 0x1fffffff)) & 0x1fffffff) ^ (hash >> 11));',
+      );
+      helper.writeln(
+        '  return (hash + (((hash & 0x00003fff) << 15) & 0x1fffffff)) & 0x1fffffff;',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartHashValue(value) {');
+      helper.writeln('  if (value == null) return 0;');
+      helper.writeln(
+        '  if (typeof value === "boolean") return value ? 1231 : 1237;',
+      );
+      helper.writeln(
+        '  if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value) & 0x1fffffff : 0;',
+      );
+      helper.writeln('  if (typeof value === "string") {');
+      helper.writeln('    let hash = 0;');
+      helper.writeln(
+        '    for (let i = 0; i < value.length; i++) hash = __dartCombineHash(hash, value.charCodeAt(i));',
+      );
+      helper.writeln('    return __dartFinishHash(hash);');
+      helper.writeln('  }');
+      helper.writeln(
+        '  if (typeof value === "bigint") return Number(value & 0x1fffffffn);',
+      );
+      helper.writeln('  if (!__dartIdentityHashes.has(value)) {');
+      helper.writeln(
+        '    __dartIdentityHashes.set(value, __dartNextIdentityHash);',
+      );
+      helper.writeln(
+        '    __dartNextIdentityHash = (__dartNextIdentityHash + 1) & 0x1fffffff || 1;',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return __dartIdentityHashes.get(value);');
+      helper.writeln('}');
+      helper.writeln('function __dartObjectHash(values) {');
+      helper.writeln('  let hash = 0;');
+      helper.writeln(
+        '  for (const value of values) hash = __dartCombineHash(hash, __dartHashValue(value));',
+      );
+      helper.writeln('  return __dartFinishHash(hash);');
+      helper.writeln('}');
+      helper.writeln('function __dartObjectHashUnordered(values) {');
+      helper.writeln('  let sum = 0;');
+      helper.writeln('  let xor = 0;');
+      helper.writeln('  let count = 0;');
+      helper.writeln('  for (const value of values) {');
+      helper.writeln('    const hash = __dartHashValue(value);');
+      helper.writeln('    sum = (sum + hash) & 0x1fffffff;');
+      helper.writeln('    xor ^= hash;');
+      helper.writeln('    count++;');
+      helper.writeln('  }');
+      helper.writeln('  return __dartObjectHash([sum, xor, count]);');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartTruncDiv')) {
       helper.writeln('function __dartTruncDiv(left, right) {');
       helper.writeln('  return Math.trunc(left / right);');
@@ -6409,6 +6489,10 @@ const _generatedGlobalNames = {
   '__dartIterableFirst',
   '__dartIterableJoin',
   '__dartIterableLast',
+  '__dartCombineHash',
+  '__dartFinishHash',
+  '__dartHashValue',
+  '__dartIdentityHashes',
   '__dartIsRecord',
   '__dartIterator',
   '__dartJsonCodec',
@@ -6419,6 +6503,9 @@ const _generatedGlobalNames = {
   '__dartNumParse',
   '__dartNumberParse',
   '__dartNumTryParse',
+  '__dartNextIdentityHash',
+  '__dartObjectHash',
+  '__dartObjectHashUnordered',
   '__dartPrint',
   '__dartRecord',
   '__dartRecordShape',

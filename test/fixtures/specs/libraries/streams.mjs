@@ -140,6 +140,47 @@ function __dartStreamWhere(stream, test) {
     }
   })();
 }
+function __dartStreamTake(stream, count) {
+  return (async function*() {
+    let remaining = Math.max(0, Math.trunc(count));
+    if (remaining === 0) return;
+    for await (const value of stream) {
+      yield value;
+      remaining--;
+      if (remaining === 0) break;
+    }
+  })();
+}
+function __dartStreamSkip(stream, count) {
+  return (async function*() {
+    let remaining = Math.max(0, Math.trunc(count));
+    for await (const value of stream) {
+      if (remaining > 0) {
+        remaining--;
+        continue;
+      }
+      yield value;
+    }
+  })();
+}
+function __dartStreamTakeWhile(stream, test) {
+  return (async function*() {
+    for await (const value of stream) {
+      if (!test(value)) break;
+      yield value;
+    }
+  })();
+}
+function __dartStreamSkipWhile(stream, test) {
+  return (async function*() {
+    let skipping = true;
+    for await (const value of stream) {
+      if (skipping && test(value)) continue;
+      skipping = false;
+      yield value;
+    }
+  })();
+}
 async function __dartStreamToList(stream) {
   const values = [];
   for await (const value of stream) values.push(value);
@@ -190,6 +231,39 @@ async function __dartStreamEvery(stream, test) {
     if (!test(value)) return false;
   }
   return true;
+}
+async function __dartStreamFirstWhere(stream, test, orElse = null) {
+  for await (const value of stream) {
+    if (test(value)) return value;
+  }
+  if (typeof orElse === "function") return orElse();
+  throw new RangeError("No element");
+}
+async function __dartStreamLastWhere(stream, test, orElse = null) {
+  let found = false;
+  let last;
+  for await (const value of stream) {
+    if (test(value)) {
+      found = true;
+      last = value;
+    }
+  }
+  if (found) return last;
+  if (typeof orElse === "function") return orElse();
+  throw new RangeError("No element");
+}
+async function __dartStreamSingleWhere(stream, test, orElse = null) {
+  let found = false;
+  let single;
+  for await (const value of stream) {
+    if (!test(value)) continue;
+    if (found) throw new Error("Bad state: Too many elements");
+    found = true;
+    single = value;
+  }
+  if (found) return single;
+  if (typeof orElse === "function") return orElse();
+  throw new RangeError("No element");
 }
 async function __dartStreamContains(stream, needle) {
   for await (const value of stream) {
@@ -242,6 +316,8 @@ export async function main() {
   __dartPrint("future " + __dartStr(single) + " " + __dartStr(__dartIterableJoin(listed, "|")));
   __dartPrint("query " + __dartStr(await __dartStreamLength(__dartStreamFromIterable([1, 2, 3]))) + " " + __dartStr(await __dartStreamIsEmpty(__dartStreamFromIterable([]))) + " " + __dartStr(await __dartStreamLast(__dartStreamFromIterable([1, 2, 3]))) + " " + __dartStr(await __dartStreamSingle(__dartStreamFromIterable([9]))));
   __dartPrint("checks " + __dartStr(await __dartStreamAny(__dartStreamFromIterable([1, 2, 3]), function(value) { return (value > 2); })) + " " + __dartStr(await __dartStreamEvery(__dartStreamFromIterable([1, 2, 3]), function(value) { return (value > 0); })) + " " + __dartStr(await __dartStreamContains(__dartStreamFromIterable([1, 2, 3]), 2)) + " " + __dartStr(await __dartStreamJoin(__dartStreamFromIterable(["a", "b"]), "-")) + " " + __dartStr(await __dartStreamDrain(__dartStreamFromIterable([1, 2]), "done")));
+  __dartPrint("slice " + __dartStr(await __dartStreamJoin(__dartStreamTake(__dartStreamSkip(__dartStreamFromIterable([1, 2, 3, 4, 5]), 1), 3), ",")) + " " + __dartStr(await __dartStreamJoin(__dartStreamTakeWhile(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value < 3); }), ",")) + " " + __dartStr(await __dartStreamJoin(__dartStreamSkipWhile(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value < 3); }), ",")));
+  __dartPrint("whereQuery " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value > 2); }, null)) + " " + __dartStr(await __dartStreamLastWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (Math.trunc(value) % 2 !== 0); }, null)) + " " + __dartStr(await __dartStreamSingleWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return __dartEquals(value, 3); }, null)) + " " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2]), function(value) { return (value > 9); }, function() { return (-1); })));
   const controller = __dartStreamController();
   const controlledFuture = __dartStreamToList(controller.stream);
   __dartPrint("state " + __dartStr(controller.isClosed) + " " + __dartStr(controller.hasListener));

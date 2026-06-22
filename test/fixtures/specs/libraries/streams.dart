@@ -28,6 +28,17 @@ Future<void> main() async {
     '${await Stream<String>.fromIterable(['a', 'b']).join('-')} '
     '${await Stream<int>.fromIterable([1, 2]).drain<String>('done')}',
   );
+  print(
+    'slice ${await Stream<int>.fromIterable([1, 2, 3, 4, 5]).skip(1).take(3).join(',')} '
+    '${await Stream<int>.fromIterable([1, 2, 3, 4]).takeWhile((value) => value < 3).join(',')} '
+    '${await Stream<int>.fromIterable([1, 2, 3, 4]).skipWhile((value) => value < 3).join(',')}',
+  );
+  print(
+    'whereQuery ${await Stream<int>.fromIterable([1, 2, 3, 4]).firstWhere((value) => value > 2)} '
+    '${await Stream<int>.fromIterable([1, 2, 3, 4]).lastWhere((value) => value.isOdd)} '
+    '${await Stream<int>.fromIterable([1, 2, 3, 4]).singleWhere((value) => value == 3)} '
+    '${await Stream<int>.fromIterable([1, 2]).firstWhere((value) => value > 9, orElse: () => -1)}',
+  );
 
   final controller = StreamController<int>();
   final controlledFuture = controller.stream.toList();

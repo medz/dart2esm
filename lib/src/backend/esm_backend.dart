@@ -3772,6 +3772,39 @@ final class _EsmEmitter {
       return '__dartStreamWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        (name == 'take' || name == 'skip') &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      final helper = name == 'take' ? '__dartStreamTake' : '__dartStreamSkip';
+      return '$helper($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        (name == 'takeWhile' || name == 'skipWhile') &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      final helper = name == 'takeWhile'
+          ? '__dartStreamTakeWhile'
+          : '__dartStreamSkipWhile';
+      return '$helper($left, ${positionalArgs.single})';
+    }
+    if ((name == 'firstWhere' ||
+            name == 'lastWhere' ||
+            name == 'singleWhere') &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      final helper = switch (name) {
+        'firstWhere' => '__dartStreamFirstWhere',
+        'lastWhere' => '__dartStreamLastWhere',
+        'singleWhere' => '__dartStreamSingleWhere',
+        _ => throw StateError('unreachable'),
+      };
+      final orElse = _namedArgument(expression.arguments, 'orElse') ?? 'null';
+      return '$helper($left, ${positionalArgs.single}, $orElse)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'toList' &&
         positionalArgs.isEmpty &&
         _isAsyncStreamMember(target, name)) {
@@ -9052,6 +9085,47 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
+      helper.writeln('function __dartStreamTake(stream, count) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
+      helper.writeln('    if (remaining === 0) return;');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      yield value;');
+      helper.writeln('      remaining--;');
+      helper.writeln('      if (remaining === 0) break;');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamSkip(stream, count) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      if (remaining > 0) {');
+      helper.writeln('        remaining--;');
+      helper.writeln('        continue;');
+      helper.writeln('      }');
+      helper.writeln('      yield value;');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamTakeWhile(stream, test) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      if (!test(value)) break;');
+      helper.writeln('      yield value;');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamSkipWhile(stream, test) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    let skipping = true;');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      if (skipping && test(value)) continue;');
+      helper.writeln('      skipping = false;');
+      helper.writeln('      yield value;');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
       helper.writeln('async function __dartStreamToList(stream) {');
       helper.writeln('  const values = [];');
       helper.writeln('  for await (const value of stream) values.push(value);');
@@ -9104,6 +9178,47 @@ final class _EsmEmitter {
       helper.writeln('    if (!test(value)) return false;');
       helper.writeln('  }');
       helper.writeln('  return true;');
+      helper.writeln('}');
+      helper.writeln(
+        'async function __dartStreamFirstWhere(stream, test, orElse = null) {',
+      );
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    if (test(value)) return value;');
+      helper.writeln('  }');
+      helper.writeln('  if (typeof orElse === "function") return orElse();');
+      helper.writeln('  throw new RangeError("No element");');
+      helper.writeln('}');
+      helper.writeln(
+        'async function __dartStreamLastWhere(stream, test, orElse = null) {',
+      );
+      helper.writeln('  let found = false;');
+      helper.writeln('  let last;');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    if (test(value)) {');
+      helper.writeln('      found = true;');
+      helper.writeln('      last = value;');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  if (found) return last;');
+      helper.writeln('  if (typeof orElse === "function") return orElse();');
+      helper.writeln('  throw new RangeError("No element");');
+      helper.writeln('}');
+      helper.writeln(
+        'async function __dartStreamSingleWhere(stream, test, orElse = null) {',
+      );
+      helper.writeln('  let found = false;');
+      helper.writeln('  let single;');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    if (!test(value)) continue;');
+      helper.writeln(
+        '    if (found) throw new Error("Bad state: Too many elements");',
+      );
+      helper.writeln('    found = true;');
+      helper.writeln('    single = value;');
+      helper.writeln('  }');
+      helper.writeln('  if (found) return single;');
+      helper.writeln('  if (typeof orElse === "function") return orElse();');
+      helper.writeln('  throw new RangeError("No element");');
       helper.writeln('}');
       helper.writeln('async function __dartStreamContains(stream, needle) {');
       helper.writeln('  for await (const value of stream) {');
@@ -9608,13 +9723,20 @@ const _generatedGlobalNames = {
   '__dartStreamDrain',
   '__dartStreamEvery',
   '__dartStreamFirst',
+  '__dartStreamFirstWhere',
   '__dartStreamFromIterable',
   '__dartStreamIsEmpty',
   '__dartStreamJoin',
   '__dartStreamLast',
+  '__dartStreamLastWhere',
   '__dartStreamLength',
   '__dartStreamMap',
+  '__dartStreamSkip',
+  '__dartStreamSkipWhile',
   '__dartStreamSingle',
+  '__dartStreamSingleWhere',
+  '__dartStreamTake',
+  '__dartStreamTakeWhile',
   '__dartStreamToList',
   '__dartStreamWhere',
   '__dartStreamController',

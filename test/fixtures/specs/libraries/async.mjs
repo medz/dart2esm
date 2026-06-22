@@ -194,6 +194,47 @@ function __dartStreamWhere(stream, test) {
     }
   })();
 }
+function __dartStreamTake(stream, count) {
+  return (async function*() {
+    let remaining = Math.max(0, Math.trunc(count));
+    if (remaining === 0) return;
+    for await (const value of stream) {
+      yield value;
+      remaining--;
+      if (remaining === 0) break;
+    }
+  })();
+}
+function __dartStreamSkip(stream, count) {
+  return (async function*() {
+    let remaining = Math.max(0, Math.trunc(count));
+    for await (const value of stream) {
+      if (remaining > 0) {
+        remaining--;
+        continue;
+      }
+      yield value;
+    }
+  })();
+}
+function __dartStreamTakeWhile(stream, test) {
+  return (async function*() {
+    for await (const value of stream) {
+      if (!test(value)) break;
+      yield value;
+    }
+  })();
+}
+function __dartStreamSkipWhile(stream, test) {
+  return (async function*() {
+    let skipping = true;
+    for await (const value of stream) {
+      if (skipping && test(value)) continue;
+      skipping = false;
+      yield value;
+    }
+  })();
+}
 async function __dartStreamToList(stream) {
   const values = [];
   for await (const value of stream) values.push(value);
@@ -244,6 +285,39 @@ async function __dartStreamEvery(stream, test) {
     if (!test(value)) return false;
   }
   return true;
+}
+async function __dartStreamFirstWhere(stream, test, orElse = null) {
+  for await (const value of stream) {
+    if (test(value)) return value;
+  }
+  if (typeof orElse === "function") return orElse();
+  throw new RangeError("No element");
+}
+async function __dartStreamLastWhere(stream, test, orElse = null) {
+  let found = false;
+  let last;
+  for await (const value of stream) {
+    if (test(value)) {
+      found = true;
+      last = value;
+    }
+  }
+  if (found) return last;
+  if (typeof orElse === "function") return orElse();
+  throw new RangeError("No element");
+}
+async function __dartStreamSingleWhere(stream, test, orElse = null) {
+  let found = false;
+  let single;
+  for await (const value of stream) {
+    if (!test(value)) continue;
+    if (found) throw new Error("Bad state: Too many elements");
+    found = true;
+    single = value;
+  }
+  if (found) return single;
+  if (typeof orElse === "function") return orElse();
+  throw new RangeError("No element");
 }
 async function __dartStreamContains(stream, needle) {
   for await (const value of stream) {

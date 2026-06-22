@@ -2784,6 +2784,27 @@ final class _EsmEmitter {
       return 'Array.from($left).every(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'map' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamMap($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'where' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamWhere($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'toList' &&
+        positionalArgs.isEmpty &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamToList($left)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'add' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'List', 'add')) {
@@ -2855,6 +2876,11 @@ final class _EsmEmitter {
       return '__dartIterator(${emitExpression(expression.receiver)})';
     }
     final receiver = emitExpression(expression.receiver);
+    if (name == 'first' &&
+        _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamFirst($receiver)';
+    }
     final receiverCollectionKind = _expressionCollectionKind(
       expression.receiver,
     );
@@ -3279,9 +3305,6 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
-    if (!path.startsWith('dart:async::Future::')) {
-      return null;
-    }
     if (path == 'dart:async::Future::@factories::value') {
       final value = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return 'Promise.resolve($value)';
@@ -3304,6 +3327,20 @@ final class _EsmEmitter {
     if (path == 'dart:async::Future::@methods::wait' &&
         positionalArgs.length == 1) {
       return 'Promise.all(Array.from(${positionalArgs.single}))';
+    }
+    if (path == 'dart:async::Stream::@factories::fromIterable' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamFromIterable(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Stream::@factories::value' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamFromIterable([${positionalArgs.single}])';
+    }
+    if (path == 'dart:async::Stream::@factories::empty') {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamFromIterable([])';
     }
     return null;
   }
@@ -3792,6 +3829,13 @@ final class _EsmEmitter {
   bool _isCoreMapMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
     return _isCoreMember(reference, 'Map', name) || path.contains('::_Map::');
+  }
+
+  bool _isAsyncStreamMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return path == 'dart:async::Stream::@methods::$name' ||
+        path == 'dart:async::Stream::@getters::$name' ||
+        path == 'dart:async::Stream::$name';
   }
 
   String? _expressionCollectionKind(k.Expression expression) {
@@ -4663,6 +4707,36 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartStream')) {
+      helper.writeln('function __dartStreamFromIterable(values) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for (const value of values) yield value;');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamMap(stream, convert) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      yield convert(value);');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamWhere(stream, test) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      if (test(value)) yield value;');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamToList(stream) {');
+      helper.writeln('  const values = [];');
+      helper.writeln('  for await (const value of stream) values.push(value);');
+      helper.writeln('  return values;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamFirst(stream) {');
+      helper.writeln('  for await (const value of stream) return value;');
+      helper.writeln('  throw new RangeError("No element");');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartEquals')) {
       helper.writeln('function __dartEquals(left, right) {');
       if (usesRecord) {
@@ -4951,6 +5025,12 @@ const _generatedGlobalNames = {
   '__dartRegExp',
   '__dartRegExpMatch',
   '__dartStr',
+  '__dartStream',
+  '__dartStreamFirst',
+  '__dartStreamFromIterable',
+  '__dartStreamMap',
+  '__dartStreamToList',
+  '__dartStreamWhere',
   '__dartStringBuffer',
   '__dartTruncDiv',
   '__dartToJson',

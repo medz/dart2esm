@@ -375,6 +375,52 @@ function __dartStreamWhere(stream, test) {
     }
   })();
 }
+function __dartStreamAsyncMap(stream, convert) {
+  return (async function*() {
+    for await (const value of stream) {
+      yield await convert(value);
+    }
+  })();
+}
+function __dartStreamAsyncExpand(stream, convert) {
+  return (async function*() {
+    for await (const value of stream) {
+      const inner = convert(value);
+      if (inner == null) continue;
+      for await (const expanded of inner) yield expanded;
+    }
+  })();
+}
+function __dartStreamDistinct(stream, equals = null) {
+  return (async function*() {
+    let hasPrevious = false;
+    let previous;
+    for await (const value of stream) {
+      const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));
+      if (same) continue;
+      previous = value;
+      hasPrevious = true;
+      yield value;
+    }
+  })();
+}
+function __dartStreamHandleError(stream, onError, test = null) {
+  return (async function*() {
+    const iterator = stream[Symbol.asyncIterator]();
+    while (true) {
+      try {
+        const next = await iterator.next();
+        if (next.done) break;
+        yield next.value;
+      } catch (error) {
+        if (typeof test === "function" && !test(error)) throw error;
+        if (typeof onError !== "function") continue;
+        const result = onError.length >= 2 ? onError(error, error?.stack ?? "<javascript stack unavailable>") : onError(error);
+        await result;
+      }
+    }
+  })();
+}
 function __dartStreamTake(stream, count) {
   return (async function*() {
     let remaining = Math.max(0, Math.trunc(count));

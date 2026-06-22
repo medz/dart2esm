@@ -42,6 +42,8 @@ final class _EsmEmitter {
   final _usedNames = <String>{};
   var _indent = 0;
   k.Class? _currentClass;
+  String? _thisAlias;
+  String? _emptyReturnValue;
 
   EsmBackendResult emit() {
     final main = component.mainMethod;
@@ -189,9 +191,16 @@ final class _EsmEmitter {
     if (klass.constructors.isEmpty) {
       _emitDefaultConstructor(klass);
     } else {
+      final hasUnnamedConstructor = klass.constructors.any(
+        (constructor) => constructor.name.text.isEmpty,
+      );
+      if (!hasUnnamedConstructor) {
+        _emitUnavailableUnnamedConstructor(klass);
+      }
       for (final constructor in klass.constructors) {
         if (constructor.name.text.isNotEmpty) {
-          throw UnsupportedKernelNode(constructor, 'named constructor');
+          _emitNamedConstructor(constructor, klass);
+          continue;
         }
         if (_canOmitConstructor(constructor, klass)) {
           continue;
@@ -322,7 +331,20 @@ final class _EsmEmitter {
     };
   }
 
+  void _emitUnavailableUnnamedConstructor(k.Class klass) {
+    writeln('constructor() {');
+    _indent++;
+    writeln(
+      'throw new TypeError(${jsonEncode('Class ${klass.name} has no unnamed constructor')});',
+    );
+    _indent--;
+    writeln('}');
+  }
+
   void _emitConstructor(k.Constructor constructor, k.Class klass) {
+    if (constructor.isExternal) {
+      throw UnsupportedKernelNode(constructor, 'external constructor');
+    }
     final function = constructor.function;
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw UnsupportedKernelNode(constructor, 'async constructor');
@@ -346,6 +368,82 @@ final class _EsmEmitter {
     }
     _indent--;
     writeln('}');
+  }
+
+  void _emitNamedConstructor(k.Constructor constructor, k.Class klass) {
+    if (constructor.isExternal) {
+      throw UnsupportedKernelNode(constructor, 'external named constructor');
+    }
+    if (_hasNonObjectSuperclass(klass)) {
+      throw UnsupportedKernelNode(
+        constructor,
+        'named constructor with superclass',
+      );
+    }
+    if (constructor.initializers.any(
+      (initializer) => initializer is k.RedirectingInitializer,
+    )) {
+      throw UnsupportedKernelNode(constructor, 'redirecting named constructor');
+    }
+    final function = constructor.function;
+    if (function.asyncMarker != k.AsyncMarker.Sync) {
+      throw UnsupportedKernelNode(constructor, 'async named constructor');
+    }
+
+    final className = _className(klass);
+    final self = _freshName('\$self');
+    writeln(
+      'static ${_memberName(constructor.name.text)}(${_emitParameterList(function)}) {',
+    );
+    _indent++;
+    writeln('const $self = Object.create($className.prototype);');
+    _withConstructorContext(
+      thisAlias: self,
+      emptyReturnValue: self,
+      body: () {
+        _emitInstanceFieldDefaults(
+          klass,
+          skipFields: _initializedFields(constructor.initializers),
+        );
+        for (final initializer in constructor.initializers) {
+          _emitInitializer(initializer);
+        }
+        final body = function.body;
+        if (body != null) {
+          _emitFunctionBody(body);
+        }
+      },
+    );
+    writeln('return $self;');
+    _indent--;
+    writeln('}');
+  }
+
+  void _withConstructorContext({
+    required String? thisAlias,
+    required String? emptyReturnValue,
+    required void Function() body,
+  }) {
+    final previousThisAlias = _thisAlias;
+    final previousEmptyReturnValue = _emptyReturnValue;
+    _thisAlias = thisAlias;
+    _emptyReturnValue = emptyReturnValue;
+    try {
+      body();
+    } finally {
+      _thisAlias = previousThisAlias;
+      _emptyReturnValue = previousEmptyReturnValue;
+    }
+  }
+
+  void _withEmptyReturnValue(String? value, void Function() body) {
+    final previousEmptyReturnValue = _emptyReturnValue;
+    _emptyReturnValue = value;
+    try {
+      body();
+    } finally {
+      _emptyReturnValue = previousEmptyReturnValue;
+    }
   }
 
   void _emitDerivedConstructorInitializers(
@@ -391,7 +489,7 @@ final class _EsmEmitter {
           throw UnsupportedKernelNode(initializer, 'field initializer');
         }
         writeln(
-          'this.${_memberName(field.name.text)} = ${emitExpression(initializer.value)};',
+          '$_thisExpression.${_memberName(field.name.text)} = ${emitExpression(initializer.value)};',
         );
       case k.LocalInitializer():
         emitStatement(initializer.variable);
@@ -409,6 +507,9 @@ final class _EsmEmitter {
 
   void _emitSuperInitializer(k.SuperInitializer initializer) {
     final target = initializer.target;
+    if (_isCoreClass(target.enclosingClass.reference, 'Object')) {
+      return;
+    }
     if (target.name.text.isNotEmpty) {
       throw UnsupportedKernelNode(initializer, 'named super initializer');
     }
@@ -438,7 +539,7 @@ final class _EsmEmitter {
       }
       final initializer = field.initializer;
       writeln(
-        'this.${_memberName(field.name.text)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
+        '$_thisExpression.${_memberName(field.name.text)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
       );
     }
   }
@@ -634,7 +735,9 @@ final class _EsmEmitter {
         final expression = statement.expression;
         writeln(
           expression == null
-              ? 'return;'
+              ? _emptyReturnValue == null
+                    ? 'return;'
+                    : 'return $_emptyReturnValue;'
               : 'return ${emitExpression(expression)};',
         );
       case k.VariableDeclaration():
@@ -719,7 +822,9 @@ final class _EsmEmitter {
     if (body == null) {
       throw UnsupportedKernelNode(function, 'local function body');
     }
-    _emitFunctionBody(body);
+    _withEmptyReturnValue(null, () {
+      _emitFunctionBody(body);
+    });
     _indent--;
     writeln('}');
   }
@@ -907,7 +1012,7 @@ final class _EsmEmitter {
       case k.SuperPropertySet():
         return _emitSuperPropertySet(expression);
       case k.ThisExpression():
-        return 'this';
+        return _thisExpression;
       case k.ConstantExpression():
         return _emitEsmConst(expression.constant);
       case k.FunctionExpression():
@@ -950,7 +1055,9 @@ final class _EsmEmitter {
     final localBuffer = StringBuffer();
     _buffer = localBuffer;
     _indent = previousIndent + 1;
-    _emitFunctionBody(body);
+    _withEmptyReturnValue(null, () {
+      _emitFunctionBody(body);
+    });
     _buffer = previousBuffer;
     _indent = previousIndent;
     return localBuffer.toString();
@@ -1096,10 +1203,10 @@ final class _EsmEmitter {
         'constructor invocation ${_referencePath(expression.targetReference)}',
       );
     }
-    if (target.name.text.isNotEmpty) {
-      throw UnsupportedKernelNode(expression, 'named constructor invocation');
-    }
     final args = _emitArguments(expression.arguments);
+    if (target.name.text.isNotEmpty) {
+      return '${_className(target.enclosingClass)}.${_memberName(target.name.text)}($args)';
+    }
     return 'new ${_className(target.enclosingClass)}($args)';
   }
 
@@ -1297,6 +1404,8 @@ final class _EsmEmitter {
   String _emitSuperPropertySet(k.SuperPropertySet expression) {
     return 'super.${_memberName(expression.name.text)} = ${emitExpression(expression.value)}';
   }
+
+  String get _thisExpression => _thisAlias ?? 'this';
 
   String _emitDynamicInvocation(k.DynamicInvocation expression) {
     final receiver = emitExpression(expression.receiver);

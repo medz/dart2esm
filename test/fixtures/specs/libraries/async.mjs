@@ -364,6 +364,50 @@ function __dartStreamPeriodic(period, computation = null) {
     }
   })();
 }
+function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null) {
+  const controller = __dartStreamController(true);
+  let started = false;
+  let canceled = false;
+  function makeSubscription() {
+    return {
+      pause() { return null; },
+      resume() { return null; },
+      cancel() { canceled = true; return controller.close(); },
+      get isPaused() { return false; },
+    };
+  }
+  async function pump() {
+    try {
+      for await (const value of stream) {
+        if (canceled) break;
+        controller.add(value);
+      }
+    } catch (error) {
+      if (!canceled) controller.addError(error);
+    } finally {
+      await controller.close();
+    }
+  }
+  return {
+    isBroadcast: true,
+    [Symbol.asyncIterator]() {
+      if (!started) {
+        started = true;
+        if (typeof onListen === "function") onListen(makeSubscription());
+        Promise.resolve().then(pump);
+      }
+      const iterator = controller.stream[Symbol.asyncIterator]();
+      return {
+        next() { return iterator.next(); },
+        return() {
+          if (typeof onCancel === "function") onCancel(makeSubscription());
+          if (typeof iterator.return === "function") return iterator.return();
+          return Promise.resolve({ done: true });
+        },
+      };
+    },
+  };
+}
 function __dartStreamMap(stream, convert) {
   return (async function*() {
     for await (const value of stream) {

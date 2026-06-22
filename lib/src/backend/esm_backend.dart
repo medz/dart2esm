@@ -3896,6 +3896,17 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamAsyncExpand($left, ${positionalArgs.single})';
     }
+    if (name == 'asBroadcastStream' &&
+        positionalArgs.isEmpty &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      final onListen =
+          _namedArgument(expression.arguments, 'onListen') ?? 'null';
+      final onCancel =
+          _namedArgument(expression.arguments, 'onCancel') ?? 'null';
+      return '__dartStreamAsBroadcastStream($left, $onListen, $onCancel)';
+    }
     if (expression.arguments.named.isEmpty &&
         name == 'distinct' &&
         positionalArgs.length <= 1 &&
@@ -10463,6 +10474,62 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null) {',
+      );
+      helper.writeln('  const controller = __dartStreamController(true);');
+      helper.writeln('  let started = false;');
+      helper.writeln('  let canceled = false;');
+      helper.writeln('  function makeSubscription() {');
+      helper.writeln('    return {');
+      helper.writeln('      pause() { return null; },');
+      helper.writeln('      resume() { return null; },');
+      helper.writeln(
+        '      cancel() { canceled = true; return controller.close(); },',
+      );
+      helper.writeln('      get isPaused() { return false; },');
+      helper.writeln('    };');
+      helper.writeln('  }');
+      helper.writeln('  async function pump() {');
+      helper.writeln('    try {');
+      helper.writeln('      for await (const value of stream) {');
+      helper.writeln('        if (canceled) break;');
+      helper.writeln('        controller.add(value);');
+      helper.writeln('      }');
+      helper.writeln('    } catch (error) {');
+      helper.writeln('      if (!canceled) controller.addError(error);');
+      helper.writeln('    } finally {');
+      helper.writeln('      await controller.close();');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  return {');
+      helper.writeln('    isBroadcast: true,');
+      helper.writeln('    [Symbol.asyncIterator]() {');
+      helper.writeln('      if (!started) {');
+      helper.writeln('        started = true;');
+      helper.writeln(
+        '        if (typeof onListen === "function") onListen(makeSubscription());',
+      );
+      helper.writeln('        Promise.resolve().then(pump);');
+      helper.writeln('      }');
+      helper.writeln(
+        '      const iterator = controller.stream[Symbol.asyncIterator]();',
+      );
+      helper.writeln('      return {');
+      helper.writeln('        next() { return iterator.next(); },');
+      helper.writeln('        return() {');
+      helper.writeln(
+        '          if (typeof onCancel === "function") onCancel(makeSubscription());',
+      );
+      helper.writeln(
+        '          if (typeof iterator.return === "function") return iterator.return();',
+      );
+      helper.writeln('          return Promise.resolve({ done: true });');
+      helper.writeln('        },');
+      helper.writeln('      };');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('}');
       helper.writeln('function __dartStreamMap(stream, convert) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    for await (const value of stream) {');
@@ -11383,6 +11450,7 @@ const _generatedGlobalNames = {
   '__dartStr',
   '__dartStream',
   '__dartStreamAny',
+  '__dartStreamAsBroadcastStream',
   '__dartStreamAsyncExpand',
   '__dartStreamAsyncMap',
   '__dartStreamCast',

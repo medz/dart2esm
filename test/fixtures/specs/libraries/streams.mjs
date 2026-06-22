@@ -245,6 +245,50 @@ function __dartStreamPeriodic(period, computation = null) {
     }
   })();
 }
+function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null) {
+  const controller = __dartStreamController(true);
+  let started = false;
+  let canceled = false;
+  function makeSubscription() {
+    return {
+      pause() { return null; },
+      resume() { return null; },
+      cancel() { canceled = true; return controller.close(); },
+      get isPaused() { return false; },
+    };
+  }
+  async function pump() {
+    try {
+      for await (const value of stream) {
+        if (canceled) break;
+        controller.add(value);
+      }
+    } catch (error) {
+      if (!canceled) controller.addError(error);
+    } finally {
+      await controller.close();
+    }
+  }
+  return {
+    isBroadcast: true,
+    [Symbol.asyncIterator]() {
+      if (!started) {
+        started = true;
+        if (typeof onListen === "function") onListen(makeSubscription());
+        Promise.resolve().then(pump);
+      }
+      const iterator = controller.stream[Symbol.asyncIterator]();
+      return {
+        next() { return iterator.next(); },
+        return() {
+          if (typeof onCancel === "function") onCancel(makeSubscription());
+          if (typeof iterator.return === "function") return iterator.return();
+          return Promise.resolve({ done: true });
+        },
+      };
+    },
+  };
+}
 function __dartStreamMap(stream, convert) {
   return (async function*() {
     for await (const value of stream) {
@@ -611,6 +655,13 @@ export async function main() {
 });
   const casted = await __dartStreamJoin(__dartStreamCast(__dartStreamFromIterable([1, 2]), (value) => typeof value === "number", "InterfaceType(int)"), ",");
   __dartPrint("aggregate " + __dartStr(__dartIterableJoin(aggregateSet, ",")) + " " + __dartStr(folded) + " " + __dartStr(reduced) + " " + __dartStr(forEachTotal) + " " + __dartStr(casted));
+  let broadcastListenCount = 0;
+  const broadcastedFromSingle = __dartStreamAsBroadcastStream(__dartStreamFromIterable([1, 2, 3]), function(__wc0_formal) {
+    broadcastListenCount = (broadcastListenCount + 1);
+}, null);
+  const broadcastOdds = __dartStreamToList(__dartStreamWhere(broadcastedFromSingle, function(value) { return (Math.trunc(value) % 2 !== 0); }));
+  const broadcastDoubled = __dartStreamToList(__dartStreamMap(broadcastedFromSingle, function(value) { return (value * 2); }));
+  __dartPrint("asBroadcast " + __dartStr(__dartIterableJoin(await broadcastOdds, ",")) + " " + __dartStr(__dartIterableJoin(await broadcastDoubled, ",")) + " " + __dartStr(broadcastListenCount) + " " + __dartStr(broadcastedFromSingle.isBroadcast));
   const listened = new Array(0).fill(null);
   const listenDone = __dartCompleter();
   const subscription = __dartStreamListen(__dartStreamFromIterable([6, 7]), function(value) {

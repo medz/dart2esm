@@ -104,6 +104,24 @@ Future<void> main() async {
     'aggregate ${aggregateSet.join(',')} $folded $reduced $forEachTotal '
     '$casted',
   );
+  var broadcastListenCount = 0;
+  final broadcastedFromSingle = Stream<int>.fromIterable([1, 2, 3])
+      .asBroadcastStream(
+        onListen: (_) {
+          broadcastListenCount++;
+        },
+      );
+  final broadcastOdds = broadcastedFromSingle
+      .where((value) => value.isOdd)
+      .toList();
+  final broadcastDoubled = broadcastedFromSingle
+      .map((value) => value * 2)
+      .toList();
+  print(
+    'asBroadcast ${(await broadcastOdds).join(',')} '
+    '${(await broadcastDoubled).join(',')} $broadcastListenCount '
+    '${broadcastedFromSingle.isBroadcast}',
+  );
   final listened = <int>[];
   final listenDone = Completer<String>();
   final subscription = Stream<int>.fromIterable([6, 7]).listen(

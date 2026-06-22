@@ -23,15 +23,19 @@ export class Dog extends Animal {
     this.label = "dog";
   }
   static named(name_2, age_1) {
-    const $self = Reflect.construct(Animal, [name_2], Dog);
-    $self.age = age_1;
-    $self.label = "named dog";
-    $self.label = __dartStr($self.label) + "!";
-    return $self;
+    return $Dog_named(Dog, name_2, age_1);
   }
   describe() {
     return __dartStr(super.describe()) + " " + __dartStr(this.label) + " " + __dartStr(this.age);
   }
+}
+
+function $Dog_named($newTarget, name_2, age_1) {
+  const $self = Reflect.construct(Animal, [name_2], $newTarget);
+  $self.age = age_1;
+  $self.label = "named dog";
+  $self.label = __dartStr($self.label) + "!";
+  return $self;
 }
 
 export class Cat extends Animal {
@@ -39,13 +43,17 @@ export class Cat extends Animal {
     throw new TypeError("Class Cat has no unnamed constructor");
   }
   static named(name_3) {
-    const $self_1 = Reflect.construct(Animal, [name_3], Cat);
-    $self_1.lives = 9;
-    return $self_1;
+    return $Cat_named(Cat, name_3);
   }
   describe() {
     return __dartStr(super.describe()) + " cat " + __dartStr(this.lives);
   }
+}
+
+function $Cat_named($newTarget_1, name_3) {
+  const $self_1 = Reflect.construct(Animal, [name_3], $newTarget_1);
+  $self_1.lives = 9;
+  return $self_1;
 }
 
 export function main() {

@@ -14,23 +14,31 @@ export class Point {
     this.label = "point";
   }
   static origin() {
-    const $self = Object.create(Point.prototype);
-    $self.x = 0;
-    $self.y = 0;
-    $self.label = "origin";
-    $self.label = __dartStr($self.label) + "!";
-    return $self;
+    return $Point_origin(Point);
   }
   static square(size) {
-    const $self_1 = Object.create(Point.prototype);
-    $self_1.x = size;
-    $self_1.y = size;
-    $self_1.label = "square";
-    return $self_1;
+    return $Point_square(Point, size);
   }
   describe() {
     return __dartStr(this.label) + ":" + __dartStr(this.x) + "," + __dartStr(this.y);
   }
+}
+
+function $Point_origin($newTarget) {
+  const $self = Object.create($newTarget.prototype);
+  $self.x = 0;
+  $self.y = 0;
+  $self.label = "origin";
+  $self.label = __dartStr($self.label) + "!";
+  return $self;
+}
+
+function $Point_square($newTarget_1, size) {
+  const $self_1 = Object.create($newTarget_1.prototype);
+  $self_1.x = size;
+  $self_1.y = size;
+  $self_1.label = "square";
+  return $self_1;
 }
 
 export class Token {
@@ -38,13 +46,17 @@ export class Token {
     throw new TypeError("Class Token has no unnamed constructor");
   }
   static named(value) {
-    const $self_2 = Object.create(Token.prototype);
-    $self_2.value = value;
-    return $self_2;
+    return $Token_named(Token, value);
   }
   describe() {
     return "token " + __dartStr(this.value);
   }
+}
+
+function $Token_named($newTarget_2, value) {
+  const $self_2 = Object.create($newTarget_2.prototype);
+  $self_2.value = value;
+  return $self_2;
 }
 
 export function main() {

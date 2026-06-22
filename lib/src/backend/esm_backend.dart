@@ -34,6 +34,7 @@ final class _EsmEmitter {
   final _diagnostics = <String>[];
   final _procedureNames = <k.Procedure, String>{};
   final _classNames = <k.Class, String>{};
+  final _namedConstructorBodyNames = <k.Constructor, String>{};
   final _fieldNames = <k.Field, _TopLevelFieldNames>{};
   final _staticFieldCellNames = <k.Field, String>{};
   final _variableNames = <k.VariableDeclaration, String>{};
@@ -118,6 +119,13 @@ final class _EsmEmitter {
     }
     for (final klass in library.classes) {
       _classNames[klass] = _freshName(klass.name);
+      for (final constructor in klass.constructors) {
+        if (constructor.name.text.isNotEmpty) {
+          _namedConstructorBodyNames[constructor] = _freshName(
+            '\$${klass.name}_${constructor.name.text}',
+          );
+        }
+      }
     }
     for (final procedure in library.procedures) {
       if (procedure.kind == k.ProcedureKind.Method) {
@@ -216,6 +224,7 @@ final class _EsmEmitter {
     }
     _indent--;
     writeln('}');
+    _emitNamedConstructorBodies(klass);
     _emitClassStaticFields(klass);
     _currentClass = previousClass;
   }
@@ -385,21 +394,50 @@ final class _EsmEmitter {
     }
 
     final className = _className(klass);
-    final self = _freshName('\$self');
+    final forwardedArguments = _emitParameterForwardingArguments(function);
+    final forwardingSuffix = forwardedArguments.isEmpty
+        ? ''
+        : ', $forwardedArguments';
     writeln(
       'static ${_memberName(constructor.name.text)}(${_emitParameterList(function)}) {',
+    );
+    _indent++;
+    writeln(
+      'return ${_namedConstructorBodyName(constructor)}($className$forwardingSuffix);',
+    );
+    _indent--;
+    writeln('}');
+  }
+
+  void _emitNamedConstructorBodies(k.Class klass) {
+    for (final constructor in klass.constructors) {
+      if (constructor.name.text.isEmpty) {
+        continue;
+      }
+      writeln();
+      _emitNamedConstructorBody(constructor, klass);
+    }
+  }
+
+  void _emitNamedConstructorBody(k.Constructor constructor, k.Class klass) {
+    final function = constructor.function;
+    final self = _freshName('\$self');
+    final newTarget = _freshName('\$newTarget');
+    final parameters = _emitParameterList(function);
+    writeln(
+      'function ${_namedConstructorBodyName(constructor)}($newTarget${parameters.isEmpty ? '' : ', $parameters'}) {',
     );
     _indent++;
     final fieldInitializers = _hasNonObjectSuperclass(klass)
         ? _emitDerivedNamedConstructorAllocation(
             constructor,
             klass,
-            className,
+            newTarget,
             self,
           )
         : null;
     if (fieldInitializers == null) {
-      writeln('const $self = Object.create($className.prototype);');
+      writeln('const $self = Object.create($newTarget.prototype);');
     }
     _withConstructorContext(
       thisAlias: self,
@@ -432,7 +470,7 @@ final class _EsmEmitter {
   List<k.FieldInitializer> _emitDerivedNamedConstructorAllocation(
     k.Constructor constructor,
     k.Class klass,
-    String className,
+    String newTarget,
     String self,
   ) {
     k.SuperInitializer? superInitializer;
@@ -444,9 +482,6 @@ final class _EsmEmitter {
         case k.SuperInitializer():
           if (superInitializer != null) {
             throw UnsupportedKernelNode(initializer, 'multiple super calls');
-          }
-          if (initializer.target.name.text.isNotEmpty) {
-            throw UnsupportedKernelNode(initializer, 'named super initializer');
           }
           superInitializer = initializer;
         case k.FieldInitializer():
@@ -460,13 +495,23 @@ final class _EsmEmitter {
       }
     }
 
+    if (superInitializer != null &&
+        superInitializer.target.name.text.isNotEmpty) {
+      final superArgs = _emitArguments(superInitializer.arguments);
+      final superSuffix = superArgs.isEmpty ? '' : ', $superArgs';
+      writeln(
+        'const $self = ${_namedConstructorBodyName(superInitializer.target)}($newTarget$superSuffix);',
+      );
+      return fieldInitializers;
+    }
+
     final superClass =
         superInitializer?.target.enclosingClass ?? klass.supertype!.classNode;
     final superArgs = superInitializer == null
         ? ''
         : _emitArguments(superInitializer.arguments);
     writeln(
-      'const $self = Reflect.construct(${_className(superClass)}, [$superArgs], $className);',
+      'const $self = Reflect.construct(${_className(superClass)}, [$superArgs], $newTarget);',
     );
     return fieldInitializers;
   }
@@ -1482,6 +1527,24 @@ final class _EsmEmitter {
     return '${_propertyKey(argument.name)}: ${emitExpression(argument.value)}';
   }
 
+  String _emitParameterForwardingArguments(k.FunctionNode function) {
+    final args = <String>[
+      for (final parameter in function.positionalParameters)
+        _variableName(parameter),
+    ];
+    if (function.namedParameters.isNotEmpty) {
+      args.add(
+        '{ ${function.namedParameters.map(_emitNamedParameterForwarding).join(', ')} }',
+      );
+    }
+    return args.join(', ');
+  }
+
+  String _emitNamedParameterForwarding(k.VariableDeclaration parameter) {
+    final name = parameter.name ?? _variableName(parameter);
+    return '${_propertyKey(name)}: ${_variableName(parameter)}';
+  }
+
   String _emitIsExpression(k.IsExpression expression) {
     final operand = emitExpression(expression.operand);
     final type = expression.type;
@@ -1556,6 +1619,13 @@ final class _EsmEmitter {
 
   String _className(k.Class klass) {
     return _classNames.putIfAbsent(klass, () => _freshName(klass.name));
+  }
+
+  String _namedConstructorBodyName(k.Constructor constructor) {
+    return _namedConstructorBodyNames.putIfAbsent(constructor, () {
+      final klass = constructor.enclosingClass;
+      return _freshName('\$${klass.name}_${constructor.name.text}');
+    });
   }
 
   _TopLevelFieldNames _fieldName(k.Field field) {

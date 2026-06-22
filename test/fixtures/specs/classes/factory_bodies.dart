@@ -23,5 +23,8 @@ void main() {
   final a = Token.parse('7');
   final b = Token.zero();
   final c = Token(-3);
+  final parse = Token.parse;
+  final make = Token.new;
   print('${a.value} ${b.value} ${c.value}');
+  print('${parse('8').value} ${make(-4).value}');
 }

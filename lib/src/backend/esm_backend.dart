@@ -2845,9 +2845,6 @@ final class _EsmEmitter {
     if (target is k.Procedure &&
         target.kind == k.ProcedureKind.Factory &&
         target.enclosingClass != null) {
-      if (!target.isRedirectingFactory) {
-        throw UnsupportedKernelNode(node, 'non-redirecting factory tear-off');
-      }
       return _constructorTearOffName(target);
     }
     throw UnsupportedKernelNode(node, 'constructor tear-off target');

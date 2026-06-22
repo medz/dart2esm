@@ -6,7 +6,7 @@ describe('classes/factory_bodies.mjs', () => {
     try {
       const module = await import('./factory_bodies.mjs');
 
-      expect(log.mock.calls.map(([value]) => value)).toEqual(['7 0 3']);
+      expect(log.mock.calls.map(([value]) => value)).toEqual(['7 0 3', '8 4']);
 
       const parsed = module.Token.parse('8');
       const zero = module.Token.zero();

@@ -98,7 +98,18 @@ export function main() {
   const a = Token.parse("7");
   const b = Token.zero();
   const c = new Token((-3));
+  const parse = $Token_parse_tearoff;
+  const make = $Token_new_tearoff;
   __dartPrint(__dartStr(a.value) + " " + __dartStr(b.value) + " " + __dartStr(c.value));
+  __dartPrint(__dartStr((parse)("8").value) + " " + __dartStr((make)((-4)).value));
 }
 
+
+function $Token_parse_tearoff(text) {
+  return Token.parse(text);
+}
+
+function $Token_new_tearoff(value) {
+  return new Token(value);
+}
 main();

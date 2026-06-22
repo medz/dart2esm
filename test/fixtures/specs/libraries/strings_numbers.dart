@@ -21,6 +21,12 @@ void main() {
     '${trimmed.indexOf('dart')} ${trimmed.split(',').join('|')}',
   );
   print('replace ${trimmed.replaceAll('l', 'L').toUpperCase()}');
+  print(
+    'stringMeta ${trimmed.length} ${trimmed.isNotEmpty} ${''.isEmpty} '
+    '${trimmed.contains('l', 3)} ${'7'.padLeft(3, '0')} '
+    '${'x'.padRight(3, '.')} ${'  left'.trimLeft()} '
+    '${'right  '.trimRight()} ${'abc'.compareTo('abd')}',
+  );
 
   final uri = Uri.parse('https://example.test/a/b?x=1#frag');
   print(

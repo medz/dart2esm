@@ -105,6 +105,7 @@ export function main() {
   __dartPrint("strings " + __dartStr(char) + " " + __dartStr(chars) + " " + __dartStr(trimmed.charCodeAt(0)) + " " + __dartStr(trimmed.substring(1, 4)));
   __dartPrint("checks " + __dartStr(trimmed.startsWith("he")) + " " + __dartStr(trimmed.endsWith("rt")) + " " + __dartStr(trimmed.indexOf("dart")) + " " + __dartStr(__dartIterableJoin(trimmed.split(","), "|")));
   __dartPrint("replace " + __dartStr(trimmed.replaceAll("l", "L").toUpperCase()));
+  __dartPrint("stringMeta " + __dartStr(trimmed.length) + " " + __dartStr(trimmed.length !== 0) + " " + __dartStr("".length === 0) + " " + __dartStr(trimmed.includes("l", 3)) + " " + __dartStr("7".padStart(3, "0")) + " " + __dartStr("x".padEnd(3, ".")) + " " + __dartStr("  left".trimStart()) + " " + __dartStr("right  ".trimEnd()) + " " + __dartStr(("abc" < "abd" ? -1 : ("abc" > "abd" ? 1 : 0))));
   const uri = __dartUriParse("https://example.test/a/b?x=1#frag");
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
   __dartPrint("uri string " + __dartStr(__dartStr(uri)));

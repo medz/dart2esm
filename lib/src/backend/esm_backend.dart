@@ -2726,15 +2726,41 @@ final class _EsmEmitter {
     }
     if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
-        positionalArgs.length == 1 &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
         _isCoreMember(target, 'String', 'contains')) {
-      return '$left.includes(${positionalArgs.single})';
+      if (positionalArgs.length == 1) {
+        return '$left.includes(${positionalArgs.single})';
+      }
+      return '$left.includes(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'codeUnitAt' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'String', 'codeUnitAt')) {
       return '$left.charCodeAt(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        (name == 'padLeft' || name == 'padRight') &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isCoreMember(target, 'String', name)) {
+      final padding = positionalArgs.length == 2 ? positionalArgs[1] : '" "';
+      final method = name == 'padLeft' ? 'padStart' : 'padEnd';
+      return '$left.$method(${positionalArgs[0]}, $padding)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        (name == 'trimLeft' || name == 'trimRight') &&
+        positionalArgs.isEmpty &&
+        _isCoreMember(target, 'String', name)) {
+      final method = name == 'trimLeft' ? 'trimStart' : 'trimEnd';
+      return '$left.$method()';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'compareTo' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'String', name)) {
+      return '($left < ${positionalArgs.single} ? -1 : ($left > ${positionalArgs.single} ? 1 : 0))';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
@@ -3047,6 +3073,14 @@ final class _EsmEmitter {
     if (name == 'lengthInBytes' &&
         _isTypedDataMember(expression.interfaceTargetReference, name)) {
       return '$receiver.byteLength';
+    }
+    if (name == 'isEmpty' &&
+        _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
+      return '$receiver.length === 0';
+    }
+    if (name == 'isNotEmpty' &&
+        _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
+      return '$receiver.length !== 0';
     }
     if (name == 'offsetInBytes' &&
         _isTypedDataMember(expression.interfaceTargetReference, name)) {

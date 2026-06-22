@@ -2730,6 +2730,11 @@ final class _EsmEmitter {
       final name = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return '__dartExpando($name)';
     }
+    if (_isSymbolConstructorReference(expression.targetReference) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartSymbol');
+      return '__dartSymbol(${positionalArgs.single}, ${positionalArgs.single})';
+    }
     if (_isCollectionQueueConstructorReference(expression.targetReference)) {
       return '[]';
     }
@@ -6362,6 +6367,12 @@ final class _EsmEmitter {
     return _referencePath(
       reference,
     ).startsWith('dart:core::Expando::@constructors::');
+  }
+
+  bool _isSymbolConstructorReference(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:_internal::Symbol::@constructors::');
   }
 
   bool _isMathPointConstructorReference(k.Reference reference) {

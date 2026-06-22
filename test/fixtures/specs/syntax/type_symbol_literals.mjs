@@ -58,8 +58,9 @@ export function describeTypes() {
   const listType = __dartType("List<int>");
   const mapType = __dartType("Map<String, int>");
   const symbol = __dartSymbol("hello", "hello");
+  const constructedSymbol = __dartSymbol("hello", "hello");
   const memberSymbol = __dartSymbol("foo.bar", "foo.bar");
-  return __dartStr(stringType) + " " + __dartStr(listType) + " " + __dartStr(mapType) + " " + __dartStr(symbol) + " " + __dartStr(memberSymbol) + " " + __dartStr(__dartEquals(symbol, __dartSymbol("hello", "hello"))) + " " + __dartStr(__dartEquals(stringType, __dartType("String")));
+  return __dartStr(stringType) + " " + __dartStr(listType) + " " + __dartStr(mapType) + " " + __dartStr(symbol) + " " + __dartStr(memberSymbol) + " " + __dartStr(__dartEquals(symbol, __dartSymbol("hello", "hello"))) + " " + __dartStr(__dartEquals(constructedSymbol, symbol)) + " " + __dartStr(__dartEquals(stringType, __dartType("String")));
 }
 
 export function main() {

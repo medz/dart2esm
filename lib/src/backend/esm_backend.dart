@@ -374,12 +374,6 @@ final class _EsmEmitter {
     if (constructor.isExternal) {
       throw UnsupportedKernelNode(constructor, 'external named constructor');
     }
-    if (_hasNonObjectSuperclass(klass)) {
-      throw UnsupportedKernelNode(
-        constructor,
-        'named constructor with superclass',
-      );
-    }
     if (constructor.initializers.any(
       (initializer) => initializer is k.RedirectingInitializer,
     )) {
@@ -396,7 +390,17 @@ final class _EsmEmitter {
       'static ${_memberName(constructor.name.text)}(${_emitParameterList(function)}) {',
     );
     _indent++;
-    writeln('const $self = Object.create($className.prototype);');
+    final fieldInitializers = _hasNonObjectSuperclass(klass)
+        ? _emitDerivedNamedConstructorAllocation(
+            constructor,
+            klass,
+            className,
+            self,
+          )
+        : null;
+    if (fieldInitializers == null) {
+      writeln('const $self = Object.create($className.prototype);');
+    }
     _withConstructorContext(
       thisAlias: self,
       emptyReturnValue: self,
@@ -405,8 +409,14 @@ final class _EsmEmitter {
           klass,
           skipFields: _initializedFields(constructor.initializers),
         );
-        for (final initializer in constructor.initializers) {
-          _emitInitializer(initializer);
+        if (fieldInitializers == null) {
+          for (final initializer in constructor.initializers) {
+            _emitInitializer(initializer);
+          }
+        } else {
+          for (final initializer in fieldInitializers) {
+            _emitInitializer(initializer);
+          }
         }
         final body = function.body;
         if (body != null) {
@@ -417,6 +427,48 @@ final class _EsmEmitter {
     writeln('return $self;');
     _indent--;
     writeln('}');
+  }
+
+  List<k.FieldInitializer> _emitDerivedNamedConstructorAllocation(
+    k.Constructor constructor,
+    k.Class klass,
+    String className,
+    String self,
+  ) {
+    k.SuperInitializer? superInitializer;
+    final fieldInitializers = <k.FieldInitializer>[];
+    for (final initializer in constructor.initializers) {
+      switch (initializer) {
+        case k.LocalInitializer():
+          emitStatement(initializer.variable);
+        case k.SuperInitializer():
+          if (superInitializer != null) {
+            throw UnsupportedKernelNode(initializer, 'multiple super calls');
+          }
+          if (initializer.target.name.text.isNotEmpty) {
+            throw UnsupportedKernelNode(initializer, 'named super initializer');
+          }
+          superInitializer = initializer;
+        case k.FieldInitializer():
+          fieldInitializers.add(initializer);
+        case k.AssertInitializer():
+          _diagnostics.add(
+            'AssertInitializer is currently emitted as a no-op.',
+          );
+        default:
+          throw UnsupportedKernelNode(initializer, 'initializer');
+      }
+    }
+
+    final superClass =
+        superInitializer?.target.enclosingClass ?? klass.supertype!.classNode;
+    final superArgs = superInitializer == null
+        ? ''
+        : _emitArguments(superInitializer.arguments);
+    writeln(
+      'const $self = Reflect.construct(${_className(superClass)}, [$superArgs], $className);',
+    );
+    return fieldInitializers;
   }
 
   void _withConstructorContext({

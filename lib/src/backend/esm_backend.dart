@@ -733,22 +733,9 @@ final class _EsmEmitter {
   }
 
   void _emitForStatement(k.ForStatement statement) {
-    if (statement.variables.length > 1) {
-      throw UnsupportedKernelNode(
-        statement,
-        'for statement with multiple variables',
-      );
-    }
     final initializer = statement.variables.isEmpty
         ? ''
-        : (() {
-            final variable = statement.variables.single;
-            _declareVariable(variable);
-            final value = variable.initializer == null
-                ? 'null'
-                : emitExpression(variable.initializer!);
-            return 'let ${_variableName(variable)} = $value';
-          })();
+        : 'let ${statement.variables.map(_emitForVariableInitializer).join(', ')}';
     final condition = statement.condition == null
         ? ''
         : emitExpression(statement.condition!);
@@ -758,6 +745,14 @@ final class _EsmEmitter {
     emitStatement(statement.body);
     _indent--;
     writeln('}');
+  }
+
+  String _emitForVariableInitializer(k.VariableDeclaration variable) {
+    _declareVariable(variable);
+    final value = variable.initializer == null
+        ? 'null'
+        : emitExpression(variable.initializer!);
+    return '${_variableName(variable)} = $value';
   }
 
   void _emitForInStatement(k.ForInStatement statement) {

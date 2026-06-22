@@ -3054,6 +3054,10 @@ final class _EsmEmitter {
     if (developerGet != null) {
       return developerGet;
     }
+    final coreGet = _emitCoreStaticGet(expression);
+    if (coreGet != null) {
+      return coreGet;
+    }
     final convertGet = _emitConvertStaticGet(expression);
     if (convertGet != null) {
       return convertGet;
@@ -3107,6 +3111,19 @@ final class _EsmEmitter {
     );
   }
 
+  String? _emitCoreStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:core::BigInt::@getters::')) {
+      return null;
+    }
+    return switch (path.split('::').last) {
+      'zero' => '0n',
+      'one' => '1n',
+      'two' => '2n',
+      _ => null,
+    };
+  }
+
   String _emitStaticSet(k.StaticSet expression) {
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
@@ -3153,6 +3170,16 @@ final class _EsmEmitter {
     );
     if (durationOperator != null) {
       return durationOperator;
+    }
+    final bigIntInvocation = _emitBigIntInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments.named.isEmpty,
+    );
+    if (bigIntInvocation != null) {
+      return bigIntInvocation;
     }
     if (expression.arguments.named.isEmpty && positionalArgs.isEmpty) {
       if (name == 'unary-') {
@@ -3568,6 +3595,37 @@ final class _EsmEmitter {
     return '$left.${_memberName(name)}($args)';
   }
 
+  String? _emitBigIntInstanceInvocation(
+    k.Reference target,
+    String name,
+    String left,
+    List<String> positionalArgs,
+    bool namedArgumentsEmpty,
+  ) {
+    if (!namedArgumentsEmpty || !_isCoreMember(target, 'BigInt', name)) {
+      return null;
+    }
+    if (positionalArgs.isEmpty) {
+      return switch (name) {
+        'toInt' || 'toDouble' => 'Number($left)',
+        'abs' => '($left < 0n ? -$left : $left)',
+        'unary-' => '(-$left)',
+        '~' => '(~$left)',
+        _ => null,
+      };
+    }
+    if (positionalArgs.length != 1) {
+      return null;
+    }
+    final right = positionalArgs.single;
+    return switch (name) {
+      '~/' => '($left / $right)',
+      'toRadixString' => '$left.toString($right)',
+      'remainder' => '($left % $right)',
+      _ => null,
+    };
+  }
+
   String? _emitDurationOperatorInvocation(
     k.Reference target,
     String name,
@@ -3647,6 +3705,22 @@ final class _EsmEmitter {
     if (name == 'isEven' &&
         _isCoreMember(expression.interfaceTargetReference, 'int', name)) {
       return '(Math.trunc($receiver) % 2 === 0)';
+    }
+    if (_isCoreMember(expression.interfaceTargetReference, 'BigInt', name)) {
+      final bigIntGet = switch (name) {
+        'isEven' => '($receiver % 2n === 0n)',
+        'isOdd' => '($receiver % 2n !== 0n)',
+        'isNegative' => '($receiver < 0n)',
+        'sign' => '($receiver < 0n ? -1 : ($receiver > 0n ? 1 : 0))',
+        'bitLength' => () {
+          _usedHelpers.add('__dartBigIntBitLength');
+          return '__dartBigIntBitLength($receiver)';
+        }(),
+        _ => null,
+      };
+      if (bigIntGet != null) {
+        return bigIntGet;
+      }
     }
     if (name == 'offsetInBytes' &&
         _isTypedDataMember(expression.interfaceTargetReference, name)) {
@@ -3886,6 +3960,7 @@ final class _EsmEmitter {
       final typeName = _interfaceTypeName(type);
       return switch (typeName) {
         'String' => 'typeof $operand === "string"',
+        'BigInt' => 'typeof $operand === "bigint"',
         'int' || 'double' || 'num' => 'typeof $operand === "number"',
         'bool' => 'typeof $operand === "boolean"',
         'Null' => '$operand === null',
@@ -4277,6 +4352,13 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartObjectHash');
       return '__dartObjectHashUnordered(Array.from(${positionalArgs.single}))';
     }
+    final bigIntInvocation = _emitCoreBigIntStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (bigIntInvocation != null) {
+      return bigIntInvocation;
+    }
     final numberParse = _emitCoreNumberParseInvocation(
       expression,
       positionalArgs,
@@ -4334,6 +4416,30 @@ final class _EsmEmitter {
         'decodeURIComponent(String(${positionalArgs.single}).replace(/\\+/g, " "))',
       _ => null,
     };
+  }
+
+  String? _emitCoreBigIntStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:core::BigInt::@factories::from' &&
+        positionalArgs.length == 1) {
+      return 'BigInt(Math.trunc(${positionalArgs.single}))';
+    }
+    if (path == 'dart:core::BigInt::@methods::parse' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartBigIntParse');
+      final radix = _namedArgument(expression.arguments, 'radix') ?? 'null';
+      return '__dartBigIntParse(${positionalArgs.single}, $radix, false)';
+    }
+    if (path == 'dart:core::BigInt::@methods::tryParse' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartBigIntParse');
+      final radix = _namedArgument(expression.arguments, 'radix') ?? 'null';
+      return '__dartBigIntParse(${positionalArgs.single}, $radix, true)';
+    }
+    return null;
   }
 
   String? _emitCoreNumberParseInvocation(
@@ -5289,6 +5395,51 @@ final class _EsmEmitter {
         '  if (value == null) throw __dartFormatException("Invalid number literal");',
       );
       helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartBigIntParse')) {
+      helper.writeln(
+        'function __dartBigIntParse(source, radix = null, tryParse = false) {',
+      );
+      helper.writeln('  try {');
+      helper.writeln('    const text = String(source).trim();');
+      helper.writeln('    const sign = /^[+-]/.test(text) ? text[0] : "";');
+      helper.writeln('    let digits = sign === "" ? text : text.slice(1);');
+      helper.writeln('    let base = radix == null ? null : Number(radix);');
+      helper.writeln(
+        '    if (base == null && /^0x[0-9a-f]+\$/i.test(digits)) { base = 16; digits = digits.slice(2); }',
+      );
+      helper.writeln('    base ??= 10;');
+      helper.writeln(
+        '    if (!Number.isInteger(base) || base < 2 || base > 36) throw new RangeError("Radix out of range");',
+      );
+      helper.writeln(
+        '    if (digits.length === 0) throw new Error("Invalid BigInt literal");',
+      );
+      helper.writeln('    let value = 0n;');
+      helper.writeln('    const bigBase = BigInt(base);');
+      helper.writeln('    for (const char of digits.toLowerCase()) {');
+      helper.writeln('      const code = char.charCodeAt(0);');
+      helper.writeln(
+        '      const digit = code >= 48 && code <= 57 ? code - 48 : code >= 97 && code <= 122 ? code - 87 : -1;',
+      );
+      helper.writeln(
+        '      if (digit < 0 || digit >= base) throw new Error("Invalid BigInt literal");',
+      );
+      helper.writeln('      value = value * bigBase + BigInt(digit);');
+      helper.writeln('    }');
+      helper.writeln('    return sign === "-" ? -value : value;');
+      helper.writeln('  } catch (error) {');
+      helper.writeln('    if (tryParse) return null;');
+      helper.writeln('    throw error;');
+      helper.writeln('  }');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartBigIntBitLength')) {
+      helper.writeln('function __dartBigIntBitLength(value) {');
+      helper.writeln('  if (value === 0n || value === -1n) return 0;');
+      helper.writeln('  const magnitude = value < 0n ? -value - 1n : value;');
+      helper.writeln('  return magnitude.toString(2).length;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartDuration') ||
@@ -6602,6 +6753,8 @@ const _generatedGlobalNames = {
   '__dartBase64Codec',
   '__dartBase64Decode',
   '__dartBase64Encode',
+  '__dartBigIntBitLength',
+  '__dartBigIntParse',
   '__dartConst',
   '__dartConstMap',
   '__dartConstSet',

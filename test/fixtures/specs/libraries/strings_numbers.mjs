@@ -83,6 +83,24 @@ function __dartUriParse(source) {
     toString() { return text; },
   });
 }
+function __dartUriBuild(scheme, authority, path, queryParameters = null) {
+  const url = new URL(String(scheme) + "://" + String(authority));
+  const rawPath = String(path);
+  url.pathname = rawPath.startsWith("/") ? rawPath : "/" + rawPath;
+  if (queryParameters != null) {
+    const search = new URLSearchParams();
+    for (const [key, value] of queryParameters) {
+      if (value == null) continue;
+      if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {
+        for (const item of value) search.append(String(key), String(item));
+      } else {
+        search.append(String(key), String(value));
+      }
+    }
+    url.search = search.toString();
+  }
+  return __dartUriParse(url.toString());
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
@@ -109,6 +127,10 @@ export function main() {
   const uri = __dartUriParse("https://example.test/a/b?x=1#frag");
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
   __dartPrint("uri string " + __dartStr(__dartStr(uri)));
+  const https = __dartUriBuild("https", "example.test", "/a/b", new Map([["q", "dart esm"], ["page", "1"]]));
+  const http = __dartUriBuild("http", "example.test:8080", "plain path", new Map([["x", "a/b"]]));
+  __dartPrint("uri build " + __dartStr(https.scheme) + " " + __dartStr(https.host) + " " + __dartStr(https.path) + " " + __dartStr(https.query));
+  __dartPrint("uri built " + __dartStr(__dartStr(https)) + " " + __dartStr(__dartStr(http)));
 }
 
 main();

@@ -4397,6 +4397,26 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartUriParse');
       return '__dartUriParse(${positionalArgs.single})';
     }
+    if ((path == 'dart:core::_Uri::@factories::http' ||
+            path == 'dart:core::Uri::@factories::http') &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3) {
+      _usedHelpers.add('__dartUriBuild');
+      final queryParameters = positionalArgs.length == 3
+          ? positionalArgs[2]
+          : 'null';
+      return '__dartUriBuild("http", ${positionalArgs[0]}, ${positionalArgs[1]}, $queryParameters)';
+    }
+    if ((path == 'dart:core::_Uri::@factories::https' ||
+            path == 'dart:core::Uri::@factories::https') &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3) {
+      _usedHelpers.add('__dartUriBuild');
+      final queryParameters = positionalArgs.length == 3
+          ? positionalArgs[2]
+          : 'null';
+      return '__dartUriBuild("https", ${positionalArgs[0]}, ${positionalArgs[1]}, $queryParameters)';
+    }
     if (!path.startsWith('dart:core::Uri::@methods::')) {
       return null;
     }
@@ -5627,7 +5647,8 @@ final class _EsmEmitter {
       helper.writeln('  return watch;');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartUriParse')) {
+    if (_usedHelpers.contains('__dartUriParse') ||
+        _usedHelpers.contains('__dartUriBuild')) {
       helper.writeln('function __dartUriParse(source) {');
       helper.writeln('  const text = String(source);');
       helper.writeln('  let url;');
@@ -5652,6 +5673,36 @@ final class _EsmEmitter {
       helper.writeln('    toString() { return text; },');
       helper.writeln('  });');
       helper.writeln('}');
+      if (_usedHelpers.contains('__dartUriBuild')) {
+        helper.writeln(
+          'function __dartUriBuild(scheme, authority, path, queryParameters = null) {',
+        );
+        helper.writeln(
+          '  const url = new URL(String(scheme) + "://" + String(authority));',
+        );
+        helper.writeln('  const rawPath = String(path);');
+        helper.writeln(
+          '  url.pathname = rawPath.startsWith("/") ? rawPath : "/" + rawPath;',
+        );
+        helper.writeln('  if (queryParameters != null) {');
+        helper.writeln('    const search = new URLSearchParams();');
+        helper.writeln('    for (const [key, value] of queryParameters) {');
+        helper.writeln('      if (value == null) continue;');
+        helper.writeln(
+          '      if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {',
+        );
+        helper.writeln(
+          '        for (const item of value) search.append(String(key), String(item));',
+        );
+        helper.writeln('      } else {');
+        helper.writeln('        search.append(String(key), String(value));');
+        helper.writeln('      }');
+        helper.writeln('    }');
+        helper.writeln('    url.search = search.toString();');
+        helper.writeln('  }');
+        helper.writeln('  return __dartUriParse(url.toString());');
+        helper.writeln('}');
+      }
     }
     if (_usedHelpers.contains('__dartRegExp')) {
       helper.writeln('function __dartRegExp(pattern, options = {}) {');
@@ -6809,6 +6860,7 @@ const _generatedGlobalNames = {
   '__dartStringBuffer',
   '__dartTruncDiv',
   '__dartToJson',
+  '__dartUriBuild',
   '__dartUriParse',
   '__dartUtf8Codec',
   '__dartUtf8Decode',

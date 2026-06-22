@@ -33,4 +33,12 @@ void main() {
     'uri ${uri.scheme} ${uri.host} ${uri.path} ${uri.query} ${uri.fragment}',
   );
   print('uri string ${uri.toString()}');
+
+  final https = Uri.https('example.test', '/a/b', {
+    'q': 'dart esm',
+    'page': '1',
+  });
+  final http = Uri.http('example.test:8080', 'plain path', {'x': 'a/b'});
+  print('uri build ${https.scheme} ${https.host} ${https.path} ${https.query}');
+  print('uri built ${https.toString()} ${http.toString()}');
 }

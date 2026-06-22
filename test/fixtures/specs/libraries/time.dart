@@ -45,6 +45,12 @@ Future<void> main() async {
   final parsed = DateTime.parse('2026-01-02T03:04:05.006Z');
   print('parsed ${parsed.toUtc().toIso8601String()}');
 
+  final parsedMicros = DateTime.parse('2026-01-02T03:04:05.006007Z');
+  print(
+    'parsedMicros ${parsedMicros.toUtc().toIso8601String()} '
+    '${parsedMicros.microsecondsSinceEpoch} ${parsedMicros.microsecond}',
+  );
+
   final watch = Stopwatch();
   print('watch-start ${watch.isRunning} ${watch.elapsedMicroseconds}');
   watch.start();

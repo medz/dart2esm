@@ -66,7 +66,9 @@ function __dartDateTimeParse(source) {
   const text = String(source);
   const millis = Date.parse(text);
   const isUtc = /(?:z|[+-]\d\d(?::?\d\d)?)$/i.test(text);
-  return __dartDateTime(millis, isUtc, 0);
+  const fraction = /\.(\d+)/.exec(text);
+  const microsecond = fraction == null ? 0 : Number((fraction[1] + "000000").slice(0, 6).slice(3));
+  return __dartDateTime(millis, isUtc, microsecond);
 }
 function __dartStopwatchNowMicros() {
   const now = globalThis.performance && typeof globalThis.performance.now === "function" ? globalThis.performance.now() : Date.now();
@@ -127,6 +129,8 @@ export async function main() {
   __dartPrint("timestamp " + __dartStr((timestamp.millisecondsSinceEpoch > 0)) + " " + __dartStr(timestamp.isUtc));
   const parsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z");
   __dartPrint("parsed " + __dartStr(parsed.toUtc().toIso8601String()));
+  const parsedMicros = __dartDateTimeParse("2026-01-02T03:04:05.006007Z");
+  __dartPrint("parsedMicros " + __dartStr(parsedMicros.toUtc().toIso8601String()) + " " + __dartStr(parsedMicros.microsecondsSinceEpoch) + " " + __dartStr(parsedMicros.microsecond));
   const watch = __dartStopwatch();
   __dartPrint("watch-start " + __dartStr(watch.isRunning) + " " + __dartStr(watch.elapsedMicroseconds));
   watch.start();

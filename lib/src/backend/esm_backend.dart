@@ -5324,7 +5324,11 @@ final class _EsmEmitter {
       helper.writeln(
         "  const isUtc = /(?:z|[+-]\\d\\d(?::?\\d\\d)?)\$/i.test(text);",
       );
-      helper.writeln('  return __dartDateTime(millis, isUtc, 0);');
+      helper.writeln('  const fraction = /\\.(\\d+)/.exec(text);');
+      helper.writeln(
+        '  const microsecond = fraction == null ? 0 : Number((fraction[1] + "000000").slice(0, 6).slice(3));',
+      );
+      helper.writeln('  return __dartDateTime(millis, isUtc, microsecond);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStopwatch')) {

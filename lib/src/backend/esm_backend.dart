@@ -2096,7 +2096,35 @@ final class _EsmEmitter {
           .value;
       return '${_className(classNode)}.${_memberName(name)}';
     }
-    throw UnsupportedKernelNode(constant, 'instance constant');
+    switch (_referencePath(constant.classReference)) {
+      case 'dart:convert::JsonCodec':
+        _usedHelpers.add('__dartJsonCodec');
+        return '__dartJsonCodec()';
+      case 'dart:convert::Utf8Codec':
+        _usedHelpers.add('__dartUtf8Codec');
+        return '__dartUtf8Codec()';
+      case 'dart:convert::Base64Codec':
+        _usedHelpers.add('__dartBase64Codec');
+        return '__dartBase64Codec(${_isBase64ConstantUrlSafe(constant)})';
+    }
+    final className = _referencePath(constant.classReference);
+    throw UnsupportedKernelNode(constant, 'instance constant $className');
+  }
+
+  bool _isBase64ConstantUrlSafe(k.InstanceConstant constant) {
+    for (final value in constant.fieldValues.values) {
+      if (value is k.InstanceConstant) {
+        if (_referencePath(value.classReference) ==
+            'dart:convert::Base64Encoder') {
+          for (final fieldValue in value.fieldValues.values) {
+            if (fieldValue is k.BoolConstant) {
+              return fieldValue.value;
+            }
+          }
+        }
+      }
+    }
+    return false;
   }
 
   String? _emitEnumValuesConstant(k.ListConstant constant) {
@@ -2211,6 +2239,13 @@ final class _EsmEmitter {
     );
     if (developerInvocation != null) {
       return developerInvocation;
+    }
+    final convertInvocation = _emitConvertStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (convertInvocation != null) {
+      return convertInvocation;
     }
     final mathInvocation = _emitMathStaticInvocation(
       expression,
@@ -2504,6 +2539,10 @@ final class _EsmEmitter {
     final developerGet = _emitDeveloperStaticGet(expression);
     if (developerGet != null) {
       return developerGet;
+    }
+    final convertGet = _emitConvertStaticGet(expression);
+    if (convertGet != null) {
+      return convertGet;
     }
     final mathGet = _emitMathStaticGet(expression);
     if (mathGet != null) {
@@ -3077,6 +3116,70 @@ final class _EsmEmitter {
     return null;
   }
 
+  String? _emitConvertStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:convert::@methods::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    switch (name) {
+      case 'jsonEncode':
+        if (positionalArgs.length != 1) {
+          return null;
+        }
+        _usedHelpers.add('__dartJsonEncode');
+        final toEncodable = _namedArgument(expression.arguments, 'toEncodable');
+        return '__dartJsonEncode(${positionalArgs.single}, ${toEncodable ?? 'null'})';
+      case 'jsonDecode':
+        if (positionalArgs.length != 1) {
+          return null;
+        }
+        _usedHelpers.add('__dartJsonDecode');
+        return '__dartJsonDecode(${positionalArgs.single})';
+      case 'base64Encode':
+        if (positionalArgs.length != 1) {
+          return null;
+        }
+        _usedHelpers.add('__dartBase64Encode');
+        return '__dartBase64Encode(${positionalArgs.single})';
+      case 'base64Decode':
+        if (positionalArgs.length != 1) {
+          return null;
+        }
+        _usedHelpers.add('__dartBase64Decode');
+        return '__dartBase64Decode(${positionalArgs.single})';
+      default:
+        return null;
+    }
+  }
+
+  String? _emitConvertStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:convert::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    switch (name) {
+      case 'json':
+        _usedHelpers.add('__dartJsonCodec');
+        return '__dartJsonCodec()';
+      case 'utf8':
+        _usedHelpers.add('__dartUtf8Codec');
+        return '__dartUtf8Codec()';
+      case 'base64':
+        _usedHelpers.add('__dartBase64Codec');
+        return '__dartBase64Codec(false)';
+      case 'base64Url':
+        _usedHelpers.add('__dartBase64Codec');
+        return '__dartBase64Codec(true)';
+      default:
+        return null;
+    }
+  }
+
   String? _emitMathStaticInvocation(
     k.StaticInvocation expression,
     List<String> positionalArgs,
@@ -3386,6 +3489,18 @@ final class _EsmEmitter {
   String _emitHelpers() {
     final helper = StringBuffer();
     final usesRecord = _usedHelpers.contains('__dartRecord');
+    final usesJson =
+        _usedHelpers.contains('__dartJsonCodec') ||
+        _usedHelpers.contains('__dartJsonEncode') ||
+        _usedHelpers.contains('__dartJsonDecode');
+    final usesUtf8 =
+        _usedHelpers.contains('__dartUtf8Codec') ||
+        _usedHelpers.contains('__dartUtf8Encode') ||
+        _usedHelpers.contains('__dartUtf8Decode');
+    final usesBase64 =
+        _usedHelpers.contains('__dartBase64Codec') ||
+        _usedHelpers.contains('__dartBase64Encode') ||
+        _usedHelpers.contains('__dartBase64Decode');
     if (usesRecord) {
       helper.writeln('const __dartRecordShape = Symbol("dart.recordShape");');
       helper.writeln('function __dartIsRecord(value) {');
@@ -3416,6 +3531,138 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartPrint')) {
       helper.writeln('function __dartPrint(value) {');
       helper.writeln('  console.log(__dartStr(value));');
+      helper.writeln('}');
+    }
+    if (usesJson) {
+      helper.writeln('function __dartToJson(value, toEncodable) {');
+      helper.writeln(
+        '  if (value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;',
+      );
+      helper.writeln('  if (Array.isArray(value)) {');
+      helper.writeln(
+        '    return value.map((entry) => __dartToJson(entry, toEncodable));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  if (value instanceof Set) {');
+      helper.writeln(
+        '    return Array.from(value, (entry) => __dartToJson(entry, toEncodable));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  if (value instanceof Map) {');
+      helper.writeln('    const object = {};');
+      helper.writeln('    for (const [key, entry] of value) {');
+      helper.writeln(
+        '      object[String(key)] = __dartToJson(entry, toEncodable);',
+      );
+      helper.writeln('    }');
+      helper.writeln('    return object;');
+      helper.writeln('  }');
+      helper.writeln('  if (typeof value.toJson === "function") {');
+      helper.writeln('    return __dartToJson(value.toJson(), toEncodable);');
+      helper.writeln('  }');
+      helper.writeln('  if (typeof toEncodable === "function") {');
+      helper.writeln(
+        '    return __dartToJson(toEncodable(value), toEncodable);',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  throw new TypeError("Converting object to an encodable object failed");',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartFromJson(value) {');
+      helper.writeln('  if (Array.isArray(value)) {');
+      helper.writeln('    return value.map(__dartFromJson);');
+      helper.writeln('  }');
+      helper.writeln(
+        '  if (value != null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {',
+      );
+      helper.writeln(
+        '    return new Map(Object.entries(value).map(([key, entry]) => [key, __dartFromJson(entry)]));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+      helper.writeln('function __dartJsonEncode(value, toEncodable = null) {');
+      helper.writeln(
+        '  return JSON.stringify(__dartToJson(value, toEncodable));',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartJsonDecode(source) {');
+      helper.writeln('  return __dartFromJson(JSON.parse(source));');
+      helper.writeln('}');
+      helper.writeln('function __dartJsonCodec() {');
+      helper.writeln('  return {');
+      helper.writeln('    encode(value) { return __dartJsonEncode(value); },');
+      helper.writeln(
+        '    decode(source) { return __dartJsonDecode(source); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (usesUtf8) {
+      helper.writeln('function __dartUtf8Encode(source) {');
+      helper.writeln(
+        '  return Array.from(new TextEncoder().encode(String(source)));',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartUtf8Decode(bytes) {');
+      helper.writeln(
+        '  return new TextDecoder("utf-8").decode(Uint8Array.from(bytes));',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartUtf8Codec() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    encode(source) { return __dartUtf8Encode(source); },',
+      );
+      helper.writeln('    decode(bytes) { return __dartUtf8Decode(bytes); },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (usesBase64) {
+      helper.writeln('function __dartBase64Encode(bytes, urlSafe = false) {');
+      helper.writeln('  const array = Uint8Array.from(bytes);');
+      helper.writeln('  let encoded;');
+      helper.writeln(
+        '  if (globalThis.Buffer) encoded = Buffer.from(array).toString("base64");',
+      );
+      helper.writeln('  else {');
+      helper.writeln('    let binary = "";');
+      helper.writeln(
+        '    for (const byte of array) binary += String.fromCharCode(byte);',
+      );
+      helper.writeln('    encoded = btoa(binary);');
+      helper.writeln('  }');
+      helper.writeln(
+        '  return urlSafe ? encoded.replace(/\\+/g, "-").replace(/\\//g, "_") : encoded;',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartBase64Decode(source) {');
+      helper.writeln(
+        '  let normalized = String(source).replace(/-/g, "+").replace(/_/g, "/");',
+      );
+      helper.writeln(
+        '  while (normalized.length % 4 !== 0) normalized += "=";',
+      );
+      helper.writeln(
+        '  if (globalThis.Buffer) return Array.from(Buffer.from(normalized, "base64"));',
+      );
+      helper.writeln('  const binary = atob(normalized);');
+      helper.writeln('  const bytes = new Array(binary.length);');
+      helper.writeln(
+        '  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);',
+      );
+      helper.writeln('  return bytes;');
+      helper.writeln('}');
+      helper.writeln('function __dartBase64Codec(urlSafe = false) {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    encode(bytes) { return __dartBase64Encode(bytes, urlSafe); },',
+      );
+      helper.writeln(
+        '    decode(source) { return __dartBase64Decode(source); },',
+      );
+      helper.writeln('  };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartType')) {
@@ -3839,18 +4086,29 @@ const _reservedNames = {
 
 const _generatedGlobalNames = {
   '__dartAs',
+  '__dartBase64Codec',
+  '__dartBase64Decode',
+  '__dartBase64Encode',
   '__dartConstMap',
   '__dartConstSet',
   '__dartCoreError',
   '__dartEquals',
+  '__dartFromJson',
   '__dartIsRecord',
   '__dartIterator',
+  '__dartJsonCodec',
+  '__dartJsonDecode',
+  '__dartJsonEncode',
   '__dartLazyField',
   '__dartPrint',
   '__dartRecord',
   '__dartRecordShape',
   '__dartStr',
   '__dartTruncDiv',
+  '__dartToJson',
+  '__dartUtf8Codec',
+  '__dartUtf8Decode',
+  '__dartUtf8Encode',
 };
 
 const _coreErrorTypeNames = {

@@ -71,10 +71,10 @@ Object.defineProperty(Accumulator, "readonly", {
   enumerable: true,
 });
 
-export function init(name, value_1) {
+export function init(name, value) {
   __dartPrint("init " + __dartStr(name));
   initCount = (initCount + 1);
-  return value_1;
+  return value;
 }
 
 export function main() {

@@ -83,15 +83,15 @@ export function runFinally() {
       {
         (() => { throw "boom"; })();
       }
-    } catch ($error_1) {
-      if ($error_1 != null) {
-        const error_4 = $error_1;
+    } catch ($error) {
+      if ($error != null) {
+        const error = $error;
         {
           __dartPrint("caught:" + __dartStr(state));
           state = "caught";
         }
       } else {
-        throw $error_1;
+        throw $error;
       }
     }
   } finally {
@@ -108,29 +108,29 @@ export function rethrowFlow() {
         {
           (() => { throw new NotFound("inner"); })();
         }
-      } catch ($error_3) {
-        if ($error_3 instanceof ParseIssue) {
+      } catch ($error_1) {
+        if ($error_1 instanceof ParseIssue) {
           {
             return "wrong";
           }
-        } else if ($error_3 != null) {
-          const error_5 = $error_3;
+        } else if ($error_1 != null) {
+          const error = $error_1;
           {
-            (() => { throw $error_3; })();
+            (() => { throw $error_1; })();
           }
         } else {
-          throw $error_3;
+          throw $error_1;
         }
       }
     }
-  } catch ($error_2) {
-    if ($error_2 instanceof NotFound) {
-      const error_6 = $error_2;
+  } catch ($error) {
+    if ($error instanceof NotFound) {
+      const error_1 = $error;
       {
-        return "rethrow:" + __dartStr(error_6.path);
+        return "rethrow:" + __dartStr(error_1.path);
       }
     } else {
-      throw $error_2;
+      throw $error;
     }
   }
 }

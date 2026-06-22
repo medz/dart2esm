@@ -33,12 +33,12 @@ function $Point_origin($newTarget) {
   return $self;
 }
 
-function $Point_square($newTarget_1, size) {
-  const $self_1 = Object.create($newTarget_1.prototype);
-  $self_1.x = size;
-  $self_1.y = size;
-  $self_1.label = "square";
-  return $self_1;
+function $Point_square($newTarget, size) {
+  const $self = Object.create($newTarget.prototype);
+  $self.x = size;
+  $self.y = size;
+  $self.label = "square";
+  return $self;
 }
 
 export class Token {
@@ -53,10 +53,10 @@ export class Token {
   }
 }
 
-function $Token_named($newTarget_2, value) {
-  const $self_2 = Object.create($newTarget_2.prototype);
-  $self_2.value = value;
-  return $self_2;
+function $Token_named($newTarget, value) {
+  const $self = Object.create($newTarget.prototype);
+  $self.value = value;
+  return $self;
 }
 
 export function main() {

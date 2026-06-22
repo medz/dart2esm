@@ -40,8 +40,10 @@ final class _EsmEmitter {
   final _staticFieldCellNames = <k.Field, String>{};
   final _variableNames = <k.VariableDeclaration, String>{};
   final _labelNames = <k.LabeledStatement, String>{};
+  final _continueSwitchTargets = <k.SwitchCase, _ContinueSwitchTarget>{};
   final _usedHelpers = <String>{};
   final _usedNames = <String>{};
+  final _localNameScopes = <Set<String>>[];
   var _indent = 0;
   k.Class? _currentClass;
   String? _thisAlias;
@@ -313,14 +315,16 @@ final class _EsmEmitter {
     if (!hasSuperclass && !klass.fields.any((field) => !field.isStatic)) {
       return;
     }
-    writeln('constructor() {');
-    _indent++;
-    if (hasSuperclass) {
-      writeln('super();');
-    }
-    _emitInstanceFieldDefaults(klass);
-    _indent--;
-    writeln('}');
+    _withFunctionNameScope(() {
+      writeln('constructor() {');
+      _indent++;
+      if (hasSuperclass) {
+        writeln('super();');
+      }
+      _emitInstanceFieldDefaults(klass);
+      _indent--;
+      writeln('}');
+    });
   }
 
   bool _canOmitConstructor(k.Constructor constructor, k.Class klass) {
@@ -370,36 +374,36 @@ final class _EsmEmitter {
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw UnsupportedKernelNode(constructor, 'async constructor');
     }
-    writeln('constructor(${_emitParameterList(function)}) {');
-    _indent++;
-    final redirectingInitializer = _redirectingInitializer(constructor);
-    if (redirectingInitializer != null) {
-      _emitRedirectingConstructorBody(
-        constructor,
-        redirectingInitializer,
-        'new.target',
-      );
+    _withFunctionNameScope(() {
+      writeln('constructor(${_emitParameterList(function)}) {');
+      _indent++;
+      final redirectingInitializer = _redirectingInitializer(constructor);
+      if (redirectingInitializer != null) {
+        _emitRedirectingConstructorBody(
+          constructor,
+          redirectingInitializer,
+          'new.target',
+        );
+      } else {
+        if (_hasNonObjectSuperclass(klass)) {
+          _emitDerivedConstructorInitializers(constructor, klass);
+        } else {
+          _emitInstanceFieldDefaults(
+            klass,
+            skipFields: _initializedFields(constructor.initializers),
+          );
+          for (final initializer in constructor.initializers) {
+            _emitInitializer(initializer);
+          }
+        }
+        final body = function.body;
+        if (body != null) {
+          _emitFunctionBody(body);
+        }
+      }
       _indent--;
       writeln('}');
-      return;
-    }
-    if (_hasNonObjectSuperclass(klass)) {
-      _emitDerivedConstructorInitializers(constructor, klass);
-    } else {
-      _emitInstanceFieldDefaults(
-        klass,
-        skipFields: _initializedFields(constructor.initializers),
-      );
-      for (final initializer in constructor.initializers) {
-        _emitInitializer(initializer);
-      }
-    }
-    final body = function.body;
-    if (body != null) {
-      _emitFunctionBody(body);
-    }
-    _indent--;
-    writeln('}');
+    });
   }
 
   void _emitNamedConstructor(k.Constructor constructor, k.Class klass) {
@@ -411,20 +415,21 @@ final class _EsmEmitter {
       throw UnsupportedKernelNode(constructor, 'async named constructor');
     }
 
-    final className = _className(klass);
-    final forwardedArguments = _emitParameterForwardingArguments(function);
-    final forwardingSuffix = forwardedArguments.isEmpty
-        ? ''
-        : ', $forwardedArguments';
-    writeln(
-      'static ${_memberName(constructor.name.text)}(${_emitParameterList(function)}) {',
-    );
-    _indent++;
-    writeln(
-      'return ${_namedConstructorBodyName(constructor)}($className$forwardingSuffix);',
-    );
-    _indent--;
-    writeln('}');
+    _withFunctionNameScope(() {
+      final className = _className(klass);
+      final parameters = _emitParameterList(function);
+      final forwardedArguments = _emitParameterForwardingArguments(function);
+      final forwardingSuffix = forwardedArguments.isEmpty
+          ? ''
+          : ', $forwardedArguments';
+      writeln('static ${_memberName(constructor.name.text)}($parameters) {');
+      _indent++;
+      writeln(
+        'return ${_namedConstructorBodyName(constructor)}($className$forwardingSuffix);',
+      );
+      _indent--;
+      writeln('}');
+    });
   }
 
   void _emitNamedConstructorBodies(k.Class klass) {
@@ -438,62 +443,62 @@ final class _EsmEmitter {
   }
 
   void _emitNamedConstructorBody(k.Constructor constructor, k.Class klass) {
-    final function = constructor.function;
-    final self = _freshName('\$self');
-    final newTarget = _freshName('\$newTarget');
-    final parameters = _emitParameterList(function);
-    writeln(
-      'function ${_namedConstructorBodyName(constructor)}($newTarget${parameters.isEmpty ? '' : ', $parameters'}) {',
-    );
-    _indent++;
-    final redirectingInitializer = _redirectingInitializer(constructor);
-    if (redirectingInitializer != null) {
-      _emitRedirectingConstructorBody(
-        constructor,
-        redirectingInitializer,
-        newTarget,
+    _withFunctionNameScope(() {
+      final function = constructor.function;
+      final self = _freshScopedName('\$self');
+      final newTarget = _freshScopedName('\$newTarget');
+      final parameters = _emitParameterList(function);
+      writeln(
+        'function ${_namedConstructorBodyName(constructor)}($newTarget${parameters.isEmpty ? '' : ', $parameters'}) {',
       );
+      _indent++;
+      final redirectingInitializer = _redirectingInitializer(constructor);
+      if (redirectingInitializer != null) {
+        _emitRedirectingConstructorBody(
+          constructor,
+          redirectingInitializer,
+          newTarget,
+        );
+      } else {
+        final fieldInitializers = _hasNonObjectSuperclass(klass)
+            ? _emitDerivedNamedConstructorAllocation(
+                constructor,
+                klass,
+                newTarget,
+                self,
+              )
+            : null;
+        if (fieldInitializers == null) {
+          writeln('const $self = Object.create($newTarget.prototype);');
+        }
+        _withConstructorContext(
+          thisAlias: self,
+          emptyReturnValue: self,
+          body: () {
+            _emitInstanceFieldDefaults(
+              klass,
+              skipFields: _initializedFields(constructor.initializers),
+            );
+            if (fieldInitializers == null) {
+              for (final initializer in constructor.initializers) {
+                _emitInitializer(initializer);
+              }
+            } else {
+              for (final initializer in fieldInitializers) {
+                _emitInitializer(initializer);
+              }
+            }
+            final body = function.body;
+            if (body != null) {
+              _emitFunctionBody(body);
+            }
+          },
+        );
+        writeln('return $self;');
+      }
       _indent--;
       writeln('}');
-      return;
-    }
-    final fieldInitializers = _hasNonObjectSuperclass(klass)
-        ? _emitDerivedNamedConstructorAllocation(
-            constructor,
-            klass,
-            newTarget,
-            self,
-          )
-        : null;
-    if (fieldInitializers == null) {
-      writeln('const $self = Object.create($newTarget.prototype);');
-    }
-    _withConstructorContext(
-      thisAlias: self,
-      emptyReturnValue: self,
-      body: () {
-        _emitInstanceFieldDefaults(
-          klass,
-          skipFields: _initializedFields(constructor.initializers),
-        );
-        if (fieldInitializers == null) {
-          for (final initializer in constructor.initializers) {
-            _emitInitializer(initializer);
-          }
-        } else {
-          for (final initializer in fieldInitializers) {
-            _emitInitializer(initializer);
-          }
-        }
-        final body = function.body;
-        if (body != null) {
-          _emitFunctionBody(body);
-        }
-      },
-    );
-    writeln('return $self;');
-    _indent--;
-    writeln('}');
+    });
   }
 
   k.RedirectingInitializer? _redirectingInitializer(k.Constructor constructor) {
@@ -743,15 +748,17 @@ final class _EsmEmitter {
         'factory',
       ),
     };
-    writeln('$prefix(${_emitParameterList(function)}) {');
-    _indent++;
-    final body = function.body;
-    if (body == null) {
-      throw UnsupportedKernelNode(function, 'method body');
-    }
-    _emitFunctionBody(body);
-    _indent--;
-    writeln('}');
+    _withFunctionNameScope(() {
+      writeln('$prefix(${_emitParameterList(function)}) {');
+      _indent++;
+      final body = function.body;
+      if (body == null) {
+        throw UnsupportedKernelNode(function, 'method body');
+      }
+      _emitFunctionBody(body);
+      _indent--;
+      writeln('}');
+    });
   }
 
   void _emitFactory(k.Procedure procedure) {
@@ -762,17 +769,19 @@ final class _EsmEmitter {
     if (!procedure.isRedirectingFactory) {
       throw UnsupportedKernelNode(procedure, 'factory procedure');
     }
-    final parameters = _emitParameterList(function);
-    final name = procedure.name.text;
-    if (name.isEmpty) {
-      writeln('constructor($parameters) {');
-    } else {
-      writeln('static ${_memberName(name)}($parameters) {');
-    }
-    _indent++;
-    writeln('return ${_emitRedirectingFactoryTarget(procedure)};');
-    _indent--;
-    writeln('}');
+    _withFunctionNameScope(() {
+      final parameters = _emitParameterList(function);
+      final name = procedure.name.text;
+      if (name.isEmpty) {
+        writeln('constructor($parameters) {');
+      } else {
+        writeln('static ${_memberName(name)}($parameters) {');
+      }
+      _indent++;
+      writeln('return ${_emitRedirectingFactoryTarget(procedure)};');
+      _indent--;
+      writeln('}');
+    });
   }
 
   String _emitRedirectingFactoryTarget(k.Procedure procedure) {
@@ -851,17 +860,22 @@ final class _EsmEmitter {
         'function ${procedure.name.text}',
       ),
     };
-    writeln(
-      '${export ? 'export ' : ''}${asyncPrefix}function $name(${_emitParameterList(function)}) {',
-    );
-    _indent++;
-    final body = function.body;
-    if (body == null) {
-      throw UnsupportedKernelNode(function, 'external/abstract function body');
-    }
-    _emitFunctionBody(body);
-    _indent--;
-    writeln('}');
+    _withFunctionNameScope(() {
+      writeln(
+        '${export ? 'export ' : ''}${asyncPrefix}function $name(${_emitParameterList(function)}) {',
+      );
+      _indent++;
+      final body = function.body;
+      if (body == null) {
+        throw UnsupportedKernelNode(
+          function,
+          'external/abstract function body',
+        );
+      }
+      _emitFunctionBody(body);
+      _indent--;
+      writeln('}');
+    });
   }
 
   void _declareParameters(k.FunctionNode function) {
@@ -1017,7 +1031,7 @@ final class _EsmEmitter {
       case k.BreakStatement():
         writeln('break ${_labelName(statement.target)};');
       case k.ContinueSwitchStatement():
-        throw UnsupportedKernelNode(statement, 'continue switch statement');
+        _emitContinueSwitchStatement(statement);
       case k.LabeledStatement():
         writeln('${_labelName(statement)}:');
         emitStatement(statement.body);
@@ -1036,19 +1050,21 @@ final class _EsmEmitter {
     _declareVariable(statement.variable);
     final function = statement.function;
     final asyncPrefix = _functionAsyncPrefix(function, 'local function');
-    writeln(
-      '${asyncPrefix}function ${_variableName(statement.variable)}(${_emitParameterList(function)}) {',
-    );
-    _indent++;
-    final body = function.body;
-    if (body == null) {
-      throw UnsupportedKernelNode(function, 'local function body');
-    }
-    _withEmptyReturnValue(null, () {
-      _emitFunctionBody(body);
+    _withFunctionNameScope(() {
+      writeln(
+        '${asyncPrefix}function ${_variableName(statement.variable)}(${_emitParameterList(function)}) {',
+      );
+      _indent++;
+      final body = function.body;
+      if (body == null) {
+        throw UnsupportedKernelNode(function, 'local function body');
+      }
+      _withEmptyReturnValue(null, () {
+        _emitFunctionBody(body);
+      });
+      _indent--;
+      writeln('}');
     });
-    _indent--;
-    writeln('}');
   }
 
   void _emitDoStatement(k.DoStatement statement) {
@@ -1099,6 +1115,10 @@ final class _EsmEmitter {
   }
 
   void _emitSwitchStatement(k.SwitchStatement statement) {
+    if (_hasContinueToSwitch(statement)) {
+      _emitContinuableSwitchStatement(statement);
+      return;
+    }
     writeln('switch (${emitExpression(statement.expression)}) {');
     _indent++;
     for (final switchCase in statement.cases) {
@@ -1116,8 +1136,165 @@ final class _EsmEmitter {
     writeln('}');
   }
 
+  bool _hasContinueToSwitch(k.SwitchStatement statement) {
+    final targets = statement.cases.toSet();
+    for (final switchCase in statement.cases) {
+      if (_containsContinueToSwitchCase(switchCase.body, targets)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _containsContinueToSwitchCase(
+    k.Statement statement,
+    Set<k.SwitchCase> targets,
+  ) {
+    switch (statement) {
+      case k.ContinueSwitchStatement():
+        return targets.contains(statement.target);
+      case k.Block():
+        return statement.statements.any(
+          (child) => _containsContinueToSwitchCase(child, targets),
+        );
+      case k.LabeledStatement():
+        return _containsContinueToSwitchCase(statement.body, targets);
+      case k.ExpressionStatement() ||
+          k.EmptyStatement() ||
+          k.ReturnStatement() ||
+          k.VariableDeclaration() ||
+          k.BreakStatement() ||
+          k.AssertStatement():
+        return false;
+      case k.FunctionDeclaration():
+        return false;
+      case k.IfStatement():
+        return _containsContinueToSwitchCase(statement.then, targets) ||
+            (statement.otherwise != null &&
+                _containsContinueToSwitchCase(statement.otherwise!, targets));
+      case k.WhileStatement():
+        return _containsContinueToSwitchCase(statement.body, targets);
+      case k.DoStatement():
+        return _containsContinueToSwitchCase(statement.body, targets);
+      case k.ForStatement():
+        return _containsContinueToSwitchCase(statement.body, targets);
+      case k.ForInStatement():
+        return _containsContinueToSwitchCase(statement.body, targets);
+      case k.SwitchStatement():
+        return statement.cases.any(
+          (switchCase) =>
+              _containsContinueToSwitchCase(switchCase.body, targets),
+        );
+      case k.TryCatch():
+        return _containsContinueToSwitchCase(statement.body, targets) ||
+            statement.catches.any(
+              (catchNode) =>
+                  _containsContinueToSwitchCase(catchNode.body, targets),
+            );
+      case k.TryFinally():
+        return _containsContinueToSwitchCase(statement.body, targets) ||
+            _containsContinueToSwitchCase(statement.finalizer, targets);
+      case k.AssertBlock():
+        return statement.statements.any(
+          (child) => _containsContinueToSwitchCase(child, targets),
+        );
+      default:
+        return false;
+    }
+  }
+
+  void _emitContinuableSwitchStatement(k.SwitchStatement statement) {
+    final valueName = _freshScopedName('\$switchValue');
+    final targetName = _freshScopedName('\$switchTarget');
+    final loopLabel = _freshScopedName('\$switchLoop');
+    writeln('{');
+    _indent++;
+    writeln('const $valueName = ${emitExpression(statement.expression)};');
+    writeln('let $targetName = -1;');
+    writeln('switch ($valueName) {');
+    _indent++;
+    for (var index = 0; index < statement.cases.length; index++) {
+      final switchCase = statement.cases[index];
+      for (final expression in switchCase.expressions) {
+        writeln('case ${emitExpression(expression)}:');
+      }
+      if (switchCase.isDefault) {
+        writeln('default:');
+      }
+      _indent++;
+      writeln('$targetName = $index;');
+      writeln('break;');
+      _indent--;
+    }
+    _indent--;
+    writeln('}');
+
+    writeln('$loopLabel: while ($targetName !== -1) {');
+    _indent++;
+    writeln('switch ($targetName) {');
+    _indent++;
+    final targets = {
+      for (var index = 0; index < statement.cases.length; index++)
+        statement.cases[index]: _ContinueSwitchTarget(
+          stateName: targetName,
+          loopLabel: loopLabel,
+          caseIndex: index,
+        ),
+    };
+    _withContinueSwitchTargets(targets, () {
+      for (var index = 0; index < statement.cases.length; index++) {
+        writeln('case $index:');
+        _indent++;
+        writeln('$targetName = -1;');
+        emitStatement(statement.cases[index].body);
+        writeln('break;');
+        _indent--;
+      }
+    });
+    _indent--;
+    writeln('}');
+    _indent--;
+    writeln('}');
+    _indent--;
+    writeln('}');
+  }
+
+  void _withContinueSwitchTargets(
+    Map<k.SwitchCase, _ContinueSwitchTarget> targets,
+    void Function() body,
+  ) {
+    final previousTargets = <k.SwitchCase, _ContinueSwitchTarget>{};
+    for (final entry in targets.entries) {
+      if (_continueSwitchTargets.containsKey(entry.key)) {
+        previousTargets[entry.key] = _continueSwitchTargets[entry.key]!;
+      }
+      _continueSwitchTargets[entry.key] = entry.value;
+    }
+    try {
+      body();
+    } finally {
+      for (final key in targets.keys) {
+        final previous = previousTargets[key];
+        if (previous == null) {
+          _continueSwitchTargets.remove(key);
+        } else {
+          _continueSwitchTargets[key] = previous;
+        }
+      }
+    }
+  }
+
+  void _emitContinueSwitchStatement(k.ContinueSwitchStatement statement) {
+    final target = _continueSwitchTargets[statement.target];
+    if (target == null) {
+      throw UnsupportedKernelNode(statement, 'continue switch statement');
+    }
+    writeln('${target.stateName} = ${target.caseIndex};');
+    writeln('continue ${target.loopLabel};');
+  }
+
   void _emitTryCatch(k.TryCatch statement) {
-    final error = _freshName('\$error');
+    final error = _freshScopedName('\$error');
     writeln('try {');
     _indent++;
     emitStatement(statement.body);
@@ -1305,12 +1482,15 @@ final class _EsmEmitter {
     if (body == null) {
       throw UnsupportedKernelNode(function, 'function expression body');
     }
-    final inlineBody = _emitInlineFunctionBody(body);
-    if (inlineBody != null) {
-      return '${asyncPrefix}function(${_emitParameterList(function)}) { $inlineBody }';
-    }
-    final bodyCode = _captureFunctionBody(body);
-    return '${asyncPrefix}function(${_emitParameterList(function)}) {\n$bodyCode}';
+    return _withFunctionNameScope(() {
+      final parameters = _emitParameterList(function);
+      final inlineBody = _emitInlineFunctionBody(body);
+      if (inlineBody != null) {
+        return '${asyncPrefix}function($parameters) { $inlineBody }';
+      }
+      final bodyCode = _captureFunctionBody(body);
+      return '${asyncPrefix}function($parameters) {\n$bodyCode}';
+    });
   }
 
   String? _emitInlineFunctionBody(k.Statement body) {
@@ -1628,11 +1808,13 @@ final class _EsmEmitter {
     if (function == null) {
       throw UnsupportedKernelNode(target, 'constructor tear-off function');
     }
-    writeln('function $name(${_emitParameterList(function)}) {');
-    _indent++;
-    writeln('return ${_emitConstructorTearOffInvocation(target, function)};');
-    _indent--;
-    writeln('}');
+    _withFunctionNameScope(() {
+      writeln('function $name(${_emitParameterList(function)}) {');
+      _indent++;
+      writeln('return ${_emitConstructorTearOffInvocation(target, function)};');
+      _indent--;
+      writeln('}');
+    });
   }
 
   String _emitConstructorTearOffInvocation(
@@ -1884,22 +2066,31 @@ final class _EsmEmitter {
         '<unbound>';
   }
 
+  T _withFunctionNameScope<T>(T Function() body) {
+    _localNameScopes.add({..._usedNames, ..._generatedGlobalNames});
+    try {
+      return body();
+    } finally {
+      _localNameScopes.removeLast();
+    }
+  }
+
   void _declareVariable(k.VariableDeclaration variable) {
     _variableNames.putIfAbsent(
       variable,
-      () => _freshName(variable.name ?? 'v'),
+      () => _freshScopedName(variable.name ?? 'v'),
     );
   }
 
   String _variableName(k.VariableDeclaration variable) {
     return _variableNames.putIfAbsent(
       variable,
-      () => _freshName(variable.name ?? 'v'),
+      () => _freshScopedName(variable.name ?? 'v'),
     );
   }
 
   String _labelName(k.LabeledStatement statement) {
-    return _labelNames.putIfAbsent(statement, () => _freshName('L'));
+    return _labelNames.putIfAbsent(statement, () => _freshScopedName('L'));
   }
 
   String _procedureName(k.Procedure procedure) {
@@ -1983,15 +2174,33 @@ final class _EsmEmitter {
   }
 
   String _freshName(String original) {
+    return _freshNameIn(_usedNames, original, avoidActiveLocalScopes: true);
+  }
+
+  String _freshScopedName(String original) {
+    if (_localNameScopes.isEmpty) {
+      return _freshName(original);
+    }
+    return _freshNameIn(_localNameScopes.last, original);
+  }
+
+  String _freshNameIn(
+    Set<String> usedNames,
+    String original, {
+    bool avoidActiveLocalScopes = false,
+  }) {
     final sanitized = _sanitizeIdentifier(original);
     var candidate = sanitized;
     var suffix = 0;
     while (_reservedNames.contains(candidate) ||
-        _usedNames.contains(candidate)) {
+        _generatedGlobalNames.contains(candidate) ||
+        usedNames.contains(candidate) ||
+        avoidActiveLocalScopes &&
+            _localNameScopes.any((scope) => scope.contains(candidate))) {
       suffix++;
       candidate = '${sanitized}_$suffix';
     }
-    _usedNames.add(candidate);
+    usedNames.add(candidate);
     return candidate;
   }
 
@@ -2210,6 +2419,18 @@ final class _TopLevelFieldNames {
   final String value;
 }
 
+final class _ContinueSwitchTarget {
+  const _ContinueSwitchTarget({
+    required this.stateName,
+    required this.loopLabel,
+    required this.caseIndex,
+  });
+
+  final String stateName;
+  final String loopLabel;
+  final int caseIndex;
+}
+
 const _binaryOperators = {
   '+',
   '-',
@@ -2260,4 +2481,18 @@ const _reservedNames = {
   'while',
   'with',
   'yield',
+};
+
+const _generatedGlobalNames = {
+  '__dartConstMap',
+  '__dartConstSet',
+  '__dartEquals',
+  '__dartIsRecord',
+  '__dartIterator',
+  '__dartLazyField',
+  '__dartPrint',
+  '__dartRecord',
+  '__dartRecordShape',
+  '__dartStr',
+  '__dartTruncDiv',
 };

@@ -39,14 +39,11 @@ describe('control_flow/exceptions.mjs', () => {
           line === '} else if (typeof $error === "string") {' ||
           line === '} else if ($error != null) {' ||
           line === 'throw $error;' ||
-          line === '} catch ($error_3) {' ||
-          line === 'if ($error_3 instanceof ParseIssue) {' ||
-          line === '} else if ($error_3 != null) {' ||
-          line === '(() => { throw $error_3; })();' ||
-          line === 'throw $error_3;' ||
-          line === '} catch ($error_2) {' ||
-          line === 'if ($error_2 instanceof NotFound) {' ||
-          line === 'throw $error_2;',
+          line === '} catch ($error_1) {' ||
+          line === 'if ($error_1 instanceof ParseIssue) {' ||
+          line === '} else if ($error_1 != null) {' ||
+          line === '(() => { throw $error_1; })();' ||
+          line === 'throw $error_1;',
       );
 
     expect(shapeLines).toEqual([
@@ -57,14 +54,15 @@ describe('control_flow/exceptions.mjs', () => {
       '} else if (typeof $error === "string") {',
       '} else if ($error != null) {',
       'throw $error;',
-      '} catch ($error_3) {',
-      'if ($error_3 instanceof ParseIssue) {',
-      '} else if ($error_3 != null) {',
-      '(() => { throw $error_3; })();',
-      'throw $error_3;',
-      '} catch ($error_2) {',
-      'if ($error_2 instanceof NotFound) {',
-      'throw $error_2;',
+      '} catch ($error) {',
+      'throw $error;',
+      '} catch ($error_1) {',
+      'if ($error_1 instanceof ParseIssue) {',
+      '} else if ($error_1 != null) {',
+      '(() => { throw $error_1; })();',
+      'throw $error_1;',
+      '} catch ($error) {',
+      'throw $error;',
     ]);
   });
 });

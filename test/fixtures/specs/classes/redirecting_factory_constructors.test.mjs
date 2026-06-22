@@ -78,13 +78,13 @@ describe('classes/redirecting_factory_constructors.mjs', () => {
 
     expect(shapeLines).toEqual([
       'return new Square(size);',
-      'return Square.named(size_1);',
-      'return Shape.named(size_2);',
-      'return new Square(size_3);',
-      'return Square.withDefault(size_4);',
-      'return Square.options({ size: size_5, label: label });',
+      'return Square.named(size);',
+      'return Shape.named(size);',
+      'return new Square(size);',
+      'return Square.withDefault(size);',
+      'return Square.options({ size: size, label: label });',
       'return new Button();',
-      'return Button.named(label_2);',
+      'return Button.named(label);',
     ]);
   });
 });

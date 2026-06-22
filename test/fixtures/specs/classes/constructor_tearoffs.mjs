@@ -15,27 +15,27 @@ export class Box {
     this.value = value;
     this.label = "box";
   }
-  static named(value_1) {
-    return $Box_named(Box, value_1);
+  static named(value) {
+    return $Box_named(Box, value);
   }
-  static alias(value_2) {
-    return Box.named(value_2);
+  static alias(value) {
+    return Box.named(value);
   }
   describe() {
     return __dartStr(this.label) + ":" + __dartStr(this.value);
   }
 }
 
-function $Box_named($newTarget, value_1) {
+function $Box_named($newTarget, value) {
   const $self = Object.create($newTarget.prototype);
-  $self.value = value_1;
+  $self.value = value;
   $self.label = "named";
   return $self;
 }
 
 export class Options {
-  constructor(value_3, { label = "options" } = {}) {
-    this.value = value_3;
+  constructor(value, { label = "options" } = {}) {
+    this.value = value;
     this.label = label;
   }
   describe() {
@@ -44,8 +44,8 @@ export class Options {
 }
 
 export class Holder {
-  constructor(value_4) {
-    this.value = value_4;
+  constructor(value) {
+    this.value = value;
   }
   describe() {
     return __dartStr(this.value);
@@ -80,19 +80,19 @@ function $Box_new_tearoff(value) {
   return new Box(value);
 }
 
-function $Box_named_tearoff(value_1) {
-  return Box.named(value_1);
+function $Box_named_tearoff(value) {
+  return Box.named(value);
 }
 
-function $Box_alias_tearoff(value_2) {
-  return Box.alias(value_2);
+function $Box_alias_tearoff(value) {
+  return Box.alias(value);
 }
 
-function $Options_new_tearoff(value_3, { label = "options" } = {}) {
-  return new Options(value_3, { label: label });
+function $Options_new_tearoff(value, { label = "options" } = {}) {
+  return new Options(value, { label: label });
 }
 
-function $Holder_new_tearoff(value_4) {
-  return new Holder(value_4);
+function $Holder_new_tearoff(value) {
+  return new Holder(value);
 }
 main();

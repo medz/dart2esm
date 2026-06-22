@@ -11,21 +11,21 @@ export function addOne(value) {
   return (value + 1);
 }
 
-export function applyTwice(callback, value_1) {
-  return (callback)((callback)(value_1));
+export function applyTwice(callback, value) {
+  return (callback)((callback)(value));
 }
 
 export function main() {
   const base = 3;
-  function addBase(value_2) {
-    return (value_2 + base);
+  function addBase(value) {
+    return (value + base);
   }
-  const multiply = function(value_3) { return (value_3 * 2); };
+  const multiply = function(value) { return (value * 2); };
   const top = addOne;
   __dartPrint(addBase(4));
   __dartPrint((multiply)(5));
   __dartPrint(applyTwice(top, 1));
-  __dartPrint(applyTwice(function(value_4) { return (value_4 + base); }, 2));
+  __dartPrint(applyTwice(function(value) { return (value + base); }, 2));
 }
 
 main();

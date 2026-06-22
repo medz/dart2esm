@@ -11,61 +11,61 @@ export class Shape {
   constructor(size) {
     return new Square(size);
   }
-  static named(size_1) {
-    return Square.named(size_1);
+  static named(size) {
+    return Square.named(size);
   }
-  static alias(size_2) {
-    return Shape.named(size_2);
+  static alias(size) {
+    return Shape.named(size);
   }
-  static newAlias(size_3) {
-    return new Square(size_3);
+  static newAlias(size) {
+    return new Square(size);
   }
-  static withDefault(size_4 = 8) {
-    return Square.withDefault(size_4);
+  static withDefault(size = 8) {
+    return Square.withDefault(size);
   }
-  static options({ size: size_5 = 9, label = "options" } = {}) {
-    return Square.options({ size: size_5, label: label });
+  static options({ size = 9, label = "options" } = {}) {
+    return Square.options({ size: size, label: label });
   }
 }
 
 export class Square {
-  constructor(size_6) {
-    this.size = size_6;
+  constructor(size) {
+    this.size = size;
     this.label = "square";
   }
-  static named(size_7) {
-    return $Square_named(Square, size_7);
+  static named(size) {
+    return $Square_named(Square, size);
   }
-  static withDefault(size_8 = 8) {
-    return $Square_withDefault(Square, size_8);
+  static withDefault(size = 8) {
+    return $Square_withDefault(Square, size);
   }
-  static options({ size: size_9 = 9, label: label_1 = "options" } = {}) {
-    return $Square_options(Square, { size: size_9, label: label_1 });
+  static options({ size = 9, label = "options" } = {}) {
+    return $Square_options(Square, { size: size, label: label });
   }
   describe() {
     return __dartStr(this.label) + ":" + __dartStr(this.size);
   }
 }
 
-function $Square_named($newTarget, size_7) {
+function $Square_named($newTarget, size) {
   const $self = Object.create($newTarget.prototype);
-  $self.size = size_7;
+  $self.size = size;
   $self.label = "named";
   return $self;
 }
 
-function $Square_withDefault($newTarget_1, size_8 = 8) {
-  const $self_1 = Object.create($newTarget_1.prototype);
-  $self_1.size = size_8;
-  $self_1.label = "default";
-  return $self_1;
+function $Square_withDefault($newTarget, size = 8) {
+  const $self = Object.create($newTarget.prototype);
+  $self.size = size;
+  $self.label = "default";
+  return $self;
 }
 
-function $Square_options($newTarget_2, { size: size_9 = 9, label: label_1 = "options" } = {}) {
-  const $self_2 = Object.create($newTarget_2.prototype);
-  $self_2.size = size_9;
-  $self_2.label = label_1;
-  return $self_2;
+function $Square_options($newTarget, { size = 9, label = "options" } = {}) {
+  const $self = Object.create($newTarget.prototype);
+  $self.size = size;
+  $self.label = label;
+  return $self;
 }
 
 export class Widget {
@@ -75,8 +75,8 @@ export class Widget {
   static d() {
     return new Button();
   }
-  static named(label_2) {
-    return Button.named(label_2);
+  static named(label) {
+    return Button.named(label);
   }
 }
 
@@ -84,18 +84,18 @@ export class Button {
   constructor() {
     this.label = "button";
   }
-  static named(label_3) {
-    return $Button_named(Button, label_3);
+  static named(label) {
+    return $Button_named(Button, label);
   }
   describe() {
     return "button:" + __dartStr(this.label);
   }
 }
 
-function $Button_named($newTarget_3, label_3) {
-  const $self_3 = Object.create($newTarget_3.prototype);
-  $self_3.label = label_3;
-  return $self_3;
+function $Button_named($newTarget, label) {
+  const $self = Object.create($newTarget.prototype);
+  $self.label = label;
+  return $self;
 }
 
 export function main() {

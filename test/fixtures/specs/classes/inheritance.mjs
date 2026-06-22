@@ -23,8 +23,8 @@ export class Animal {
 }
 
 export class Dog extends Animal {
-  constructor(name_1, age) {
-    super(name_1);
+  constructor(name, age) {
+    super(name);
     this.age = age;
   }
   describe() {
@@ -34,25 +34,25 @@ export class Dog extends Animal {
     this.age = (this.age + 1);
     return this.describe();
   }
-  rename(value_1) {
-    super.label = value_1;
+  rename(value) {
+    super.label = value;
     return super.label;
   }
 }
 
-export function identity(value_2) {
-  return value_2;
+export function identity(value) {
+  return value;
 }
 
 export function main() {
   const dog = new Dog("Rex", 4);
-  const value_3 = identity(dog);
+  const value = identity(dog);
   __dartPrint(dog.describe());
   __dartPrint(dog.birthday());
   __dartPrint(dog.rename("Ada"));
   __dartPrint(dog.describe());
-  __dartPrint("animal " + __dartStr(value_3 instanceof Animal));
-  __dartPrint("dog " + __dartStr(value_3 instanceof Dog));
+  __dartPrint("animal " + __dartStr(value instanceof Animal));
+  __dartPrint("dog " + __dartStr(value instanceof Dog));
 }
 
 main();

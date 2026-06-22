@@ -39,30 +39,30 @@ export class Animal {
   }
 }
 
-function $Animal_named($newTarget_1, name) {
-  const $self_1 = Object.create($newTarget_1.prototype);
-  $self_1.name = name;
-  return $self_1;
+function $Animal_named($newTarget, name) {
+  const $self = Object.create($newTarget.prototype);
+  $self.name = name;
+  return $self;
 }
 
 export class Dog extends Animal {
   constructor() {
     return $Dog_named(new.target, "Rex", 4);
   }
-  static named(name_1, age) {
-    return $Dog_named(Dog, name_1, age);
+  static named(name, age) {
+    return $Dog_named(Dog, name, age);
   }
   describe() {
     return __dartStr(super.describe()) + " " + __dartStr(this.label) + " " + __dartStr(this.age);
   }
 }
 
-function $Dog_named($newTarget_2, name_1, age) {
-  const $self_2 = $Animal_named($newTarget_2, name_1);
-  $self_2.age = age;
-  $self_2.label = "dog";
-  $self_2.label = __dartStr($self_2.label) + "!";
-  return $self_2;
+function $Dog_named($newTarget, name, age) {
+  const $self = $Animal_named($newTarget, name);
+  $self.age = age;
+  $self.label = "dog";
+  $self.label = __dartStr($self.label) + "!";
+  return $self;
 }
 
 export function main() {

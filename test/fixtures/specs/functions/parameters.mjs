@@ -23,8 +23,8 @@ export function describe(name, punctuation = "!", repeat = 1) {
   return out;
 }
 
-export function tag(value_1, { prefix = "item", index } = {}) {
-  return __dartStr(prefix) + ":" + __dartStr(index) + ":" + __dartStr(value_1);
+export function tag(value, { prefix = "item", index } = {}) {
+  return __dartStr(prefix) + ":" + __dartStr(index) + ":" + __dartStr(value);
 }
 
 export function main() {

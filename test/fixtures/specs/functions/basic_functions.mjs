@@ -12,8 +12,8 @@ export function helper(value) {
 }
 
 export function main() {
-  const value_1 = (40 + 2);
-  helper("answer " + __dartStr(value_1));
+  const value = (40 + 2);
+  helper("answer " + __dartStr(value));
 }
 
 main();

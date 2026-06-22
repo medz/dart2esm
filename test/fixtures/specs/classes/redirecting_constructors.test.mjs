@@ -152,30 +152,28 @@ describe('classes/redirecting_constructors.mjs', () => {
       .filter(
         (line) =>
           line.startsWith('return Reflect.construct(Point') ||
-          line.startsWith('return $Point_named($newTarget_2') ||
+          line.startsWith('return $Point_named($newTarget') ||
           line.startsWith('return $Pair_named(new.target') ||
-          line.startsWith('return $Pair_named($newTarget_4') ||
-          line.startsWith('return $Range_between($newTarget_5') ||
-          line.startsWith('return $Options_named($newTarget_8') ||
-          line.startsWith('return $Options_named($newTarget_9') ||
-          line.startsWith('return $Options_named($newTarget_10') ||
-          line.startsWith('return $Dog_full($newTarget_12') ||
-          line.startsWith('return $Puppy_full($newTarget_14') ||
-          line.startsWith('const $self_16 = $Point_zero'),
+          line.startsWith('return $Pair_named($newTarget') ||
+          line.startsWith('return $Range_between($newTarget') ||
+          line.startsWith('return $Options_named($newTarget') ||
+          line.startsWith('return $Dog_full($newTarget') ||
+          line.startsWith('return $Puppy_full($newTarget') ||
+          line.startsWith('const $self = $Point_zero'),
       );
 
     expect(shapeLines).toEqual([
       'return Reflect.construct(Point, [0, 0], $newTarget);',
-      'return $Point_named($newTarget_2, value, (value + 1), "alias");',
+      'return $Point_named($newTarget, value, (value + 1), "alias");',
       'return $Pair_named(new.target, 0, 1, "default");',
-      'return $Pair_named($newTarget_4, value_1, value_1, "mirror");',
-      'return $Range_between($newTarget_5, start, (start + 10));',
-      'return $Options_named($newTarget_8, { count: 1 });',
-      'return $Options_named($newTarget_9, { count: count_1, label: label_3 });',
-      'return $Options_named($newTarget_10, { count: count_2, label: "off", enabled: false });',
-      'return $Dog_full($newTarget_12, name_1, age, "dog");',
-      'return $Puppy_full($newTarget_14, name_3, 1, "ball");',
-      'const $self_16 = $Point_zero($newTarget_16);',
+      'return $Pair_named($newTarget, value, value, "mirror");',
+      'return $Range_between($newTarget, start, (start + 10));',
+      'return $Options_named($newTarget, { count: 1 });',
+      'return $Options_named($newTarget, { count: count, label: label });',
+      'return $Options_named($newTarget, { count: count, label: "off", enabled: false });',
+      'return $Dog_full($newTarget, name, age, "dog");',
+      'return $Puppy_full($newTarget, name, 1, "ball");',
+      'const $self = $Point_zero($newTarget);',
     ]);
   });
 });

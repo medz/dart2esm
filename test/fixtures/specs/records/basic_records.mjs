@@ -55,8 +55,8 @@ export function makeNamed(value) {
   return __dartRecord([], { label: "v" + __dartStr(value), value: value });
 }
 
-export function makeMixed(value_1) {
-  return __dartRecord([value_1], { label: "v" + __dartStr(value_1) });
+export function makeMixed(value) {
+  return __dartRecord([value], { label: "v" + __dartStr(value) });
 }
 
 export function main() {

@@ -17,22 +17,22 @@ export class Animal {
 }
 
 export class Dog extends Animal {
-  constructor(age, name_1) {
-    super(name_1);
+  constructor(age, name) {
+    super(name);
     this.age = age;
     this.label = "dog";
   }
-  static named(name_2, age_1) {
-    return $Dog_named(Dog, name_2, age_1);
+  static named(name, age) {
+    return $Dog_named(Dog, name, age);
   }
   describe() {
     return __dartStr(super.describe()) + " " + __dartStr(this.label) + " " + __dartStr(this.age);
   }
 }
 
-function $Dog_named($newTarget, name_2, age_1) {
-  const $self = Reflect.construct(Animal, [name_2], $newTarget);
-  $self.age = age_1;
+function $Dog_named($newTarget, name, age) {
+  const $self = Reflect.construct(Animal, [name], $newTarget);
+  $self.age = age;
   $self.label = "named dog";
   $self.label = __dartStr($self.label) + "!";
   return $self;
@@ -42,18 +42,18 @@ export class Cat extends Animal {
   constructor() {
     throw new TypeError("Class Cat has no unnamed constructor");
   }
-  static named(name_3) {
-    return $Cat_named(Cat, name_3);
+  static named(name) {
+    return $Cat_named(Cat, name);
   }
   describe() {
     return __dartStr(super.describe()) + " cat " + __dartStr(this.lives);
   }
 }
 
-function $Cat_named($newTarget_1, name_3) {
-  const $self_1 = Reflect.construct(Animal, [name_3], $newTarget_1);
-  $self_1.lives = 9;
-  return $self_1;
+function $Cat_named($newTarget, name) {
+  const $self = Reflect.construct(Animal, [name], $newTarget);
+  $self.lives = 9;
+  return $self;
 }
 
 export function main() {

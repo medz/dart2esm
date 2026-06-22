@@ -48,6 +48,18 @@ void main() {
         r'<tryStatement> ::= \TRY{} <block> (<onPart>+ <finallyPart>? | <finallyPart>)',
       );
       expect(
+        _exactLine(languageSpec, '<switchStatement> ::='),
+        r'<switchStatement> ::= \gnewline{}',
+      );
+      expect(
+        _exactLine(languageSpec, '<switchCase> ::='),
+        r"<switchCase> ::= <label>* \CASE{} <expression> `:' <statements>",
+      );
+      expect(
+        _exactLine(languageSpec, '<continueStatement> ::='),
+        r"<continueStatement> ::= \CONTINUE{} <identifier>? `;'",
+      );
+      expect(
         _exactLine(languageSpec, '<onPart> ::='),
         r'<onPart> ::= <catchPart> <block>',
       );
@@ -98,6 +110,34 @@ void main() {
       expect(
         _exactLine(languageSpec, r'The \RETHROW{} statement then throws'),
         r'The \RETHROW{} statement then throws (\ref{statementCompletion})',
+      );
+      expect(
+        _exactLineSequence(languageSpec, [
+          r'If execution of $\{s_h\}$ continues to a label',
+          r'(\ref{statementCompletion}),',
+          r'and the label is $label_{ij}$,',
+          r'where $1 \le i \le n+1$ if the \SWITCH{} statement has a \DEFAULT,',
+          r'or $1 \le i \le n$ if there is no \DEFAULT,',
+          r'and where $1 \le j \le j_{i}$,',
+          r'then let $h$ be the smallest number such that $h \ge i$ and $s_h$ is non-empty.',
+          r'If no such $h$ exists,',
+          r'let $h = n + 1$ if the \SWITCH{} statement has a \DEFAULT,',
+          r'otherwise let $h = n$.',
+          r'The case statements $s_h$ are then executed (\ref{case-execute}).',
+        ]),
+        [
+          r'If execution of $\{s_h\}$ continues to a label',
+          r'(\ref{statementCompletion}),',
+          r'and the label is $label_{ij}$,',
+          r'where $1 \le i \le n+1$ if the \SWITCH{} statement has a \DEFAULT,',
+          r'or $1 \le i \le n$ if there is no \DEFAULT,',
+          r'and where $1 \le j \le j_{i}$,',
+          r'then let $h$ be the smallest number such that $h \ge i$ and $s_h$ is non-empty.',
+          r'If no such $h$ exists,',
+          r'let $h = n + 1$ if the \SWITCH{} statement has a \DEFAULT,',
+          r'otherwise let $h = n$.',
+          r'The case statements $s_h$ are then executed (\ref{case-execute}).',
+        ],
       );
       expect(
         _exactLine(
@@ -217,6 +257,27 @@ void main() {
         'rethrow;',
         '} on NotFound catch (error) {',
       ]);
+
+      final switchContinueFixture = await File(
+        p.join(
+          'test',
+          'fixtures',
+          'specs',
+          'control_flow',
+          'switch_continue.dart',
+        ),
+      ).readAsLines();
+      expect(_switchContinueLines(switchContinueFixture), [
+        'first:',
+        'continue second;',
+        'second:',
+        'grouped:',
+        'skip:',
+        'continue;',
+        'jump:',
+        'continue done;',
+        'done:',
+      ]);
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
@@ -254,6 +315,30 @@ String _exactLine(List<String> lines, String needle) {
   return matches.single;
 }
 
+List<String> _exactLineSequence(List<String> lines, List<String> expected) {
+  final matches = <List<String>>[];
+  for (var i = 0; i <= lines.length - expected.length; i++) {
+    final candidate = lines.sublist(i, i + expected.length);
+    if (_sameLines(candidate, expected)) {
+      matches.add(candidate);
+    }
+  }
+  expect(matches, hasLength(1), reason: expected.join('\n'));
+  return matches.single;
+}
+
+bool _sameLines(List<String> left, List<String> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var i = 0; i < left.length; i++) {
+    if (left[i] != right[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 List<String> _redirectingGenerativeDeclarations(List<String> lines) {
   final source = _singleLineDeclarations(lines);
   final pattern = RegExp(
@@ -285,6 +370,17 @@ List<String> _exceptionHandlerLines(List<String> lines) {
           line == 'rethrow;')
         line,
   ];
+}
+
+List<String> _switchContinueLines(List<String> lines) {
+  return [
+    for (final line in lines.map((line) => line.trim()))
+      if (_isExplicitSwitchLabel(line) || line.startsWith('continue')) line,
+  ];
+}
+
+bool _isExplicitSwitchLabel(String line) {
+  return line.endsWith(':') && !line.startsWith('case ') && line != 'default:';
 }
 
 List<String> _singleLineDeclarations(List<String> lines) {

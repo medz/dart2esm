@@ -31,38 +31,38 @@ export class Dog extends Animal {
   constructor() {
     throw new TypeError("Class Dog has no unnamed constructor");
   }
-  static named(name_1, age) {
-    return $Dog_named(Dog, name_1, age);
+  static named(name, age) {
+    return $Dog_named(Dog, name, age);
   }
   describe() {
     return __dartStr(super.describe()) + " " + __dartStr(this.label) + " " + __dartStr(this.age);
   }
 }
 
-function $Dog_named($newTarget_1, name_1, age) {
-  const $self_1 = $Animal_named($newTarget_1, name_1);
-  $self_1.age = age;
-  $self_1.label = "dog";
-  $self_1.label = __dartStr($self_1.label) + "!";
-  return $self_1;
+function $Dog_named($newTarget, name, age) {
+  const $self = $Animal_named($newTarget, name);
+  $self.age = age;
+  $self.label = "dog";
+  $self.label = __dartStr($self.label) + "!";
+  return $self;
 }
 
 export class Puppy extends Dog {
   constructor() {
     throw new TypeError("Class Puppy has no unnamed constructor");
   }
-  static named(name_2, age_1, toy) {
-    return $Puppy_named(Puppy, name_2, age_1, toy);
+  static named(name, age, toy) {
+    return $Puppy_named(Puppy, name, age, toy);
   }
   describe() {
     return __dartStr(super.describe()) + " toy " + __dartStr(this.toy);
   }
 }
 
-function $Puppy_named($newTarget_2, name_2, age_1, toy) {
-  const $self_2 = $Dog_named($newTarget_2, name_2, age_1);
-  $self_2.toy = toy;
-  return $self_2;
+function $Puppy_named($newTarget, name, age, toy) {
+  const $self = $Dog_named($newTarget, name, age);
+  $self.toy = toy;
+  return $self;
 }
 
 export function main() {

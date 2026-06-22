@@ -2733,6 +2733,9 @@ final class _EsmEmitter {
     if (_isCollectionQueueConstructorReference(expression.targetReference)) {
       return '[]';
     }
+    if (_isEmptyIterableConstructorReference(expression.targetReference)) {
+      return '[]';
+    }
     if (_isMathPointConstructorReference(expression.targetReference) &&
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartPoint');
@@ -5521,6 +5524,13 @@ final class _EsmEmitter {
     if (stringFactory != null) {
       return stringFactory;
     }
+    final iterableFactory = _emitCoreIterableFactoryInvocation(
+      path,
+      positionalArgs,
+    );
+    if (iterableFactory != null) {
+      return iterableFactory;
+    }
     final listFactory = _emitCoreListFactoryInvocation(
       path,
       expression.arguments,
@@ -5715,6 +5725,24 @@ final class _EsmEmitter {
       'dart:core::String::@factories::fromCharCodes'
           when positionalArgs.length == 1 =>
         'String.fromCharCode(...Array.from(${positionalArgs.single}))',
+      _ => null,
+    };
+  }
+
+  String? _emitCoreIterableFactoryInvocation(
+    String path,
+    List<String> positionalArgs,
+  ) {
+    if (!path.startsWith('dart:core::Iterable::@factories::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'empty' when positionalArgs.isEmpty => '[]',
+      'generate' when positionalArgs.length == 1 =>
+        'Array.from({ length: ${positionalArgs.single} }, (_, index) => index)',
+      'generate' when positionalArgs.length == 2 =>
+        'Array.from({ length: ${positionalArgs[0]} }, (_, index) => (${positionalArgs[1]})(index))',
       _ => null,
     };
   }
@@ -6314,6 +6342,12 @@ final class _EsmEmitter {
     return path.startsWith('dart:collection::Queue::@constructors::') ||
         path.startsWith('dart:collection::ListQueue::@constructors::') ||
         path.startsWith('dart:collection::DoubleLinkedQueue::@constructors::');
+  }
+
+  bool _isEmptyIterableConstructorReference(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:_internal::EmptyIterable::@constructors::');
   }
 
   String? _coreErrorConstructorName(k.Reference reference) {

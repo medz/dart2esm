@@ -502,6 +502,10 @@ export function main() {
   __dartPrint("list join " + __dartStr(__dartIterableJoin(values, ",")));
   const generated = Array.from({ length: 4 }, (_, index) => (function(index) { return (index * index); })(index));
   __dartPrint("generated " + __dartStr(__dartIterableJoin(generated, ":")));
+  const iterableGenerated = Array.from({ length: 3 }, (_, index) => (function(index) { return (index + 1); })(index));
+  const iterableGeneratedDefault = Array.from({ length: 3 }, (_, index) => index);
+  const iterableEmpty = [];
+  __dartPrint("iterableFactory " + __dartStr(__dartIterableJoin(iterableGenerated, ",")) + " " + __dartStr(__dartIterableJoin(iterableGeneratedDefault, ",")) + " " + __dartStr(__dartIterableIsEmpty(iterableEmpty)));
   const filtered = Array.from(Array.from(Array.from(values).filter(function(value) { return __dartEquals((value % 2), 0); }), function(value) { return (value * 10); }));
   __dartPrint("filtered " + __dartStr(__dartIterableJoin(filtered, "|")));
   __dartPrint("fold " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value), 0)) + " " + __dartStr(Array.from(values).some(function(value) { return (value > 5); })) + " " + __dartStr(Array.from(values).every(function(value) { return (value > 0); })));

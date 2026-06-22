@@ -23,6 +23,13 @@ void main() {
 
   final generated = List<int>.generate(4, (index) => index * index);
   print('generated ${generated.join(':')}');
+  final iterableGenerated = Iterable<int>.generate(3, (index) => index + 1);
+  final iterableGeneratedDefault = Iterable<int>.generate(3);
+  final iterableEmpty = Iterable<int>.empty();
+  print(
+    'iterableFactory ${iterableGenerated.join(',')} '
+    '${iterableGeneratedDefault.join(',')} ${iterableEmpty.isEmpty}',
+  );
 
   final filtered = values
       .where((value) => value % 2 == 0)

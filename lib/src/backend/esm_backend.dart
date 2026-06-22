@@ -1249,7 +1249,9 @@ final class _EsmEmitter {
       function,
       'method ${procedure.name.text}',
     );
-    final name = _memberName(procedure.name.text);
+    final name = procedure.kind == k.ProcedureKind.Operator
+        ? _propertyKey(procedure.name.text)
+        : _memberName(procedure.name.text);
     final staticPrefix = procedure.isStatic ? 'static ' : '';
     final prefix = switch (procedure.kind) {
       k.ProcedureKind.Method ||
@@ -3043,15 +3045,24 @@ final class _EsmEmitter {
     final target = expression.interfaceTargetReference;
     if (expression.arguments.named.isEmpty && positionalArgs.isEmpty) {
       if (name == 'unary-') {
+        if (!_isNativeOperatorTarget(target)) {
+          return '${_emitPropertyGet(left, name)}()';
+        }
         return '(-$left)';
       }
       if (name == '~') {
+        if (!_isNativeOperatorTarget(target)) {
+          return '${_emitPropertyGet(left, name)}()';
+        }
         return '(~$left)';
       }
     }
     if (expression.arguments.named.isEmpty &&
         positionalArgs.length == 1 &&
         _binaryOperators.contains(name)) {
+      if (!_isNativeOperatorTarget(target)) {
+        return '${_emitPropertyGet(left, name)}(${positionalArgs.single})';
+      }
       final operator = name == '~/' ? null : name;
       if (operator != null) {
         return '($left $operator ${positionalArgs.single})';
@@ -3065,6 +3076,9 @@ final class _EsmEmitter {
       if (_isCoreMember(target, 'Map', '[]')) {
         return '$left.get(${positionalArgs.single})';
       }
+      if (!_isNativeOperatorTarget(target)) {
+        return '${_emitPropertyGet(left, name)}(${positionalArgs.single})';
+      }
       return '$left[${positionalArgs.single}]';
     }
     if (expression.arguments.named.isEmpty &&
@@ -3072,6 +3086,9 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       if (_isCoreMember(target, 'Map', '[]=')) {
         return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
+      if (!_isNativeOperatorTarget(target)) {
+        return '${_emitPropertyGet(left, name)}(${positionalArgs.join(', ')})';
       }
       return '$left[${positionalArgs[0]}] = ${positionalArgs[1]}';
     }
@@ -4651,6 +4668,13 @@ final class _EsmEmitter {
         path == 'dart:core::$className::@setters::$name' ||
         path == 'dart:core::$className::$name' ||
         path.endsWith('dart:core::$className::$name');
+  }
+
+  bool _isNativeOperatorTarget(k.Reference reference) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:core::') ||
+        path.startsWith('dart:_') ||
+        path.startsWith('dart:typed_data::');
   }
 
   bool _isCoreCollectionMember(k.Reference reference, String name) {

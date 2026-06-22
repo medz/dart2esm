@@ -2201,6 +2201,9 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStreamIterator');
       return '__dartStreamIterator(${_emitArguments(expression.arguments)})';
     }
+    if (_isCollectionQueueConstructorReference(expression.targetReference)) {
+      return '[]';
+    }
     final coreErrorName = _coreErrorConstructorName(expression.targetReference);
     if (coreErrorName != null) {
       _usedHelpers.add('__dartCoreError');
@@ -2809,6 +2812,36 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'List', 'add')) {
       return '($left.push(${positionalArgs.single}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'add' &&
+        positionalArgs.length == 1 &&
+        _isCollectionQueueMember(target, name)) {
+      return '($left.push(${positionalArgs.single}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'addLast' &&
+        positionalArgs.length == 1 &&
+        _isCollectionQueueMember(target, name)) {
+      return '($left.push(${positionalArgs.single}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'addFirst' &&
+        positionalArgs.length == 1 &&
+        _isCollectionQueueMember(target, name)) {
+      return '($left.unshift(${positionalArgs.single}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeFirst' &&
+        positionalArgs.isEmpty &&
+        _isCollectionQueueMember(target, name)) {
+      return '$left.shift()';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeLast' &&
+        positionalArgs.isEmpty &&
+        _isCollectionQueueMember(target, name)) {
+      return '$left.pop()';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'addAll' &&
@@ -3437,6 +3470,13 @@ final class _EsmEmitter {
     if (mapFactory != null) {
       return mapFactory;
     }
+    final queueFactory = _emitCollectionQueueFactoryInvocation(
+      path,
+      positionalArgs,
+    );
+    if (queueFactory != null) {
+      return queueFactory;
+    }
     if (path == 'dart:core::Uri::@methods::parse' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartUriParse');
@@ -3544,11 +3584,13 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     if (!path.startsWith('dart:core::Set::@factories::') &&
-        !path.startsWith('dart:collection::LinkedHashSet::@factories::')) {
+        !path.startsWith('dart:collection::LinkedHashSet::@factories::') &&
+        !path.startsWith('dart:collection::HashSet::@factories::')) {
       return null;
     }
     final name = path.split('::').last;
     return switch (name) {
+      '' when positionalArgs.isEmpty => 'new Set()',
       'of' || 'from' when positionalArgs.length == 1 =>
         'new Set(${positionalArgs.single})',
       'unmodifiable' when positionalArgs.length == 1 => () {
@@ -3564,17 +3606,36 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     if (!path.startsWith('dart:core::Map::@factories::') &&
-        !path.startsWith('dart:collection::LinkedHashMap::@factories::')) {
+        !path.startsWith('dart:collection::LinkedHashMap::@factories::') &&
+        !path.startsWith('dart:collection::HashMap::@factories::')) {
       return null;
     }
     final name = path.split('::').last;
     return switch (name) {
+      '' when positionalArgs.isEmpty => 'new Map()',
       'of' || 'from' when positionalArgs.length == 1 =>
         'new Map(${positionalArgs.single})',
       'unmodifiable' when positionalArgs.length == 1 => () {
         _usedHelpers.add('__dartConstMap');
         return '__dartConstMap(${positionalArgs.single})';
       }(),
+      _ => null,
+    };
+  }
+
+  String? _emitCollectionQueueFactoryInvocation(
+    String path,
+    List<String> positionalArgs,
+  ) {
+    if (!path.startsWith('dart:collection::Queue::@factories::') &&
+        !path.startsWith('dart:collection::ListQueue::@factories::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      '' when positionalArgs.isEmpty => '[]',
+      'of' || 'from' when positionalArgs.length == 1 =>
+        'Array.from(${positionalArgs.single})',
       _ => null,
     };
   }
@@ -3809,6 +3870,12 @@ final class _EsmEmitter {
     ).startsWith('dart:async::_StreamIterator::@constructors::');
   }
 
+  bool _isCollectionQueueConstructorReference(k.Reference reference) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:collection::Queue::@constructors::') ||
+        path.startsWith('dart:collection::ListQueue::@constructors::');
+  }
+
   String? _coreErrorConstructorName(k.Reference reference) {
     final path = _referencePath(reference);
     for (final name in _coreErrorTypeNames) {
@@ -3888,6 +3955,16 @@ final class _EsmEmitter {
         path == 'dart:async::Stream::$name';
   }
 
+  bool _isCollectionQueueMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return path == 'dart:collection::Queue::@methods::$name' ||
+        path == 'dart:collection::Queue::@getters::$name' ||
+        path == 'dart:collection::Queue::$name' ||
+        path == 'dart:collection::ListQueue::@methods::$name' ||
+        path == 'dart:collection::ListQueue::@getters::$name' ||
+        path == 'dart:collection::ListQueue::$name';
+  }
+
   String? _expressionCollectionKind(k.Expression expression) {
     return switch (expression) {
       k.VariableGet(:final variable) => _dartTypeCollectionKind(variable.type),
@@ -3918,8 +3995,9 @@ final class _EsmEmitter {
     final name = _interfaceTypeName(type);
     return switch (name) {
       'List' || '_List' || '_GrowableList' => 'List',
-      'Set' || '_Set' => 'Set',
-      'Map' || '_Map' => 'Map',
+      'Set' || '_Set' || 'HashSet' || 'LinkedHashSet' => 'Set',
+      'Map' || '_Map' || 'HashMap' || 'LinkedHashMap' => 'Map',
+      'Queue' || 'ListQueue' => 'List',
       'Iterable' => 'Iterable',
       _ => null,
     };

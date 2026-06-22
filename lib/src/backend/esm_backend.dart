@@ -730,12 +730,10 @@ final class _EsmEmitter {
       return;
     }
     final function = procedure.function;
-    final asyncPrefix = switch (function.asyncMarker) {
-      k.AsyncMarker.Sync => '',
-      k.AsyncMarker.Async => 'async ',
-      k.AsyncMarker.SyncStar || k.AsyncMarker.AsyncStar =>
-        throw UnsupportedKernelNode(function, 'method ${procedure.name.text}'),
-    };
+    final asyncPrefix = _methodAsyncPrefix(
+      function,
+      'method ${procedure.name.text}',
+    );
     final name = _memberName(procedure.name.text);
     final staticPrefix = procedure.isStatic ? 'static ' : '';
     final prefix = switch (procedure.kind) {
@@ -851,18 +849,13 @@ final class _EsmEmitter {
   void _emitProcedure(k.Procedure procedure, {required bool export}) {
     final name = _procedureName(procedure);
     final function = procedure.function;
-    final asyncPrefix = switch (function.asyncMarker) {
-      k.AsyncMarker.Sync => '',
-      k.AsyncMarker.Async => 'async ',
-      k.AsyncMarker.SyncStar ||
-      k.AsyncMarker.AsyncStar => throw UnsupportedKernelNode(
-        function,
-        'function ${procedure.name.text}',
-      ),
-    };
+    final functionKeyword = _functionKeyword(
+      function,
+      'function ${procedure.name.text}',
+    );
     _withFunctionNameScope(() {
       writeln(
-        '${export ? 'export ' : ''}${asyncPrefix}function $name(${_emitParameterList(function)}) {',
+        '${export ? 'export ' : ''}$functionKeyword $name(${_emitParameterList(function)}) {',
       );
       _indent++;
       final body = function.body;
@@ -887,12 +880,21 @@ final class _EsmEmitter {
     }
   }
 
-  String _functionAsyncPrefix(k.FunctionNode function, String context) {
+  String _functionKeyword(k.FunctionNode function, String context) {
+    return switch (function.asyncMarker) {
+      k.AsyncMarker.Sync => 'function',
+      k.AsyncMarker.Async => 'async function',
+      k.AsyncMarker.SyncStar => 'function*',
+      k.AsyncMarker.AsyncStar => 'async function*',
+    };
+  }
+
+  String _methodAsyncPrefix(k.FunctionNode function, String context) {
     return switch (function.asyncMarker) {
       k.AsyncMarker.Sync => '',
       k.AsyncMarker.Async => 'async ',
-      k.AsyncMarker.SyncStar ||
-      k.AsyncMarker.AsyncStar => throw UnsupportedKernelNode(function, context),
+      k.AsyncMarker.SyncStar => '* ',
+      k.AsyncMarker.AsyncStar => 'async * ',
     };
   }
 
@@ -1014,6 +1016,8 @@ final class _EsmEmitter {
         _emitForStatement(statement);
       case k.ForInStatement():
         _emitForInStatement(statement);
+      case k.YieldStatement():
+        _emitYieldStatement(statement);
       case k.SwitchStatement():
         _emitSwitchStatement(statement);
       case k.TryCatch():
@@ -1049,10 +1053,10 @@ final class _EsmEmitter {
   void _emitFunctionDeclaration(k.FunctionDeclaration statement) {
     _declareVariable(statement.variable);
     final function = statement.function;
-    final asyncPrefix = _functionAsyncPrefix(function, 'local function');
+    final functionKeyword = _functionKeyword(function, 'local function');
     _withFunctionNameScope(() {
       writeln(
-        '${asyncPrefix}function ${_variableName(statement.variable)}(${_emitParameterList(function)}) {',
+        '$functionKeyword ${_variableName(statement.variable)}(${_emitParameterList(function)}) {',
       );
       _indent++;
       final body = function.body;
@@ -1099,19 +1103,21 @@ final class _EsmEmitter {
   }
 
   void _emitForInStatement(k.ForInStatement statement) {
-    if (statement.isAsync) {
-      throw UnsupportedKernelNode(statement, 'await for statement');
-    }
     final variable = statement.variable;
     _declareVariable(variable);
     final keyword = variable.isFinal || variable.isConst ? 'const' : 'let';
     writeln(
-      'for ($keyword ${_variableName(variable)} of ${emitExpression(statement.iterable)}) {',
+      'for ${statement.isAsync ? 'await ' : ''}($keyword ${_variableName(variable)} of ${emitExpression(statement.iterable)}) {',
     );
     _indent++;
     emitStatement(statement.body);
     _indent--;
     writeln('}');
+  }
+
+  void _emitYieldStatement(k.YieldStatement statement) {
+    final keyword = statement.isYieldStar ? 'yield*' : 'yield';
+    writeln('$keyword ${emitExpression(statement.expression)};');
   }
 
   void _emitSwitchStatement(k.SwitchStatement statement) {
@@ -1389,11 +1395,7 @@ final class _EsmEmitter {
       case k.TypedefTearOff():
         return emitExpression(expression.expression);
       case k.InstanceInvocation():
-        return _emitInstanceInvocation(
-          expression.receiver,
-          expression.name.text,
-          expression.arguments,
-        );
+        return _emitInstanceInvocation(expression);
       case k.SuperMethodInvocation():
         return _emitSuperMethodInvocation(expression);
       case k.FunctionInvocation():
@@ -1444,10 +1446,15 @@ final class _EsmEmitter {
         );
       case k.AsExpression():
         return emitExpression(expression.operand);
+      case k.NullCheck():
+        _usedHelpers.add('__dartNullCheck');
+        return '__dartNullCheck(${emitExpression(expression.operand)})';
       case k.IsExpression():
         return _emitIsExpression(expression);
       case k.Let():
         return _emitLetExpression(expression);
+      case k.BlockExpression():
+        return _emitBlockExpression(expression);
       case k.StaticGet():
         return _emitStaticGet(expression);
       case k.StaticSet():
@@ -1456,10 +1463,20 @@ final class _EsmEmitter {
         return _emitConstructorInvocation(expression);
       case k.InstanceCreation():
         return _emitInstanceCreation(expression);
+      case k.DynamicGet():
+        return _emitDynamicGet(expression);
+      case k.DynamicSet():
+        return _emitDynamicSet(expression);
       case k.InstanceGet():
         return _emitInstanceGet(expression);
+      case k.FunctionTearOff():
+        return emitExpression(expression.receiver);
+      case k.InstanceTearOff():
+        return _emitInstanceTearOff(expression);
+      case k.InstanceGetterInvocation():
+        return _emitInstanceGetterInvocation(expression);
       case k.InstanceSet():
-        return '${emitExpression(expression.receiver)}.${_memberName(expression.name.text)} = ${emitExpression(expression.value)}';
+        return _emitInstanceSet(expression);
       case k.SuperPropertyGet():
         return _emitSuperPropertyGet(expression);
       case k.SuperPropertySet():
@@ -1477,7 +1494,7 @@ final class _EsmEmitter {
 
   String _emitFunctionExpression(k.FunctionExpression expression) {
     final function = expression.function;
-    final asyncPrefix = _functionAsyncPrefix(function, 'function expression');
+    final functionKeyword = _functionKeyword(function, 'function expression');
     final body = function.body;
     if (body == null) {
       throw UnsupportedKernelNode(function, 'function expression body');
@@ -1486,10 +1503,10 @@ final class _EsmEmitter {
       final parameters = _emitParameterList(function);
       final inlineBody = _emitInlineFunctionBody(body);
       if (inlineBody != null) {
-        return '${asyncPrefix}function($parameters) { $inlineBody }';
+        return '$functionKeyword($parameters) { $inlineBody }';
       }
       final bodyCode = _captureFunctionBody(body);
-      return '${asyncPrefix}function($parameters) {\n$bodyCode}';
+      return '$functionKeyword($parameters) {\n$bodyCode}';
     });
   }
 
@@ -1517,6 +1534,23 @@ final class _EsmEmitter {
     _buffer = previousBuffer;
     _indent = previousIndent;
     return localBuffer.toString();
+  }
+
+  String _emitBlockExpression(k.BlockExpression expression) {
+    return _withFunctionNameScope(() {
+      final previousBuffer = _buffer;
+      final previousIndent = _indent;
+      final localBuffer = StringBuffer();
+      _buffer = localBuffer;
+      _indent = previousIndent + 1;
+      for (final statement in expression.body.statements) {
+        emitStatement(statement);
+      }
+      writeln('return ${emitExpression(expression.value)};');
+      _buffer = previousBuffer;
+      _indent = previousIndent;
+      return '(() => {\n$localBuffer${'  ' * previousIndent}})()';
+    });
   }
 
   String _emitStringPart(k.Expression expression) {
@@ -1660,6 +1694,13 @@ final class _EsmEmitter {
   }
 
   String _emitConstructorInvocation(k.ConstructorInvocation expression) {
+    if (_isCompactHashSetConstructorReference(expression.targetReference)) {
+      return 'new Set()';
+    }
+    if (_isStreamIteratorConstructorReference(expression.targetReference)) {
+      _usedHelpers.add('__dartStreamIterator');
+      return '__dartStreamIterator(${_emitArguments(expression.arguments)})';
+    }
     final target = expression.targetReference.node;
     if (target is! k.Constructor) {
       throw UnsupportedKernelNode(
@@ -1893,15 +1934,23 @@ final class _EsmEmitter {
     );
   }
 
-  String _emitInstanceInvocation(
-    k.Expression receiver,
-    String name,
-    k.Arguments arguments,
-  ) {
-    final left = emitExpression(receiver);
-    final positionalArgs = arguments.positional.map(emitExpression).toList();
-    final args = _emitArguments(arguments);
-    if (arguments.named.isEmpty &&
+  String _emitInstanceInvocation(k.InstanceInvocation expression) {
+    final left = emitExpression(expression.receiver);
+    final name = expression.name.text;
+    final positionalArgs = expression.arguments.positional
+        .map(emitExpression)
+        .toList();
+    final args = _emitArguments(expression.arguments);
+    final target = expression.interfaceTargetReference;
+    if (expression.arguments.named.isEmpty && positionalArgs.isEmpty) {
+      if (name == 'unary-') {
+        return '(-$left)';
+      }
+      if (name == '~') {
+        return '(~$left)';
+      }
+    }
+    if (expression.arguments.named.isEmpty &&
         positionalArgs.length == 1 &&
         _binaryOperators.contains(name)) {
       final operator = name == '~/' ? null : name;
@@ -1911,15 +1960,62 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartTruncDiv');
       return '__dartTruncDiv($left, ${positionalArgs.single})';
     }
-    if (arguments.named.isEmpty && name == '[]' && positionalArgs.length == 1) {
+    if (expression.arguments.named.isEmpty &&
+        name == '[]' &&
+        positionalArgs.length == 1) {
+      if (_isCoreMember(target, 'Map', '[]')) {
+        return '$left.get(${positionalArgs.single})';
+      }
       return '$left[${positionalArgs.single}]';
     }
-    if (arguments.named.isEmpty &&
+    if (expression.arguments.named.isEmpty &&
         name == '[]=' &&
         positionalArgs.length == 2) {
+      if (_isCoreMember(target, 'Map', '[]=')) {
+        return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
       return '$left[${positionalArgs[0]}] = ${positionalArgs[1]}';
     }
-    if (arguments.named.isEmpty &&
+    if (expression.arguments.named.isEmpty &&
+        name == 'add' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'List', 'add')) {
+      return '($left.push(${positionalArgs.single}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'addAll' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'List', 'addAll')) {
+      return '($left.push(...Array.from(${positionalArgs.single})), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'add' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', 'add')) {
+      _usedHelpers.add('__dartSetAdd');
+      return '__dartSetAdd($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'addAll' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', 'addAll')) {
+      _usedHelpers.add('__dartSetAddAll');
+      return '__dartSetAddAll($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'addAll' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', 'addAll')) {
+      _usedHelpers.add('__dartMapAddAll');
+      return '__dartMapAddAll($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'containsKey' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', 'containsKey')) {
+      return '$left.has(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         positionalArgs.isEmpty &&
         name == 'toString') {
       _usedHelpers.add('__dartStr');
@@ -1938,7 +2034,42 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartIterator');
       return '__dartIterator(${emitExpression(expression.receiver)})';
     }
-    return '${emitExpression(expression.receiver)}.${_memberName(name)}';
+    final receiver = emitExpression(expression.receiver);
+    if (name == 'length' &&
+        (_isCoreMember(expression.interfaceTargetReference, 'Set', 'length') ||
+            _isCoreMember(
+              expression.interfaceTargetReference,
+              'Map',
+              'length',
+            ))) {
+      return '$receiver.size';
+    }
+    if (name == 'keys' &&
+        _isCoreMember(expression.interfaceTargetReference, 'Map', 'keys')) {
+      return '$receiver.keys()';
+    }
+    if (name == 'values' &&
+        _isCoreMember(expression.interfaceTargetReference, 'Map', 'values')) {
+      return '$receiver.values()';
+    }
+    return _emitPropertyGet(receiver, _memberName(name));
+  }
+
+  String _emitInstanceSet(k.InstanceSet expression) {
+    return '${_emitPropertyGet(emitExpression(expression.receiver), _memberName(expression.name.text))} = ${emitExpression(expression.value)}';
+  }
+
+  String _emitInstanceTearOff(k.InstanceTearOff expression) {
+    _usedHelpers.add('__dartBind');
+    return '__dartBind(${emitExpression(expression.receiver)}, ${jsonEncode(expression.name.text)})';
+  }
+
+  String _emitInstanceGetterInvocation(k.InstanceGetterInvocation expression) {
+    final getter = _emitPropertyGet(
+      emitExpression(expression.receiver),
+      _memberName(expression.name.text),
+    );
+    return '($getter)(${_emitArguments(expression.arguments)})';
   }
 
   String _emitSuperMethodInvocation(k.SuperMethodInvocation expression) {
@@ -1959,7 +2090,19 @@ final class _EsmEmitter {
     final receiver = emitExpression(expression.receiver);
     final name = expression.name.text;
     final args = _emitArguments(expression.arguments);
-    return '$receiver.$name($args)';
+    if (name == 'call') {
+      return '($receiver)($args)';
+    }
+    return '${_emitPropertyGet(receiver, name)}($args)';
+  }
+
+  String _emitDynamicGet(k.DynamicGet expression) {
+    _usedHelpers.add('__dartGet');
+    return '__dartGet(${emitExpression(expression.receiver)}, ${jsonEncode(expression.name.text)})';
+  }
+
+  String _emitDynamicSet(k.DynamicSet expression) {
+    return '${_emitPropertyGet(emitExpression(expression.receiver), expression.name.text)} = ${emitExpression(expression.value)}';
   }
 
   String _emitClassStaticMemberGet(k.Class klass, String name) {
@@ -2058,6 +2201,27 @@ final class _EsmEmitter {
 
   bool _isCoreClass(k.Reference reference, String name) {
     return _referencePath(reference) == 'dart:core::$name';
+  }
+
+  bool _isCompactHashSetConstructorReference(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:_compact_hash::_Set::@constructors::');
+  }
+
+  bool _isStreamIteratorConstructorReference(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:async::_StreamIterator::@constructors::');
+  }
+
+  bool _isCoreMember(k.Reference reference, String className, String name) {
+    final path = _referencePath(reference);
+    return path == 'dart:core::$className::@methods::$name' ||
+        path == 'dart:core::$className::@getters::$name' ||
+        path == 'dart:core::$className::@setters::$name' ||
+        path == 'dart:core::$className::$name' ||
+        path.endsWith('dart:core::$className::$name');
   }
 
   String _referencePath(k.Reference reference) {
@@ -2233,12 +2397,99 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartStr')) {
       helper.writeln('function __dartStr(value) {');
-      helper.writeln('  return value == null ? "null" : String(value);');
+      helper.writeln('  if (value == null) return "null";');
+      helper.writeln('  if (Array.isArray(value)) {');
+      helper.writeln('    return "[" + value.map(__dartStr).join(", ") + "]";');
+      helper.writeln('  }');
+      helper.writeln('  if (value instanceof Set) {');
+      helper.writeln(
+        '    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";',
+      );
+      helper.writeln('  }');
+      helper.writeln('  if (value instanceof Map) {');
+      helper.writeln(
+        '    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return String(value);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartPrint')) {
       helper.writeln('function __dartPrint(value) {');
       helper.writeln('  console.log(__dartStr(value));');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartNullCheck')) {
+      helper.writeln('function __dartNullCheck(value) {');
+      helper.writeln('  if (value == null) {');
+      helper.writeln(
+        '    throw new TypeError("Null check operator used on a null value");',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartBind')) {
+      helper.writeln('function __dartBind(receiver, name) {');
+      helper.writeln('  const value = receiver[name];');
+      helper.writeln(
+        '  return typeof value === "function" ? value.bind(receiver) : value;',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartGet')) {
+      helper.writeln('function __dartGet(receiver, name) {');
+      helper.writeln('  const value = receiver[name];');
+      helper.writeln(
+        '  return typeof value === "function" ? value.bind(receiver) : value;',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetAdd')) {
+      helper.writeln('function __dartSetAdd(set, value) {');
+      helper.writeln('  const hadValue = set.has(value);');
+      helper.writeln('  set.add(value);');
+      helper.writeln('  return !hadValue;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetAddAll')) {
+      helper.writeln('function __dartSetAddAll(set, values) {');
+      helper.writeln('  for (const value of values) set.add(value);');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapAddAll')) {
+      helper.writeln('function __dartMapAddAll(map, entries) {');
+      helper.writeln(
+        '  for (const [key, value] of entries) map.set(key, value);',
+      );
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartStreamIterator')) {
+      helper.writeln('function __dartStreamIterator(stream) {');
+      helper.writeln('  const iterator = stream[Symbol.asyncIterator]();');
+      helper.writeln('  return {');
+      helper.writeln('    current: undefined,');
+      helper.writeln('    _subscription: true,');
+      helper.writeln('    async moveNext() {');
+      helper.writeln('      const next = await iterator.next();');
+      helper.writeln('      if (next.done) {');
+      helper.writeln('        this.current = undefined;');
+      helper.writeln('        this._subscription = null;');
+      helper.writeln('        return false;');
+      helper.writeln('      }');
+      helper.writeln('      this.current = next.value;');
+      helper.writeln('      return true;');
+      helper.writeln('    },');
+      helper.writeln('    async cancel() {');
+      helper.writeln('      this._subscription = null;');
+      helper.writeln(
+        '      if (typeof iterator.return === "function") await iterator.return();',
+      );
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('  };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartEquals')) {

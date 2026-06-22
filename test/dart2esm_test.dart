@@ -9,6 +9,36 @@ import 'package:test/test.dart';
 void main() {
   final fixtureDir = Directory('test/fixtures/specs');
 
+  test('CLI version matches package metadata', () async {
+    final tempDir = await Directory.systemTemp.createTemp('dart2esm-version-');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      ['--version'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final version = RegExp(
+      r'^version: (.+)$',
+      multiLine: true,
+    ).firstMatch(pubspec)!.group(1);
+    expect(exitCode, ExitCode.success);
+    expect(
+      File(p.join(tempDir.path, 'stdout.log')).readAsStringSync(),
+      'dart2esm $version\n',
+    );
+    expect(
+      File(p.join(tempDir.path, 'stderr.log')).readAsStringSync(),
+      isEmpty,
+    );
+  });
+
   test('compiles Dart input through Kernel to runnable ESM', () async {
     final fixture = File(
       p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),

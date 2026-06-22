@@ -2,4 +2,4 @@
 library;
 
 /// The current package version.
-const packageVersion = '0.0.0';
+const packageVersion = '0.1.0';

@@ -1,26 +1,45 @@
 # dart2esm
 
-`dart2esm` is a planned Dart-to-native-ESM compiler.
+`dart2esm` is a Dart-to-native-ESM compiler.
 
-The project goal is to use Dart's Common Front End and Kernel IR as the
-frontend, then emit clean ECMAScript modules. JavaScript and Node primitives
-should be used directly where they are semantically equivalent, with small Dart
-semantic helpers imported only when required.
+The compiler uses Dart's Common Front End and Kernel IR as the frontend, then
+emits clean ECMAScript modules. JavaScript and Node primitives are used directly
+where they are semantically equivalent, with small Dart semantic helpers emitted
+only when required.
 
-This `0.0.0` release is a package-name reservation placeholder. The compiler is
-not implemented yet.
+The 0.1.0 goal is complete Dart syntax and Dart SDK lowering to native ESM,
+except for `dart:io`. ESM version targeting is intentionally not split into
+compatibility profiles yet.
 
-## Planned command
+## Usage
 
 ```sh
 dart2esm bin/main.dart -o dist/main.mjs
 ```
 
-## Planned direction
+By default the generated module invokes `main()` at top level. Use
+`--no-run-main` when the output should be imported as a module without executing
+the Dart entrypoint:
 
-- Input: Dart source compiled through CFE/Kernel.
-- Output: native ESM.
-- Runtime: pay-as-you-go semantic helpers.
-- Node target: map supported `dart:io` APIs to Node APIs where practical.
-- TypeScript support: optional `.d.ts` declaration emission, not a TypeScript
-  frontend.
+```sh
+dart2esm lib/example.dart -o dist/example.mjs --no-run-main
+```
+
+You can also compile an existing Kernel component:
+
+```sh
+dart2esm build/input.dill -o dist/input.mjs
+```
+
+## Architecture
+
+1. Dart source is lowered with `dart compile kernel --no-link-platform
+   --embed-sources`.
+2. Kernel bytes are read with `package:kernel`.
+3. The backend walks the entry component and emits native `.mjs`.
+4. Entry-library declarations are exported as ESM bindings. Imported local Dart
+   libraries are bundled into the same output module as internal declarations.
+
+## Unsupported Libraries
+
+`dart:io` APIs are not supported in 0.1.0.

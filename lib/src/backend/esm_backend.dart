@@ -2914,6 +2914,10 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamFirst($receiver)';
     }
+    if (name == 'lengthInBytes' &&
+        _isTypedDataMember(expression.interfaceTargetReference, name)) {
+      return '$receiver.byteLength';
+    }
     final receiverCollectionKind = _expressionCollectionKind(
       expression.receiver,
     );
@@ -3794,6 +3798,13 @@ final class _EsmEmitter {
     if (parts.length < 4 || parts[2] != '@factories') {
       return null;
     }
+    if (parts[1] == 'ByteData') {
+      final factoryName = parts.last;
+      if (factoryName.isEmpty && positionalArgs.length == 1) {
+        return 'new DataView(new ArrayBuffer(${positionalArgs.single}))';
+      }
+      return null;
+    }
     final constructor = _typedArrayConstructorName(parts[1]);
     if (constructor == null) {
       return null;
@@ -3963,6 +3974,14 @@ final class _EsmEmitter {
         path == 'dart:collection::ListQueue::@methods::$name' ||
         path == 'dart:collection::ListQueue::@getters::$name' ||
         path == 'dart:collection::ListQueue::$name';
+  }
+
+  bool _isTypedDataMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:typed_data::') &&
+        (path.contains('::@methods::$name') ||
+            path.contains('::@getters::$name') ||
+            path.endsWith('::$name'));
   }
 
   String? _expressionCollectionKind(k.Expression expression) {

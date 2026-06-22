@@ -32,6 +32,15 @@ export function main() {
   zeros[0] = 7;
   zeros[2] = 9;
   __dartPrint("new " + __dartStr(zeros.length) + " " + __dartStr(zeros[0]) + " " + __dartStr(zeros[1]) + " " + __dartStr(zeros[2]));
+  const ints = Int32Array.from([1, (-2), 3]);
+  const floats = new Float64Array(2);
+  floats[0] = 1.5;
+  floats[1] = (-2.25);
+  __dartPrint("typed " + __dartStr(ints.length) + " " + __dartStr(ints[1]) + " " + __dartStr(floats[0]) + " " + __dartStr(floats[1]));
+  const data = new DataView(new ArrayBuffer(4));
+  data.setInt16(0, 4660);
+  data.setUint8(2, 255);
+  __dartPrint("bytes " + __dartStr(data.byteLength) + " " + __dartStr(data.getInt16(0)) + " " + __dartStr(data.getUint8(2)));
 }
 
 main();

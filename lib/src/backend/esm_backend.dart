@@ -673,6 +673,15 @@ final class _EsmEmitter {
         return 'new Set([${expression.expressions.map(emitExpression).join(', ')}])';
       case k.MapLiteral():
         return 'new Map([${expression.entries.map((entry) => '[${emitExpression(entry.key)}, ${emitExpression(entry.value)}]').join(', ')}])';
+      case k.RecordLiteral():
+        return _emitRecordLiteral(expression);
+      case k.RecordIndexGet():
+        return '${emitExpression(expression.receiver)}.${_recordPositionalKey(expression.index)}';
+      case k.RecordNameGet():
+        return _emitPropertyGet(
+          emitExpression(expression.receiver),
+          expression.name,
+        );
       case k.AsExpression():
         return emitExpression(expression.operand);
       case k.IsExpression():
@@ -749,6 +758,24 @@ final class _EsmEmitter {
     return '__dartStr(${emitExpression(expression)})';
   }
 
+  String _emitRecordLiteral(k.RecordLiteral expression) {
+    _usedHelpers.add('__dartRecord');
+    final positional = expression.positional.map(emitExpression).join(', ');
+    final named = _emitRecordNamedFields(expression.named);
+    return '__dartRecord([$positional], $named)';
+  }
+
+  String _emitRecordNamedField(k.NamedExpression expression) {
+    return '${_propertyKey(expression.name)}: ${emitExpression(expression.value)}';
+  }
+
+  String _emitRecordNamedFields(List<k.NamedExpression> fields) {
+    if (fields.isEmpty) {
+      return '{}';
+    }
+    return '{ ${fields.map(_emitRecordNamedField).join(', ')} }';
+  }
+
   String _emitEsmConst(k.Constant constant) {
     switch (constant) {
       case k.NullConstant():
@@ -761,6 +788,9 @@ final class _EsmEmitter {
         return _emitDouble(constant.value);
       case k.StringConstant():
         return jsonEncode(constant.value);
+      case k.RecordConstant():
+        _usedHelpers.add('__dartRecord');
+        return '__dartRecord([${constant.positional.map(_emitEsmConst).join(', ')}], ${_emitRecordConstantNamedFields(constant.named)})';
       case k.StaticTearOffConstant():
         return _emitStaticTearOffReference(constant.targetReference, constant);
       case k.ListConstant() || k.SetConstant() || k.MapConstant():
@@ -784,6 +814,13 @@ final class _EsmEmitter {
       return '-Infinity';
     }
     return value.toString();
+  }
+
+  String _emitRecordConstantNamedFields(Map<String, k.Constant> fields) {
+    if (fields.isEmpty) {
+      return '{}';
+    }
+    return '{ ${fields.entries.map((entry) => '${_propertyKey(entry.key)}: ${_emitEsmConst(entry.value)}').join(', ')} }';
   }
 
   String _emitConstructorInvocation(k.ConstructorInvocation expression) {
@@ -1041,6 +1078,15 @@ final class _EsmEmitter {
     return jsonEncode(name);
   }
 
+  String _emitPropertyGet(String receiver, String name) {
+    if (_isIdentifier(name) && !_reservedNames.contains(name)) {
+      return '$receiver.$name';
+    }
+    return '$receiver[${jsonEncode(name)}]';
+  }
+
+  String _recordPositionalKey(int index) => '\$${index + 1}';
+
   bool _isIdentifier(String name) {
     if (name.isEmpty) {
       return false;
@@ -1088,6 +1134,15 @@ final class _EsmEmitter {
 
   String _emitHelpers() {
     final helper = StringBuffer();
+    final usesRecord = _usedHelpers.contains('__dartRecord');
+    if (usesRecord) {
+      helper.writeln('const __dartRecordShape = Symbol("dart.recordShape");');
+      helper.writeln('function __dartIsRecord(value) {');
+      helper.writeln(
+        '  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartStr')) {
       helper.writeln('function __dartStr(value) {');
       helper.writeln('  return value == null ? "null" : String(value);');
@@ -1100,12 +1155,67 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartEquals')) {
       helper.writeln('function __dartEquals(left, right) {');
-      helper.writeln('  return left === right;');
+      if (usesRecord) {
+        helper.writeln('  if (left === right) return true;');
+        helper.writeln(
+          '  if (__dartIsRecord(left) && __dartIsRecord(right)) {',
+        );
+        helper.writeln('    const leftShape = left[__dartRecordShape];');
+        helper.writeln('    const rightShape = right[__dartRecordShape];');
+        helper.writeln(
+          '    if (leftShape.length !== rightShape.length) return false;',
+        );
+        helper.writeln('    for (let i = 0; i < leftShape.length; i++) {');
+        helper.writeln('      const name = leftShape[i];');
+        helper.writeln('      if (name !== rightShape[i]) return false;');
+        helper.writeln(
+          '      if (!__dartEquals(left[name], right[name])) return false;',
+        );
+        helper.writeln('    }');
+        helper.writeln('    return true;');
+        helper.writeln('  }');
+        helper.writeln('  return false;');
+      } else {
+        helper.writeln('  return left === right;');
+      }
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartTruncDiv')) {
       helper.writeln('function __dartTruncDiv(left, right) {');
       helper.writeln('  return Math.trunc(left / right);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartRecord')) {
+      helper.writeln('function __dartRecord(positional, named) {');
+      helper.writeln('  const record = {};');
+      helper.writeln('  const shape = [];');
+      helper.writeln('  for (let i = 0; i < positional.length; i++) {');
+      helper.writeln('    const name = "\$" + (i + 1);');
+      helper.writeln('    shape.push(name);');
+      helper.writeln(
+        '    Object.defineProperty(record, name, { value: positional[i], enumerable: true });',
+      );
+      helper.writeln('  }');
+      helper.writeln('  for (const name of Object.keys(named).sort()) {');
+      helper.writeln('    shape.push(name);');
+      helper.writeln(
+        '    Object.defineProperty(record, name, { value: named[name], enumerable: true });',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });',
+      );
+      helper.writeln('  Object.defineProperty(record, "toString", {');
+      helper.writeln('    value() {');
+      helper.writeln('      return "(" + shape.map((name) => {');
+      helper.writeln('        const value = String(record[name]);');
+      helper.writeln(
+        '        return name.startsWith("\$") ? value : name + ": " + value;',
+      );
+      helper.writeln('      }).join(", ") + ")";');
+      helper.writeln('    },');
+      helper.writeln('  });');
+      helper.writeln('  return Object.freeze(record);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartLazyField')) {

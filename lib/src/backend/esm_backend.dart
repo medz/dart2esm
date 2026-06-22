@@ -2106,6 +2106,16 @@ final class _EsmEmitter {
       case 'dart:convert::Base64Codec':
         _usedHelpers.add('__dartBase64Codec');
         return '__dartBase64Codec(${_isBase64ConstantUrlSafe(constant)})';
+      case 'dart:core::Duration':
+        _usedHelpers.add('__dartDuration');
+        var micros = 0;
+        for (final value in constant.fieldValues.values) {
+          if (value is k.IntConstant) {
+            micros = value.value;
+            break;
+          }
+        }
+        return '__dartDuration({ microseconds: $micros })';
     }
     final className = _referencePath(constant.classReference);
     throw UnsupportedKernelNode(constant, 'instance constant $className');
@@ -2244,6 +2254,13 @@ final class _EsmEmitter {
         .map(emitExpression)
         .toList();
     final args = _emitArguments(expression.arguments);
+    final asyncInvocation = _emitAsyncStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (asyncInvocation != null) {
+      return asyncInvocation;
+    }
     final developerInvocation = _emitDeveloperStaticInvocation(
       expression,
       positionalArgs,
@@ -3253,6 +3270,40 @@ final class _EsmEmitter {
         path.endsWith('::Service::@methods::getIsolateID') ||
         path.endsWith('::Service::@methods::getObjectId')) {
       return 'null';
+    }
+    return null;
+  }
+
+  String? _emitAsyncStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:async::Future::')) {
+      return null;
+    }
+    if (path == 'dart:async::Future::@factories::value') {
+      final value = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return 'Promise.resolve($value)';
+    }
+    if (path == 'dart:async::Future::@factories::error' &&
+        positionalArgs.isNotEmpty) {
+      return 'Promise.reject(${positionalArgs.first})';
+    }
+    if (path == 'dart:async::Future::@factories::sync' &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve().then(() => (${positionalArgs.single})())';
+    }
+    if (path == 'dart:async::Future::@factories::delayed' &&
+        positionalArgs.isNotEmpty) {
+      final duration = positionalArgs.first;
+      final computation = positionalArgs.length >= 2 ? positionalArgs[1] : null;
+      final value = computation == null ? 'null' : '($computation)()';
+      return 'new Promise((resolve, reject) => setTimeout(() => { try { resolve($value); } catch (error) { reject(error); } }, Math.max(0, $duration.inMilliseconds)))';
+    }
+    if (path == 'dart:async::Future::@methods::wait' &&
+        positionalArgs.length == 1) {
+      return 'Promise.all(Array.from(${positionalArgs.single}))';
     }
     return null;
   }

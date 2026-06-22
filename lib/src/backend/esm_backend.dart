@@ -5587,7 +5587,11 @@ final class _EsmEmitter {
         positionalArgs.isEmpty) {
       _usedHelpers.add('__dartStreamController');
       final isBroadcast = path.endsWith('::broadcast');
-      return '__dartStreamController(${isBroadcast ? 'true' : 'false'})';
+      final onListen = _namedArgument(expression.arguments, 'onListen');
+      final onPause = _namedArgument(expression.arguments, 'onPause');
+      final onResume = _namedArgument(expression.arguments, 'onResume');
+      final onCancel = _namedArgument(expression.arguments, 'onCancel');
+      return '__dartStreamController(${isBroadcast ? 'true' : 'false'}, { onListen: ${onListen ?? 'null'}, onPause: ${onPause ?? 'null'}, onResume: ${onResume ?? 'null'}, onCancel: ${onCancel ?? 'null'} })';
     }
     if (path == 'dart:async::Timer::@factories::' &&
         positionalArgs.length == 2) {
@@ -10348,20 +10352,46 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStreamController')) {
-      helper.writeln('function __dartStreamController(broadcast = false) {');
+      helper.writeln(
+        'function __dartStreamController(broadcast = false, options = {}) {',
+      );
+      helper.writeln('  const onListen = options.onListen ?? null;');
+      helper.writeln('  const onPause = options.onPause ?? null;');
+      helper.writeln('  const onResume = options.onResume ?? null;');
+      helper.writeln('  const onCancel = options.onCancel ?? null;');
       helper.writeln('  const listeners = new Set();');
       helper.writeln('  let closed = false;');
       helper.writeln('  let singleListened = false;');
+      helper.writeln('  let activeSubscriptions = 0;');
       helper.writeln('  let resolveDone;');
       helper.writeln(
         '  const done = new Promise((resolve) => { resolveDone = resolve; });',
       );
       helper.writeln('  function makeState(bufferBeforeListen = false) {');
       helper.writeln(
-        '    return { queue: [], waiters: [], active: false, bufferBeforeListen };',
+        '    return { queue: [], waiters: [], active: false, bufferBeforeListen, ended: false };',
       );
       helper.writeln('  }');
       helper.writeln('  const singleState = makeState(true);');
+      helper.writeln('  function subscriptionStarted() {');
+      helper.writeln('    activeSubscriptions++;');
+      helper.writeln(
+        '    if (activeSubscriptions === 1 && typeof onListen === "function") onListen();',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function subscriptionEnded(canceled) {');
+      helper.writeln('    if (activeSubscriptions > 0) activeSubscriptions--;');
+      helper.writeln(
+        '    if (canceled && activeSubscriptions === 0 && typeof onCancel === "function") return onCancel();',
+      );
+      helper.writeln('    return null;');
+      helper.writeln('  }');
+      helper.writeln('  function endState(state, canceled, remove) {');
+      helper.writeln('    if (state.ended) return null;');
+      helper.writeln('    state.ended = true;');
+      helper.writeln('    if (remove) remove();');
+      helper.writeln('    return subscriptionEnded(canceled);');
+      helper.writeln('  }');
       helper.writeln('  function stateHasPending(state) {');
       helper.writeln(
         '    return state.queue.length > 0 || state.waiters.length > 0;',
@@ -10442,12 +10472,16 @@ final class _EsmEmitter {
       helper.writeln('    if (broadcast) {');
       helper.writeln('      for (const listener of listeners) {');
       helper.writeln(
-        '        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); listeners.delete(listener); }',
+        '        const remove = () => listeners.delete(listener);',
+      );
+      helper.writeln(
+        '        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); endState(listener, false, remove); }',
       );
       helper.writeln('      }');
       helper.writeln('    } else if (singleState.queue.length === 0) {');
       helper.writeln('      singleState.active = false;');
       helper.writeln('      clearWaiters(singleState);');
+      helper.writeln('      endState(singleState, false, null);');
       helper.writeln('    }');
       helper.writeln('    maybeResolveDone();');
       helper.writeln('  }');
@@ -10463,9 +10497,13 @@ final class _EsmEmitter {
       helper.writeln('        if (closed || !state.active) {');
       helper.writeln('          state.active = false;');
       helper.writeln('          state.bufferBeforeListen = false;');
-      helper.writeln('          if (remove) remove();');
+      helper.writeln(
+        '          const endResult = endState(state, false, remove);',
+      );
       helper.writeln('          maybeResolveDone();');
-      helper.writeln('          return Promise.resolve({ done: true });');
+      helper.writeln(
+        '          return Promise.resolve(endResult).then(() => ({ done: true }));',
+      );
       helper.writeln('        }');
       helper.writeln(
         '        return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));',
@@ -10473,8 +10511,12 @@ final class _EsmEmitter {
       helper.writeln('      },');
       helper.writeln('      return() {');
       helper.writeln('        cancelState(state);');
-      helper.writeln('        if (remove) remove();');
-      helper.writeln('        return Promise.resolve({ done: true });');
+      helper.writeln(
+        '        const endResult = endState(state, true, remove);',
+      );
+      helper.writeln(
+        '        return Promise.resolve(endResult).then(() => ({ done: true }));',
+      );
       helper.writeln('      },');
       helper.writeln('    };');
       helper.writeln('  }');
@@ -10508,11 +10550,18 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('  const stream = {');
       helper.writeln('    isBroadcast: broadcast,');
+      helper.writeln(
+        '    _onPause() { return typeof onPause === "function" ? onPause() : null; },',
+      );
+      helper.writeln(
+        '    _onResume() { return typeof onResume === "function" ? onResume() : null; },',
+      );
       helper.writeln('    [Symbol.asyncIterator]() {');
       helper.writeln('      if (broadcast) {');
       helper.writeln('        const state = makeState();');
       helper.writeln('        state.active = true;');
       helper.writeln('        listeners.add(state);');
+      helper.writeln('        subscriptionStarted();');
       helper.writeln(
         '        return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });',
       );
@@ -10525,6 +10574,7 @@ final class _EsmEmitter {
       helper.writeln('      singleListened = true;');
       helper.writeln('      singleState.active = true;');
       helper.writeln('      singleState.bufferBeforeListen = false;');
+      helper.writeln('      subscriptionStarted();');
       helper.writeln('      return iteratorForState(singleState, null);');
       helper.writeln('    },');
       helper.writeln('  };');
@@ -11192,9 +11242,24 @@ final class _EsmEmitter {
       helper.writeln('  })();');
       helper.writeln('  return {');
       helper.writeln('    get isPaused() { return paused; },');
-      helper.writeln('    pause() { paused = true; return null; },');
+      helper.writeln('    pause(resumeSignal = null) {');
+      helper.writeln('      if (!paused) {');
+      helper.writeln('        paused = true;');
+      helper.writeln(
+        '        if (typeof stream._onPause === "function") stream._onPause();',
+      );
+      helper.writeln('      }');
+      helper.writeln(
+        '      if (resumeSignal != null) Promise.resolve(resumeSignal).then(() => this.resume());',
+      );
+      helper.writeln('      return null;');
+      helper.writeln('    },');
       helper.writeln('    resume() {');
+      helper.writeln('      if (!paused) return null;');
       helper.writeln('      paused = false;');
+      helper.writeln(
+        '      if (typeof stream._onResume === "function") stream._onResume();',
+      );
       helper.writeln('      if (resumeWaiter != null) {');
       helper.writeln('        const resolve = resumeWaiter;');
       helper.writeln('        resumeWaiter = null;');

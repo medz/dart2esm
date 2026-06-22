@@ -262,6 +262,35 @@ Future<void> main() async {
     '${await updateDone.future}',
   );
 
+  final lifecycle = <String>[];
+  final lifecycleValues = <int>[];
+  final lifecycleController = StreamController<int>(
+    onListen: () {
+      lifecycle.add('listen');
+    },
+    onPause: () {
+      lifecycle.add('pause');
+    },
+    onResume: () {
+      lifecycle.add('resume');
+    },
+    onCancel: () {
+      lifecycle.add('cancel');
+    },
+  );
+  final lifecycleSubscription = lifecycleController.stream.listen((value) {
+    lifecycleValues.add(value);
+  });
+  lifecycleSubscription.pause();
+  lifecycleSubscription.resume();
+  lifecycleController.add(5);
+  await Future<void>.delayed(Duration.zero);
+  await lifecycleSubscription.cancel();
+  print(
+    'controllerLifecycle ${lifecycle.join(',')} '
+    '${lifecycleValues.join(',')} ${lifecycleController.hasListener}',
+  );
+
   final controller = StreamController<int>();
   final controlledFuture = controller.stream.toList();
   print('state ${controller.isClosed} ${controller.hasListener}');

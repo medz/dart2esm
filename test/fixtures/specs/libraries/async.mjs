@@ -215,16 +215,36 @@ function __dartFutureTimeout(future, duration, onTimeout = null) {
     );
   });
 }
-function __dartStreamController(broadcast = false) {
+function __dartStreamController(broadcast = false, options = {}) {
+  const onListen = options.onListen ?? null;
+  const onPause = options.onPause ?? null;
+  const onResume = options.onResume ?? null;
+  const onCancel = options.onCancel ?? null;
   const listeners = new Set();
   let closed = false;
   let singleListened = false;
+  let activeSubscriptions = 0;
   let resolveDone;
   const done = new Promise((resolve) => { resolveDone = resolve; });
   function makeState(bufferBeforeListen = false) {
-    return { queue: [], waiters: [], active: false, bufferBeforeListen };
+    return { queue: [], waiters: [], active: false, bufferBeforeListen, ended: false };
   }
   const singleState = makeState(true);
+  function subscriptionStarted() {
+    activeSubscriptions++;
+    if (activeSubscriptions === 1 && typeof onListen === "function") onListen();
+  }
+  function subscriptionEnded(canceled) {
+    if (activeSubscriptions > 0) activeSubscriptions--;
+    if (canceled && activeSubscriptions === 0 && typeof onCancel === "function") return onCancel();
+    return null;
+  }
+  function endState(state, canceled, remove) {
+    if (state.ended) return null;
+    state.ended = true;
+    if (remove) remove();
+    return subscriptionEnded(canceled);
+  }
   function stateHasPending(state) {
     return state.queue.length > 0 || state.waiters.length > 0;
   }
@@ -280,11 +300,13 @@ function __dartStreamController(broadcast = false) {
     closed = true;
     if (broadcast) {
       for (const listener of listeners) {
-        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); listeners.delete(listener); }
+        const remove = () => listeners.delete(listener);
+        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); endState(listener, false, remove); }
       }
     } else if (singleState.queue.length === 0) {
       singleState.active = false;
       clearWaiters(singleState);
+      endState(singleState, false, null);
     }
     maybeResolveDone();
   }
@@ -300,16 +322,16 @@ function __dartStreamController(broadcast = false) {
         if (closed || !state.active) {
           state.active = false;
           state.bufferBeforeListen = false;
-          if (remove) remove();
+          const endResult = endState(state, false, remove);
           maybeResolveDone();
-          return Promise.resolve({ done: true });
+          return Promise.resolve(endResult).then(() => ({ done: true }));
         }
         return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));
       },
       return() {
         cancelState(state);
-        if (remove) remove();
-        return Promise.resolve({ done: true });
+        const endResult = endState(state, true, remove);
+        return Promise.resolve(endResult).then(() => ({ done: true }));
       },
     };
   }
@@ -335,11 +357,14 @@ function __dartStreamController(broadcast = false) {
   };
   const stream = {
     isBroadcast: broadcast,
+    _onPause() { return typeof onPause === "function" ? onPause() : null; },
+    _onResume() { return typeof onResume === "function" ? onResume() : null; },
     [Symbol.asyncIterator]() {
       if (broadcast) {
         const state = makeState();
         state.active = true;
         listeners.add(state);
+        subscriptionStarted();
         return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });
       }
       if (singleListened) {
@@ -348,6 +373,7 @@ function __dartStreamController(broadcast = false) {
       singleListened = true;
       singleState.active = true;
       singleState.bufferBeforeListen = false;
+      subscriptionStarted();
       return iteratorForState(singleState, null);
     },
   };
@@ -875,9 +901,18 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
   })();
   return {
     get isPaused() { return paused; },
-    pause() { paused = true; return null; },
+    pause(resumeSignal = null) {
+      if (!paused) {
+        paused = true;
+        if (typeof stream._onPause === "function") stream._onPause();
+      }
+      if (resumeSignal != null) Promise.resolve(resumeSignal).then(() => this.resume());
+      return null;
+    },
     resume() {
+      if (!paused) return null;
       paused = false;
+      if (typeof stream._onResume === "function") stream._onResume();
       if (resumeWaiter != null) {
         const resolve = resumeWaiter;
         resumeWaiter = null;
@@ -1061,7 +1096,7 @@ export async function main() {
       throw $error_3;
     }
   }
-  const controller = __dartStreamController(true);
+  const controller = __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null });
   const seenA = new Array(0).fill(null);
   const seenB = new Array(0).fill(null);
   const subA = __dartStreamListen(controller.stream, __dartAs(__dartBind(seenA, "add"), value => typeof value === "function", "void Function(int)"), null, null, false);

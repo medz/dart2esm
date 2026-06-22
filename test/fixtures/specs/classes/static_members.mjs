@@ -22,6 +22,9 @@ function __dartLazyField(name, initialize, writable, publish) {
     if (state === 1) {
       throw new Error("Cyclic initialization of field " + name);
     }
+    if (initialize == null) {
+      throw new Error("Late field " + name + " has not been initialized");
+    }
     state = 1;
     try {
       value = initialize();
@@ -34,7 +37,7 @@ function __dartLazyField(name, initialize, writable, publish) {
     }
   }
   function set(next) {
-    if (!writable) {
+    if (writable === false || (writable === "once" && state === 2)) {
       throw new TypeError("Cannot assign to final field " + name);
     }
     value = next;

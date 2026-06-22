@@ -264,10 +264,11 @@ final class _EsmEmitter {
     if (!field.isStatic) {
       throw UnsupportedKernelNode(field, 'instance field in library scope');
     }
-    if (field.isLate) {
-      throw UnsupportedKernelNode(field, 'late top-level field');
-    }
     final names = _fieldName(field);
+    if (field.isLate) {
+      _emitLateTopLevelField(field, names, export: export);
+      return;
+    }
     final initializer = field.initializer;
     if (field.isConst) {
       writeln(
@@ -283,6 +284,23 @@ final class _EsmEmitter {
         : emitExpression(initializer);
     writeln(
       '${export ? 'export ' : ''}$keyword ${names.value} = $initializerCode;',
+    );
+  }
+
+  void _emitLateTopLevelField(
+    k.Field field,
+    _TopLevelFieldNames names, {
+    required bool export,
+  }) {
+    _usedHelpers.add('__dartLazyField');
+    final cellName = _staticFieldCellName(field);
+    if (export) {
+      writeln('export let ${names.value};');
+    }
+    final initializer = _emitLazyInitializer(field);
+    final publish = export ? 'value => { ${names.value} = value; }' : 'null';
+    writeln(
+      'const $cellName = __dartLazyField(${jsonEncode(field.name.text)}, $initializer, ${_emitLazyWritable(field)}, $publish);',
     );
   }
 
@@ -307,6 +325,27 @@ final class _EsmEmitter {
       k.TypedefTearOff() => emitExpression(initializer),
       _ => throw UnsupportedKernelNode(field, 'top-level const initializer'),
     };
+  }
+
+  String _emitLazyInitializer(k.Field field) {
+    final initializer = field.initializer;
+    if (initializer == null) {
+      return field.isLate ? 'null' : '() => null';
+    }
+    return '() => ${emitExpression(initializer)}';
+  }
+
+  String _emitLazyWritable(k.Field field) {
+    if (field.isLate && field.initializer == null && field.isFinal) {
+      return '"once"';
+    }
+    if (field.isFinal) {
+      return 'false';
+    }
+    if (field.hasSetter) {
+      return 'true';
+    }
+    return 'false';
   }
 
   void _emitClass(k.Class klass, {required bool export}) {
@@ -1060,7 +1099,11 @@ final class _EsmEmitter {
     Set<k.Field> skipFields = const {},
   }) {
     for (final field in klass.fields) {
-      if (field.isStatic || skipFields.contains(field)) {
+      if (field.isStatic || (skipFields.contains(field) && !field.isLate)) {
+        continue;
+      }
+      if (field.isLate) {
+        _emitInstanceLateField(klass, field);
         continue;
       }
       final initializer = field.initializer;
@@ -1068,6 +1111,24 @@ final class _EsmEmitter {
         '$_thisExpression.${_memberName(field.name.text)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
       );
     }
+  }
+
+  void _emitInstanceLateField(k.Class klass, k.Field field) {
+    _usedHelpers.add('__dartLazyField');
+    final cellName = _freshScopedName('\$${field.name.text}');
+    final memberName = _memberName(field.name.text);
+    writeln(
+      'const $cellName = __dartLazyField(${jsonEncode('${klass.name}.${field.name.text}')}, ${_emitLazyInitializer(field)}, ${_emitLazyWritable(field)});',
+    );
+    writeln(
+      'Object.defineProperty($_thisExpression, ${jsonEncode(memberName)}, {',
+    );
+    _indent++;
+    writeln('get() { return $cellName.get(); },');
+    writeln('set(value) { $cellName.set(value); },');
+    writeln('enumerable: true,');
+    _indent--;
+    writeln('});');
   }
 
   void _emitMethod(k.Procedure procedure) {
@@ -1174,9 +1235,6 @@ final class _EsmEmitter {
   }
 
   void _emitClassStaticField(k.Class klass, k.Field field) {
-    if (field.isLate) {
-      throw UnsupportedKernelNode(field, 'late static field');
-    }
     final className = _className(klass);
     final memberName = _memberName(field.name.text);
     if (field.isConst) {
@@ -1188,12 +1246,8 @@ final class _EsmEmitter {
 
     _usedHelpers.add('__dartLazyField');
     final cellName = _staticFieldCellName(field);
-    final initializer = field.initializer;
-    final initializerCode = initializer == null
-        ? 'null'
-        : emitExpression(initializer);
     writeln(
-      'const $cellName = __dartLazyField(${jsonEncode('${klass.name}.${field.name.text}')}, () => $initializerCode, ${field.hasSetter});',
+      'const $cellName = __dartLazyField(${jsonEncode('${klass.name}.${field.name.text}')}, ${_emitLazyInitializer(field)}, ${_emitLazyWritable(field)});',
     );
     writeln('Object.defineProperty($className, ${jsonEncode(memberName)}, {');
     _indent++;
@@ -2431,6 +2485,9 @@ final class _EsmEmitter {
     }
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
+      if (target.isLate) {
+        return '${_staticFieldCellName(target)}.get()';
+      }
       return _fieldName(target).value;
     }
     if (target is k.Field && target.isStatic && target.enclosingClass != null) {
@@ -2470,6 +2527,9 @@ final class _EsmEmitter {
   String _emitStaticSet(k.StaticSet expression) {
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
+      if (target.isLate) {
+        return '${_staticFieldCellName(target)}.set(${emitExpression(expression.value)})';
+      }
       if (!target.hasSetter) {
         throw UnsupportedKernelNode(expression, 'write to final field');
       }
@@ -3407,6 +3467,11 @@ final class _EsmEmitter {
         '      throw new Error("Cyclic initialization of field " + name);',
       );
       helper.writeln('    }');
+      helper.writeln('    if (initialize == null) {');
+      helper.writeln(
+        '      throw new Error("Late field " + name + " has not been initialized");',
+      );
+      helper.writeln('    }');
       helper.writeln('    state = 1;');
       helper.writeln('    try {');
       helper.writeln('      value = initialize();');
@@ -3419,7 +3484,9 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('  }');
       helper.writeln('  function set(next) {');
-      helper.writeln('    if (!writable) {');
+      helper.writeln(
+        '    if (writable === false || (writable === "once" && state === 2)) {',
+      );
       helper.writeln(
         '      throw new TypeError("Cannot assign to final field " + name);',
       );

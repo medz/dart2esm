@@ -39,6 +39,48 @@ Future<void> main() async {
     '${await Stream<int>.fromIterable([1, 2, 3, 4]).singleWhere((value) => value == 3)} '
     '${await Stream<int>.fromIterable([1, 2]).firstWhere((value) => value > 9, orElse: () => -1)}',
   );
+  final asyncMapped = await Stream<int>.fromIterable([
+    1,
+    2,
+  ]).asyncMap((value) async => value * 3).join(',');
+  final asyncExpanded = await Stream<int>.fromIterable([1, 2])
+      .asyncExpand((value) => Stream<int>.fromIterable([value, value + 10]))
+      .join(',');
+  final distinctValues = await Stream<int>.fromIterable([
+    1,
+    1,
+    2,
+    1,
+  ]).distinct().join(',');
+  final parityDistinct = await Stream<int>.fromIterable([
+    1,
+    3,
+    4,
+    6,
+  ]).distinct((previous, next) => previous.isOdd == next.isOdd).join(',');
+  final handledErrors = <String>[];
+  final handledController = StreamController<int>();
+  final handled = handledController.stream
+      .handleError((error) {
+        handledErrors.add('$error');
+      })
+      .join(',');
+  handledController.add(1);
+  handledController.addError('handled');
+  handledController.add(2);
+  await handledController.close();
+  var skippedError = '';
+  try {
+    await Stream<int>.error('skipped').handleError((error) {
+      handledErrors.add('wrong');
+    }, test: (error) => false).drain();
+  } catch (error) {
+    skippedError = '$error';
+  }
+  print(
+    'streamMore $asyncMapped $asyncExpanded $distinctValues $parityDistinct '
+    '${await handled} ${handledErrors.join(',')} $skippedError',
+  );
   final listened = <int>[];
   final listenDone = Completer<String>();
   final subscription = Stream<int>.fromIterable([6, 7]).listen(

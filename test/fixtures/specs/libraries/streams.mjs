@@ -235,6 +235,52 @@ function __dartStreamWhere(stream, test) {
     }
   })();
 }
+function __dartStreamAsyncMap(stream, convert) {
+  return (async function*() {
+    for await (const value of stream) {
+      yield await convert(value);
+    }
+  })();
+}
+function __dartStreamAsyncExpand(stream, convert) {
+  return (async function*() {
+    for await (const value of stream) {
+      const inner = convert(value);
+      if (inner == null) continue;
+      for await (const expanded of inner) yield expanded;
+    }
+  })();
+}
+function __dartStreamDistinct(stream, equals = null) {
+  return (async function*() {
+    let hasPrevious = false;
+    let previous;
+    for await (const value of stream) {
+      const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));
+      if (same) continue;
+      previous = value;
+      hasPrevious = true;
+      yield value;
+    }
+  })();
+}
+function __dartStreamHandleError(stream, onError, test = null) {
+  return (async function*() {
+    const iterator = stream[Symbol.asyncIterator]();
+    while (true) {
+      try {
+        const next = await iterator.next();
+        if (next.done) break;
+        yield next.value;
+      } catch (error) {
+        if (typeof test === "function" && !test(error)) throw error;
+        if (typeof onError !== "function") continue;
+        const result = onError.length >= 2 ? onError(error, error?.stack ?? "<javascript stack unavailable>") : onError(error);
+        await result;
+      }
+    }
+  })();
+}
 function __dartStreamTake(stream, count) {
   return (async function*() {
     let remaining = Math.max(0, Math.trunc(count));
@@ -456,6 +502,37 @@ export async function main() {
   __dartPrint("checks " + __dartStr(await __dartStreamAny(__dartStreamFromIterable([1, 2, 3]), function(value) { return (value > 2); })) + " " + __dartStr(await __dartStreamEvery(__dartStreamFromIterable([1, 2, 3]), function(value) { return (value > 0); })) + " " + __dartStr(await __dartStreamContains(__dartStreamFromIterable([1, 2, 3]), 2)) + " " + __dartStr(await __dartStreamJoin(__dartStreamFromIterable(["a", "b"]), "-")) + " " + __dartStr(await __dartStreamDrain(__dartStreamFromIterable([1, 2]), "done")));
   __dartPrint("slice " + __dartStr(await __dartStreamJoin(__dartStreamTake(__dartStreamSkip(__dartStreamFromIterable([1, 2, 3, 4, 5]), 1), 3), ",")) + " " + __dartStr(await __dartStreamJoin(__dartStreamTakeWhile(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value < 3); }), ",")) + " " + __dartStr(await __dartStreamJoin(__dartStreamSkipWhile(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value < 3); }), ",")));
   __dartPrint("whereQuery " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value > 2); }, null)) + " " + __dartStr(await __dartStreamLastWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (Math.trunc(value) % 2 !== 0); }, null)) + " " + __dartStr(await __dartStreamSingleWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return __dartEquals(value, 3); }, null)) + " " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2]), function(value) { return (value > 9); }, function() { return (-1); })));
+  const asyncMapped = await __dartStreamJoin(__dartStreamAsyncMap(__dartStreamFromIterable([1, 2]), async function(value) { return (value * 3); }), ",");
+  const asyncExpanded = await __dartStreamJoin(__dartStreamAsyncExpand(__dartStreamFromIterable([1, 2]), function(value) { return __dartStreamFromIterable([value, (value + 10)]); }), ",");
+  const distinctValues = await __dartStreamJoin(__dartStreamDistinct(__dartStreamFromIterable([1, 1, 2, 1]), null), ",");
+  const parityDistinct = await __dartStreamJoin(__dartStreamDistinct(__dartStreamFromIterable([1, 3, 4, 6]), function(previous, next) { return __dartEquals((Math.trunc(previous) % 2 !== 0), (Math.trunc(next) % 2 !== 0)); }), ",");
+  const handledErrors = new Array(0).fill(null);
+  const handledController = __dartStreamController(false);
+  const handled = __dartStreamJoin(__dartStreamHandleError(handledController.stream, function(error) {
+    (handledErrors.push(__dartStr(error)), null);
+}, null), ",");
+  handledController.add(1);
+  handledController.addError("handled");
+  handledController.add(2);
+  await handledController.close();
+  let skippedError = "";
+  try {
+    {
+      await __dartStreamDrain(__dartStreamHandleError(__dartStreamError("skipped"), function(error) {
+        (handledErrors.push("wrong"), null);
+}, function(error) { return false; }), null);
+    }
+  } catch ($error) {
+    if ($error != null) {
+      const error = $error;
+      {
+        skippedError = __dartStr(error);
+      }
+    } else {
+      throw $error;
+    }
+  }
+  __dartPrint("streamMore " + __dartStr(asyncMapped) + " " + __dartStr(asyncExpanded) + " " + __dartStr(distinctValues) + " " + __dartStr(parityDistinct) + " " + __dartStr(await handled) + " " + __dartStr(__dartIterableJoin(handledErrors, ",")) + " " + __dartStr(skippedError));
   const listened = new Array(0).fill(null);
   const listenDone = __dartCompleter();
   const subscription = __dartStreamListen(__dartStreamFromIterable([6, 7]), function(value) {

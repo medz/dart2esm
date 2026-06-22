@@ -3810,6 +3810,36 @@ final class _EsmEmitter {
       return '__dartStreamWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'asyncMap' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamAsyncMap($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'asyncExpand' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamAsyncExpand($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'distinct' &&
+        positionalArgs.length <= 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartEquals');
+      _usedHelpers.add('__dartStream');
+      final equals = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return '__dartStreamDistinct($left, $equals)';
+    }
+    if (name == 'handleError' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      final test = _namedArgument(expression.arguments, 'test') ?? 'null';
+      return '__dartStreamHandleError($left, ${positionalArgs.single}, $test)';
+    }
+    if (expression.arguments.named.isEmpty &&
         (name == 'take' || name == 'skip') &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
@@ -9957,6 +9987,62 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
+      helper.writeln('function __dartStreamAsyncMap(stream, convert) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      yield await convert(value);');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamAsyncExpand(stream, convert) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      const inner = convert(value);');
+      helper.writeln('      if (inner == null) continue;');
+      helper.writeln(
+        '      for await (const expanded of inner) yield expanded;',
+      );
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamDistinct(stream, equals = null) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    let hasPrevious = false;');
+      helper.writeln('    let previous;');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '      const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));',
+      );
+      helper.writeln('      if (same) continue;');
+      helper.writeln('      previous = value;');
+      helper.writeln('      hasPrevious = true;');
+      helper.writeln('      yield value;');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamHandleError(stream, onError, test = null) {',
+      );
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    const iterator = stream[Symbol.asyncIterator]();');
+      helper.writeln('    while (true) {');
+      helper.writeln('      try {');
+      helper.writeln('        const next = await iterator.next();');
+      helper.writeln('        if (next.done) break;');
+      helper.writeln('        yield next.value;');
+      helper.writeln('      } catch (error) {');
+      helper.writeln(
+        '        if (typeof test === "function" && !test(error)) throw error;',
+      );
+      helper.writeln('        if (typeof onError !== "function") continue;');
+      helper.writeln(
+        '        const result = onError.length >= 2 ? onError(error, error?.stack ?? "<javascript stack unavailable>") : onError(error);',
+      );
+      helper.writeln('        await result;');
+      helper.writeln('      }');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
       helper.writeln('function __dartStreamTake(stream, count) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
@@ -10740,13 +10826,17 @@ const _generatedGlobalNames = {
   '__dartStr',
   '__dartStream',
   '__dartStreamAny',
+  '__dartStreamAsyncExpand',
+  '__dartStreamAsyncMap',
   '__dartStreamContains',
+  '__dartStreamDistinct',
   '__dartStreamDrain',
   '__dartStreamEvery',
   '__dartStreamFirst',
   '__dartStreamFirstWhere',
   '__dartStreamError',
   '__dartStreamFromIterable',
+  '__dartStreamHandleError',
   '__dartStreamIsEmpty',
   '__dartStreamJoin',
   '__dartStreamLast',

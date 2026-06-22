@@ -17,6 +17,16 @@ void main() {
   final bytes = utf8.encode('hello');
   print('utf8 ${bytes.length} ${utf8.decode(bytes)}');
 
+  final asciiBytes = ascii.encode('AZ');
+  final latinBytes = latin1.encode('Aÿ');
+  final constAscii = const AsciiCodec().decode([79, 75]);
+  final constLatin = const Latin1Codec().decode([65, 255]);
+  print(
+    'singleByte ${asciiBytes.join(',')} ${ascii.decode([65, 90])} '
+    '${latinBytes.join(',')} ${latin1.decode([65, 255])} '
+    '$constAscii $constLatin',
+  );
+
   final token = base64Encode(bytes);
   print('base64 $token ${utf8.decode(base64Decode(token))}');
 

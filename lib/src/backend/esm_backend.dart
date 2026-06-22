@@ -2333,6 +2333,12 @@ final class _EsmEmitter {
       case 'dart:convert::Utf8Codec':
         _usedHelpers.add('__dartUtf8Codec');
         return _emitCanonicalConst(constant, '__dartUtf8Codec()');
+      case 'dart:convert::AsciiCodec':
+        _usedHelpers.add('__dartAsciiCodec');
+        return _emitCanonicalConst(constant, '__dartAsciiCodec()');
+      case 'dart:convert::Latin1Codec':
+        _usedHelpers.add('__dartLatin1Codec');
+        return _emitCanonicalConst(constant, '__dartLatin1Codec()');
       case 'dart:convert::Base64Codec':
         _usedHelpers.add('__dartBase64Codec');
         return _emitCanonicalConst(
@@ -5052,6 +5058,12 @@ final class _EsmEmitter {
       case 'utf8':
         _usedHelpers.add('__dartUtf8Codec');
         return '__dartUtf8Codec()';
+      case 'ascii':
+        _usedHelpers.add('__dartAsciiCodec');
+        return '__dartAsciiCodec()';
+      case 'latin1':
+        _usedHelpers.add('__dartLatin1Codec');
+        return '__dartLatin1Codec()';
       case 'base64':
         _usedHelpers.add('__dartBase64Codec');
         return '__dartBase64Codec(false)';
@@ -5688,6 +5700,14 @@ final class _EsmEmitter {
         _usedHelpers.contains('__dartUtf8Codec') ||
         _usedHelpers.contains('__dartUtf8Encode') ||
         _usedHelpers.contains('__dartUtf8Decode');
+    final usesAscii =
+        _usedHelpers.contains('__dartAsciiCodec') ||
+        _usedHelpers.contains('__dartAsciiEncode') ||
+        _usedHelpers.contains('__dartAsciiDecode');
+    final usesLatin1 =
+        _usedHelpers.contains('__dartLatin1Codec') ||
+        _usedHelpers.contains('__dartLatin1Encode') ||
+        _usedHelpers.contains('__dartLatin1Decode');
     final usesBase64 =
         _usedHelpers.contains('__dartBase64Codec') ||
         _usedHelpers.contains('__dartBase64Encode') ||
@@ -6467,6 +6487,72 @@ final class _EsmEmitter {
         '    encode(source) { return __dartUtf8Encode(source); },',
       );
       helper.writeln('    decode(bytes) { return __dartUtf8Decode(bytes); },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (usesAscii) {
+      helper.writeln('function __dartAsciiEncode(source) {');
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const bytes = [];');
+      helper.writeln('  for (let i = 0; i < text.length; i++) {');
+      helper.writeln('    const code = text.charCodeAt(i);');
+      helper.writeln(
+        '    if (code > 0x7f) throw new RangeError("Invalid ASCII character");',
+      );
+      helper.writeln('    bytes.push(code);');
+      helper.writeln('  }');
+      helper.writeln('  return bytes;');
+      helper.writeln('}');
+      helper.writeln('function __dartAsciiDecode(bytes) {');
+      helper.writeln('  const chars = [];');
+      helper.writeln('  for (const byte of bytes) {');
+      helper.writeln(
+        '    if (byte < 0 || byte > 0x7f) throw new RangeError("Invalid ASCII byte");',
+      );
+      helper.writeln('    chars.push(String.fromCharCode(byte));');
+      helper.writeln('  }');
+      helper.writeln('  return chars.join("");');
+      helper.writeln('}');
+      helper.writeln('function __dartAsciiCodec() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    encode(source) { return __dartAsciiEncode(source); },',
+      );
+      helper.writeln('    decode(bytes) { return __dartAsciiDecode(bytes); },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (usesLatin1) {
+      helper.writeln('function __dartLatin1Encode(source) {');
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const bytes = [];');
+      helper.writeln('  for (let i = 0; i < text.length; i++) {');
+      helper.writeln('    const code = text.charCodeAt(i);');
+      helper.writeln(
+        '    if (code > 0xff) throw new RangeError("Invalid Latin-1 character");',
+      );
+      helper.writeln('    bytes.push(code);');
+      helper.writeln('  }');
+      helper.writeln('  return bytes;');
+      helper.writeln('}');
+      helper.writeln('function __dartLatin1Decode(bytes) {');
+      helper.writeln('  const chars = [];');
+      helper.writeln('  for (const byte of bytes) {');
+      helper.writeln(
+        '    if (byte < 0 || byte > 0xff) throw new RangeError("Invalid Latin-1 byte");',
+      );
+      helper.writeln('    chars.push(String.fromCharCode(byte));');
+      helper.writeln('  }');
+      helper.writeln('  return chars.join("");');
+      helper.writeln('}');
+      helper.writeln('function __dartLatin1Codec() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    encode(source) { return __dartLatin1Encode(source); },',
+      );
+      helper.writeln(
+        '    decode(bytes) { return __dartLatin1Decode(bytes); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
@@ -7620,6 +7706,9 @@ const _reservedNames = {
 
 const _generatedGlobalNames = {
   '__dartAs',
+  '__dartAsciiCodec',
+  '__dartAsciiDecode',
+  '__dartAsciiEncode',
   '__dartBase64Codec',
   '__dartBase64Decode',
   '__dartBase64Encode',
@@ -7660,6 +7749,9 @@ const _generatedGlobalNames = {
   '__dartJsonDecode',
   '__dartJsonEncode',
   '__dartLazyField',
+  '__dartLatin1Codec',
+  '__dartLatin1Decode',
+  '__dartLatin1Encode',
   '__dartLineSplit',
   '__dartLineSplitter',
   '__dartListRemove',

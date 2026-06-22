@@ -76,6 +76,54 @@ function __dartUtf8Codec() {
     decode(bytes) { return __dartUtf8Decode(bytes); },
   };
 }
+function __dartAsciiEncode(source) {
+  const text = String(source);
+  const bytes = [];
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code > 0x7f) throw new RangeError("Invalid ASCII character");
+    bytes.push(code);
+  }
+  return bytes;
+}
+function __dartAsciiDecode(bytes) {
+  const chars = [];
+  for (const byte of bytes) {
+    if (byte < 0 || byte > 0x7f) throw new RangeError("Invalid ASCII byte");
+    chars.push(String.fromCharCode(byte));
+  }
+  return chars.join("");
+}
+function __dartAsciiCodec() {
+  return {
+    encode(source) { return __dartAsciiEncode(source); },
+    decode(bytes) { return __dartAsciiDecode(bytes); },
+  };
+}
+function __dartLatin1Encode(source) {
+  const text = String(source);
+  const bytes = [];
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code > 0xff) throw new RangeError("Invalid Latin-1 character");
+    bytes.push(code);
+  }
+  return bytes;
+}
+function __dartLatin1Decode(bytes) {
+  const chars = [];
+  for (const byte of bytes) {
+    if (byte < 0 || byte > 0xff) throw new RangeError("Invalid Latin-1 byte");
+    chars.push(String.fromCharCode(byte));
+  }
+  return chars.join("");
+}
+function __dartLatin1Codec() {
+  return {
+    encode(source) { return __dartLatin1Encode(source); },
+    decode(bytes) { return __dartLatin1Decode(bytes); },
+  };
+}
 function __dartBase64Encode(bytes, urlSafe = false) {
   const array = Uint8Array.from(bytes);
   let encoded;
@@ -157,6 +205,11 @@ export function main() {
   __dartPrint("codec " + __dartStr(codecDecoded.get("answer")));
   const bytes = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).encode("hello");
   __dartPrint("utf8 " + __dartStr(bytes.length) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).decode(bytes)));
+  const asciiBytes = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec()).encode("AZ");
+  const latinBytes = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec()).encode("Aÿ");
+  const constAscii = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec()).decode([79, 75]);
+  const constLatin = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec()).decode([65, 255]);
+  __dartPrint("singleByte " + __dartStr(__dartIterableJoin(asciiBytes, ",")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec()).decode([65, 90])) + " " + __dartStr(__dartIterableJoin(latinBytes, ",")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec()).decode([65, 255])) + " " + __dartStr(constAscii) + " " + __dartStr(constLatin));
   const token = __dartBase64Encode(bytes);
   __dartPrint("base64 " + __dartStr(token) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).decode(__dartBase64Decode(token))));
   const urlToken = __dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).encode(bytes);

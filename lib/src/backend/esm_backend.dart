@@ -2298,6 +2298,14 @@ final class _EsmEmitter {
     if (_isCoreGrowableListLiteral(expression.targetReference)) {
       return '[${positionalArgs.join(', ')}]';
     }
+    if (_isCoreGrowableListFactory(expression.targetReference)) {
+      if (positionalArgs.isEmpty) {
+        return '[]';
+      }
+      if (positionalArgs.length == 1) {
+        return 'new Array(${positionalArgs.single}).fill(null)';
+      }
+    }
     final coreErrorName = _coreErrorFactoryName(expression.targetReference);
     if (coreErrorName != null) {
       _usedHelpers.add('__dartCoreError');
@@ -3147,6 +3155,20 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
+    if (path.startsWith('dart:core::RegExp::@factories::')) {
+      if (positionalArgs.length != 1) {
+        return null;
+      }
+      _usedHelpers.add('__dartRegExp');
+      final caseSensitive =
+          _namedArgument(expression.arguments, 'caseSensitive') ?? 'true';
+      final multiLine =
+          _namedArgument(expression.arguments, 'multiLine') ?? 'false';
+      final unicode =
+          _namedArgument(expression.arguments, 'unicode') ?? 'false';
+      final dotAll = _namedArgument(expression.arguments, 'dotAll') ?? 'false';
+      return '__dartRegExp(${positionalArgs.single}, { caseSensitive: $caseSensitive, multiLine: $multiLine, unicode: $unicode, dotAll: $dotAll })';
+    }
     if (!path.startsWith('dart:core::Uri::@methods::')) {
       return null;
     }
@@ -3368,6 +3390,12 @@ final class _EsmEmitter {
     return _referencePath(
       reference,
     ).startsWith('dart:core::_GrowableList::@factories::dart:core::_literal');
+  }
+
+  bool _isCoreGrowableListFactory(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:core::_GrowableList::@factories::');
   }
 
   bool _isCoreObjectConstructorReference(k.Reference reference) {
@@ -3672,6 +3700,68 @@ final class _EsmEmitter {
       helper.writeln('    get isEmpty() { return value.length === 0; },');
       helper.writeln('    get isNotEmpty() { return value.length !== 0; },');
       helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartRegExp')) {
+      helper.writeln('function __dartRegExp(pattern, options = {}) {');
+      helper.writeln('  const source = String(pattern);');
+      helper.writeln(
+        '  const caseSensitive = options.caseSensitive !== false;',
+      );
+      helper.writeln('  const multiLine = options.multiLine === true;');
+      helper.writeln('  const unicode = options.unicode === true;');
+      helper.writeln('  const dotAll = options.dotAll === true;');
+      helper.writeln('  function make(global = false) {');
+      helper.writeln('    let flags = global ? "g" : "";');
+      helper.writeln('    if (!caseSensitive) flags += "i";');
+      helper.writeln('    if (multiLine) flags += "m";');
+      helper.writeln('    if (unicode) flags += "u";');
+      helper.writeln('    if (dotAll) flags += "s";');
+      helper.writeln('    return new RegExp(source, flags);');
+      helper.writeln('  }');
+      helper.writeln('  return {');
+      helper.writeln('    pattern: source,');
+      helper.writeln(
+        '    hasMatch(input) { return make(false).test(String(input)); },',
+      );
+      helper.writeln('    firstMatch(input) {');
+      helper.writeln('      const match = make(false).exec(String(input));');
+      helper.writeln(
+        '      return match == null ? null : __dartRegExpMatch(match);',
+      );
+      helper.writeln('    },');
+      helper.writeln('    stringMatch(input) {');
+      helper.writeln('      const match = this.firstMatch(input);');
+      helper.writeln('      return match == null ? null : match.group(0);');
+      helper.writeln('    },');
+      helper.writeln('    allMatches(input, start = 0) {');
+      helper.writeln('      const text = String(input);');
+      helper.writeln('      const regexp = make(true);');
+      helper.writeln('      regexp.lastIndex = start;');
+      helper.writeln('      const matches = [];');
+      helper.writeln('      let match;');
+      helper.writeln('      while ((match = regexp.exec(text)) !== null) {');
+      helper.writeln('        matches.push(__dartRegExpMatch(match));');
+      helper.writeln('        if (match[0] === "") regexp.lastIndex++;');
+      helper.writeln('      }');
+      helper.writeln('      return matches;');
+      helper.writeln('    },');
+      helper.writeln('    toString() { return source; },');
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartRegExpMatch(match) {');
+      helper.writeln('  const result = {');
+      helper.writeln('    start: match.index,');
+      helper.writeln('    end: match.index + match[0].length,');
+      helper.writeln('    get groupCount() { return match.length - 1; },');
+      helper.writeln(
+        '    group(index) { return index >= 0 && index < match.length ? (match[index] ?? null) : null; },',
+      );
+      helper.writeln('  };');
+      helper.writeln('  for (let i = 0; i < match.length; i++) {');
+      helper.writeln('    result[i] = match[i] ?? null;');
+      helper.writeln('  }');
+      helper.writeln('  return result;');
       helper.writeln('}');
     }
     if (usesJson) {
@@ -4244,6 +4334,8 @@ const _generatedGlobalNames = {
   '__dartPrint',
   '__dartRecord',
   '__dartRecordShape',
+  '__dartRegExp',
+  '__dartRegExpMatch',
   '__dartStr',
   '__dartStringBuffer',
   '__dartTruncDiv',

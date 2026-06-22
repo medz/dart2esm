@@ -19,7 +19,9 @@ function __dartPrint(value) {
 
 export class Shape {
   constructor(size) {
-    return new Square(size);
+    if (new.target === Shape) {
+      return new Square(size);
+    }
   }
   static named(size) {
     return Square.named(size);
@@ -38,8 +40,9 @@ export class Shape {
   }
 }
 
-export class Square {
+export class Square extends Shape {
   constructor(size) {
+    super();
     this.size = size;
     this.label = "square";
   }
@@ -80,7 +83,9 @@ function $Square_options($newTarget, { size = 9, label = "options" } = {}) {
 
 export class Widget {
   constructor() {
-    throw new TypeError("Class Widget has no unnamed constructor");
+    if (new.target === Widget) {
+      throw new TypeError("Class Widget has no unnamed constructor");
+    }
   }
   static d() {
     return new Button();
@@ -90,8 +95,9 @@ export class Widget {
   }
 }
 
-export class Button {
+export class Button extends Widget {
   constructor() {
+    super();
     this.label = "button";
   }
   static named(label) {

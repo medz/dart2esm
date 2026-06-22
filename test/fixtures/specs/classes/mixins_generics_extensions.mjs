@@ -32,8 +32,9 @@ export class Named {
   }
 }
 
-export class _User_Object_Named {
+export class _User_Object_Named extends Named {
   constructor() {
+    super();
   }
   label() {
     return "name:" + __dartStr(this.name);

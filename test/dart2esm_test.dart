@@ -248,6 +248,98 @@ void main() {
     expect(nodeRun.stderr, isEmpty);
   });
 
+  test('direct class imports preserve interface instanceof checks', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(p.join(fixtureDir.path, 'classes', 'interfaces.dart')),
+      expectedEsm: File(p.join(fixtureDir.path, 'classes', 'interfaces.mjs')),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-import-interface-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'interfaces.mjs'));
+    final consumer = File(p.join(tempDir.path, 'consumer.mjs'))
+      ..writeAsStringSync(
+        "import { NamedThing, Person } from './interfaces.mjs';\n"
+        "const person = new Person('ada');\n"
+        "console.log(person.name);\n"
+        "console.log(person.describe());\n"
+        "console.log(person instanceof NamedThing);\n",
+      );
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: fixture.source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        runMain: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+
+    final nodeRun = await Process.run('node', [
+      consumer.path,
+    ], workingDirectory: tempDir.path);
+    expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
+    expect(
+      nodeRun.stdout,
+      'ada\n'
+      'person:ada\n'
+      'true\n',
+    );
+    expect(nodeRun.stderr, isEmpty);
+  });
+
+  test('direct extension type imports expose an ESM class facade', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(p.join(fixtureDir.path, 'classes', 'extension_types.dart')),
+      expectedEsm: File(
+        p.join(fixtureDir.path, 'classes', 'extension_types.mjs'),
+      ),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-import-extension-type-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'extension_types.mjs'));
+    final consumer = File(p.join(tempDir.path, 'consumer.mjs'))
+      ..writeAsStringSync(
+        "import { UserId } from './extension_types.mjs';\n"
+        "const id = new UserId(5);\n"
+        "console.log(id.value);\n"
+        "console.log(id.plus(2));\n"
+        "console.log(id instanceof UserId);\n",
+      );
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: fixture.source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        runMain: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+
+    final nodeRun = await Process.run('node', [
+      consumer.path,
+    ], workingDirectory: tempDir.path);
+    expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
+    expect(
+      nodeRun.stdout,
+      '5\n'
+      '7\n'
+      'true\n',
+    );
+    expect(nodeRun.stderr, isEmpty);
+  });
+
   for (final fixture in _goldenFixtures(fixtureDir)) {
     test('matches ${fixture.id} ESM golden and runtime behavior', () async {
       await _expectGoldenFixture(fixture);

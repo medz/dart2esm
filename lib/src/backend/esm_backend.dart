@@ -3389,6 +3389,10 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return 'Promise.resolve().then(() => (${positionalArgs.single})())';
     }
+    if (path == 'dart:async::Future::@factories::microtask' &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve().then(() => (${positionalArgs.single})())';
+    }
     if (path == 'dart:async::Future::@factories::delayed' &&
         positionalArgs.isNotEmpty) {
       final duration = positionalArgs.first;
@@ -3399,6 +3403,16 @@ final class _EsmEmitter {
     if (path == 'dart:async::Future::@methods::wait' &&
         positionalArgs.length == 1) {
       return 'Promise.all(Array.from(${positionalArgs.single}))';
+    }
+    if (path == 'dart:async::Future::@methods::any' &&
+        positionalArgs.length == 1) {
+      return 'Promise.race(Array.from(${positionalArgs.single}))';
+    }
+    if ((path == 'dart:async::Completer::@factories::' ||
+            path == 'dart:async::Completer::@factories::sync') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartCompleter');
+      return '__dartCompleter()';
     }
     if (path == 'dart:async::Stream::@factories::fromIterable' &&
         positionalArgs.length == 1) {
@@ -5002,6 +5016,38 @@ final class _EsmEmitter {
       helper.writeln('    makeCurrent() { return this; },');
       helper.writeln('    toString() { return label; },');
       helper.writeln('  });');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartCompleter')) {
+      helper.writeln('function __dartCompleter() {');
+      helper.writeln('  let completed = false;');
+      helper.writeln('  let resolveFuture;');
+      helper.writeln('  let rejectFuture;');
+      helper.writeln(
+        '  const future = new Promise((resolve, reject) => { resolveFuture = resolve; rejectFuture = reject; });',
+      );
+      helper.writeln('  return {');
+      helper.writeln('    future,');
+      helper.writeln('    get isCompleted() { return completed; },');
+      helper.writeln('    complete(value = null) {');
+      helper.writeln(
+        '      if (completed) throw new Error("Future already completed");',
+      );
+      helper.writeln('      completed = true;');
+      helper.writeln(
+        '      Promise.resolve(value).then(resolveFuture, rejectFuture);',
+      );
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    completeError(error, stackTrace = null) {');
+      helper.writeln(
+        '      if (completed) throw new Error("Future already completed");',
+      );
+      helper.writeln('      completed = true;');
+      helper.writeln('      rejectFuture(error);');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('  };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStreamIterator')) {

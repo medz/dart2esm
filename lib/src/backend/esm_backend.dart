@@ -1279,9 +1279,6 @@ final class _EsmEmitter {
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw UnsupportedKernelNode(procedure, 'async factory');
     }
-    if (!procedure.isRedirectingFactory) {
-      throw UnsupportedKernelNode(procedure, 'factory procedure');
-    }
     _withFunctionNameScope(() {
       final parameters = _emitParameterList(function);
       final name = procedure.name.text;
@@ -1291,18 +1288,28 @@ final class _EsmEmitter {
         writeln('static ${_memberName(name)}($parameters) {');
       }
       _indent++;
-      final target = _emitRedirectingFactoryTarget(procedure);
-      if (name.isEmpty &&
-          _jsInterfaceBaseClasses.contains(procedure.enclosingClass)) {
-        writeln(
-          'if (new.target === ${_className(procedure.enclosingClass!)}) {',
-        );
-        _indent++;
-        writeln('return $target;');
-        _indent--;
-        writeln('}');
+      if (procedure.isRedirectingFactory) {
+        final target = _emitRedirectingFactoryTarget(procedure);
+        if (name.isEmpty &&
+            _jsInterfaceBaseClasses.contains(procedure.enclosingClass)) {
+          writeln(
+            'if (new.target === ${_className(procedure.enclosingClass!)}) {',
+          );
+          _indent++;
+          writeln('return $target;');
+          _indent--;
+          writeln('}');
+        } else {
+          writeln('return $target;');
+        }
       } else {
-        writeln('return $target;');
+        final body = function.body;
+        if (body == null) {
+          throw UnsupportedKernelNode(function, 'factory body');
+        }
+        _withEmptyReturnValue(null, () {
+          _emitFunctionBody(body);
+        });
       }
       _indent--;
       writeln('}');
@@ -2702,12 +2709,12 @@ final class _EsmEmitter {
     if (_procedureNames.containsKey(target)) {
       return '${_procedureName(target)}($args)';
     }
-    if (target.isStatic && target.enclosingClass != null) {
-      return '${_emitClassStaticMemberGet(target.enclosingClass!, target.name.text)}($args)';
-    }
     if (target.kind == k.ProcedureKind.Factory &&
         target.enclosingClass != null) {
       return _emitFactoryInvocation(target, expression.arguments);
+    }
+    if (target.isStatic && target.enclosingClass != null) {
+      return '${_emitClassStaticMemberGet(target.enclosingClass!, target.name.text)}($args)';
     }
     throw UnsupportedKernelNode(
       expression,

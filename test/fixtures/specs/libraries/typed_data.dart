@@ -18,7 +18,37 @@ void main() {
   print('typed ${ints.length} ${ints[1]} ${floats[0]} ${floats[1]}');
 
   final data = ByteData(4);
+  Object hiddenData = data;
   data.setInt16(0, 0x1234);
   data.setUint8(2, 255);
   print('bytes ${data.lengthInBytes} ${data.getInt16(0)} ${data.getUint8(2)}');
+  print('datatypes ${hiddenData is ByteData} ${hiddenData is TypedData}');
+
+  final words = Uint16List.view(bytes.buffer, 0, 1);
+  Object hiddenBuffer = bytes.buffer;
+  words[0] = 0x0201;
+  print(
+    'view ${bytes[0]} ${bytes[1]} ${words.lengthInBytes} '
+    '${words.offsetInBytes} ${words.elementSizeInBytes}',
+  );
+  print('buffertype ${hiddenBuffer is ByteBuffer}');
+
+  final sublist = Uint8List.sublistView(bytes, 1, 3);
+  sublist[0] = 8;
+  print('sublist ${sublist.length} ${sublist[0]} ${bytes[1]}');
+
+  final fromBuffer = bytes.buffer.asUint8List(1, 2);
+  print(
+    'buffer ${fromBuffer.length} ${fromBuffer[0]} ${bytes.buffer.lengthInBytes}',
+  );
+
+  final dataView = ByteData.view(bytes.buffer, 0, bytes.lengthInBytes);
+  dataView.setUint16(0, 0x0a0b, Endian.little);
+  print(
+    'viewdata ${bytes[0]} ${bytes[1]} ${dataView.offsetInBytes} '
+    '${dataView.elementSizeInBytes}',
+  );
+
+  final byteSlice = ByteData.sublistView(bytes, 0, 2);
+  print('byteslice ${byteSlice.lengthInBytes} ${byteSlice.getUint8(1)}');
 }

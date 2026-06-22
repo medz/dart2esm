@@ -2116,6 +2116,13 @@ final class _EsmEmitter {
           }
         }
         return '__dartDuration({ microseconds: $micros })';
+      case 'dart:typed_data::Endian':
+        for (final value in constant.fieldValues.values) {
+          if (value is k.BoolConstant) {
+            return value.value ? 'true' : 'false';
+          }
+        }
+        return 'false';
     }
     final className = _referencePath(constant.classReference);
     throw UnsupportedKernelNode(constant, 'instance constant $className');
@@ -2601,6 +2608,10 @@ final class _EsmEmitter {
     if (mathGet != null) {
       return mathGet;
     }
+    final typedDataGet = _emitTypedDataStaticGet(expression);
+    if (typedDataGet != null) {
+      return typedDataGet;
+    }
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
       if (target.isLate) {
@@ -2889,6 +2900,15 @@ final class _EsmEmitter {
         _isCoreMember(target, 'Map', 'containsKey')) {
       return '$left.has(${positionalArgs.single})';
     }
+    final byteBufferView = _emitTypedDataByteBufferViewInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+    );
+    if (byteBufferView != null) {
+      return byteBufferView;
+    }
     if (expression.arguments.named.isEmpty &&
         positionalArgs.isEmpty &&
         name == 'toString') {
@@ -2917,6 +2937,18 @@ final class _EsmEmitter {
     if (name == 'lengthInBytes' &&
         _isTypedDataMember(expression.interfaceTargetReference, name)) {
       return '$receiver.byteLength';
+    }
+    if (name == 'offsetInBytes' &&
+        _isTypedDataMember(expression.interfaceTargetReference, name)) {
+      return '$receiver.byteOffset';
+    }
+    if (name == 'buffer' &&
+        _isTypedDataMember(expression.interfaceTargetReference, name)) {
+      return '$receiver.buffer';
+    }
+    if (name == 'elementSizeInBytes' &&
+        _isTypedDataMember(expression.interfaceTargetReference, name)) {
+      return _typedDataElementSizeExpression(receiver);
     }
     final receiverCollectionKind = _expressionCollectionKind(
       expression.receiver,
@@ -3143,6 +3175,9 @@ final class _EsmEmitter {
         'int' || 'double' || 'num' => 'typeof $operand === "number"',
         'bool' => 'typeof $operand === "boolean"',
         'Null' => '$operand === null',
+        'ByteBuffer' => '$operand instanceof ArrayBuffer',
+        'ByteData' => '$operand instanceof DataView',
+        'TypedData' => 'ArrayBuffer.isView($operand)',
         'List' =>
           '(Array.isArray($operand) || (ArrayBuffer.isView($operand) && !($operand instanceof DataView)))',
         'Set' => '$operand instanceof Set',
@@ -3803,6 +3838,16 @@ final class _EsmEmitter {
       if (factoryName.isEmpty && positionalArgs.length == 1) {
         return 'new DataView(new ArrayBuffer(${positionalArgs.single}))';
       }
+      if (factoryName == 'view') {
+        return _emitTypedDataView('DataView', positionalArgs);
+      }
+      if (factoryName == 'sublistView') {
+        return _emitTypedDataSublistView(
+          'DataView',
+          bytesPerElement: 1,
+          positionalArgs: positionalArgs,
+        );
+      }
       return null;
     }
     final constructor = _typedArrayConstructorName(parts[1]);
@@ -3813,10 +3858,98 @@ final class _EsmEmitter {
     if (factoryName == 'fromList' && positionalArgs.length == 1) {
       return '$constructor.from(${positionalArgs.single})';
     }
+    if (factoryName == 'view') {
+      return _emitTypedDataView(constructor, positionalArgs);
+    }
+    if (factoryName == 'sublistView') {
+      final bytesPerElement = _typedArrayBytesPerElement(parts[1]);
+      if (bytesPerElement == null) {
+        return null;
+      }
+      return _emitTypedDataSublistView(
+        constructor,
+        bytesPerElement: bytesPerElement,
+        positionalArgs: positionalArgs,
+      );
+    }
     if (factoryName.isEmpty && positionalArgs.length == 1) {
       return 'new $constructor(${positionalArgs.single})';
     }
     return null;
+  }
+
+  String? _emitTypedDataStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:typed_data::Endian::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'big' => 'false',
+      'little' => 'true',
+      'host' => '(new Uint8Array(new Uint16Array([1]).buffer)[0] === 1)',
+      _ => null,
+    };
+  }
+
+  String? _emitTypedDataByteBufferViewInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+  ) {
+    if (!_isTypedDataByteBufferMember(target, name)) {
+      return null;
+    }
+    final constructor = switch (name) {
+      'asByteData' => 'DataView',
+      'asInt8List' => 'Int8Array',
+      'asUint8List' => 'Uint8Array',
+      'asUint8ClampedList' => 'Uint8ClampedArray',
+      'asInt16List' => 'Int16Array',
+      'asUint16List' => 'Uint16Array',
+      'asInt32List' => 'Int32Array',
+      'asUint32List' => 'Uint32Array',
+      'asFloat32List' => 'Float32Array',
+      'asFloat64List' => 'Float64Array',
+      _ => null,
+    };
+    if (constructor == null || positionalArgs.length > 2) {
+      return null;
+    }
+    return _emitTypedDataView(constructor, [receiver, ...positionalArgs]);
+  }
+
+  String? _emitTypedDataView(String constructor, List<String> positionalArgs) {
+    if (positionalArgs.isEmpty || positionalArgs.length > 3) {
+      return null;
+    }
+    final args = <String>[positionalArgs[0]];
+    if (positionalArgs.length >= 2) {
+      args.add(positionalArgs[1]);
+    }
+    if (positionalArgs.length >= 3 && positionalArgs[2] != 'null') {
+      args.add(positionalArgs[2]);
+    }
+    return 'new $constructor(${args.join(', ')})';
+  }
+
+  String? _emitTypedDataSublistView(
+    String constructor, {
+    required int bytesPerElement,
+    required List<String> positionalArgs,
+  }) {
+    if (positionalArgs.isEmpty || positionalArgs.length > 3) {
+      return null;
+    }
+    _usedHelpers.add('__dartTypedDataSublistView');
+    final start = positionalArgs.length >= 2 ? positionalArgs[1] : '0';
+    final end = positionalArgs.length >= 3 ? positionalArgs[2] : 'null';
+    return '__dartTypedDataSublistView(${positionalArgs[0]}, $start, $end, $constructor, $bytesPerElement)';
+  }
+
+  String _typedDataElementSizeExpression(String value) {
+    return '($value instanceof DataView ? 1 : $value.BYTES_PER_ELEMENT)';
   }
 
   String? _typedArrayConstructorName(String dartTypeName) {
@@ -3830,6 +3963,16 @@ final class _EsmEmitter {
       'Uint32List' => 'Uint32Array',
       'Float32List' => 'Float32Array',
       'Float64List' => 'Float64Array',
+      _ => null,
+    };
+  }
+
+  int? _typedArrayBytesPerElement(String dartTypeName) {
+    return switch (dartTypeName) {
+      'Int8List' || 'Uint8List' || 'Uint8ClampedList' => 1,
+      'Int16List' || 'Uint16List' => 2,
+      'Int32List' || 'Uint32List' || 'Float32List' => 4,
+      'Float64List' => 8,
       _ => null,
     };
   }
@@ -3982,6 +4125,12 @@ final class _EsmEmitter {
         (path.contains('::@methods::$name') ||
             path.contains('::@getters::$name') ||
             path.endsWith('::$name'));
+  }
+
+  bool _isTypedDataByteBufferMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:typed_data::ByteBuffer::') &&
+        (path.contains('::@methods::$name') || path.endsWith('::$name'));
   }
 
   String? _expressionCollectionKind(k.Expression expression) {
@@ -4804,6 +4953,33 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  if (!found) throw new RangeError("No element");');
       helper.writeln('  return last;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartTypedDataSublistView')) {
+      helper.writeln(
+        'function __dartTypedDataSublistView(data, start, end, viewConstructor, bytesPerElement) {',
+      );
+      helper.writeln(
+        '  const elementSize = data instanceof DataView ? 1 : data.BYTES_PER_ELEMENT;',
+      );
+      helper.writeln(
+        '  const elementCount = Math.trunc(data.byteLength / elementSize);',
+      );
+      helper.writeln(
+        '  const effectiveEnd = end == null ? elementCount : end;',
+      );
+      helper.writeln(
+        '  const byteOffset = data.byteOffset + start * elementSize;',
+      );
+      helper.writeln(
+        '  const byteLength = (effectiveEnd - start) * elementSize;',
+      );
+      helper.writeln(
+        '  if (viewConstructor === DataView) return new DataView(data.buffer, byteOffset, byteLength);',
+      );
+      helper.writeln(
+        '  return new viewConstructor(data.buffer, byteOffset, Math.trunc(byteLength / bytesPerElement));',
+      );
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartDeveloperServiceInfo')) {

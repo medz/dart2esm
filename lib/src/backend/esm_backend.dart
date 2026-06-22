@@ -2700,6 +2700,67 @@ final class _EsmEmitter {
       return '$left.includes(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'contains' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      if (_isCoreMember(target, 'Set', name)) {
+        return '$left.has(${positionalArgs.single})';
+      }
+      _usedHelpers.add('__dartIterableContains');
+      return '__dartIterableContains($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'join' &&
+        positionalArgs.length <= 1 &&
+        _isCoreCollectionMember(target, name)) {
+      _usedHelpers.add('__dartIterableJoin');
+      _usedHelpers.add('__dartStr');
+      final separator = positionalArgs.isEmpty ? '""' : positionalArgs.single;
+      return '__dartIterableJoin($left, $separator)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'where' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).filter(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'map' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'toList' &&
+        positionalArgs.isEmpty &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'toSet' &&
+        positionalArgs.isEmpty &&
+        _isCoreCollectionMember(target, name)) {
+      return 'new Set($left)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'fold' &&
+        positionalArgs.length == 2 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).reduce((previous, value) => (${positionalArgs[1]})(previous, value), ${positionalArgs[0]})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'any' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).some(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'every' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).every(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'add' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'List', 'add')) {
@@ -2733,6 +2794,19 @@ final class _EsmEmitter {
       return '__dartMapAddAll($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'remove' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', 'remove')) {
+      return '$left.delete(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'remove' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', 'remove')) {
+      _usedHelpers.add('__dartMapRemove');
+      return '__dartMapRemove($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'containsKey' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', 'containsKey')) {
@@ -2758,14 +2832,56 @@ final class _EsmEmitter {
       return '__dartIterator(${emitExpression(expression.receiver)})';
     }
     final receiver = emitExpression(expression.receiver);
+    final receiverCollectionKind = _expressionCollectionKind(
+      expression.receiver,
+    );
+    if (name == 'isEmpty' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      if (_isCoreMapMember(expression.interfaceTargetReference, name) ||
+          _isCoreSetMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'Map' ||
+          receiverCollectionKind == 'Set') {
+        return '$receiver.size === 0';
+      }
+      return '$receiver.length === 0';
+    }
+    if (name == 'isNotEmpty' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      if (_isCoreMapMember(expression.interfaceTargetReference, name) ||
+          _isCoreSetMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'Map' ||
+          receiverCollectionKind == 'Set') {
+        return '$receiver.size !== 0';
+      }
+      return '$receiver.length !== 0';
+    }
+    if (name == 'first' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      if (_isCoreListMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'List') {
+        return '$receiver[0]';
+      }
+      _usedHelpers.add('__dartIterableFirst');
+      return '__dartIterableFirst($receiver)';
+    }
+    if (name == 'last' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      if (_isCoreListMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'List') {
+        return '$receiver[$receiver.length - 1]';
+      }
+      _usedHelpers.add('__dartIterableLast');
+      return '__dartIterableLast($receiver)';
+    }
     if (name == 'length' &&
-        (_isCoreMember(expression.interfaceTargetReference, 'Set', 'length') ||
-            _isCoreMember(
-              expression.interfaceTargetReference,
-              'Map',
-              'length',
-            ))) {
-      return '$receiver.size';
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      if (_isCoreSetMember(expression.interfaceTargetReference, name) ||
+          _isCoreMapMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'Set' ||
+          receiverCollectionKind == 'Map') {
+        return '$receiver.size';
+      }
+      return '$receiver.length';
     }
     if (name == 'keys' &&
         _isCoreMember(expression.interfaceTargetReference, 'Map', 'keys')) {
@@ -3201,6 +3317,10 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartDateTime');
       return '__dartDateTimeParse(${positionalArgs.single})';
     }
+    final listFactory = _emitCoreListFactoryInvocation(path, positionalArgs);
+    if (listFactory != null) {
+      return listFactory;
+    }
     if (!path.startsWith('dart:core::Uri::@methods::')) {
       return null;
     }
@@ -3220,6 +3340,32 @@ final class _EsmEmitter {
         'decodeURIComponent(String(${positionalArgs.single}).replace(/\\+/g, " "))',
       _ => null,
     };
+  }
+
+  String? _emitCoreListFactoryInvocation(
+    String path,
+    List<String> positionalArgs,
+  ) {
+    if (!_isCoreListFactoryPath(path)) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'filled' when positionalArgs.length >= 2 =>
+        'new Array(${positionalArgs[0]}).fill(${positionalArgs[1]})',
+      'generate' when positionalArgs.length >= 2 =>
+        'Array.from({ length: ${positionalArgs[0]} }, (_, index) => (${positionalArgs[1]})(index))',
+      'of' || 'from' when positionalArgs.length == 1 =>
+        'Array.from(${positionalArgs.single})',
+      'empty' when positionalArgs.isEmpty => '[]',
+      _ => null,
+    };
+  }
+
+  bool _isCoreListFactoryPath(String path) {
+    return path.startsWith('dart:core::_List::@factories::') ||
+        path.startsWith('dart:core::_GrowableList::@factories::') ||
+        path.startsWith('dart:core::List::@factories::');
   }
 
   String? _emitDeveloperStaticGet(k.StaticGet expression) {
@@ -3479,6 +3625,86 @@ final class _EsmEmitter {
         path == 'dart:core::$className::@setters::$name' ||
         path == 'dart:core::$className::$name' ||
         path.endsWith('dart:core::$className::$name');
+  }
+
+  bool _isCoreCollectionMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    if (!path.startsWith('dart:core::') && !path.startsWith('dart:_')) {
+      return false;
+    }
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.contains('::@setters::$name') ||
+        path.endsWith('::$name');
+    if (!hasMember) {
+      return false;
+    }
+    return path.contains('::Iterable::') ||
+        path.contains('::List::') ||
+        path.contains('::_List::') ||
+        path.contains('::_GrowableList::') ||
+        path.contains('::Set::') ||
+        path.contains('::_Set::') ||
+        path.contains('::Map::') ||
+        path.contains('::_Map::') ||
+        path.startsWith('dart:_compact_hash::');
+  }
+
+  bool _isCoreListMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return _isCoreMember(reference, 'List', name) ||
+        path.contains('::_List::') ||
+        path.contains('::_GrowableList::');
+  }
+
+  bool _isCoreSetMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return _isCoreMember(reference, 'Set', name) ||
+        path.contains('::_Set::') ||
+        path.startsWith('dart:_compact_hash::');
+  }
+
+  bool _isCoreMapMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return _isCoreMember(reference, 'Map', name) || path.contains('::_Map::');
+  }
+
+  String? _expressionCollectionKind(k.Expression expression) {
+    return switch (expression) {
+      k.VariableGet(:final variable) => _dartTypeCollectionKind(variable.type),
+      k.AsExpression(:final type) => _dartTypeCollectionKind(type),
+      k.ListLiteral() || k.ListConcatenation() => 'List',
+      k.SetLiteral() || k.SetConcatenation() => 'Set',
+      k.MapLiteral() || k.MapConcatenation() => 'Map',
+      k.StaticInvocation(:final targetReference)
+          when _isCoreListFactoryPath(_referencePath(targetReference)) =>
+        'List',
+      k.InstanceInvocation(:final name) when name.text == 'toList' => 'List',
+      k.InstanceInvocation(:final name) when name.text == 'toSet' => 'Set',
+      k.InstanceInvocation(:final name)
+          when name.text == 'where' || name.text == 'map' =>
+        'Iterable',
+      k.InstanceGet(:final name)
+          when name.text == 'keys' || name.text == 'values' =>
+        'Iterable',
+      _ => null,
+    };
+  }
+
+  String? _dartTypeCollectionKind(k.DartType type) {
+    type = type.unalias;
+    if (type is! k.InterfaceType) {
+      return null;
+    }
+    final name = _interfaceTypeName(type);
+    return switch (name) {
+      'List' || '_List' || '_GrowableList' => 'List',
+      'Set' || '_Set' => 'Set',
+      'Map' || '_Map' => 'Map',
+      'Iterable' => 'Iterable',
+      _ => null,
+    };
   }
 
   String _referencePath(k.Reference reference) {
@@ -4136,6 +4362,50 @@ final class _EsmEmitter {
       helper.writeln('  return null;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartMapRemove')) {
+      helper.writeln('function __dartMapRemove(map, key) {');
+      helper.writeln('  const value = map.has(key) ? map.get(key) : null;');
+      helper.writeln('  map.delete(key);');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableContains')) {
+      helper.writeln('function __dartIterableContains(iterable, needle) {');
+      helper.writeln('  for (const value of iterable) {');
+      if (_usedHelpers.contains('__dartEquals')) {
+        helper.writeln('    if (__dartEquals(value, needle)) return true;');
+      } else {
+        helper.writeln('    if (value === needle) return true;');
+      }
+      helper.writeln('  }');
+      helper.writeln('  return false;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableJoin')) {
+      helper.writeln('function __dartIterableJoin(iterable, separator = "") {');
+      helper.writeln(
+        '  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableFirst')) {
+      helper.writeln('function __dartIterableFirst(iterable) {');
+      helper.writeln('  for (const value of iterable) return value;');
+      helper.writeln('  throw new RangeError("No element");');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableLast')) {
+      helper.writeln('function __dartIterableLast(iterable) {');
+      helper.writeln('  let found = false;');
+      helper.writeln('  let last;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    found = true;');
+      helper.writeln('    last = value;');
+      helper.writeln('  }');
+      helper.writeln('  if (!found) throw new RangeError("No element");');
+      helper.writeln('  return last;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartDeveloperServiceInfo')) {
       helper.writeln('function __dartDeveloperServiceInfo() {');
       helper.writeln('  return Object.freeze({');
@@ -4447,12 +4717,17 @@ const _generatedGlobalNames = {
   '__dartDuration',
   '__dartEquals',
   '__dartFromJson',
+  '__dartIterableContains',
+  '__dartIterableFirst',
+  '__dartIterableJoin',
+  '__dartIterableLast',
   '__dartIsRecord',
   '__dartIterator',
   '__dartJsonCodec',
   '__dartJsonDecode',
   '__dartJsonEncode',
   '__dartLazyField',
+  '__dartMapRemove',
   '__dartPrint',
   '__dartRecord',
   '__dartRecordShape',

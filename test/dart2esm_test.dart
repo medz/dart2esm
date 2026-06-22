@@ -89,4 +89,53 @@ void main() {
     expect(component.mainMethod?.name.text, 'main');
     expect(component.mainMethod?.function.body, isNotNull);
   });
+
+  test('compiles classes, constructors, fields, and methods', () async {
+    await _expectSameDartAndNodeOutput('''
+class Counter {
+  int value;
+
+  Counter(this.value);
+
+  void add(int amount) {
+    value = value + amount;
+  }
+
+  int get doubled => value * 2;
+}
+
+void main() {
+  final counter = Counter(3);
+  counter.add(4);
+  print('value \${counter.value}');
+  print('double \${counter.doubled}');
+}
+''');
+  });
+}
+
+Future<void> _expectSameDartAndNodeOutput(String source) async {
+  final tempDir = await Directory.systemTemp.createTemp('dart2esm-golden-');
+  addTearDown(() => tempDir.deleteSync(recursive: true));
+
+  final input = File('${tempDir.path}/main.dart')..writeAsStringSync(source);
+  final output = File('${tempDir.path}/main.mjs');
+  final result = await compileDartToEsm(
+    Dart2EsmOptions(
+      inputPath: input.path,
+      outputPath: output.path,
+      workingDirectory: tempDir,
+    ),
+  );
+  expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+
+  final dartRun = await Process.run(Platform.resolvedExecutable, [
+    input.path,
+  ], workingDirectory: tempDir.path);
+  final nodeRun = await Process.run('node', [
+    output.path,
+  ], workingDirectory: tempDir.path);
+  expect(nodeRun.exitCode, dartRun.exitCode);
+  expect(nodeRun.stdout, dartRun.stdout);
+  expect(nodeRun.stderr, dartRun.stderr);
 }

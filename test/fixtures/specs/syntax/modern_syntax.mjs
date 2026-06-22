@@ -35,17 +35,40 @@ function __dartGet(receiver, name) {
   return typeof value === "function" ? value.bind(receiver) : value;
 }
 function __dartSetAdd(set, value) {
-  const hadValue = set.has(value);
+  if (__dartIterableContains(set, value)) return false;
   set.add(value);
-  return !hadValue;
+  return true;
 }
 function __dartSetAddAll(set, values) {
-  for (const value of values) set.add(value);
+  for (const value of values) __dartSetAdd(set, value);
   return null;
 }
 function __dartMapAddAll(map, entries) {
   for (const [key, value] of entries) map.set(key, value);
   return null;
+}
+function __dartIterableContains(iterable, needle) {
+  for (const value of iterable) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  if (__dartIsRecord(left) && __dartIsRecord(right)) {
+    const leftShape = left[__dartRecordShape];
+    const rightShape = right[__dartRecordShape];
+    if (leftShape.length !== rightShape.length) return false;
+    for (let i = 0; i < leftShape.length; i++) {
+      const name = leftShape[i];
+      if (name !== rightShape[i]) return false;
+      if (!__dartEquals(left[name], right[name])) return false;
+    }
+    return true;
+  }
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 function __dartRecord(positional, named) {
   const record = {};

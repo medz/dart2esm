@@ -26,6 +26,7 @@ function __dartPrint(value) {
 }
 function __dartEquals(left, right) {
   if (left === right) return true;
+  if (left == null || right == null) return false;
   if (__dartIsRecord(left) && __dartIsRecord(right)) {
     const leftShape = left[__dartRecordShape];
     const rightShape = right[__dartRecordShape];
@@ -37,7 +38,8 @@ function __dartEquals(left, right) {
     }
     return true;
   }
-  return false;
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 function __dartRecord(positional, named) {
   const record = {};

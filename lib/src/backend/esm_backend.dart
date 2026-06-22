@@ -3580,7 +3580,9 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreCollectionMember(target, name)) {
       if (_isCoreMember(target, 'Set', name)) {
-        return '$left.has(${positionalArgs.single})';
+        _usedHelpers.add('__dartIterableContains');
+        _usedHelpers.add('__dartEquals');
+        return '__dartIterableContains($left, ${positionalArgs.single})';
       }
       _usedHelpers.add('__dartIterableContains');
       return '__dartIterableContains($left, ${positionalArgs.single})';
@@ -3940,6 +3942,26 @@ final class _EsmEmitter {
       return '__dartListLastIndexWhere($left, ${positionalArgs[0]}, $start)';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'indexOf' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListIndexOf');
+      _usedHelpers.add('__dartEquals');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+      return '__dartListIndexOf($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'lastIndexOf' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListLastIndexOf');
+      _usedHelpers.add('__dartEquals');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
+      return '__dartListLastIndexOf($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
         positionalArgs.length == 1 &&
         _isCoreListMember(target, name)) {
@@ -4125,6 +4147,8 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Set', 'add')) {
       _usedHelpers.add('__dartSetAdd');
+      _usedHelpers.add('__dartIterableContains');
+      _usedHelpers.add('__dartEquals');
       return '__dartSetAdd($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4132,6 +4156,9 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Set', 'addAll')) {
       _usedHelpers.add('__dartSetAddAll');
+      _usedHelpers.add('__dartSetAdd');
+      _usedHelpers.add('__dartIterableContains');
+      _usedHelpers.add('__dartEquals');
       return '__dartSetAddAll($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4145,6 +4172,9 @@ final class _EsmEmitter {
         _ => throw StateError('unreachable'),
       };
       _usedHelpers.add('__dartSetAlgebra');
+      _usedHelpers.add('__dartSetAdd');
+      _usedHelpers.add('__dartIterableContains');
+      _usedHelpers.add('__dartEquals');
       return '$helper($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4184,7 +4214,9 @@ final class _EsmEmitter {
         name == 'remove' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Set', 'remove')) {
-      return '$left.delete(${positionalArgs.single})';
+      _usedHelpers.add('__dartSetRemove');
+      _usedHelpers.add('__dartEquals');
+      return '__dartSetRemove($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'lookup' &&
@@ -7955,32 +7987,53 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartSetAdd')) {
       helper.writeln('function __dartSetAdd(set, value) {');
-      helper.writeln('  const hadValue = set.has(value);');
+      helper.writeln('  if (__dartIterableContains(set, value)) return false;');
       helper.writeln('  set.add(value);');
-      helper.writeln('  return !hadValue;');
+      helper.writeln('  return true;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSetAddAll')) {
       helper.writeln('function __dartSetAddAll(set, values) {');
-      helper.writeln('  for (const value of values) set.add(value);');
+      helper.writeln('  for (const value of values) __dartSetAdd(set, value);');
       helper.writeln('  return null;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSetAlgebra')) {
       helper.writeln('function __dartSetDifference(set, other) {');
-      helper.writeln('  const otherSet = new Set(other);');
+      helper.writeln('  const result = new Set();');
+      helper.writeln('  for (const value of set) {');
       helper.writeln(
-        '  return new Set(Array.from(set).filter((value) => !otherSet.has(value)));',
+        '    if (!__dartIterableContains(other, value)) result.add(value);',
       );
+      helper.writeln('  }');
+      helper.writeln('  return result;');
       helper.writeln('}');
       helper.writeln('function __dartSetIntersection(set, other) {');
-      helper.writeln('  const otherSet = new Set(other);');
+      helper.writeln('  const result = new Set();');
+      helper.writeln('  for (const value of set) {');
       helper.writeln(
-        '  return new Set(Array.from(set).filter((value) => otherSet.has(value)));',
+        '    if (__dartIterableContains(other, value)) result.add(value);',
       );
+      helper.writeln('  }');
+      helper.writeln('  return result;');
       helper.writeln('}');
       helper.writeln('function __dartSetUnion(set, other) {');
-      helper.writeln('  return new Set([...set, ...other]);');
+      helper.writeln('  const result = new Set(set);');
+      helper.writeln(
+        '  for (const value of other) __dartSetAdd(result, value);',
+      );
+      helper.writeln('  return result;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetRemove')) {
+      helper.writeln('function __dartSetRemove(set, needle) {');
+      helper.writeln('  for (const value of set) {');
+      helper.writeln('    if (__dartEquals(value, needle)) {');
+      helper.writeln('      set.delete(value);');
+      helper.writeln('      return true;');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  return false;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartMapAddAll')) {
@@ -8102,6 +8155,35 @@ final class _EsmEmitter {
       helper.writeln('  if (index < 0) return false;');
       helper.writeln('  list.splice(index, 1);');
       helper.writeln('  return true;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartListIndexOf')) {
+      helper.writeln('function __dartListIndexOf(list, needle, start = 0) {');
+      helper.writeln('  const begin = Math.max(0, Math.trunc(start));');
+      helper.writeln(
+        '  for (let index = begin; index < list.length; index++) {',
+      );
+      helper.writeln(
+        '    if (__dartEquals(list[index], needle)) return index;',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return -1;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartListLastIndexOf')) {
+      helper.writeln(
+        'function __dartListLastIndexOf(list, needle, start = null) {',
+      );
+      helper.writeln(
+        '  let index = start == null ? list.length - 1 : Math.trunc(start);',
+      );
+      helper.writeln('  if (index >= list.length) index = list.length - 1;');
+      helper.writeln('  for (; index >= 0; index--) {');
+      helper.writeln(
+        '    if (__dartEquals(list[index], needle)) return index;',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return -1;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartListSetAll')) {
@@ -8843,8 +8925,9 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartEquals')) {
       helper.writeln('function __dartEquals(left, right) {');
+      helper.writeln('  if (left === right) return true;');
+      helper.writeln('  if (left == null || right == null) return false;');
       if (usesRecord) {
-        helper.writeln('  if (left === right) return true;');
         helper.writeln(
           '  if (__dartIsRecord(left) && __dartIsRecord(right)) {',
         );
@@ -8862,10 +8945,11 @@ final class _EsmEmitter {
         helper.writeln('    }');
         helper.writeln('    return true;');
         helper.writeln('  }');
-        helper.writeln('  return false;');
-      } else {
-        helper.writeln('  return left === right;');
       }
+      helper.writeln('  const equals = left["=="];');
+      helper.writeln(
+        '  return typeof equals === "function" ? equals.call(left, right) : false;',
+      );
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartRoundToInt')) {
@@ -9247,6 +9331,8 @@ const _generatedGlobalNames = {
   '__dartLineSplit',
   '__dartLineSplitter',
   '__dartListAsMap',
+  '__dartListIndexOf',
+  '__dartListLastIndexOf',
   '__dartListRemove',
   '__dartListLastIndexWhere',
   '__dartListRemoveWhere',
@@ -9295,6 +9381,7 @@ const _generatedGlobalNames = {
   '__dartSetIntersection',
   '__dartSetLookup',
   '__dartSetRemoveAll',
+  '__dartSetRemove',
   '__dartSetRetainAll',
   '__dartSetUnion',
   '__dartStr',

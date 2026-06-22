@@ -89,7 +89,10 @@ function __dartIterableLast(iterable) {
   return last;
 }
 function __dartEquals(left, right) {
-  return left === right;
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 const __dartIdentityHashes = new WeakMap();
 let __dartNextIdentityHash = 1;

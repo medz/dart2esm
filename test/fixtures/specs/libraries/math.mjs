@@ -116,7 +116,10 @@ function __dartNullCheck(value) {
   return value;
 }
 function __dartEquals(left, right) {
-  return left === right;
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 const __dartConstValues = new Map();
 function __dartConst(key, create) {

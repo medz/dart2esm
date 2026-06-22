@@ -29,9 +29,9 @@ function __dartGet(receiver, name) {
   return typeof value === "function" ? value.bind(receiver) : value;
 }
 function __dartSetAdd(set, value) {
-  const hadValue = set.has(value);
+  if (__dartIterableContains(set, value)) return false;
   set.add(value);
-  return !hadValue;
+  return true;
 }
 function __dartMapFromIterable(iterable, key = null, value = null) {
   const map = new Map();
@@ -46,8 +46,20 @@ function __dartMapFromIterables(keys, values) {
   if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
   return new Map(keyList.map((key, index) => [key, valueList[index]]));
 }
+function __dartIterableContains(iterable, needle) {
+  for (const value of iterable) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+}
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 function __dartConstSet(values) {
   const set = new Set(values);
@@ -82,7 +94,7 @@ export function main() {
   const set = new Set(["a", "b", "a"]);
   const setOf = new Set(set);
   const setFixed = __dartConstSet(setOf);
-  __dartPrint("set " + __dartStr(setFixed.size) + " " + __dartStr(setFixed.has("a")) + " " + __dartStr(__dartIterableJoin(setFixed, "|")));
+  __dartPrint("set " + __dartStr(setFixed.size) + " " + __dartStr(__dartIterableContains(setFixed, "a")) + " " + __dartStr(__dartIterableJoin(setFixed, "|")));
   const map = new Map(new Map([["one", 1], ["two", 2]]));
   const mapOf = new Map(map);
   const mapFixed = __dartConstMap(mapOf);

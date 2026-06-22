@@ -21,12 +21,21 @@ function __dartPrint(value) {
   console.log(__dartStr(value));
 }
 function __dartSetAdd(set, value) {
-  const hadValue = set.has(value);
+  if (__dartIterableContains(set, value)) return false;
   set.add(value);
-  return !hadValue;
+  return true;
+}
+function __dartIterableContains(iterable, needle) {
+  for (const value of iterable) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
 }
 function __dartEquals(left, right) {
-  return left === right;
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 const __dartIdentityHashes = new WeakMap();
 let __dartNextIdentityHash = 1;

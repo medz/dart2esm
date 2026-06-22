@@ -1,3 +1,15 @@
+class EqBox {
+  EqBox(this.value);
+
+  final int value;
+
+  @override
+  bool operator ==(Object other) => other is EqBox && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
+}
+
 void main() {
   final values = List<int>.filled(3, 1, growable: true);
   values[1] = 2;
@@ -33,6 +45,11 @@ void main() {
     'listQuery ${values.indexWhere((value) => value == 4)} '
     '${values.lastIndexWhere((value) => value == 1)} '
     '${values.getRange(1, 4).join(',')}',
+  );
+  final boxes = [EqBox(1), EqBox(2), EqBox(1)];
+  print(
+    'listEquality ${boxes.indexOf(EqBox(1))} ${boxes.indexOf(EqBox(1), 1)} '
+    '${boxes.lastIndexOf(EqBox(1))} ${boxes.lastIndexOf(EqBox(1), 1)}',
   );
   print(
     'where ${values.firstWhere((value) => value > 3)} '
@@ -109,6 +126,20 @@ void main() {
   print(
     'set algebra ${setUnion.join(',')} ${setIntersection.join(',')} '
     '${setDifference.join(',')} ${castNames.contains('ada')}',
+  );
+  final eqSet = <EqBox>{};
+  final firstBoxAdd = eqSet.add(EqBox(1));
+  final duplicateBoxAdd = eqSet.add(EqBox(1));
+  eqSet.addAll([EqBox(2), EqBox(2)]);
+  final containsBox = eqSet.contains(EqBox(1));
+  final removedBox = eqSet.remove(EqBox(2));
+  final eqUnion = eqSet.union({EqBox(1), EqBox(3)});
+  final eqIntersection = eqUnion.intersection({EqBox(1), EqBox(4)});
+  final eqDifference = eqUnion.difference({EqBox(1)});
+  print(
+    'setEquality $firstBoxAdd $duplicateBoxAdd ${eqSet.length} '
+    '$containsBox $removedBox ${eqSet.length} ${eqUnion.length} '
+    '${eqIntersection.length} ${eqDifference.length}',
   );
 
   final counts = <String, int>{'one': 1};

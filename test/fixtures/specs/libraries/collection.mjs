@@ -108,7 +108,8 @@ export function main() {
   __dartListRemoveWhere(copied, function(value) { return (Math.trunc(value) % 2 !== 0); });
   __dartListRetainWhere(copied, function(value) { return (value > 2); });
   (copied.push(...Array.from(Array.from([5, 6]))), null);
-  __dartPrint("listQueue " + __dartStr(copied[0]) + " " + __dartStr(copied[copied.length - 1]) + " " + __dartStr(copied.length !== 0) + " " + __dartStr(copied.join(",")));
+  __dartPrint("listQueue " + __dartStr(copied[0]) + " " + __dartStr(copied[copied.length - 1]) + " " + __dartStr(copied.length !== 0) + " " + __dartStr(__dartIterableJoin(copied, ",")));
+  __dartPrint("queueIter " + __dartStr(Array.from(copied)[1]) + " " + __dartStr(__dartIterableJoin(Array.from(copied), "|")) + " " + __dartStr(Array.from(copied).some(function(value) { return __dartEquals(value, 5); })) + " " + __dartStr(Array.from(copied).every(function(value) { return (value > 0); })));
   (copied.length = 0, null);
   __dartPrint("queueClear " + __dartStr(copied.length) + " " + __dartStr(copied.length === 0));
 }

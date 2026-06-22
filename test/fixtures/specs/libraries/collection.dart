@@ -38,6 +38,11 @@ void main() {
     'listQueue ${copied.first} ${copied.last} ${copied.isNotEmpty} '
     '${copied.join(',')}',
   );
+  print(
+    'queueIter ${copied.elementAt(1)} ${copied.toList().join('|')} '
+    '${copied.any((value) => value == 5)} '
+    '${copied.every((value) => value > 0)}',
+  );
   copied.clear();
   print('queueClear ${copied.length} ${copied.isEmpty}');
 }

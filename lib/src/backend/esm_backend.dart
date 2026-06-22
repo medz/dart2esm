@@ -6533,7 +6533,9 @@ final class _EsmEmitter {
 
   bool _isCoreCollectionMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
-    if (!path.startsWith('dart:core::') && !path.startsWith('dart:_')) {
+    if (!path.startsWith('dart:core::') &&
+        !path.startsWith('dart:_') &&
+        !path.startsWith('dart:collection::')) {
       return false;
     }
     final hasMember =
@@ -6545,6 +6547,7 @@ final class _EsmEmitter {
       return false;
     }
     return path.contains('::Iterable::') ||
+        path.contains('::ListIterable::') ||
         path.contains('::List::') ||
         path.contains('::_List::') ||
         path.contains('::_GrowableList::') ||
@@ -6553,7 +6556,10 @@ final class _EsmEmitter {
         path.contains('::_Set::') ||
         path.contains('::Map::') ||
         path.contains('::_Map::') ||
-        path.startsWith('dart:_compact_hash::');
+        path.startsWith('dart:_compact_hash::') ||
+        path.startsWith('dart:collection::Queue::') ||
+        path.startsWith('dart:collection::ListQueue::') ||
+        path.startsWith('dart:collection::DoubleLinkedQueue::');
   }
 
   bool _isCoreListMember(k.Reference reference, String name) {

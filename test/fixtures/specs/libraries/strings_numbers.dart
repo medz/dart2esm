@@ -34,6 +34,20 @@ void main() {
     '${trimmed.codeUnits.take(3).join('-')}',
   );
 
+  final numeric = -3.6;
+  print(
+    'numOps ${numeric.abs()} ${numeric.sign < 0} ${numeric.round()} '
+    '${numeric.floor()} ${numeric.ceil()} ${numeric.truncate()}',
+  );
+  print(
+    'numFormat ${numeric.clamp(-3, 2)} ${numeric.remainder(2)} '
+    '${3.14159.toStringAsFixed(2)} ${3.14159.toStringAsPrecision(3)}',
+  );
+  print(
+    'numMeta ${double.nan.isNaN} ${double.infinity.isInfinite} '
+    '${3.0.isFinite} ${(-0.0).isNegative}',
+  );
+
   final uri = Uri.parse('https://example.test/a/b?x=1#frag');
   print(
     'uri ${uri.scheme} ${uri.host} ${uri.path} ${uri.query} ${uri.fragment}',

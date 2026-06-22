@@ -3119,15 +3119,25 @@ final class _EsmEmitter {
 
   String? _emitCoreStaticGet(k.StaticGet expression) {
     final path = _referencePath(expression.targetReference);
-    if (!path.startsWith('dart:core::BigInt::@getters::')) {
-      return null;
+    if (path.startsWith('dart:core::BigInt::@getters::')) {
+      return switch (path.split('::').last) {
+        'zero' => '0n',
+        'one' => '1n',
+        'two' => '2n',
+        _ => null,
+      };
     }
-    return switch (path.split('::').last) {
-      'zero' => '0n',
-      'one' => '1n',
-      'two' => '2n',
-      _ => null,
-    };
+    if (path.startsWith('dart:core::double::@getters::')) {
+      return switch (path.split('::').last) {
+        'nan' => 'Number.NaN',
+        'infinity' => 'Infinity',
+        'negativeInfinity' => '-Infinity',
+        'minPositive' => '5e-324',
+        'maxFinite' => '1.7976931348623157e+308',
+        _ => null,
+      };
+    }
+    return null;
   }
 
   String _emitStaticSet(k.StaticSet expression) {
@@ -3273,6 +3283,16 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'String', name)) {
       return '($left < ${positionalArgs.single} ? -1 : ($left > ${positionalArgs.single} ? 1 : 0))';
+    }
+    final numberInvocation = _emitNumberInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments.named.isEmpty,
+    );
+    if (numberInvocation != null) {
+      return numberInvocation;
     }
     if (expression.arguments.named.isEmpty &&
         name == 'replaceFirst' &&
@@ -3780,6 +3800,49 @@ final class _EsmEmitter {
     return '$left.${_memberName(name)}($args)';
   }
 
+  String? _emitNumberInstanceInvocation(
+    k.Reference target,
+    String name,
+    String left,
+    List<String> positionalArgs,
+    bool namedArgumentsEmpty,
+  ) {
+    if (!namedArgumentsEmpty || !_isCoreNumberMember(target, name)) {
+      return null;
+    }
+    if (positionalArgs.isEmpty) {
+      return switch (name) {
+        'abs' => 'Math.abs($left)',
+        'round' => () {
+          _usedHelpers.add('__dartRoundToInt');
+          return '__dartRoundToInt($left)';
+        }(),
+        'floor' => 'Math.floor($left)',
+        'ceil' => 'Math.ceil($left)',
+        'truncate' || 'toInt' => 'Math.trunc($left)',
+        'toDouble' => 'Number($left)',
+        'toString' => 'String($left)',
+        _ => null,
+      };
+    }
+    if (name == 'clamp' && positionalArgs.length == 2) {
+      _usedHelpers.add('__dartNumClamp');
+      return '__dartNumClamp($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (positionalArgs.length != 1) {
+      return null;
+    }
+    final argument = positionalArgs.single;
+    return switch (name) {
+      'remainder' => '($left % $argument)',
+      'compareTo' => '($left < $argument ? -1 : ($left > $argument ? 1 : 0))',
+      'toStringAsFixed' => 'Number($left).toFixed($argument)',
+      'toStringAsExponential' => 'Number($left).toExponential($argument)',
+      'toStringAsPrecision' => 'Number($left).toPrecision($argument)',
+      _ => null,
+    };
+  }
+
   String? _emitBigIntInstanceInvocation(
     k.Reference target,
     String name,
@@ -3895,6 +3958,14 @@ final class _EsmEmitter {
         _isCoreMember(expression.interfaceTargetReference, 'int', name)) {
       return '(Math.trunc($receiver) % 2 === 0)';
     }
+    final numberGet = _emitNumberInstanceGet(
+      expression.interfaceTargetReference,
+      name,
+      receiver,
+    );
+    if (numberGet != null) {
+      return numberGet;
+    }
     if (_isCoreMember(expression.interfaceTargetReference, 'BigInt', name)) {
       final bigIntGet = switch (name) {
         'isEven' => '($receiver % 2n === 0n)',
@@ -3991,6 +4062,25 @@ final class _EsmEmitter {
       return 'Array.from($receiver, ([key, value]) => ({ key, value }))';
     }
     return _emitPropertyGet(receiver, _memberName(name));
+  }
+
+  String? _emitNumberInstanceGet(
+    k.Reference target,
+    String name,
+    String receiver,
+  ) {
+    if (!_isCoreNumberMember(target, name)) {
+      return null;
+    }
+    return switch (name) {
+      'sign' =>
+        '(Number.isNaN($receiver) ? Number.NaN : ($receiver < 0 ? -1 : ($receiver > 0 ? 1 : $receiver)))',
+      'isNaN' => 'Number.isNaN($receiver)',
+      'isInfinite' => '($receiver === Infinity || $receiver === -Infinity)',
+      'isFinite' => 'Number.isFinite($receiver)',
+      'isNegative' => '($receiver < 0 || Object.is($receiver, -0))',
+      _ => null,
+    };
   }
 
   String _emitInstanceSet(k.InstanceSet expression) {
@@ -5183,6 +5273,12 @@ final class _EsmEmitter {
         path == 'dart:core::$className::@setters::$name' ||
         path == 'dart:core::$className::$name' ||
         path.endsWith('dart:core::$className::$name');
+  }
+
+  bool _isCoreNumberMember(k.Reference reference, String name) {
+    return _isCoreMember(reference, 'num', name) ||
+        _isCoreMember(reference, 'int', name) ||
+        _isCoreMember(reference, 'double', name);
   }
 
   bool _isNativeOperatorTarget(k.Reference reference) {
@@ -6948,6 +7044,13 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartNumClamp')) {
+      helper.writeln('function __dartNumClamp(value, lower, upper) {');
+      helper.writeln('  if (value < lower) return lower;');
+      helper.writeln('  if (value > upper) return upper;');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartObjectHash')) {
       helper.writeln('const __dartIdentityHashes = new WeakMap();');
       helper.writeln('let __dartNextIdentityHash = 1;');
@@ -7297,6 +7400,7 @@ const _generatedGlobalNames = {
   '__dartMapContainsValue',
   '__dartMapRemove',
   '__dartMapUpdateAll',
+  '__dartNumClamp',
   '__dartNumParse',
   '__dartNumberParse',
   '__dartNumTryParse',

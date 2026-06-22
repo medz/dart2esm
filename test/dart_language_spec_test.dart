@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 void main() {
   test(
-    'constructor fixtures are backed by dart-lang/language spec sources',
+    'syntax fixtures are backed by dart-lang/language spec sources',
     () async {
       final repo = await _dartLanguageRepo();
       final languageSpec = await File(
@@ -44,6 +44,22 @@ void main() {
         r"<redirection> ::= `:' \THIS{} (`.' <identifier>)? <arguments>",
       );
       expect(
+        _exactLine(languageSpec, '<tryStatement> ::='),
+        r'<tryStatement> ::= \TRY{} <block> (<onPart>+ <finallyPart>? | <finallyPart>)',
+      );
+      expect(
+        _exactLine(languageSpec, '<onPart> ::='),
+        r'<onPart> ::= <catchPart> <block>',
+      );
+      expect(
+        _exactLine(languageSpec, r'  \alt \ON{} <typeNotVoid>'),
+        r'  \alt \ON{} <typeNotVoid> <catchPart>? <block>',
+      );
+      expect(
+        _exactLine(languageSpec, '<catchPart> ::='),
+        r"<catchPart> ::= \CATCH{} `(' <identifier> (`,' <identifier>)? `)'",
+      );
+      expect(
         _exactLine(
           languageSpec,
           '<redirectingFactoryConstructorSignature> ::=',
@@ -67,6 +83,21 @@ void main() {
           'It is a compile-time error if \$k\$ explicitly specifies',
         ),
         r'It is a compile-time error if $k$ explicitly specifies',
+      );
+      expect(
+        _exactLine(
+          languageSpec,
+          r'Otherwise the exception is matched against the first clause.',
+        ),
+        r'Otherwise the exception is matched against the first clause.',
+      );
+      expect(
+        _exactLine(languageSpec, r'and $t_1$ is bound to the stack trace $t$,'),
+        r'and $t_1$ is bound to the stack trace $t$,',
+      );
+      expect(
+        _exactLine(languageSpec, r'The \RETHROW{} statement then throws'),
+        r'The \RETHROW{} statement then throws (\ref{statementCompletion})',
       );
       expect(
         _exactLine(
@@ -170,6 +201,22 @@ void main() {
         'final intHolder = Holder<int>.new;',
         'const constMakers = <BoxMaker>[Box.new, Box.named, Box.alias];',
       ]);
+
+      final exceptionsFixture = await File(
+        p.join('test', 'fixtures', 'specs', 'control_flow', 'exceptions.dart'),
+      ).readAsLines();
+      expect(_exceptionHandlerLines(exceptionsFixture), [
+        '} on ParseIssue catch (error) {',
+        '} on NotFound catch (error, stack) {',
+        '} on String catch (error) {',
+        '} catch (error) {',
+        '} catch (error) {',
+        '} finally {',
+        '} on ParseIssue {',
+        '} catch (error) {',
+        'rethrow;',
+        '} on NotFound catch (error) {',
+      ]);
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
@@ -227,6 +274,17 @@ List<String> _constructorTearOffDeclarations(List<String> lines) {
     r'^(?:final|const) \w+ = (?:[A-Z]\w*(?:<[^>]+>)?|AliasBox)\.(?:new|named|alias)|const constMakers = ',
   );
   return source.where((line) => pattern.hasMatch(line)).toList();
+}
+
+List<String> _exceptionHandlerLines(List<String> lines) {
+  return [
+    for (final line in lines.map((line) => line.trim()))
+      if (line.startsWith('} on ') ||
+          line.startsWith('} catch ') ||
+          line == '} finally {' ||
+          line == 'rethrow;')
+        line,
+  ];
 }
 
 List<String> _singleLineDeclarations(List<String> lines) {

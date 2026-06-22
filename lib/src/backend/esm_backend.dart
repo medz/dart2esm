@@ -46,6 +46,7 @@ final class _EsmEmitter {
   k.Class? _currentClass;
   String? _thisAlias;
   String? _emptyReturnValue;
+  String? _rethrowException;
 
   EsmBackendResult emit() {
     final main = component.mainMethod;
@@ -1116,25 +1117,63 @@ final class _EsmEmitter {
   }
 
   void _emitTryCatch(k.TryCatch statement) {
-    if (statement.catches.length != 1) {
-      throw UnsupportedKernelNode(statement, 'try/catch with multiple catches');
-    }
-    final catchNode = statement.catches.single;
-    final exception = catchNode.exception;
-    if (exception != null) {
-      _declareVariable(exception);
-    }
+    final error = _freshName('\$error');
     writeln('try {');
     _indent++;
     emitStatement(statement.body);
     _indent--;
-    writeln(
-      '} catch (${exception == null ? '_e' : _variableName(exception)}) {',
-    );
+    writeln('} catch ($error) {');
     _indent++;
-    emitStatement(catchNode.body);
+    for (var i = 0; i < statement.catches.length; i++) {
+      final catchNode = statement.catches[i];
+      final guard = _emitTypeTest(error, catchNode.guard, catchNode);
+      writeln('${i == 0 ? 'if' : '} else if'} ($guard) {');
+      _indent++;
+      _emitCatchBindings(catchNode, error);
+      _withRethrowException(error, () {
+        emitStatement(catchNode.body);
+      });
+      _indent--;
+    }
+    if (statement.catches.isEmpty) {
+      writeln('throw $error;');
+    } else {
+      writeln('} else {');
+      _indent++;
+      writeln('throw $error;');
+      _indent--;
+      writeln('}');
+    }
     _indent--;
     writeln('}');
+  }
+
+  void _emitCatchBindings(k.Catch catchNode, String error) {
+    final exception = catchNode.exception;
+    if (exception != null) {
+      _declareVariable(exception);
+      writeln('const ${_variableName(exception)} = $error;');
+    }
+    final stackTrace = catchNode.stackTrace;
+    if (stackTrace != null) {
+      _diagnostics.add(
+        'Catch stack traces are currently lowered to JavaScript error.stack values.',
+      );
+      _declareVariable(stackTrace);
+      writeln(
+        'const ${_variableName(stackTrace)} = $error?.stack ?? "<javascript stack unavailable>";',
+      );
+    }
+  }
+
+  void _withRethrowException(String exception, void Function() body) {
+    final previous = _rethrowException;
+    _rethrowException = exception;
+    try {
+      body();
+    } finally {
+      _rethrowException = previous;
+    }
   }
 
   String emitExpression(k.Expression expression) {
@@ -1203,6 +1242,12 @@ final class _EsmEmitter {
         return '__dartEquals(${emitExpression(expression.left)}, ${emitExpression(expression.right)})';
       case k.AwaitExpression():
         return 'await ${emitExpression(expression.operand)}';
+      case k.Rethrow():
+        final exception = _rethrowException;
+        if (exception == null) {
+          throw UnsupportedKernelNode(expression, 'rethrow outside catch');
+        }
+        return '(() => { throw $exception; })()';
       case k.Throw():
         return '(() => { throw ${emitExpression(expression.expression)}; })()';
       case k.ListLiteral():
@@ -1770,22 +1815,45 @@ final class _EsmEmitter {
   }
 
   String _emitIsExpression(k.IsExpression expression) {
-    final operand = emitExpression(expression.operand);
-    final type = expression.type;
+    return _emitTypeTest(
+      emitExpression(expression.operand),
+      expression.type,
+      expression,
+    );
+  }
+
+  String _emitTypeTest(String operand, k.DartType type, Object node) {
+    type = type.unalias;
+    if (type is k.DynamicType || type is k.VoidType) {
+      return 'true';
+    }
     if (type is k.InterfaceType) {
-      final typeName = type.classNode.name;
-      if (_classNames.containsKey(type.classNode)) {
-        return '$operand instanceof ${_className(type.classNode)}';
+      final classReference = type.classReference;
+      final classNode = classReference.node;
+      if (classNode is k.Class && _classNames.containsKey(classNode)) {
+        return '$operand instanceof ${_className(classNode)}';
       }
+      if (_isCoreClass(classReference, 'Object')) {
+        return '$operand != null';
+      }
+      final typeName = _interfaceTypeName(type);
       return switch (typeName) {
         'String' => 'typeof $operand === "string"',
         'int' || 'double' || 'num' => 'typeof $operand === "number"',
         'bool' => 'typeof $operand === "boolean"',
         'Null' => '$operand === null',
-        _ => throw UnsupportedKernelNode(expression, 'is $typeName'),
+        _ => throw UnsupportedKernelNode(node, 'type test $typeName'),
       };
     }
-    throw UnsupportedKernelNode(expression, 'is expression');
+    throw UnsupportedKernelNode(node, 'type test');
+  }
+
+  String _interfaceTypeName(k.InterfaceType type) {
+    final node = type.classReference.node;
+    if (node is k.Class) {
+      return node.name;
+    }
+    return _referencePath(type.classReference).split('::').last;
   }
 
   String _emitLetExpression(k.Let expression) {

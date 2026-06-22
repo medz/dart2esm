@@ -2152,6 +2152,15 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStreamIterator');
       return '__dartStreamIterator(${_emitArguments(expression.arguments)})';
     }
+    final coreErrorName = _coreErrorConstructorName(expression.targetReference);
+    if (coreErrorName != null) {
+      _usedHelpers.add('__dartCoreError');
+      final positionalArgs = expression.arguments.positional
+          .map(emitExpression)
+          .toList();
+      final message = positionalArgs.isEmpty ? 'null' : positionalArgs.first;
+      return '__dartCoreError(${jsonEncode(coreErrorName)}, $message)';
+    }
     final target = expression.targetReference.node;
     if (target is! k.Constructor) {
       throw UnsupportedKernelNode(
@@ -2222,6 +2231,12 @@ final class _EsmEmitter {
     }
     if (_isCoreGrowableListLiteral(expression.targetReference)) {
       return '[${positionalArgs.join(', ')}]';
+    }
+    final coreErrorName = _coreErrorFactoryName(expression.targetReference);
+    if (coreErrorName != null) {
+      _usedHelpers.add('__dartCoreError');
+      final message = positionalArgs.isEmpty ? 'null' : positionalArgs.first;
+      return '__dartCoreError(${jsonEncode(coreErrorName)}, $message)';
     }
     final targetNode = expression.targetReference.node;
     if (targetNode is! k.Procedure) {
@@ -2845,10 +2860,19 @@ final class _EsmEmitter {
         'Iterator' => '$operand != null && typeof $operand.next === "function"',
         'Function' => 'typeof $operand === "function"',
         'Record' => _emitRecordObjectTest(operand),
+        'Exception' ||
+        'FormatException' ||
+        'Error' ||
+        'TypeError' => _emitCoreErrorTypeTest(operand, typeName),
         _ => throw UnsupportedKernelNode(node, 'type test $typeName'),
       };
     }
     throw UnsupportedKernelNode(node, 'type test');
+  }
+
+  String _emitCoreErrorTypeTest(String operand, String typeName) {
+    _usedHelpers.add('__dartCoreError');
+    return '__dartIsCoreError($operand, ${jsonEncode(typeName)})';
   }
 
   String _emitRecordObjectTest(String operand) {
@@ -3081,6 +3105,26 @@ final class _EsmEmitter {
     return _referencePath(
       reference,
     ).startsWith('dart:async::_StreamIterator::@constructors::');
+  }
+
+  String? _coreErrorConstructorName(k.Reference reference) {
+    final path = _referencePath(reference);
+    for (final name in _coreErrorTypeNames) {
+      if (path.startsWith('dart:core::$name::@constructors::')) {
+        return name;
+      }
+    }
+    return null;
+  }
+
+  String? _coreErrorFactoryName(k.Reference reference) {
+    final path = _referencePath(reference);
+    for (final name in _coreErrorTypeNames) {
+      if (path.startsWith('dart:core::$name::@factories::')) {
+        return name;
+      }
+    }
+    return null;
   }
 
   bool _isCoreMember(k.Reference reference, String className, String name) {
@@ -3354,6 +3398,43 @@ final class _EsmEmitter {
       helper.writeln('  if (test(value)) return value;');
       helper.writeln(
         '  throw new TypeError("Type cast failed: expected " + typeName);',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartCoreError')) {
+      helper.writeln('function __dartCoreError(typeName, message) {');
+      helper.writeln('  const text = message == null ? "" : String(message);');
+      helper.writeln(
+        '  const display = text === "" ? typeName : typeName + ": " + text;',
+      );
+      helper.writeln('  const error = new Error(text);');
+      helper.writeln('  error.name = typeName;');
+      helper.writeln(
+        '  Object.defineProperty(error, "__dartCoreErrorType", { value: typeName });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(error, "toString", { value() { return display; } });',
+      );
+      helper.writeln('  return error;');
+      helper.writeln('}');
+      helper.writeln('function __dartIsCoreError(value, typeName) {');
+      helper.writeln(
+        '  const actual = value == null ? null : value.__dartCoreErrorType;',
+      );
+      helper.writeln('  if (actual != null) {');
+      helper.writeln('    if (actual === typeName) return true;');
+      helper.writeln(
+        '    if (typeName === "Exception" && actual === "FormatException") return true;',
+      );
+      helper.writeln(
+        '    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  if (typeName === "TypeError" && value instanceof TypeError) return true;',
+      );
+      helper.writeln(
+        '  return typeName === "Error" && value instanceof Error;',
       );
       helper.writeln('}');
     }
@@ -3695,6 +3776,7 @@ const _generatedGlobalNames = {
   '__dartAs',
   '__dartConstMap',
   '__dartConstSet',
+  '__dartCoreError',
   '__dartEquals',
   '__dartIsRecord',
   '__dartIterator',
@@ -3704,4 +3786,11 @@ const _generatedGlobalNames = {
   '__dartRecordShape',
   '__dartStr',
   '__dartTruncDiv',
+};
+
+const _coreErrorTypeNames = {
+  'Exception',
+  'FormatException',
+  'Error',
+  'TypeError',
 };

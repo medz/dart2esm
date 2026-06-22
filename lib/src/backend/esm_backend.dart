@@ -122,14 +122,7 @@ final class _EsmEmitter {
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw UnsupportedKernelNode(constructor, 'async constructor');
     }
-    _declareParameters(function);
-    final parameters = [
-      for (final parameter in function.positionalParameters)
-        _variableName(parameter),
-      for (final parameter in function.namedParameters)
-        _variableName(parameter),
-    ].join(', ');
-    writeln('constructor($parameters) {');
+    writeln('constructor(${_emitParameterList(function)}) {');
     _indent++;
     _emitInstanceFieldDefaults(klass);
     for (final initializer in constructor.initializers) {
@@ -186,13 +179,6 @@ final class _EsmEmitter {
       k.AsyncMarker.SyncStar || k.AsyncMarker.AsyncStar =>
         throw UnsupportedKernelNode(function, 'method ${procedure.name.text}'),
     };
-    _declareParameters(function);
-    final parameters = [
-      for (final parameter in function.positionalParameters)
-        _variableName(parameter),
-      for (final parameter in function.namedParameters)
-        _variableName(parameter),
-    ].join(', ');
     final name = _memberName(procedure.name.text);
     final prefix = switch (procedure.kind) {
       k.ProcedureKind.Method || k.ProcedureKind.Operator => '$asyncPrefix$name',
@@ -203,7 +189,7 @@ final class _EsmEmitter {
         'factory procedure',
       ),
     };
-    writeln('$prefix($parameters) {');
+    writeln('$prefix(${_emitParameterList(function)}) {');
     _indent++;
     final body = function.body;
     if (body == null) {
@@ -226,14 +212,7 @@ final class _EsmEmitter {
         'function ${procedure.name.text}',
       ),
     };
-    _declareParameters(function);
-    final parameters = [
-      for (final parameter in function.positionalParameters)
-        _variableName(parameter),
-      for (final parameter in function.namedParameters)
-        _variableName(parameter),
-    ].join(', ');
-    writeln('${asyncPrefix}function $name($parameters) {');
+    writeln('${asyncPrefix}function $name(${_emitParameterList(function)}) {');
     _indent++;
     final body = function.body;
     if (body == null) {
@@ -251,6 +230,44 @@ final class _EsmEmitter {
     for (final parameter in function.namedParameters) {
       _declareVariable(parameter);
     }
+  }
+
+  String _emitParameterList(k.FunctionNode function) {
+    _declareParameters(function);
+    final parameters = <String>[];
+    for (var i = 0; i < function.positionalParameters.length; i++) {
+      final parameter = function.positionalParameters[i];
+      final name = _variableName(parameter);
+      if (i < function.requiredParameterCount) {
+        parameters.add(name);
+      } else {
+        parameters.add('$name = ${_defaultParameterValue(parameter)}');
+      }
+    }
+    if (function.namedParameters.isNotEmpty) {
+      parameters.add(
+        '{ ${function.namedParameters.map(_emitNamedParameterBinding).join(', ')} } = {}',
+      );
+    }
+    return parameters.join(', ');
+  }
+
+  String _emitNamedParameterBinding(k.VariableDeclaration parameter) {
+    final name = parameter.name ?? _variableName(parameter);
+    final local = _variableName(parameter);
+    final binding =
+        local == name && _isIdentifier(name) && !_reservedNames.contains(name)
+        ? local
+        : '${_propertyKey(name)}: $local';
+    if (parameter.isRequired) {
+      return binding;
+    }
+    return '$binding = ${_defaultParameterValue(parameter)}';
+  }
+
+  String _defaultParameterValue(k.VariableDeclaration parameter) {
+    final initializer = parameter.initializer;
+    return initializer == null ? 'null' : emitExpression(initializer);
   }
 
   void _emitFunctionBody(k.Statement body) {
@@ -409,9 +426,7 @@ final class _EsmEmitter {
       case k.IntLiteral():
         return expression.value.toString();
       case k.DoubleLiteral():
-        return expression.value.isFinite
-            ? expression.value.toString()
-            : 'Number.NaN';
+        return _emitDouble(expression.value);
       case k.BoolLiteral():
         return expression.value ? 'true' : 'false';
       case k.NullLiteral():
@@ -481,9 +496,47 @@ final class _EsmEmitter {
         return '${emitExpression(expression.receiver)}.${_memberName(expression.name.text)} = ${emitExpression(expression.value)}';
       case k.ThisExpression():
         return 'this';
+      case k.ConstantExpression():
+        return _emitConstant(expression.constant);
       default:
         throw UnsupportedKernelNode(expression, 'expression');
     }
+  }
+
+  String _emitConstant(k.Constant constant) {
+    switch (constant) {
+      case k.NullConstant():
+        return 'null';
+      case k.BoolConstant():
+        return constant.value ? 'true' : 'false';
+      case k.IntConstant():
+        return constant.value.toString();
+      case k.DoubleConstant():
+        return _emitDouble(constant.value);
+      case k.StringConstant():
+        return jsonEncode(constant.value);
+      case k.ListConstant():
+        return '[${constant.entries.map(_emitConstant).join(', ')}]';
+      case k.SetConstant():
+        return 'new Set([${constant.entries.map(_emitConstant).join(', ')}])';
+      case k.MapConstant():
+        return 'new Map([${constant.entries.map((entry) => '[${_emitConstant(entry.key)}, ${_emitConstant(entry.value)}]').join(', ')}])';
+      default:
+        throw UnsupportedKernelNode(constant, 'constant');
+    }
+  }
+
+  String _emitDouble(double value) {
+    if (value.isNaN) {
+      return 'Number.NaN';
+    }
+    if (value == double.infinity) {
+      return 'Infinity';
+    }
+    if (value == double.negativeInfinity) {
+      return '-Infinity';
+    }
+    return value.toString();
   }
 
   String _emitConstructorInvocation(k.ConstructorInvocation expression) {
@@ -497,7 +550,7 @@ final class _EsmEmitter {
     if (target.name.text.isNotEmpty) {
       throw UnsupportedKernelNode(expression, 'named constructor invocation');
     }
-    final args = expression.arguments.positional.map(emitExpression).join(', ');
+    final args = _emitArguments(expression.arguments);
     return 'new ${_className(target.enclosingClass)}($args)';
   }
 
@@ -516,10 +569,10 @@ final class _EsmEmitter {
   }
 
   String _emitStaticInvocation(k.StaticInvocation expression) {
-    final args = expression.arguments.positional.map(emitExpression).toList();
+    final args = _emitArguments(expression.arguments);
     if (_isCoreReference(expression.targetReference, '@methods', 'print')) {
       _usedHelpers.add('__dartPrint');
-      return '__dartPrint(${args.join(', ')})';
+      return '__dartPrint($args)';
     }
     final targetNode = expression.targetReference.node;
     if (targetNode is! k.Procedure) {
@@ -530,7 +583,7 @@ final class _EsmEmitter {
     }
     final target = targetNode;
     if (_procedureNames.containsKey(target)) {
-      return '${_procedureName(target)}(${args.join(', ')})';
+      return '${_procedureName(target)}($args)';
     }
     throw UnsupportedKernelNode(
       expression,
@@ -552,27 +605,44 @@ final class _EsmEmitter {
     k.Arguments arguments,
   ) {
     final left = emitExpression(receiver);
-    final args = arguments.positional.map(emitExpression).toList();
-    if (args.length == 1 && _binaryOperators.contains(name)) {
+    final positionalArgs = arguments.positional.map(emitExpression).toList();
+    final args = _emitArguments(arguments);
+    if (arguments.named.isEmpty &&
+        positionalArgs.length == 1 &&
+        _binaryOperators.contains(name)) {
       final operator = name == '~/' ? null : name;
       if (operator != null) {
-        return '($left $operator ${args.single})';
+        return '($left $operator ${positionalArgs.single})';
       }
       _usedHelpers.add('__dartTruncDiv');
-      return '__dartTruncDiv($left, ${args.single})';
+      return '__dartTruncDiv($left, ${positionalArgs.single})';
     }
-    if (args.isEmpty && name == 'toString') {
+    if (arguments.named.isEmpty &&
+        positionalArgs.isEmpty &&
+        name == 'toString') {
       _usedHelpers.add('__dartStr');
       return '__dartStr($left)';
     }
-    return '$left.${_memberName(name)}(${args.join(', ')})';
+    return '$left.${_memberName(name)}($args)';
   }
 
   String _emitDynamicInvocation(k.DynamicInvocation expression) {
     final receiver = emitExpression(expression.receiver);
     final name = expression.name.text;
-    final args = expression.arguments.positional.map(emitExpression).join(', ');
+    final args = _emitArguments(expression.arguments);
     return '$receiver.$name($args)';
+  }
+
+  String _emitArguments(k.Arguments arguments) {
+    final args = arguments.positional.map(emitExpression).toList();
+    if (arguments.named.isNotEmpty) {
+      args.add('{ ${arguments.named.map(_emitNamedArgument).join(', ')} }');
+    }
+    return args.join(', ');
+  }
+
+  String _emitNamedArgument(k.NamedExpression argument) {
+    return '${_propertyKey(argument.name)}: ${emitExpression(argument.value)}';
   }
 
   String _emitIsExpression(k.IsExpression expression) {
@@ -643,6 +713,13 @@ final class _EsmEmitter {
       return name;
     }
     return _sanitizeIdentifier(name);
+  }
+
+  String _propertyKey(String name) {
+    if (_isIdentifier(name) && !_reservedNames.contains(name)) {
+      return name;
+    }
+    return jsonEncode(name);
   }
 
   bool _isIdentifier(String name) {

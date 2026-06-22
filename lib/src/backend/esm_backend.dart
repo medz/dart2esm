@@ -2373,6 +2373,11 @@ final class _EsmEmitter {
           constant,
           '__dartDuration({ microseconds: $micros })',
         );
+      case 'dart:math::Point':
+        _usedHelpers.add('__dartPoint');
+        final x = _emitConstantFieldValue(constant, 'x') ?? 'null';
+        final y = _emitConstantFieldValue(constant, 'y') ?? 'null';
+        return _emitCanonicalConst(constant, '__dartPoint($x, $y)');
       case 'dart:typed_data::Endian':
         for (final value in constant.fieldValues.values) {
           if (value is k.BoolConstant) {
@@ -2395,6 +2400,19 @@ final class _EsmEmitter {
   String _emitCanonicalConst(k.Constant constant, String value) {
     _usedHelpers.add('__dartConst');
     return '__dartConst(${jsonEncode(_constantKey(constant))}, () => $value)';
+  }
+
+  String? _emitConstantFieldValue(k.InstanceConstant constant, String name) {
+    for (final entry in constant.fieldValues.entries) {
+      final field = entry.key.node;
+      if (field is k.Field && field.name.text == name) {
+        return _emitEsmConst(entry.value);
+      }
+      if (_referencePath(entry.key).endsWith('::@fields::$name')) {
+        return _emitEsmConst(entry.value);
+      }
+    }
+    return null;
   }
 
   String _constantKey(k.Constant constant) =>
@@ -2692,6 +2710,11 @@ final class _EsmEmitter {
     }
     if (_isCollectionQueueConstructorReference(expression.targetReference)) {
       return '[]';
+    }
+    if (_isMathPointConstructorReference(expression.targetReference) &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartPoint');
+      return '__dartPoint(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     final coreErrorName = _coreErrorConstructorName(expression.targetReference);
     if (coreErrorName != null) {
@@ -4827,6 +4850,8 @@ final class _EsmEmitter {
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
         'TypedData' => 'ArrayBuffer.isView($operand)',
+        'Point' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "Point"',
         'List' =>
           '(Array.isArray($operand) || (ArrayBuffer.isView($operand) && !($operand instanceof DataView)))',
         'Set' => '$operand instanceof Set',
@@ -5880,6 +5905,12 @@ final class _EsmEmitter {
     return _referencePath(
       reference,
     ).startsWith('dart:async::_StreamIterator::@constructors::');
+  }
+
+  bool _isMathPointConstructorReference(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:math::Point::@constructors::');
   }
 
   bool _isCollectionQueueConstructorReference(k.Reference reference) {
@@ -7184,6 +7215,42 @@ final class _EsmEmitter {
       );
       helper.writeln('    nextBool() { return (nextUint32() & 1) === 1; },');
       helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartPoint')) {
+      helper.writeln('function __dartPoint(x, y) {');
+      helper.writeln('  const point = {');
+      helper.writeln('    x,');
+      helper.writeln('    y,');
+      helper.writeln('    get magnitude() { return Math.hypot(x, y); },');
+      helper.writeln('    distanceTo(other) {');
+      helper.writeln('      return Math.hypot(x - other.x, y - other.y);');
+      helper.writeln('    },');
+      helper.writeln('    squaredDistanceTo(other) {');
+      helper.writeln('      const dx = x - other.x;');
+      helper.writeln('      const dy = y - other.y;');
+      helper.writeln('      return dx * dx + dy * dy;');
+      helper.writeln('    },');
+      helper.writeln(
+        '    ["+"](other) { return __dartPoint(x + other.x, y + other.y); },',
+      );
+      helper.writeln(
+        '    ["-"](other) { return __dartPoint(x - other.x, y - other.y); },',
+      );
+      helper.writeln(
+        '    ["*"](factor) { return __dartPoint(x * factor, y * factor); },',
+      );
+      helper.writeln(
+        '    ["=="](other) { return other != null && other.__dartType === "Point" && other.x === x && other.y === y; },',
+      );
+      helper.writeln(
+        '    toString() { return "Point(" + x + ", " + y + ")"; },',
+      );
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(point, "__dartType", { value: "Point" });',
+      );
+      helper.writeln('  return Object.freeze(point);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartRegExp')) {
@@ -8895,6 +8962,7 @@ const _generatedGlobalNames = {
   '__dartObjectHashUnordered',
   '__dartObjectToString',
   '__dartPatternRegExp',
+  '__dartPoint',
   '__dartPrint',
   '__dartRandom',
   '__dartRecord',

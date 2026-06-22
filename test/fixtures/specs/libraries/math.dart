@@ -23,4 +23,19 @@ void main() {
 
   final secure = math.Random.secure().nextInt(10);
   print('secure ${secure >= 0 && secure < 10}');
+
+  final point = math.Point<num>(3, 4);
+  final otherPoint = math.Point<num>(1, 2);
+  final moved = point + otherPoint;
+  final delta = point - otherPoint;
+  final scaled = otherPoint * 3;
+  const constPoint = math.Point<int>(2, 5);
+  print(
+    'point ${point.x}:${point.y} ${point.magnitude.toStringAsFixed(1)} '
+    '${point.distanceTo(otherPoint).toStringAsFixed(2)} '
+    '${point.squaredDistanceTo(otherPoint)} ${moved.x}:${moved.y} '
+    '${delta.x}:${delta.y} ${scaled.x}:${scaled.y} '
+    '${point == math.Point<num>(3, 4)} ${hide(point) is math.Point} '
+    '${constPoint.x + constPoint.y}',
+  );
 }

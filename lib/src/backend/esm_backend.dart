@@ -1112,7 +1112,7 @@ final class _EsmEmitter {
   void _emitVariableDeclaration(k.VariableDeclaration statement) {
     _declareVariable(statement);
     final initializer = statement.initializer;
-    final keyword = statement.isFinal || statement.isConst ? 'const' : 'let';
+    final keyword = _localVariableKeyword(statement, initializer);
     writeln(
       '$keyword ${_variableName(statement)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
     );
@@ -1126,11 +1126,25 @@ final class _EsmEmitter {
     final existingName = _variableNames[variable];
     if (existingName == null) {
       _declareVariable(variable);
-      final keyword = variable.isFinal || variable.isConst ? 'const' : 'let';
+      final keyword = _localVariableKeyword(variable, statement.initializer);
       writeln('$keyword ${_variableName(variable)} = $initializer;');
       return;
     }
     writeln('$existingName = $initializer;');
+  }
+
+  String _localVariableKeyword(
+    k.VariableDeclaration variable,
+    k.Expression? initializer,
+  ) {
+    if (!(variable.isFinal || variable.isConst)) {
+      return 'let';
+    }
+    // Pattern declarations are lowered by CFE into final locals initialized
+    // with a null placeholder followed by assignment after the match succeeds.
+    return initializer == null || initializer is k.NullLiteral
+        ? 'let'
+        : 'const';
   }
 
   void _emitInstanceFieldDefaults(

@@ -3429,6 +3429,14 @@ final class _EsmEmitter {
     if (listFactory != null) {
       return listFactory;
     }
+    final setFactory = _emitCoreSetFactoryInvocation(path, positionalArgs);
+    if (setFactory != null) {
+      return setFactory;
+    }
+    final mapFactory = _emitCoreMapFactoryInvocation(path, positionalArgs);
+    if (mapFactory != null) {
+      return mapFactory;
+    }
     if (path == 'dart:core::Uri::@methods::parse' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartUriParse');
@@ -3518,6 +3526,8 @@ final class _EsmEmitter {
         'Array.from({ length: ${positionalArgs[0]} }, (_, index) => (${positionalArgs[1]})(index))',
       'of' || 'from' when positionalArgs.length == 1 =>
         'Array.from(${positionalArgs.single})',
+      'unmodifiable' when positionalArgs.length == 1 =>
+        'Object.freeze(Array.from(${positionalArgs.single}))',
       'empty' when positionalArgs.isEmpty => '[]',
       _ => null,
     };
@@ -3527,6 +3537,46 @@ final class _EsmEmitter {
     return path.startsWith('dart:core::_List::@factories::') ||
         path.startsWith('dart:core::_GrowableList::@factories::') ||
         path.startsWith('dart:core::List::@factories::');
+  }
+
+  String? _emitCoreSetFactoryInvocation(
+    String path,
+    List<String> positionalArgs,
+  ) {
+    if (!path.startsWith('dart:core::Set::@factories::') &&
+        !path.startsWith('dart:collection::LinkedHashSet::@factories::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'of' || 'from' when positionalArgs.length == 1 =>
+        'new Set(${positionalArgs.single})',
+      'unmodifiable' when positionalArgs.length == 1 => () {
+        _usedHelpers.add('__dartConstSet');
+        return '__dartConstSet(${positionalArgs.single})';
+      }(),
+      _ => null,
+    };
+  }
+
+  String? _emitCoreMapFactoryInvocation(
+    String path,
+    List<String> positionalArgs,
+  ) {
+    if (!path.startsWith('dart:core::Map::@factories::') &&
+        !path.startsWith('dart:collection::LinkedHashMap::@factories::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'of' || 'from' when positionalArgs.length == 1 =>
+        'new Map(${positionalArgs.single})',
+      'unmodifiable' when positionalArgs.length == 1 => () {
+        _usedHelpers.add('__dartConstMap');
+        return '__dartConstMap(${positionalArgs.single})';
+      }(),
+      _ => null,
+    };
   }
 
   String? _emitDeveloperStaticGet(k.StaticGet expression) {

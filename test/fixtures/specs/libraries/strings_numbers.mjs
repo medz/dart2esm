@@ -122,21 +122,54 @@ function __dartUriParse(source) {
     toString() { return text; },
   });
 }
+function __dartUriAssignQueryParameters(url, queryParameters) {
+  const search = new URLSearchParams();
+  for (const [key, value] of queryParameters) {
+    if (value == null) continue;
+    if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {
+      for (const item of value) search.append(String(key), String(item));
+    } else {
+      search.append(String(key), String(value));
+    }
+  }
+  url.search = search.toString();
+}
+function __dartUriResolve(uri, reference) {
+  return __dartUriParse(new URL(String(reference), String(uri)).toString());
+}
+function __dartUriNormalizePath(uri) {
+  return __dartUriParse(new URL(String(uri)).toString());
+}
+function __dartUriReplace(uri, options = {}) {
+  const url = new URL(String(uri));
+  if ("scheme" in options && options.scheme != null) url.protocol = String(options.scheme) + ":";
+  if ("userInfo" in options && options.userInfo != null) {
+    const parts = String(options.userInfo).split(":");
+    url.username = parts[0] ?? "";
+    url.password = parts.slice(1).join(":");
+  }
+  if ("host" in options && options.host != null) url.hostname = String(options.host);
+  if ("port" in options && options.port != null) url.port = String(options.port);
+  if ("pathSegments" in options && options.pathSegments != null) {
+    url.pathname = Array.from(options.pathSegments, (segment) => encodeURIComponent(String(segment))).join("/");
+  } else if ("path" in options && options.path != null) {
+    url.pathname = String(options.path);
+  }
+  if ("queryParameters" in options) {
+    if (options.queryParameters != null) __dartUriAssignQueryParameters(url, options.queryParameters);
+  } else if ("query" in options) {
+    if (options.query != null) url.search = String(options.query);
+  }
+  if (options.__removeFragment === true) url.hash = "";
+  else if ("fragment" in options && options.fragment != null) url.hash = String(options.fragment);
+  return __dartUriParse(url.toString());
+}
 function __dartUriBuild(scheme, authority, path, queryParameters = null) {
   const url = new URL(String(scheme) + "://" + String(authority));
   const rawPath = String(path);
   url.pathname = rawPath.startsWith("/") ? rawPath : "/" + rawPath;
   if (queryParameters != null) {
-    const search = new URLSearchParams();
-    for (const [key, value] of queryParameters) {
-      if (value == null) continue;
-      if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {
-        for (const item of value) search.append(String(key), String(item));
-      } else {
-        search.append(String(key), String(value));
-      }
-    }
-    url.search = search.toString();
+    __dartUriAssignQueryParameters(url, queryParameters);
   }
   return __dartUriParse(url.toString());
 }
@@ -191,6 +224,11 @@ export function main() {
   const http = __dartUriBuild("http", "example.test:8080", "plain path", new Map([["x", "a/b"]]));
   __dartPrint("uri build " + __dartStr(https.scheme) + " " + __dartStr(https.host) + " " + __dartStr(https.path) + " " + __dartStr(https.query));
   __dartPrint("uri built " + __dartStr(__dartStr(https)) + " " + __dartStr(__dartStr(http)));
+  const replaced = __dartUriReplace(uri, { path: "/c/d", queryParameters: new Map([["z", "9"], ["many", ["a", "b"]]]), fragment: null });
+  const resolved = __dartUriResolve(uri, "../c?q=1");
+  const resolvedUri = __dartUriResolve(uri, __dartUriParse("/root?q=2"));
+  const normalized = __dartUriNormalizePath(__dartUriParse("https://example.test/a/../b/./c"));
+  __dartPrint("uri ops " + __dartStr(__dartStr(replaced)) + " " + __dartStr(__dartUriReplace(uri, { __removeFragment: true }).hasFragment) + " " + __dartStr(resolved.path) + " " + __dartStr(resolved.query) + " " + __dartStr(resolvedUri.path) + " " + __dartStr(normalized.path));
 }
 
 main();

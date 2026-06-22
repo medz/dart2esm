@@ -72,4 +72,22 @@ void main() {
   final http = Uri.http('example.test:8080', 'plain path', {'x': 'a/b'});
   print('uri build ${https.scheme} ${https.host} ${https.path} ${https.query}');
   print('uri built ${https.toString()} ${http.toString()}');
+  final replaced = uri.replace(
+    path: '/c/d',
+    queryParameters: {
+      'z': '9',
+      'many': ['a', 'b'],
+    },
+    fragment: null,
+  );
+  final resolved = uri.resolve('../c?q=1');
+  final resolvedUri = uri.resolveUri(Uri.parse('/root?q=2'));
+  final normalized = Uri.parse(
+    'https://example.test/a/../b/./c',
+  ).normalizePath();
+  print(
+    'uri ops ${replaced.toString()} ${uri.removeFragment().hasFragment} '
+    '${resolved.path} ${resolved.query} ${resolvedUri.path} '
+    '${normalized.path}',
+  );
 }

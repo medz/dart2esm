@@ -3468,6 +3468,37 @@ final class _EsmEmitter {
       return '__dartStringSplitMapJoin($left, ${positionalArgs[0]}, $onMatch, $onNonMatch)';
     }
     if (expression.arguments.named.isEmpty &&
+        (name == 'resolve' || name == 'resolveUri') &&
+        positionalArgs.length == 1 &&
+        _isCoreUriMember(target, name)) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriResolve');
+      return '__dartUriResolve($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeFragment' &&
+        positionalArgs.isEmpty &&
+        _isCoreUriMember(target, name)) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriReplace');
+      return '__dartUriReplace($left, { __removeFragment: true })';
+    }
+    if (name == 'replace' &&
+        positionalArgs.isEmpty &&
+        _isCoreUriMember(target, name)) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriReplace');
+      return '__dartUriReplace($left, ${_emitUriReplaceOptions(expression.arguments)})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'normalizePath' &&
+        positionalArgs.isEmpty &&
+        _isCoreUriMember(target, name)) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriNormalizePath');
+      return '__dartUriNormalizePath($left)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'replaceRange' &&
         positionalArgs.length == 3 &&
         _isCoreMember(target, 'String', name)) {
@@ -4464,6 +4495,13 @@ final class _EsmEmitter {
 
   String _emitNamedArgument(k.NamedExpression argument) {
     return '${_propertyKey(argument.name)}: ${emitExpression(argument.value)}';
+  }
+
+  String _emitUriReplaceOptions(k.Arguments arguments) {
+    if (arguments.named.isEmpty) {
+      return '{}';
+    }
+    return '{ ${arguments.named.map(_emitNamedArgument).join(', ')} }';
   }
 
   String _emitParameterForwardingArguments(k.FunctionNode function) {
@@ -5658,6 +5696,18 @@ final class _EsmEmitter {
     return _isCoreMember(reference, 'Map', name) || path.contains('::_Map::');
   }
 
+  bool _isCoreUriMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.endsWith('::$name');
+    if (!hasMember) {
+      return false;
+    }
+    return path.contains('::Uri::') || path.contains('::_Uri::');
+  }
+
   bool _isAsyncStreamMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
     return path == 'dart:async::Stream::@methods::$name' ||
@@ -6693,6 +6743,91 @@ final class _EsmEmitter {
       helper.writeln('    toString() { return text; },');
       helper.writeln('  });');
       helper.writeln('}');
+      if (_usedHelpers.contains('__dartUriBuild') ||
+          _usedHelpers.contains('__dartUriReplace')) {
+        helper.writeln(
+          'function __dartUriAssignQueryParameters(url, queryParameters) {',
+        );
+        helper.writeln('  const search = new URLSearchParams();');
+        helper.writeln('  for (const [key, value] of queryParameters) {');
+        helper.writeln('    if (value == null) continue;');
+        helper.writeln(
+          '    if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {',
+        );
+        helper.writeln(
+          '      for (const item of value) search.append(String(key), String(item));',
+        );
+        helper.writeln('    } else {');
+        helper.writeln('      search.append(String(key), String(value));');
+        helper.writeln('    }');
+        helper.writeln('  }');
+        helper.writeln('  url.search = search.toString();');
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUriResolve')) {
+        helper.writeln('function __dartUriResolve(uri, reference) {');
+        helper.writeln(
+          '  return __dartUriParse(new URL(String(reference), String(uri)).toString());',
+        );
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUriNormalizePath')) {
+        helper.writeln('function __dartUriNormalizePath(uri) {');
+        helper.writeln(
+          '  return __dartUriParse(new URL(String(uri)).toString());',
+        );
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUriReplace')) {
+        helper.writeln('function __dartUriReplace(uri, options = {}) {');
+        helper.writeln('  const url = new URL(String(uri));');
+        helper.writeln(
+          '  if ("scheme" in options && options.scheme != null) url.protocol = String(options.scheme) + ":";',
+        );
+        helper.writeln(
+          '  if ("userInfo" in options && options.userInfo != null) {',
+        );
+        helper.writeln(
+          '    const parts = String(options.userInfo).split(":");',
+        );
+        helper.writeln('    url.username = parts[0] ?? "";');
+        helper.writeln('    url.password = parts.slice(1).join(":");');
+        helper.writeln('  }');
+        helper.writeln(
+          '  if ("host" in options && options.host != null) url.hostname = String(options.host);',
+        );
+        helper.writeln(
+          '  if ("port" in options && options.port != null) url.port = String(options.port);',
+        );
+        helper.writeln(
+          '  if ("pathSegments" in options && options.pathSegments != null) {',
+        );
+        helper.writeln(
+          '    url.pathname = Array.from(options.pathSegments, (segment) => encodeURIComponent(String(segment))).join("/");',
+        );
+        helper.writeln(
+          '  } else if ("path" in options && options.path != null) {',
+        );
+        helper.writeln('    url.pathname = String(options.path);');
+        helper.writeln('  }');
+        helper.writeln('  if ("queryParameters" in options) {');
+        helper.writeln(
+          '    if (options.queryParameters != null) __dartUriAssignQueryParameters(url, options.queryParameters);',
+        );
+        helper.writeln('  } else if ("query" in options) {');
+        helper.writeln(
+          '    if (options.query != null) url.search = String(options.query);',
+        );
+        helper.writeln('  }');
+        helper.writeln(
+          '  if (options.__removeFragment === true) url.hash = "";',
+        );
+        helper.writeln(
+          '  else if ("fragment" in options && options.fragment != null) url.hash = String(options.fragment);',
+        );
+        helper.writeln('  return __dartUriParse(url.toString());');
+        helper.writeln('}');
+      }
       if (_usedHelpers.contains('__dartUriBuild')) {
         helper.writeln(
           'function __dartUriBuild(scheme, authority, path, queryParameters = null) {',
@@ -6705,20 +6840,9 @@ final class _EsmEmitter {
           '  url.pathname = rawPath.startsWith("/") ? rawPath : "/" + rawPath;',
         );
         helper.writeln('  if (queryParameters != null) {');
-        helper.writeln('    const search = new URLSearchParams();');
-        helper.writeln('    for (const [key, value] of queryParameters) {');
-        helper.writeln('      if (value == null) continue;');
         helper.writeln(
-          '      if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {',
+          '    __dartUriAssignQueryParameters(url, queryParameters);',
         );
-        helper.writeln(
-          '        for (const item of value) search.append(String(key), String(item));',
-        );
-        helper.writeln('      } else {');
-        helper.writeln('        search.append(String(key), String(value));');
-        helper.writeln('      }');
-        helper.writeln('    }');
-        helper.writeln('    url.search = search.toString();');
         helper.writeln('  }');
         helper.writeln('  return __dartUriParse(url.toString());');
         helper.writeln('}');
@@ -8397,8 +8521,12 @@ const _generatedGlobalNames = {
   '__dartStringStartsWith',
   '__dartTruncDiv',
   '__dartToJson',
+  '__dartUriAssignQueryParameters',
   '__dartUriBuild',
+  '__dartUriNormalizePath',
   '__dartUriParse',
+  '__dartUriReplace',
+  '__dartUriResolve',
   '__dartUtf8Codec',
   '__dartUtf8Decode',
   '__dartUtf8Encode',

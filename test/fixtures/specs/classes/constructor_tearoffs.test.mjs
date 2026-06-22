@@ -71,7 +71,7 @@ describe('classes/constructor_tearoffs.mjs', () => {
       'const aliasType = $Box_new_tearoff;',
       'const options = $Options_new_tearoff;',
       'const intHolder = $Holder_new_tearoff;',
-      'const constMakers = Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff]);',
+      'const constMakers = __dartConst("[\\"list\\",\\"FunctionType(Box Function(int))\\",[\\"constructorTearOff\\",\\"constructor:Box.\\"],[\\"constructorTearOff\\",\\"constructor:Box.named\\"],[\\"redirectingFactoryTearOff\\",\\"procedure:Box.alias\\"]]", () => Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff]));',
       '__dartPrint(__dartEquals(unnamed, unnamedAgain));',
       '__dartPrint(__dartEquals(unnamed, $Box_new_tearoff));',
       'function $Box_new_tearoff(value) {',

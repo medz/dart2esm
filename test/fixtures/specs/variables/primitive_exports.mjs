@@ -20,6 +20,13 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+const __dartConstValues = new Map();
+function __dartConst(key, create) {
+  if (!__dartConstValues.has(key)) {
+    __dartConstValues.set(key, create());
+  }
+  return __dartConstValues.get(key);
+}
 function __dartConstSet(values) {
   const set = new Set(values);
   const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
@@ -45,11 +52,11 @@ export const b = 2;
 
 export let c = 1;
 
-export const constList = Object.freeze([1, 2]);
+export const constList = __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"1\"],[\"int\",\"2\"]]", () => Object.freeze([1, 2]));
 
-export const constSet = __dartConstSet([1, 2]);
+export const constSet = __dartConst("[\"set\",\"InterfaceType(int)\",[\"int\",\"1\"],[\"int\",\"2\"]]", () => __dartConstSet([1, 2]));
 
-export const constMap = __dartConstMap([["one", 1], ["two", 2]]);
+export const constMap = __dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(int)\",[[\"string\",\"one\"],[\"int\",\"1\"]],[[\"string\",\"two\"],[\"int\",\"2\"]]]", () => __dartConstMap([["one", 1], ["two", 2]]));
 
 export function main() {
   __dartPrint("a " + __dartStr(a));

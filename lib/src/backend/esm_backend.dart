@@ -2154,7 +2154,10 @@ final class _EsmEmitter {
         return _emitInstanceConstant(constant);
       case k.RecordConstant():
         _usedHelpers.add('__dartRecord');
-        return '__dartRecord([${constant.positional.map(_emitEsmConst).join(', ')}], ${_emitRecordConstantNamedFields(constant.named)})';
+        return _emitCanonicalConst(
+          constant,
+          '__dartRecord([${constant.positional.map(_emitEsmConst).join(', ')}], ${_emitRecordConstantNamedFields(constant.named)})',
+        );
       case k.StaticTearOffConstant():
         return _emitStaticTearOffReference(constant.targetReference, constant);
       case k.ConstructorTearOffConstant():
@@ -2170,13 +2173,22 @@ final class _EsmEmitter {
         if (enumValues != null) {
           return enumValues;
         }
-        return 'Object.freeze([${constant.entries.map(_emitEsmConst).join(', ')}])';
+        return _emitCanonicalConst(
+          constant,
+          'Object.freeze([${constant.entries.map(_emitEsmConst).join(', ')}])',
+        );
       case k.SetConstant():
         _usedHelpers.add('__dartConstSet');
-        return '__dartConstSet([${constant.entries.map(_emitEsmConst).join(', ')}])';
+        return _emitCanonicalConst(
+          constant,
+          '__dartConstSet([${constant.entries.map(_emitEsmConst).join(', ')}])',
+        );
       case k.MapConstant():
         _usedHelpers.add('__dartConstMap');
-        return '__dartConstMap([${constant.entries.map((entry) => '[${_emitEsmConst(entry.key)}, ${_emitEsmConst(entry.value)}]').join(', ')}])';
+        return _emitCanonicalConst(
+          constant,
+          '__dartConstMap([${constant.entries.map((entry) => '[${_emitEsmConst(entry.key)}, ${_emitEsmConst(entry.value)}]').join(', ')}])',
+        );
       default:
         throw UnsupportedKernelNode(constant, 'constant');
     }

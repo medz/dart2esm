@@ -132,19 +132,19 @@ final class _EsmEmitter {
   }
 
   void _emitLibrary(k.Library library, {required bool export}) {
-    for (final field in library.fields) {
-      if (field.isExtensionTypeMember) {
-        continue;
-      }
-      _emitTopLevelField(field, export: export);
-      writeln();
-    }
     for (final klass in _classesInEmitOrder(library)) {
       _emitClass(klass, export: export);
       writeln();
     }
     for (final extensionType in library.extensionTypeDeclarations) {
       _emitExtensionTypeDeclaration(extensionType, export: export);
+      writeln();
+    }
+    for (final field in library.fields) {
+      if (field.isExtensionTypeMember) {
+        continue;
+      }
+      _emitTopLevelField(field, export: export);
       writeln();
     }
     for (final procedure in library.procedures) {
@@ -2207,13 +2207,16 @@ final class _EsmEmitter {
     switch (_referencePath(constant.classReference)) {
       case 'dart:convert::JsonCodec':
         _usedHelpers.add('__dartJsonCodec');
-        return '__dartJsonCodec()';
+        return _emitCanonicalConst(constant, '__dartJsonCodec()');
       case 'dart:convert::Utf8Codec':
         _usedHelpers.add('__dartUtf8Codec');
-        return '__dartUtf8Codec()';
+        return _emitCanonicalConst(constant, '__dartUtf8Codec()');
       case 'dart:convert::Base64Codec':
         _usedHelpers.add('__dartBase64Codec');
-        return '__dartBase64Codec(${_isBase64ConstantUrlSafe(constant)})';
+        return _emitCanonicalConst(
+          constant,
+          '__dartBase64Codec(${_isBase64ConstantUrlSafe(constant)})',
+        );
       case 'dart:core::Duration':
         _usedHelpers.add('__dartDuration');
         var micros = 0;
@@ -2223,7 +2226,10 @@ final class _EsmEmitter {
             break;
           }
         }
-        return '__dartDuration({ microseconds: $micros })';
+        return _emitCanonicalConst(
+          constant,
+          '__dartDuration({ microseconds: $micros })',
+        );
       case 'dart:typed_data::Endian':
         for (final value in constant.fieldValues.values) {
           if (value is k.BoolConstant) {
@@ -2232,8 +2238,176 @@ final class _EsmEmitter {
         }
         return 'false';
     }
+    if (classNode is k.Class &&
+        classNode.enclosingLibrary.importUri.scheme != 'dart') {
+      return _emitCanonicalConst(
+        constant,
+        _emitUserInstanceConstant(classNode, constant),
+      );
+    }
     final className = _referencePath(constant.classReference);
     throw UnsupportedKernelNode(constant, 'instance constant $className');
+  }
+
+  String _emitCanonicalConst(k.Constant constant, String value) {
+    _usedHelpers.add('__dartConst');
+    return '__dartConst(${jsonEncode(_constantKey(constant))}, () => $value)';
+  }
+
+  String _constantKey(k.Constant constant) =>
+      jsonEncode(_constantKeyParts(constant));
+
+  Object? _constantKeyParts(k.Constant constant) {
+    switch (constant) {
+      case k.NullConstant():
+        return ['null'];
+      case k.BoolConstant():
+        return ['bool', constant.value];
+      case k.IntConstant():
+        return ['int', constant.value.toString()];
+      case k.DoubleConstant():
+        final value = constant.value;
+        final key = value.isNaN
+            ? 'nan'
+            : value == double.infinity
+            ? 'infinity'
+            : value == double.negativeInfinity
+            ? '-infinity'
+            : value == 0 && value.isNegative
+            ? '-0.0'
+            : value.toString();
+        return ['double', key];
+      case k.StringConstant():
+        return ['string', constant.value];
+      case k.SymbolConstant():
+        return [
+          'symbol',
+          constant.name,
+          constant.libraryReference == null
+              ? null
+              : _referencePath(constant.libraryReference!),
+        ];
+      case k.TypeLiteralConstant():
+        return ['type', constant.type.toString()];
+      case k.UnevaluatedConstant():
+        return ['unevaluated', constant.expression.toString()];
+      case k.InstanceConstant():
+        final fieldValues = constant.fieldValues.entries.toList()
+          ..sort(
+            (left, right) => _constantReferenceKey(
+              left.key,
+            ).compareTo(_constantReferenceKey(right.key)),
+          );
+        return [
+          'instance',
+          _constantReferenceKey(constant.classReference),
+          for (final typeArgument in constant.typeArguments)
+            ['typeArgument', typeArgument.toString()],
+          for (final entry in fieldValues)
+            [
+              'field',
+              _constantReferenceKey(entry.key),
+              _constantKeyParts(entry.value),
+            ],
+        ];
+      case k.RecordConstant():
+        return [
+          'record',
+          for (final value in constant.positional) _constantKeyParts(value),
+          for (final entry in constant.named.entries)
+            ['named', entry.key, _constantKeyParts(entry.value)],
+        ];
+      case k.StaticTearOffConstant():
+        return [
+          'staticTearOff',
+          _constantReferenceKey(constant.targetReference),
+        ];
+      case k.ConstructorTearOffConstant():
+        return [
+          'constructorTearOff',
+          _constantReferenceKey(constant.target.reference),
+        ];
+      case k.RedirectingFactoryTearOffConstant():
+        return [
+          'redirectingFactoryTearOff',
+          _constantReferenceKey(constant.target.reference),
+        ];
+      case k.InstantiationConstant():
+        return [
+          'instantiation',
+          _constantKeyParts(constant.tearOffConstant),
+          for (final typeArgument in constant.types)
+            ['typeArgument', typeArgument.toString()],
+        ];
+      case k.TypedefTearOffConstant():
+        return ['typedefTearOff', _constantKeyParts(constant.tearOffConstant)];
+      case k.ListConstant():
+        return [
+          'list',
+          constant.typeArgument.toString(),
+          for (final entry in constant.entries) _constantKeyParts(entry),
+        ];
+      case k.SetConstant():
+        return [
+          'set',
+          constant.typeArgument.toString(),
+          for (final entry in constant.entries) _constantKeyParts(entry),
+        ];
+      case k.MapConstant():
+        return [
+          'map',
+          constant.keyType.toString(),
+          constant.valueType.toString(),
+          for (final entry in constant.entries)
+            [_constantKeyParts(entry.key), _constantKeyParts(entry.value)],
+        ];
+      default:
+        return [constant.runtimeType.toString(), constant.toString()];
+    }
+  }
+
+  String _constantReferenceKey(k.Reference reference) {
+    final node = reference.node;
+    if (node is k.Class && node.enclosingLibrary.importUri.scheme != 'dart') {
+      return 'class:${_className(node)}';
+    }
+    if (node is k.Field && node.enclosingLibrary.importUri.scheme != 'dart') {
+      final enclosingClass = node.enclosingClass;
+      if (enclosingClass != null) {
+        return 'field:${_className(enclosingClass)}.${_memberName(node.name.text)}';
+      }
+      return 'field:${_fieldName(node).value}';
+    }
+    if (node is k.Procedure &&
+        node.enclosingLibrary.importUri.scheme != 'dart') {
+      final enclosingClass = node.enclosingClass;
+      if (enclosingClass != null) {
+        return 'procedure:${_className(enclosingClass)}.${_memberName(node.name.text)}';
+      }
+      return 'procedure:${_procedureName(node)}';
+    }
+    if (node is k.Constructor &&
+        node.enclosingLibrary.importUri.scheme != 'dart') {
+      return 'constructor:${_className(node.enclosingClass)}.${node.name.text}';
+    }
+    return _referencePath(reference);
+  }
+
+  String _emitUserInstanceConstant(k.Class klass, k.InstanceConstant constant) {
+    final fields = constant.fieldValues.entries
+        .map((entry) {
+          final field = entry.key.node;
+          if (field is! k.Field) {
+            throw UnsupportedKernelNode(constant, 'instance constant field');
+          }
+          return '${_propertyKey(_memberName(field.name.text))}: ${_emitEsmConst(entry.value)}';
+        })
+        .join(', ');
+    final className = _className(klass);
+    if (fields.isEmpty) {
+      return 'Object.freeze(Object.create($className.prototype))';
+    }
+    return 'Object.freeze(Object.assign(Object.create($className.prototype), { $fields }))';
   }
 
   bool _isBase64ConstantUrlSafe(k.InstanceConstant constant) {
@@ -5882,6 +6056,15 @@ final class _EsmEmitter {
       helper.writeln('  return Object.freeze(record);');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartConst')) {
+      helper.writeln('const __dartConstValues = new Map();');
+      helper.writeln('function __dartConst(key, create) {');
+      helper.writeln('  if (!__dartConstValues.has(key)) {');
+      helper.writeln('    __dartConstValues.set(key, create());');
+      helper.writeln('  }');
+      helper.writeln('  return __dartConstValues.get(key);');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartConstSet')) {
       helper.writeln('function __dartConstSet(values) {');
       helper.writeln('  const set = new Set(values);');
@@ -6071,8 +6254,10 @@ const _generatedGlobalNames = {
   '__dartBase64Codec',
   '__dartBase64Decode',
   '__dartBase64Encode',
+  '__dartConst',
   '__dartConstMap',
   '__dartConstSet',
+  '__dartConstValues',
   '__dartCoreError',
   '__dartDateTime',
   '__dartDateTimeFromParts',

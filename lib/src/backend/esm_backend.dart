@@ -35,6 +35,7 @@ final class _EsmEmitter {
   final _classNames = <k.Class, String>{};
   final _fieldNames = <k.Field, _TopLevelFieldNames>{};
   final _variableNames = <k.VariableDeclaration, String>{};
+  final _labelNames = <k.LabeledStatement, String>{};
   final _usedHelpers = <String>{};
   final _usedNames = <String>{};
   var _indent = 0;
@@ -411,8 +412,14 @@ final class _EsmEmitter {
         emitStatement(statement.body);
         _indent--;
         writeln('}');
+      case k.DoStatement():
+        _emitDoStatement(statement);
       case k.ForStatement():
         _emitForStatement(statement);
+      case k.ForInStatement():
+        _emitForInStatement(statement);
+      case k.SwitchStatement():
+        _emitSwitchStatement(statement);
       case k.TryCatch():
         _emitTryCatch(statement);
       case k.TryFinally():
@@ -426,9 +433,12 @@ final class _EsmEmitter {
         _indent--;
         writeln('}');
       case k.BreakStatement():
-        writeln('break;');
+        writeln('break ${_labelName(statement.target)};');
       case k.ContinueSwitchStatement():
-        writeln('continue;');
+        throw UnsupportedKernelNode(statement, 'continue switch statement');
+      case k.LabeledStatement():
+        writeln('${_labelName(statement)}:');
+        emitStatement(statement.body);
       case k.AssertBlock():
         for (final child in statement.statements) {
           emitStatement(child);
@@ -438,6 +448,14 @@ final class _EsmEmitter {
       default:
         throw UnsupportedKernelNode(statement, 'statement');
     }
+  }
+
+  void _emitDoStatement(k.DoStatement statement) {
+    writeln('do {');
+    _indent++;
+    emitStatement(statement.body);
+    _indent--;
+    writeln('} while (${emitExpression(statement.condition)});');
   }
 
   void _emitForStatement(k.ForStatement statement) {
@@ -464,6 +482,40 @@ final class _EsmEmitter {
     writeln('for ($initializer; $condition; $updates) {');
     _indent++;
     emitStatement(statement.body);
+    _indent--;
+    writeln('}');
+  }
+
+  void _emitForInStatement(k.ForInStatement statement) {
+    if (statement.isAsync) {
+      throw UnsupportedKernelNode(statement, 'await for statement');
+    }
+    final variable = statement.variable;
+    _declareVariable(variable);
+    final keyword = variable.isFinal || variable.isConst ? 'const' : 'let';
+    writeln(
+      'for ($keyword ${_variableName(variable)} of ${emitExpression(statement.iterable)}) {',
+    );
+    _indent++;
+    emitStatement(statement.body);
+    _indent--;
+    writeln('}');
+  }
+
+  void _emitSwitchStatement(k.SwitchStatement statement) {
+    writeln('switch (${emitExpression(statement.expression)}) {');
+    _indent++;
+    for (final switchCase in statement.cases) {
+      for (final expression in switchCase.expressions) {
+        writeln('case ${emitExpression(expression)}:');
+      }
+      if (switchCase.isDefault) {
+        writeln('default:');
+      }
+      _indent++;
+      emitStatement(switchCase.body);
+      _indent--;
+    }
     _indent--;
     writeln('}');
   }
@@ -564,7 +616,7 @@ final class _EsmEmitter {
       case k.InstanceCreation():
         return _emitInstanceCreation(expression);
       case k.InstanceGet():
-        return '${emitExpression(expression.receiver)}.${_memberName(expression.name.text)}';
+        return _emitInstanceGet(expression);
       case k.InstanceSet():
         return '${emitExpression(expression.receiver)}.${_memberName(expression.name.text)} = ${emitExpression(expression.value)}';
       case k.ThisExpression():
@@ -642,10 +694,16 @@ final class _EsmEmitter {
   }
 
   String _emitStaticInvocation(k.StaticInvocation expression) {
+    final positionalArgs = expression.arguments.positional
+        .map(emitExpression)
+        .toList();
     final args = _emitArguments(expression.arguments);
     if (_isCoreReference(expression.targetReference, '@methods', 'print')) {
       _usedHelpers.add('__dartPrint');
       return '__dartPrint($args)';
+    }
+    if (_isCoreGrowableListLiteral(expression.targetReference)) {
+      return '[${positionalArgs.join(', ')}]';
     }
     final targetNode = expression.targetReference.node;
     if (targetNode is! k.Procedure) {
@@ -719,6 +777,15 @@ final class _EsmEmitter {
     return '$left.${_memberName(name)}($args)';
   }
 
+  String _emitInstanceGet(k.InstanceGet expression) {
+    final name = expression.name.text;
+    if (name == 'iterator') {
+      _usedHelpers.add('__dartIterator');
+      return '__dartIterator(${emitExpression(expression.receiver)})';
+    }
+    return '${emitExpression(expression.receiver)}.${_memberName(name)}';
+  }
+
   String _emitDynamicInvocation(k.DynamicInvocation expression) {
     final receiver = emitExpression(expression.receiver);
     final name = expression.name.text;
@@ -766,6 +833,12 @@ final class _EsmEmitter {
     return _referencePath(reference) == 'dart:core::$namespace::$name';
   }
 
+  bool _isCoreGrowableListLiteral(k.Reference reference) {
+    return _referencePath(
+      reference,
+    ).startsWith('dart:core::_GrowableList::@factories::dart:core::_literal');
+  }
+
   bool _isCoreClass(k.Reference reference, String name) {
     return _referencePath(reference) == 'dart:core::$name';
   }
@@ -788,6 +861,10 @@ final class _EsmEmitter {
       variable,
       () => _freshName(variable.name ?? 'v'),
     );
+  }
+
+  String _labelName(k.LabeledStatement statement) {
+    return _labelNames.putIfAbsent(statement, () => _freshName('L'));
   }
 
   String _procedureName(k.Procedure procedure) {
@@ -884,6 +961,26 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartTruncDiv')) {
       helper.writeln('function __dartTruncDiv(left, right) {');
       helper.writeln('  return Math.trunc(left / right);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterator')) {
+      helper.writeln('function __dartIterator(iterable) {');
+      helper.writeln(
+        '  const values = Array.isArray(iterable) ? iterable : Array.from(iterable);',
+      );
+      helper.writeln('  let index = -1;');
+      helper.writeln('  return {');
+      helper.writeln('    current: undefined,');
+      helper.writeln('    moveNext() {');
+      helper.writeln('      index++;');
+      helper.writeln('      if (index < values.length) {');
+      helper.writeln('        this.current = values[index];');
+      helper.writeln('        return true;');
+      helper.writeln('      }');
+      helper.writeln('      this.current = undefined;');
+      helper.writeln('      return false;');
+      helper.writeln('    },');
+      helper.writeln('  };');
       helper.writeln('}');
     }
     return helper.toString();

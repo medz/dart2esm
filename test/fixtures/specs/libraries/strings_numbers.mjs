@@ -80,17 +80,19 @@ function __dartNumParse(source) {
 function __dartUriParse(source, tryParse = false) {
   const text = String(source);
   let url;
+  let isRelative = false;
   try {
     url = new URL(text);
   } catch (_) {
     try {
       url = new URL(text, "dart://relative");
+      isRelative = true;
     } catch (_) {
       if (tryParse) return null;
       throw __dartCoreError("FormatException", "Invalid URI");
     }
   }
-  const isRelative = url.protocol === "dart:";
+  const relativePath = isRelative ? text.split(/[?#]/, 1)[0] : url.pathname;
   const userInfo = isRelative ? "" : [url.username, url.password].filter((part) => part !== "").join(":");
   const defaultPort = url.protocol === "http:" ? 80 : url.protocol === "https:" ? 443 : 0;
   function queryParameters(all = false) {
@@ -112,8 +114,8 @@ function __dartUriParse(source, tryParse = false) {
     get authority() { return isRelative ? "" : (userInfo === "" ? url.host : userInfo + "@" + url.host); },
     get userInfo() { return userInfo; },
     get port() { return isRelative ? 0 : (url.port === "" ? defaultPort : Number(url.port)); },
-    get path() { return url.pathname; },
-    get pathSegments() { return url.pathname.split("/").filter((segment) => segment !== "").map(decodeURIComponent); },
+    get path() { return relativePath; },
+    get pathSegments() { return relativePath.split("/").filter((segment) => segment !== "").map(decodeURIComponent); },
     get query() { return url.search.startsWith("?") ? url.search.slice(1) : ""; },
     get queryParameters() { return queryParameters(false); },
     get queryParametersAll() { return queryParameters(true); },
@@ -126,6 +128,17 @@ function __dartUriParse(source, tryParse = false) {
     get isAbsolute() { return !isRelative && url.protocol !== "" && url.hash === ""; },
     toString() { return text; },
   });
+}
+function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }
+function __dartUriFile(path, windows = false, directory = false) {
+  let text = String(path);
+  if (windows) text = text.replace(/\\/g, "/");
+  if (directory && text !== "" && !text.endsWith("/") && !(windows && /^[a-zA-Z]:$/.test(text))) text += "/";
+  const isAbsolute = windows ? (/^[a-zA-Z]:\//.test(text) || text.startsWith("//")) : text.startsWith("/");
+  const encoded = __dartUriEncodePath(text);
+  if (!isAbsolute) return __dartUriParse(encoded, false);
+  const filePath = windows && /^[a-zA-Z]:\//.test(encoded) ? "/" + encoded : encoded;
+  return __dartUriParse("file://" + filePath, false);
 }
 function __dartUriAssignQueryParameters(url, queryParameters) {
   const search = new URLSearchParams();
@@ -271,6 +284,11 @@ export function main() {
   const resolvedUri = __dartUriResolve(uri, __dartUriParse("/root?q=2", false));
   const normalized = __dartUriNormalizePath(__dartUriParse("https://example.test/a/../b/./c", false));
   __dartPrint("uri ops " + __dartStr(__dartStr(replaced)) + " " + __dartStr(__dartUriReplace(uri, { __removeFragment: true }).hasFragment) + " " + __dartStr(resolved.path) + " " + __dartStr(resolved.query) + " " + __dartStr(resolvedUri.path) + " " + __dartStr(normalized.path));
+  const relative = __dartUriParse("relative/path.txt", false);
+  const file = __dartUriFile("/tmp/a b.txt", false, false);
+  const directory = __dartUriFile("/tmp/a b", false, true);
+  const relativeFile = __dartUriFile("relative/path.txt", false, false);
+  __dartPrint("uri factories " + __dartStr(relative.path) + " " + __dartStr(relative.isAbsolute) + " " + __dartStr(file.scheme) + " " + __dartStr(file.path) + " " + __dartStr(directory.path.endsWith("/")) + " " + __dartStr(relativeFile.scheme) + " " + __dartStr(relativeFile.path));
   const tryUri = __dartUriParse("https://example.test/try", true);
   const invalidUri = __dartUriParse("http://[::1", true);
   __dartPrint("uri try " + __dartStr(__dartNullCheck(tryUri).host) + " " + __dartStr((invalidUri === null)));

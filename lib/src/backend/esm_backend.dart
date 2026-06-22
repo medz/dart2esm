@@ -5579,6 +5579,24 @@ final class _EsmEmitter {
           : 'null';
       return '__dartUriBuild("https", ${positionalArgs[0]}, ${positionalArgs[1]}, $queryParameters)';
     }
+    if ((path == 'dart:core::_Uri::@factories::file' ||
+            path == 'dart:core::Uri::@factories::file') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriFile');
+      final windows =
+          _namedArgument(expression.arguments, 'windows') ?? 'false';
+      return '__dartUriFile(${positionalArgs.single}, $windows, false)';
+    }
+    if ((path == 'dart:core::_Uri::@factories::directory' ||
+            path == 'dart:core::Uri::@factories::directory') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriFile');
+      final windows =
+          _namedArgument(expression.arguments, 'windows') ?? 'false';
+      return '__dartUriFile(${positionalArgs.single}, $windows, true)';
+    }
     if (!path.startsWith('dart:core::Uri::@methods::')) {
       return null;
     }
@@ -7377,11 +7395,13 @@ final class _EsmEmitter {
       helper.writeln('function __dartUriParse(source, tryParse = false) {');
       helper.writeln('  const text = String(source);');
       helper.writeln('  let url;');
+      helper.writeln('  let isRelative = false;');
       helper.writeln('  try {');
       helper.writeln('    url = new URL(text);');
       helper.writeln('  } catch (_) {');
       helper.writeln('    try {');
       helper.writeln('      url = new URL(text, "dart://relative");');
+      helper.writeln('      isRelative = true;');
       helper.writeln('    } catch (_) {');
       helper.writeln('      if (tryParse) return null;');
       helper.writeln(
@@ -7389,7 +7409,9 @@ final class _EsmEmitter {
       );
       helper.writeln('    }');
       helper.writeln('  }');
-      helper.writeln('  const isRelative = url.protocol === "dart:";');
+      helper.writeln(
+        '  const relativePath = isRelative ? text.split(/[?#]/, 1)[0] : url.pathname;',
+      );
       helper.writeln(
         '  const userInfo = isRelative ? "" : [url.username, url.password].filter((part) => part !== "").join(":");',
       );
@@ -7423,9 +7445,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    get port() { return isRelative ? 0 : (url.port === "" ? defaultPort : Number(url.port)); },',
       );
-      helper.writeln('    get path() { return url.pathname; },');
+      helper.writeln('    get path() { return relativePath; },');
       helper.writeln(
-        '    get pathSegments() { return url.pathname.split("/").filter((segment) => segment !== "").map(decodeURIComponent); },',
+        '    get pathSegments() { return relativePath.split("/").filter((segment) => segment !== "").map(decodeURIComponent); },',
       );
       helper.writeln(
         '    get query() { return url.search.startsWith("?") ? url.search.slice(1) : ""; },',
@@ -7456,6 +7478,31 @@ final class _EsmEmitter {
       helper.writeln('    toString() { return text; },');
       helper.writeln('  });');
       helper.writeln('}');
+      if (_usedHelpers.contains('__dartUriFile')) {
+        helper.writeln(
+          'function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }',
+        );
+        helper.writeln(
+          'function __dartUriFile(path, windows = false, directory = false) {',
+        );
+        helper.writeln('  let text = String(path);');
+        helper.writeln('  if (windows) text = text.replace(/\\\\/g, "/");');
+        helper.writeln(
+          '  if (directory && text !== "" && !text.endsWith("/") && !(windows && /^[a-zA-Z]:\$/.test(text))) text += "/";',
+        );
+        helper.writeln(
+          '  const isAbsolute = windows ? (/^[a-zA-Z]:\\//.test(text) || text.startsWith("//")) : text.startsWith("/");',
+        );
+        helper.writeln('  const encoded = __dartUriEncodePath(text);');
+        helper.writeln(
+          '  if (!isAbsolute) return __dartUriParse(encoded, false);',
+        );
+        helper.writeln(
+          '  const filePath = windows && /^[a-zA-Z]:\\//.test(encoded) ? "/" + encoded : encoded;',
+        );
+        helper.writeln('  return __dartUriParse("file://" + filePath, false);');
+        helper.writeln('}');
+      }
       if (_usedHelpers.contains('__dartUriBuild') ||
           _usedHelpers.contains('__dartUriReplace')) {
         helper.writeln(
@@ -10010,6 +10057,8 @@ const _generatedGlobalNames = {
   '__dartTypedDataSublistView',
   '__dartUriAssignQueryParameters',
   '__dartUriBuild',
+  '__dartUriEncodePath',
+  '__dartUriFile',
   '__dartUriNormalizePath',
   '__dartUriParse',
   '__dartUriReplace',

@@ -90,6 +90,15 @@ void main() {
     '${resolved.path} ${resolved.query} ${resolvedUri.path} '
     '${normalized.path}',
   );
+  final relative = Uri.parse('relative/path.txt');
+  final file = Uri.file('/tmp/a b.txt');
+  final directory = Uri.directory('/tmp/a b');
+  final relativeFile = Uri.file('relative/path.txt');
+  print(
+    'uri factories ${relative.path} ${relative.isAbsolute} '
+    '${file.scheme} ${file.path} ${directory.path.endsWith('/')} '
+    '${relativeFile.scheme} ${relativeFile.path}',
+  );
   final tryUri = Uri.tryParse('https://example.test/try');
   final invalidUri = Uri.tryParse('http://[::1');
   print('uri try ${tryUri!.host} ${invalidUri == null}');

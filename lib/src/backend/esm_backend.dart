@@ -3251,10 +3251,55 @@ final class _EsmEmitter {
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2 &&
         _isCoreMember(target, 'String', 'contains')) {
-      if (positionalArgs.length == 1) {
-        return '$left.includes(${positionalArgs.single})';
+      if (_isStringLiteralArgument(expression.arguments, 0)) {
+        if (positionalArgs.length == 1) {
+          return '$left.includes(${positionalArgs.single})';
+        }
+        return '$left.includes(${positionalArgs[0]}, ${positionalArgs[1]})';
       }
-      return '$left.includes(${positionalArgs[0]}, ${positionalArgs[1]})';
+      _usedHelpers.add('__dartStringPattern');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+      return '__dartStringContains($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'startsWith' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isCoreMember(target, 'String', 'startsWith')) {
+      if (_isStringLiteralArgument(expression.arguments, 0)) {
+        if (positionalArgs.length == 1) {
+          return '$left.startsWith(${positionalArgs.single})';
+        }
+        return '$left.startsWith(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
+      _usedHelpers.add('__dartStringPattern');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+      return '__dartStringStartsWith($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'indexOf' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isCoreMember(target, 'String', 'indexOf')) {
+      if (_isStringLiteralArgument(expression.arguments, 0)) {
+        if (positionalArgs.length == 1) {
+          return '$left.indexOf(${positionalArgs.single})';
+        }
+        return '$left.indexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
+      _usedHelpers.add('__dartStringPattern');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+      return '__dartStringIndexOf($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'split' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'String', 'split')) {
+      if (_isStringLiteralArgument(expression.arguments, 0)) {
+        return '$left.split(${positionalArgs.single})';
+      }
+      _usedHelpers.add('__dartStringPattern');
+      return '__dartStringSplit($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'codeUnitAt' &&
@@ -3295,13 +3340,29 @@ final class _EsmEmitter {
       return numberInvocation;
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'replaceAll' &&
+        positionalArgs.length == 2 &&
+        _isCoreMember(target, 'String', name)) {
+      if (_isStringLiteralArgument(expression.arguments, 0)) {
+        return '$left.replaceAll(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
+      _usedHelpers.add('__dartStringPattern');
+      return '__dartStringReplaceAll($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'replaceFirst' &&
         positionalArgs.length >= 2 &&
         positionalArgs.length <= 3 &&
         _isCoreMember(target, 'String', name)) {
-      _usedHelpers.add('__dartStringReplaceFirst');
       final startIndex = positionalArgs.length == 3 ? positionalArgs[2] : '0';
-      return '__dartStringReplaceFirst($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
+      if (_isStringLiteralArgument(expression.arguments, 0)) {
+        _usedHelpers.add('__dartStringReplaceFirst');
+        return '__dartStringReplaceFirst($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
+      }
+      _usedHelpers.add('__dartStringPattern');
+      _usedHelpers.add('__dartStringReplaceFirst');
+      _usedHelpers.add('__dartStringReplaceFirstPattern');
+      return '__dartStringReplaceFirstPattern($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'replaceRange' &&
@@ -4157,6 +4218,11 @@ final class _EsmEmitter {
       args.add('{ ${arguments.named.map(_emitNamedArgument).join(', ')} }');
     }
     return args.join(', ');
+  }
+
+  bool _isStringLiteralArgument(k.Arguments arguments, int index) {
+    return index < arguments.positional.length &&
+        arguments.positional[index] is k.StringLiteral;
   }
 
   String _emitArgumentsWithoutFirstPositional(k.Arguments arguments) {
@@ -5666,6 +5732,70 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartStringPattern')) {
+      helper.writeln('function __dartPatternRegExp(pattern, global = false) {');
+      helper.writeln(
+        '  if (pattern != null && typeof pattern.__dartRegExpMake === "function") return pattern.__dartRegExpMake(global);',
+      );
+      helper.writeln('  if (pattern instanceof RegExp) {');
+      helper.writeln('    let flags = pattern.flags;');
+      helper.writeln(
+        '    flags = global ? (flags.includes("g") ? flags : flags + "g") : flags.replace(/g/g, "");',
+      );
+      helper.writeln('    return new RegExp(pattern.source, flags);');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringContains(source, pattern, start = 0) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln(
+        '  if (regexp != null) return regexp.test(text.slice(start));',
+      );
+      helper.writeln('  return text.includes(String(pattern), start);');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringStartsWith(source, pattern, start = 0) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln('    const match = regexp.exec(text.slice(start));');
+      helper.writeln('    return match != null && match.index === 0;');
+      helper.writeln('  }');
+      helper.writeln('  return text.startsWith(String(pattern), start);');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringIndexOf(source, pattern, start = 0) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln('    const match = regexp.exec(text.slice(start));');
+      helper.writeln('    return match == null ? -1 : start + match.index;');
+      helper.writeln('  }');
+      helper.writeln('  return text.indexOf(String(pattern), start);');
+      helper.writeln('}');
+      helper.writeln('function __dartStringSplit(source, pattern) {');
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln(
+        '  return regexp == null ? text.split(String(pattern)) : text.split(regexp);',
+      );
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringReplaceAll(source, pattern, replacement) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const replacementText = String(replacement);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, true);');
+      helper.writeln(
+        '  return regexp == null ? text.split(String(pattern)).join(replacementText) : text.replace(regexp, () => replacementText);',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartStringReplaceFirst')) {
       helper.writeln(
         'function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {',
@@ -5676,6 +5806,27 @@ final class _EsmEmitter {
       helper.writeln('  if (index < 0) return text;');
       helper.writeln(
         '  return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartStringReplaceFirstPattern')) {
+      helper.writeln(
+        'function __dartStringReplaceFirstPattern(source, pattern, replacement, startIndex = 0) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const replacementText = String(replacement);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln('    const tail = text.slice(startIndex);');
+      helper.writeln('    const match = regexp.exec(tail);');
+      helper.writeln('    if (match == null) return text;');
+      helper.writeln('    const index = startIndex + match.index;');
+      helper.writeln(
+        '    return text.slice(0, index) + replacementText + text.slice(index + match[0].length);',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  return __dartStringReplaceFirst(source, pattern, replacement, startIndex);',
       );
       helper.writeln('}');
     }
@@ -6094,6 +6245,7 @@ final class _EsmEmitter {
       helper.writeln('    return new RegExp(source, flags);');
       helper.writeln('  }');
       helper.writeln('  return {');
+      helper.writeln('    __dartRegExpMake: make,');
       helper.writeln('    pattern: source,');
       helper.writeln(
         '    hasMatch(input) { return make(false).test(String(input)); },',
@@ -7407,6 +7559,7 @@ const _generatedGlobalNames = {
   '__dartNextIdentityHash',
   '__dartObjectHash',
   '__dartObjectHashUnordered',
+  '__dartPatternRegExp',
   '__dartPrint',
   '__dartRandom',
   '__dartRecord',
@@ -7426,8 +7579,15 @@ const _generatedGlobalNames = {
   '__dartStreamToList',
   '__dartStreamWhere',
   '__dartStringBuffer',
+  '__dartStringContains',
+  '__dartStringIndexOf',
+  '__dartStringPattern',
   '__dartStringReplaceFirst',
+  '__dartStringReplaceFirstPattern',
+  '__dartStringReplaceAll',
   '__dartStringReplaceRange',
+  '__dartStringSplit',
+  '__dartStringStartsWith',
   '__dartTruncDiv',
   '__dartToJson',
   '__dartUriBuild',

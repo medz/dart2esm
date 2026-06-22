@@ -15,4 +15,15 @@ void main() {
     parts.add(match.group(0)!);
   }
   print('all $parts');
+
+  final digits = RegExp(r'\d+');
+  final mixed = 'a1 b22';
+  print(
+    'stringPattern ${mixed.contains(digits)} ${mixed.contains(digits, 2)} '
+    '${mixed.startsWith(RegExp(r'a\d'))} ${mixed.indexOf(digits, 2)}',
+  );
+  print(
+    'stringReplace ${mixed.split(digits).join('|')} '
+    '${mixed.replaceAll(digits, '#')} ${mixed.replaceFirst(digits, '#')}',
+  );
 }

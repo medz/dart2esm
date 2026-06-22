@@ -20,6 +20,70 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartPatternRegExp(pattern, global = false) {
+  if (pattern != null && typeof pattern.__dartRegExpMake === "function") return pattern.__dartRegExpMake(global);
+  if (pattern instanceof RegExp) {
+    let flags = pattern.flags;
+    flags = global ? (flags.includes("g") ? flags : flags + "g") : flags.replace(/g/g, "");
+    return new RegExp(pattern.source, flags);
+  }
+  return null;
+}
+function __dartStringContains(source, pattern, start = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) return regexp.test(text.slice(start));
+  return text.includes(String(pattern), start);
+}
+function __dartStringStartsWith(source, pattern, start = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const match = regexp.exec(text.slice(start));
+    return match != null && match.index === 0;
+  }
+  return text.startsWith(String(pattern), start);
+}
+function __dartStringIndexOf(source, pattern, start = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const match = regexp.exec(text.slice(start));
+    return match == null ? -1 : start + match.index;
+  }
+  return text.indexOf(String(pattern), start);
+}
+function __dartStringSplit(source, pattern) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  return regexp == null ? text.split(String(pattern)) : text.split(regexp);
+}
+function __dartStringReplaceAll(source, pattern, replacement) {
+  const text = String(source);
+  const replacementText = String(replacement);
+  const regexp = __dartPatternRegExp(pattern, true);
+  return regexp == null ? text.split(String(pattern)).join(replacementText) : text.replace(regexp, () => replacementText);
+}
+function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {
+  const text = String(source);
+  const needle = String(pattern);
+  const index = text.indexOf(needle, startIndex);
+  if (index < 0) return text;
+  return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);
+}
+function __dartStringReplaceFirstPattern(source, pattern, replacement, startIndex = 0) {
+  const text = String(source);
+  const replacementText = String(replacement);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const tail = text.slice(startIndex);
+    const match = regexp.exec(tail);
+    if (match == null) return text;
+    const index = startIndex + match.index;
+    return text.slice(0, index) + replacementText + text.slice(index + match[0].length);
+  }
+  return __dartStringReplaceFirst(source, pattern, replacement, startIndex);
+}
 function __dartRegExp(pattern, options = {}) {
   const source = String(pattern);
   const caseSensitive = options.caseSensitive !== false;
@@ -35,6 +99,7 @@ function __dartRegExp(pattern, options = {}) {
     return new RegExp(source, flags);
   }
   return {
+    __dartRegExpMake: make,
     pattern: source,
     hasMatch(input) { return make(false).test(String(input)); },
     firstMatch(input) {
@@ -78,6 +143,9 @@ function __dartNullCheck(value) {
   }
   return value;
 }
+function __dartIterableJoin(iterable, separator = "") {
+  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+}
 function __dartIterator(iterable) {
   const values = Array.isArray(iterable) ? iterable : Array.from(iterable);
   let index = -1;
@@ -118,6 +186,10 @@ export function main() {
     }
   }
   __dartPrint("all " + __dartStr(parts));
+  const digits = __dartRegExp("\\d+", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+  const mixed = "a1 b22";
+  __dartPrint("stringPattern " + __dartStr(__dartStringContains(mixed, digits, 0)) + " " + __dartStr(__dartStringContains(mixed, digits, 2)) + " " + __dartStr(__dartStringStartsWith(mixed, __dartRegExp("a\\d", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), 0)) + " " + __dartStr(__dartStringIndexOf(mixed, digits, 2)));
+  __dartPrint("stringReplace " + __dartStr(__dartIterableJoin(__dartStringSplit(mixed, digits), "|")) + " " + __dartStr(__dartStringReplaceAll(mixed, digits, "#")) + " " + __dartStr(__dartStringReplaceFirstPattern(mixed, digits, "#", 0)));
 }
 
 main();

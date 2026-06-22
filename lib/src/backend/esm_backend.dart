@@ -2254,6 +2254,13 @@ final class _EsmEmitter {
     if (mathInvocation != null) {
       return mathInvocation;
     }
+    final typedDataInvocation = _emitTypedDataStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (typedDataInvocation != null) {
+      return typedDataInvocation;
+    }
     if (_isCoreReference(
           expression.targetReference,
           '@methods',
@@ -2902,7 +2909,8 @@ final class _EsmEmitter {
         'int' || 'double' || 'num' => 'typeof $operand === "number"',
         'bool' => 'typeof $operand === "boolean"',
         'Null' => '$operand === null',
-        'List' => 'Array.isArray($operand)',
+        'List' =>
+          '(Array.isArray($operand) || (ArrayBuffer.isView($operand) && !($operand instanceof DataView)))',
         'Set' => '$operand instanceof Set',
         'Map' => '$operand instanceof Map',
         'Iterable' =>
@@ -2914,7 +2922,10 @@ final class _EsmEmitter {
         'FormatException' ||
         'Error' ||
         'TypeError' => _emitCoreErrorTypeTest(operand, typeName),
-        _ => throw UnsupportedKernelNode(node, 'type test $typeName'),
+        _ =>
+          _typedArrayConstructorName(typeName) != null
+              ? '$operand instanceof ${_typedArrayConstructorName(typeName)}'
+              : throw UnsupportedKernelNode(node, 'type test $typeName'),
       };
     }
     throw UnsupportedKernelNode(node, 'type test');
@@ -3230,6 +3241,47 @@ final class _EsmEmitter {
       'log10e' => 'Math.LOG10E',
       'sqrt1_2' => 'Math.SQRT1_2',
       'sqrt2' => 'Math.SQRT2',
+      _ => null,
+    };
+  }
+
+  String? _emitTypedDataStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:typed_data::')) {
+      return null;
+    }
+    final parts = path.split('::');
+    if (parts.length < 4 || parts[2] != '@factories') {
+      return null;
+    }
+    final constructor = _typedArrayConstructorName(parts[1]);
+    if (constructor == null) {
+      return null;
+    }
+    final factoryName = parts.last;
+    if (factoryName == 'fromList' && positionalArgs.length == 1) {
+      return '$constructor.from(${positionalArgs.single})';
+    }
+    if (factoryName.isEmpty && positionalArgs.length == 1) {
+      return 'new $constructor(${positionalArgs.single})';
+    }
+    return null;
+  }
+
+  String? _typedArrayConstructorName(String dartTypeName) {
+    return switch (dartTypeName) {
+      'Int8List' => 'Int8Array',
+      'Uint8List' => 'Uint8Array',
+      'Uint8ClampedList' => 'Uint8ClampedArray',
+      'Int16List' => 'Int16Array',
+      'Uint16List' => 'Uint16Array',
+      'Int32List' => 'Int32Array',
+      'Uint32List' => 'Uint32Array',
+      'Float32List' => 'Float32Array',
+      'Float64List' => 'Float64Array',
       _ => null,
     };
   }

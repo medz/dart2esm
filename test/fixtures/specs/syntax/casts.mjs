@@ -51,7 +51,7 @@ function __dartRecord(positional, named) {
 export function castList(value) {
   try {
     {
-      const list = __dartAs(value, value => Array.isArray(value), "List<dynamic>");
+      const list = __dartAs(value, value => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List<dynamic>");
       return "list " + __dartStr(list.length);
     }
   } catch ($error) {

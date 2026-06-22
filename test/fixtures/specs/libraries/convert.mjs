@@ -107,7 +107,7 @@ export function main() {
   const payload = new Map([["name", "dart2esm"], ["values", [1, 2, 3]], ["ok", true]]);
   const encoded = __dartJsonEncode(payload, null);
   const decoded = __dartAs(__dartJsonDecode(encoded), value => value instanceof Map, "Map<dynamic, dynamic>");
-  __dartPrint("json " + __dartStr(decoded.get("name")) + " " + __dartStr(__dartAs(decoded.get("values"), value => Array.isArray(value), "List<dynamic>").length));
+  __dartPrint("json " + __dartStr(decoded.get("name")) + " " + __dartStr(__dartAs(decoded.get("values"), value => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List<dynamic>").length));
   const codecEncoded = __dartJsonCodec().encode(new Map([["answer", 42]]));
   const codecDecoded = __dartAs(__dartJsonCodec().decode(codecEncoded), value => value instanceof Map, "Map<dynamic, dynamic>");
   __dartPrint("codec " + __dartStr(codecDecoded.get("answer")));

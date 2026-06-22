@@ -42,6 +42,22 @@ Future<void> main() async {
   print('now ${now.millisecondsSinceEpoch > 0} ${now.isUtc}');
   print('timestamp ${timestamp.millisecondsSinceEpoch > 0} ${timestamp.isUtc}');
 
+  final shifted = epoch.add(const Duration(milliseconds: 1, microseconds: 2));
+  final shiftedBack = shifted.subtract(const Duration(microseconds: 2));
+  final delta = shifted.difference(epoch);
+  print(
+    'dateOps ${shifted.toIso8601String()} '
+    '${shiftedBack.microsecondsSinceEpoch} ${delta.inMicroseconds}',
+  );
+  print(
+    'dateCompare ${epoch.isBefore(shifted)} ${shifted.isAfter(epoch)} '
+    '${epoch.isAtSameMomentAs(DateTime.fromMillisecondsSinceEpoch(0, isUtc: true))} '
+    '${shifted.compareTo(epoch)} ${epoch.compareTo(shifted)}',
+  );
+  print(
+    'dateEquals ${epoch == DateTime.fromMicrosecondsSinceEpoch(0, isUtc: true)}',
+  );
+
   final parsed = DateTime.parse('2026-01-02T03:04:05.006Z');
   print('parsed ${parsed.toUtc().toIso8601String()}');
 

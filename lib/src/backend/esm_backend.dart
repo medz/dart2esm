@@ -2224,6 +2224,11 @@ final class _EsmEmitter {
   String _emitEqualsCall(k.EqualsCall expression) {
     final left = emitExpression(expression.left);
     final right = emitExpression(expression.right);
+    if (_isCoreMember(expression.interfaceTargetReference, 'DateTime', '==')) {
+      final leftName = _freshScopedName('\$left');
+      final rightName = _freshScopedName('\$right');
+      return '(() => { const $leftName = $left; const $rightName = $right; return $leftName === null ? $rightName === null : ${_emitPropertyGet(leftName, '==')}($rightName); })()';
+    }
     if (_isNativeOperatorTarget(expression.interfaceTargetReference)) {
       _usedHelpers.add('__dartEquals');
       return '__dartEquals($left, $right)';
@@ -5231,7 +5236,8 @@ final class _EsmEmitter {
       helper.writeln('  return value;');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartDuration')) {
+    if (_usedHelpers.contains('__dartDuration') ||
+        _usedHelpers.contains('__dartDateTime')) {
       helper.writeln('function __dartDuration(options = {}) {');
       helper.writeln(
         '  const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));',
@@ -5306,6 +5312,33 @@ final class _EsmEmitter {
         '    get year() { return read("getUTCFullYear", "getFullYear"); },',
       );
       helper.writeln('    get isUtc() { return isUtc; },');
+      helper.writeln(
+        '    get hashCode() { return this.microsecondsSinceEpoch & 0x1fffffff; },',
+      );
+      helper.writeln(
+        '    "=="(other) { return other != null && typeof other.microsecondsSinceEpoch === "number" && this.microsecondsSinceEpoch === other.microsecondsSinceEpoch; },',
+      );
+      helper.writeln(
+        '    compareTo(other) { const diff = this.microsecondsSinceEpoch - other.microsecondsSinceEpoch; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },',
+      );
+      helper.writeln(
+        '    isBefore(other) { return this.microsecondsSinceEpoch < other.microsecondsSinceEpoch; },',
+      );
+      helper.writeln(
+        '    isAfter(other) { return this.microsecondsSinceEpoch > other.microsecondsSinceEpoch; },',
+      );
+      helper.writeln(
+        '    isAtSameMomentAs(other) { return this.microsecondsSinceEpoch === other.microsecondsSinceEpoch; },',
+      );
+      helper.writeln(
+        '    add(duration) { return __dartDateTimeFromMicros(this.microsecondsSinceEpoch + duration.inMicroseconds, isUtc); },',
+      );
+      helper.writeln(
+        '    subtract(duration) { return __dartDateTimeFromMicros(this.microsecondsSinceEpoch - duration.inMicroseconds, isUtc); },',
+      );
+      helper.writeln(
+        '    difference(other) { return __dartDuration({ microseconds: this.microsecondsSinceEpoch - other.microsecondsSinceEpoch }); },',
+      );
       helper.writeln(
         '    toUtc() { return __dartDateTime(millis, true, microsecond); },',
       );

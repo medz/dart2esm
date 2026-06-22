@@ -56,6 +56,15 @@ function __dartDateTime(millis, isUtc = false, microsecond = 0) {
     get month() { return read("getUTCMonth", "getMonth") + 1; },
     get year() { return read("getUTCFullYear", "getFullYear"); },
     get isUtc() { return isUtc; },
+    get hashCode() { return this.microsecondsSinceEpoch & 0x1fffffff; },
+    "=="(other) { return other != null && typeof other.microsecondsSinceEpoch === "number" && this.microsecondsSinceEpoch === other.microsecondsSinceEpoch; },
+    compareTo(other) { const diff = this.microsecondsSinceEpoch - other.microsecondsSinceEpoch; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
+    isBefore(other) { return this.microsecondsSinceEpoch < other.microsecondsSinceEpoch; },
+    isAfter(other) { return this.microsecondsSinceEpoch > other.microsecondsSinceEpoch; },
+    isAtSameMomentAs(other) { return this.microsecondsSinceEpoch === other.microsecondsSinceEpoch; },
+    add(duration) { return __dartDateTimeFromMicros(this.microsecondsSinceEpoch + duration.inMicroseconds, isUtc); },
+    subtract(duration) { return __dartDateTimeFromMicros(this.microsecondsSinceEpoch - duration.inMicroseconds, isUtc); },
+    difference(other) { return __dartDuration({ microseconds: this.microsecondsSinceEpoch - other.microsecondsSinceEpoch }); },
     toUtc() { return __dartDateTime(millis, true, microsecond); },
     toLocal() { return __dartDateTime(millis, false, microsecond); },
     toIso8601String() { const text = date.toISOString(); return microsecond === 0 ? text : text.replace(/(\.\d{3})Z$/, "$1" + String(microsecond).padStart(3, "0") + "Z"); },
@@ -127,6 +136,12 @@ export async function main() {
   const timestamp = __dartDateTime(Date.now(), true);
   __dartPrint("now " + __dartStr((now.millisecondsSinceEpoch > 0)) + " " + __dartStr(now.isUtc));
   __dartPrint("timestamp " + __dartStr((timestamp.millisecondsSinceEpoch > 0)) + " " + __dartStr(timestamp.isUtc));
+  const shifted = epoch.add(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1002\"]]]", () => __dartDuration({ microseconds: 1002 })));
+  const shiftedBack = shifted.subtract(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"2\"]]]", () => __dartDuration({ microseconds: 2 })));
+  const delta = shifted.difference(epoch);
+  __dartPrint("dateOps " + __dartStr(shifted.toIso8601String()) + " " + __dartStr(shiftedBack.microsecondsSinceEpoch) + " " + __dartStr(delta.inMicroseconds));
+  __dartPrint("dateCompare " + __dartStr(epoch.isBefore(shifted)) + " " + __dartStr(shifted.isAfter(epoch)) + " " + __dartStr(epoch.isAtSameMomentAs(__dartDateTime(0, true))) + " " + __dartStr(shifted.compareTo(epoch)) + " " + __dartStr(epoch.compareTo(shifted)));
+  __dartPrint("dateEquals " + __dartStr((() => { const $left_1 = epoch; const $right_1 = __dartDateTimeFromMicros(0, true); return $left_1 === null ? $right_1 === null : $left_1["=="]($right_1); })()));
   const parsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z");
   __dartPrint("parsed " + __dartStr(parsed.toUtc().toIso8601String()));
   const parsedMicros = __dartDateTimeParse("2026-01-02T03:04:05.006007Z");

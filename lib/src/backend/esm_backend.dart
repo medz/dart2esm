@@ -2224,7 +2224,8 @@ final class _EsmEmitter {
   String _emitEqualsCall(k.EqualsCall expression) {
     final left = emitExpression(expression.left);
     final right = emitExpression(expression.right);
-    if (_isCoreMember(expression.interfaceTargetReference, 'DateTime', '==')) {
+    if (_isCoreMember(expression.interfaceTargetReference, 'DateTime', '==') ||
+        _isCoreMember(expression.interfaceTargetReference, 'Duration', '==')) {
       final leftName = _freshScopedName('\$left');
       final rightName = _freshScopedName('\$right');
       return '(() => { const $leftName = $left; const $rightName = $right; return $leftName === null ? $rightName === null : ${_emitPropertyGet(leftName, '==')}($rightName); })()';
@@ -3143,6 +3144,16 @@ final class _EsmEmitter {
         .toList();
     final args = _emitArguments(expression.arguments);
     final target = expression.interfaceTargetReference;
+    final durationOperator = _emitDurationOperatorInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments.named.isEmpty,
+    );
+    if (durationOperator != null) {
+      return durationOperator;
+    }
     if (expression.arguments.named.isEmpty && positionalArgs.isEmpty) {
       if (name == 'unary-') {
         if (!_isNativeOperatorTarget(target)) {
@@ -3555,6 +3566,50 @@ final class _EsmEmitter {
       return '__dartStr($left)';
     }
     return '$left.${_memberName(name)}($args)';
+  }
+
+  String? _emitDurationOperatorInvocation(
+    k.Reference target,
+    String name,
+    String left,
+    List<String> positionalArgs,
+    bool namedArgumentsEmpty,
+  ) {
+    if (!namedArgumentsEmpty || !_isCoreMember(target, 'Duration', name)) {
+      return null;
+    }
+    if (name == 'unary-' && positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartDuration');
+      return '__dartDuration({ microseconds: -$left.inMicroseconds })';
+    }
+    if (positionalArgs.length != 1) {
+      return null;
+    }
+    final right = positionalArgs.single;
+    return switch (name) {
+      '+' => () {
+        _usedHelpers.add('__dartDuration');
+        return '__dartDuration({ microseconds: $left.inMicroseconds + $right.inMicroseconds })';
+      }(),
+      '-' => () {
+        _usedHelpers.add('__dartDuration');
+        return '__dartDuration({ microseconds: $left.inMicroseconds - $right.inMicroseconds })';
+      }(),
+      '*' => () {
+        _usedHelpers.add('__dartDuration');
+        _usedHelpers.add('__dartRoundToInt');
+        return '__dartDuration({ microseconds: __dartRoundToInt($left.inMicroseconds * $right) })';
+      }(),
+      '~/' => () {
+        _usedHelpers.add('__dartDuration');
+        return '__dartDuration({ microseconds: Math.trunc($left.inMicroseconds / $right) })';
+      }(),
+      '<' => '($left.inMicroseconds < $right.inMicroseconds)',
+      '<=' => '($left.inMicroseconds <= $right.inMicroseconds)',
+      '>' => '($left.inMicroseconds > $right.inMicroseconds)',
+      '>=' => '($left.inMicroseconds >= $right.inMicroseconds)',
+      _ => null,
+    };
   }
 
   String _emitFunctionInvocation(k.FunctionInvocation expression) {
@@ -5259,6 +5314,17 @@ final class _EsmEmitter {
         '    get inMilliseconds() { return Math.trunc(micros / 1000); },',
       );
       helper.writeln('    get inMicroseconds() { return micros; },');
+      helper.writeln('    get isNegative() { return micros < 0; },');
+      helper.writeln('    get hashCode() { return micros & 0x1fffffff; },');
+      helper.writeln(
+        '    "=="(other) { return other != null && other.inMicroseconds === micros; },',
+      );
+      helper.writeln(
+        '    compareTo(other) { const diff = micros - other.inMicroseconds; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },',
+      );
+      helper.writeln(
+        '    abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },',
+      );
       helper.writeln('    toString() { return String(micros) + "us"; },');
       helper.writeln('  };');
       helper.writeln('}');
@@ -6228,6 +6294,13 @@ final class _EsmEmitter {
       }
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartRoundToInt')) {
+      helper.writeln('function __dartRoundToInt(value) {');
+      helper.writeln(
+        '  return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5);',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartObjectHash')) {
       helper.writeln('const __dartIdentityHashes = new WeakMap();');
       helper.writeln('let __dartNextIdentityHash = 1;');
@@ -6572,6 +6645,7 @@ const _generatedGlobalNames = {
   '__dartRecordShape',
   '__dartRegExp',
   '__dartRegExpMatch',
+  '__dartRoundToInt',
   '__dartStr',
   '__dartStream',
   '__dartStreamFirst',

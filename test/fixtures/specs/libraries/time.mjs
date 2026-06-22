@@ -29,6 +29,11 @@ function __dartDuration(options = {}) {
     get inSeconds() { return Math.trunc(micros / 1000000); },
     get inMilliseconds() { return Math.trunc(micros / 1000); },
     get inMicroseconds() { return micros; },
+    get isNegative() { return micros < 0; },
+    get hashCode() { return micros & 0x1fffffff; },
+    "=="(other) { return other != null && other.inMicroseconds === micros; },
+    compareTo(other) { const diff = micros - other.inMicroseconds; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
+    abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },
     toString() { return String(micros) + "us"; },
   };
 }
@@ -111,6 +116,9 @@ function __dartStopwatch() {
   };
   return watch;
 }
+function __dartRoundToInt(value) {
+  return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5);
+}
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
@@ -124,6 +132,16 @@ function __dartConst(key, create) {
 export async function main() {
   const duration = __dartDuration({ days: 1, hours: 2, minutes: 3, seconds: 4, milliseconds: 5, microseconds: 6 });
   __dartPrint("duration " + __dartStr(duration.inMilliseconds) + " " + __dartStr(duration.inSeconds));
+  const short = __dartDuration({ days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 1, microseconds: 0 });
+  const longer = __dartDuration({ days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 2, microseconds: 3 });
+  const sum = __dartDuration({ microseconds: short.inMicroseconds + longer.inMicroseconds });
+  const difference = __dartDuration({ microseconds: longer.inMicroseconds - short.inMicroseconds });
+  const scaled = __dartDuration({ microseconds: __dartRoundToInt(short.inMicroseconds * 2.5) });
+  const divided = __dartDuration({ microseconds: Math.trunc(longer.inMicroseconds / 2) });
+  const negated = __dartDuration({ microseconds: -short.inMicroseconds });
+  __dartPrint("durationOps " + __dartStr(sum.inMicroseconds) + " " + __dartStr(difference.inMicroseconds) + " " + __dartStr(scaled.inMicroseconds) + " " + __dartStr(divided.inMicroseconds) + " " + __dartStr(negated.abs().inMicroseconds) + " " + __dartStr(negated.isNegative));
+  __dartPrint("durationCompare " + __dartStr((short.inMicroseconds < longer.inMicroseconds)) + " " + __dartStr((short.inMicroseconds <= longer.inMicroseconds)) + " " + __dartStr((longer.inMicroseconds > short.inMicroseconds)) + " " + __dartStr((longer.inMicroseconds >= short.inMicroseconds)) + " " + __dartStr(short.compareTo(longer)));
+  __dartPrint("durationEquals " + __dartStr((() => { const $left_1 = short; const $right_1 = __dartDuration({ days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 1, microseconds: 0 }); return $left_1 === null ? $right_1 === null : $left_1["=="]($right_1); })()));
   const utc = __dartDateTimeFromParts(true, 2026, 1, 2, 3, 4, 5, 6, 7);
   __dartPrint("utc " + __dartStr(utc.year) + "-" + __dartStr(utc.month) + "-" + __dartStr(utc.day) + " " + __dartStr(utc.hour) + ":" + __dartStr(utc.minute) + ":" + __dartStr(utc.second) + " " + __dartStr(utc.millisecond) + " " + __dartStr(utc.microsecond) + " " + __dartStr(utc.isUtc));
   const epoch = __dartDateTime(0, true);
@@ -141,7 +159,7 @@ export async function main() {
   const delta = shifted.difference(epoch);
   __dartPrint("dateOps " + __dartStr(shifted.toIso8601String()) + " " + __dartStr(shiftedBack.microsecondsSinceEpoch) + " " + __dartStr(delta.inMicroseconds));
   __dartPrint("dateCompare " + __dartStr(epoch.isBefore(shifted)) + " " + __dartStr(shifted.isAfter(epoch)) + " " + __dartStr(epoch.isAtSameMomentAs(__dartDateTime(0, true))) + " " + __dartStr(shifted.compareTo(epoch)) + " " + __dartStr(epoch.compareTo(shifted)));
-  __dartPrint("dateEquals " + __dartStr((() => { const $left_1 = epoch; const $right_1 = __dartDateTimeFromMicros(0, true); return $left_1 === null ? $right_1 === null : $left_1["=="]($right_1); })()));
+  __dartPrint("dateEquals " + __dartStr((() => { const $left_3 = epoch; const $right_3 = __dartDateTimeFromMicros(0, true); return $left_3 === null ? $right_3 === null : $left_3["=="]($right_3); })()));
   const parsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z");
   __dartPrint("parsed " + __dartStr(parsed.toUtc().toIso8601String()));
   const parsedMicros = __dartDateTimeParse("2026-01-02T03:04:05.006007Z");

@@ -11,6 +11,24 @@ Future<void> main() async {
   );
   print('duration ${duration.inMilliseconds} ${duration.inSeconds}');
 
+  final short = Duration(milliseconds: 1);
+  final longer = Duration(milliseconds: 2, microseconds: 3);
+  final sum = short + longer;
+  final difference = longer - short;
+  final scaled = short * 2.5;
+  final divided = longer ~/ 2;
+  final negated = -short;
+  print(
+    'durationOps ${sum.inMicroseconds} ${difference.inMicroseconds} '
+    '${scaled.inMicroseconds} ${divided.inMicroseconds} '
+    '${negated.abs().inMicroseconds} ${negated.isNegative}',
+  );
+  print(
+    'durationCompare ${short < longer} ${short <= longer} '
+    '${longer > short} ${longer >= short} ${short.compareTo(longer)}',
+  );
+  print('durationEquals ${short == Duration(milliseconds: 1)}');
+
   final utc = DateTime.utc(2026, 1, 2, 3, 4, 5, 6, 7);
   print(
     'utc ${utc.year}-${utc.month}-${utc.day} ${utc.hour}:${utc.minute}:${utc.second} ${utc.millisecond} ${utc.microsecond} ${utc.isUtc}',

@@ -29,6 +29,11 @@ function __dartDuration(options = {}) {
     get inSeconds() { return Math.trunc(micros / 1000000); },
     get inMilliseconds() { return Math.trunc(micros / 1000); },
     get inMicroseconds() { return micros; },
+    get isNegative() { return micros < 0; },
+    get hashCode() { return micros & 0x1fffffff; },
+    "=="(other) { return other != null && other.inMicroseconds === micros; },
+    compareTo(other) { const diff = micros - other.inMicroseconds; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
+    abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },
     toString() { return String(micros) + "us"; },
   };
 }

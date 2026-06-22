@@ -29,6 +29,18 @@ describe('variables/primitive_exports.mjs', () => {
         module.c = 4;
       }).toThrow(TypeError);
       expect([module.a, module.b, module.c]).toEqual([1, 2, 1]);
+      expect(Object.isFrozen(module.constList)).toBe(true);
+      expect(() => {
+        module.constList.push(3);
+      }).toThrow(TypeError);
+      expect(Object.isFrozen(module.constSet)).toBe(true);
+      expect(() => {
+        module.constSet.add(3);
+      }).toThrow(TypeError);
+      expect(Object.isFrozen(module.constMap)).toBe(true);
+      expect(() => {
+        module.constMap.set('three', 3);
+      }).toThrow(TypeError);
     } finally {
       log.mockRestore();
     }

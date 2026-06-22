@@ -129,7 +129,7 @@ void main() {
   });
 
   test(
-    'no-run-main import does not materialize lazy top-level variables',
+    'no-run-main import exposes initialized top-level ESM bindings',
     () async {
       final fixture = _GoldenFixture(
         root: fixtureDir,
@@ -140,13 +140,14 @@ void main() {
           p.join(fixtureDir.path, 'variables', 'top_level_variables.mjs'),
         ),
       );
-      final tempDir = await Directory.systemTemp.createTemp(
-        'dart2esm-lazy-var-',
-      );
+      final tempDir = await Directory.systemTemp.createTemp('dart2esm-var-');
       addTearDown(() => tempDir.deleteSync(recursive: true));
-      final output = File(p.join(tempDir.path, 'lazy.mjs'));
+      final output = File(p.join(tempDir.path, 'vars.mjs'));
       final consumer = File(p.join(tempDir.path, 'consumer.mjs'))
-        ..writeAsStringSync("import './lazy.mjs';\nconsole.log('ready');\n");
+        ..writeAsStringSync(
+          "import { assignFirst, finalValue } from './vars.mjs';\n"
+          "console.log('values ' + assignFirst + ' ' + finalValue);\n",
+        );
 
       final result = await compileDartToEsm(
         Dart2EsmOptions(
@@ -168,7 +169,13 @@ void main() {
         0,
         reason: '${nodeRun.stdout}\n${nodeRun.stderr}',
       );
-      expect(nodeRun.stdout, 'ready\n');
+      expect(
+        nodeRun.stdout,
+        'init readFirst\n'
+        'init assignFirst\n'
+        'init finalValue\n'
+        'values 20 30\n',
+      );
       expect(nodeRun.stderr, isEmpty);
     },
   );

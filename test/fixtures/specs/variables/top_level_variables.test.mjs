@@ -1,26 +1,28 @@
 import { describe, expect, test, vi } from 'vitest';
 
 describe('variables/top_level_variables.mjs', () => {
-  test('preserves lazy top-level state and readonly final export binding', async () => {
+  test('exports top-level variables as native ESM let and const bindings', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
       const module = await import('./top_level_variables.mjs');
 
       expect(log.mock.calls.map(([value]) => value)).toEqual([
-        'assigned 99',
         'init readFirst',
+        'init assignFirst',
+        'init finalValue',
+        'initial 20',
+        'assigned 99',
         'read 10',
         'read again 10',
-        'init finalValue',
         'final 30',
         'const 40',
-        'count 2',
+        'count 3',
       ]);
       expect(module.assignFirst).toBe(99);
       expect(module.readFirst).toBe(10);
       expect(module.finalValue).toBe(30);
       expect(module.constValue).toBe(40);
-      expect(module.initCount).toBe(2);
+      expect(module.initCount).toBe(3);
 
       await expect(
         import('./top_level_variables_reassign_final.mjs'),

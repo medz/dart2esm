@@ -9,63 +9,11 @@ function __dartPrint(value) {
 
 export let initCount = 0;
 
-export let readFirst;
-let $readFirstState = 0;
-function $get_readFirst() {
-  if ($readFirstState === 2) return readFirst;
-  if ($readFirstState === 1) throw new Error("Cyclic initialization of top-level field readFirst");
-  $readFirstState = 1;
-  try {
-    readFirst = init("readFirst", 10);
-    $readFirstState = 2;
-    return readFirst;
-  } catch (error) {
-    $readFirstState = 0;
-    throw error;
-  }
-}
-function $set_readFirst(value) {
-  readFirst = value;
-  $readFirstState = 2;
-  return value;
-}
+export let readFirst = init("readFirst", 10);
 
-export let assignFirst;
-let $assignFirstState = 0;
-function $get_assignFirst() {
-  if ($assignFirstState === 2) return assignFirst;
-  if ($assignFirstState === 1) throw new Error("Cyclic initialization of top-level field assignFirst");
-  $assignFirstState = 1;
-  try {
-    assignFirst = init("assignFirst", 20);
-    $assignFirstState = 2;
-    return assignFirst;
-  } catch (error) {
-    $assignFirstState = 0;
-    throw error;
-  }
-}
-function $set_assignFirst(value) {
-  assignFirst = value;
-  $assignFirstState = 2;
-  return value;
-}
+export let assignFirst = init("assignFirst", 20);
 
-export let finalValue;
-let $finalValueState = 0;
-function $get_finalValue() {
-  if ($finalValueState === 2) return finalValue;
-  if ($finalValueState === 1) throw new Error("Cyclic initialization of top-level field finalValue");
-  $finalValueState = 1;
-  try {
-    finalValue = init("finalValue", 30);
-    $finalValueState = 2;
-    return finalValue;
-  } catch (error) {
-    $finalValueState = 0;
-    throw error;
-  }
-}
+export const finalValue = init("finalValue", 30);
 
 export const constValue = 40;
 
@@ -76,11 +24,15 @@ export function init(name, value) {
 }
 
 export function main() {
-  $set_assignFirst(99);
-  __dartPrint("assigned " + __dartStr($get_assignFirst()));
-  __dartPrint("read " + __dartStr($get_readFirst()));
-  __dartPrint("read again " + __dartStr($get_readFirst()));
-  __dartPrint("final " + __dartStr($get_finalValue()));
+  const firstRead = readFirst;
+  const firstAssign = assignFirst;
+  const firstFinal = finalValue;
+  assignFirst = 99;
+  __dartPrint("initial " + __dartStr(firstAssign));
+  __dartPrint("assigned " + __dartStr(assignFirst));
+  __dartPrint("read " + __dartStr(firstRead));
+  __dartPrint("read again " + __dartStr(readFirst));
+  __dartPrint("final " + __dartStr(firstFinal));
   __dartPrint("const 40");
   __dartPrint("count " + __dartStr(initCount));
 }

@@ -59,6 +59,14 @@ function __dartBind(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
+function __dartListSort(list, compare = null) {
+  if (typeof compare === "function") {
+    list.sort((left, right) => compare(left, right));
+  } else {
+    list.sort((left, right) => left < right ? -1 : (left > right ? 1 : 0));
+  }
+  return null;
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
@@ -348,6 +356,30 @@ function __dartStreamFromIterable(values) {
   return (async function*() {
     for (const value of values) yield value;
   })();
+}
+function __dartStreamFromFuture(future) {
+  return (async function*() {
+    yield await future;
+  })();
+}
+function __dartStreamFromFutures(futures) {
+  const controller = __dartStreamController(false);
+  const pending = Array.from(futures);
+  if (pending.length === 0) {
+    controller.close();
+    return controller.stream;
+  }
+  let remaining = pending.length;
+  for (const future of pending) {
+    Promise.resolve(future).then(
+      (value) => controller.add(value),
+      (error) => controller.addError(error),
+    ).finally(() => {
+      remaining--;
+      if (remaining === 0) controller.close();
+    });
+  }
+  return controller.stream;
 }
 function __dartStreamError(error) {
   return (async function*() {
@@ -875,6 +907,10 @@ export async function main() {
   const fast = await __dartFutureTimeout(Promise.resolve("fast"), __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"10000\"]]]", () => __dartDuration({ microseconds: 10000 })), null);
   const fallback = await __dartFutureTimeout(new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return "slow"; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"10000\"]]]", () => __dartDuration({ microseconds: 10000 })).inMilliseconds))), __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1000\"]]]", () => __dartDuration({ microseconds: 1000 })), function() { return "fallback"; });
   __dartPrint("futureStream " + __dartStr(streamed) + " " + __dartStr(fast) + " " + __dartStr(fallback));
+  const streamFromFuture = await __dartStreamSingle(__dartStreamFromFuture(Promise.resolve(14)));
+  const streamFromFutures = await __dartStreamToList(__dartStreamFromFutures([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 1; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"2000\"]]]", () => __dartDuration({ microseconds: 2000 })).inMilliseconds))), Promise.resolve(2)]));
+  __dartListSort(streamFromFutures, null);
+  __dartPrint("streamFuture " + __dartStr(streamFromFuture) + " " + __dartStr(__dartIterableJoin(streamFromFutures, ",")));
   const streamValue = await __dartStreamSingle(__dartStreamFromIterable([7]));
   try {
     {

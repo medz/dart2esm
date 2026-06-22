@@ -5582,6 +5582,17 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamFromIterable(${positionalArgs.single})';
     }
+    if (path == 'dart:async::Stream::@factories::fromFuture' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamFromFuture(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Stream::@factories::fromFutures' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      return '__dartStreamFromFutures(${positionalArgs.single})';
+    }
     if (path == 'dart:async::Stream::@factories::value' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartStream');
@@ -10461,6 +10472,30 @@ final class _EsmEmitter {
       helper.writeln('    for (const value of values) yield value;');
       helper.writeln('  })();');
       helper.writeln('}');
+      helper.writeln('function __dartStreamFromFuture(future) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    yield await future;');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamFromFutures(futures) {');
+      helper.writeln('  const controller = __dartStreamController(false);');
+      helper.writeln('  const pending = Array.from(futures);');
+      helper.writeln('  if (pending.length === 0) {');
+      helper.writeln('    controller.close();');
+      helper.writeln('    return controller.stream;');
+      helper.writeln('  }');
+      helper.writeln('  let remaining = pending.length;');
+      helper.writeln('  for (const future of pending) {');
+      helper.writeln('    Promise.resolve(future).then(');
+      helper.writeln('      (value) => controller.add(value),');
+      helper.writeln('      (error) => controller.addError(error),');
+      helper.writeln('    ).finally(() => {');
+      helper.writeln('      remaining--;');
+      helper.writeln('      if (remaining === 0) controller.close();');
+      helper.writeln('    });');
+      helper.writeln('  }');
+      helper.writeln('  return controller.stream;');
+      helper.writeln('}');
       helper.writeln('function __dartStreamError(error) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    throw error;');
@@ -11524,6 +11559,8 @@ const _generatedGlobalNames = {
   '__dartStreamFold',
   '__dartStreamForEach',
   '__dartStreamError',
+  '__dartStreamFromFuture',
+  '__dartStreamFromFutures',
   '__dartStreamFromIterable',
   '__dartStreamHandleError',
   '__dartStreamIsEmpty',

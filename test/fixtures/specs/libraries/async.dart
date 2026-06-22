@@ -140,6 +140,16 @@ Future<void> main() async {
   ).timeout(const Duration(milliseconds: 1), onTimeout: () => 'fallback');
   print('futureStream $streamed $fast $fallback');
 
+  final streamFromFuture = await Stream<int>.fromFuture(
+    Future.value(14),
+  ).single;
+  final streamFromFutures = await Stream<int>.fromFutures([
+    Future<int>.delayed(const Duration(milliseconds: 2), () => 1),
+    Future<int>.value(2),
+  ]).toList();
+  streamFromFutures.sort();
+  print('streamFuture $streamFromFuture ${streamFromFutures.join(',')}');
+
   final streamValue = await Stream<int>.value(7).single;
   try {
     await Stream<int>.error('stream-boom').first;

@@ -258,6 +258,30 @@ function __dartStreamFromIterable(values) {
     for (const value of values) yield value;
   })();
 }
+function __dartStreamFromFuture(future) {
+  return (async function*() {
+    yield await future;
+  })();
+}
+function __dartStreamFromFutures(futures) {
+  const controller = __dartStreamController(false);
+  const pending = Array.from(futures);
+  if (pending.length === 0) {
+    controller.close();
+    return controller.stream;
+  }
+  let remaining = pending.length;
+  for (const future of pending) {
+    Promise.resolve(future).then(
+      (value) => controller.add(value),
+      (error) => controller.addError(error),
+    ).finally(() => {
+      remaining--;
+      if (remaining === 0) controller.close();
+    });
+  }
+  return controller.stream;
+}
 function __dartStreamError(error) {
   return (async function*() {
     throw error;

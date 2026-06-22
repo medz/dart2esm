@@ -1,4 +1,6 @@
-void main() {
+import 'dart:async';
+
+Future<void> main() async {
   final duration = Duration(
     days: 1,
     hours: 2,
@@ -19,4 +21,13 @@ void main() {
 
   final parsed = DateTime.parse('2026-01-02T03:04:05.006Z');
   print('parsed ${parsed.toUtc().toIso8601String()}');
+
+  final watch = Stopwatch();
+  print('watch-start ${watch.isRunning} ${watch.elapsedMicroseconds}');
+  watch.start();
+  await Future<void>.delayed(const Duration(milliseconds: 1));
+  watch.stop();
+  print('watch-stop ${watch.isRunning} ${watch.elapsedMicroseconds > 0}');
+  watch.reset();
+  print('watch-reset ${watch.elapsedMicroseconds}');
 }

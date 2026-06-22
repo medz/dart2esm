@@ -3639,6 +3639,12 @@ final class _EsmEmitter {
       ];
       return '__dartDateTimeFromParts(${isUtc ? 'true' : 'false'}, ${values.join(', ')})';
     }
+    if (path.startsWith('dart:core::Stopwatch::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartDuration');
+      _usedHelpers.add('__dartStopwatch');
+      return '__dartStopwatch()';
+    }
     return null;
   }
 
@@ -4757,6 +4763,52 @@ final class _EsmEmitter {
         "  const isUtc = /(?:z|[+-]\\d\\d(?::?\\d\\d)?)\$/i.test(text);",
       );
       helper.writeln('  return __dartDateTime(millis, isUtc, 0);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartStopwatch')) {
+      helper.writeln('function __dartStopwatchNowMicros() {');
+      helper.writeln(
+        '  const now = globalThis.performance && typeof globalThis.performance.now === "function" ? globalThis.performance.now() : Date.now();',
+      );
+      helper.writeln('  return Math.trunc(now * 1000);');
+      helper.writeln('}');
+      helper.writeln('function __dartStopwatch() {');
+      helper.writeln('  let start = 0;');
+      helper.writeln('  let stop = 0;');
+      helper.writeln('  const watch = {');
+      helper.writeln('    get frequency() { return 1000000; },');
+      helper.writeln(
+        '    get elapsedTicks() { return (stop ?? __dartStopwatchNowMicros()) - start; },',
+      );
+      helper.writeln(
+        '    get elapsedMicroseconds() { return this.elapsedTicks; },',
+      );
+      helper.writeln(
+        '    get elapsedMilliseconds() { return Math.trunc(this.elapsedMicroseconds / 1000); },',
+      );
+      helper.writeln(
+        '    get elapsed() { return __dartDuration({ microseconds: this.elapsedMicroseconds }); },',
+      );
+      helper.writeln('    get isRunning() { return stop == null; },');
+      helper.writeln('    start() {');
+      helper.writeln('      if (stop != null) {');
+      helper.writeln('        start += __dartStopwatchNowMicros() - stop;');
+      helper.writeln('        stop = null;');
+      helper.writeln('      }');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    stop() {');
+      helper.writeln(
+        '      if (stop == null) stop = __dartStopwatchNowMicros();',
+      );
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    reset() {');
+      helper.writeln('      start = stop ?? __dartStopwatchNowMicros();');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('  return watch;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartUriParse')) {

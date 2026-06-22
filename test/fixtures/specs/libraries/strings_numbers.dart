@@ -90,4 +90,12 @@ void main() {
     '${resolved.path} ${resolved.query} ${resolvedUri.path} '
     '${normalized.path}',
   );
+  final tryUri = Uri.tryParse('https://example.test/try');
+  final invalidUri = Uri.tryParse('http://[::1');
+  print('uri try ${tryUri!.host} ${invalidUri == null}');
+  try {
+    Uri.parse('http://[::1');
+  } on FormatException {
+    print('uri parseError true');
+  }
 }

@@ -77,13 +77,18 @@ function __dartNumParse(source) {
   if (value == null) throw __dartFormatException("Invalid number literal");
   return value;
 }
-function __dartUriParse(source) {
+function __dartUriParse(source, tryParse = false) {
   const text = String(source);
   let url;
   try {
     url = new URL(text);
   } catch (_) {
-    url = new URL(text, "dart://relative");
+    try {
+      url = new URL(text, "dart://relative");
+    } catch (_) {
+      if (tryParse) return null;
+      throw __dartCoreError("FormatException", "Invalid URI");
+    }
   }
   const isRelative = url.protocol === "dart:";
   const userInfo = isRelative ? "" : [url.username, url.password].filter((part) => part !== "").join(":");
@@ -179,6 +184,25 @@ function __dartNullCheck(value) {
   }
   return value;
 }
+function __dartCoreError(typeName, message) {
+  const text = message == null ? "" : String(message);
+  const display = text === "" ? typeName : typeName + ": " + text;
+  const error = new Error(text);
+  error.name = typeName;
+  Object.defineProperty(error, "__dartCoreErrorType", { value: typeName });
+  Object.defineProperty(error, "toString", { value() { return display; } });
+  return error;
+}
+function __dartIsCoreError(value, typeName) {
+  const actual = value == null ? null : value.__dartCoreErrorType;
+  if (actual != null) {
+    if (actual === typeName) return true;
+    if (typeName === "Exception" && actual === "FormatException") return true;
+    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
+  }
+  if (typeName === "TypeError" && value instanceof TypeError) return true;
+  return typeName === "Error" && value instanceof Error;
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
@@ -215,7 +239,7 @@ export function main() {
   __dartPrint("numOps " + __dartStr(Math.abs(numeric)) + " " + __dartStr(((Number.isNaN(numeric) ? Number.NaN : (numeric < 0 ? -1 : (numeric > 0 ? 1 : numeric))) < 0)) + " " + __dartStr(__dartRoundToInt(numeric)) + " " + __dartStr(Math.floor(numeric)) + " " + __dartStr(Math.ceil(numeric)) + " " + __dartStr(Math.trunc(numeric)));
   __dartPrint("numFormat " + __dartStr(__dartNumClamp(numeric, (-3), 2)) + " " + __dartStr((numeric % 2)) + " " + __dartStr(Number(3.14159).toFixed(2)) + " " + __dartStr(Number(3.14159).toPrecision(3)));
   __dartPrint("numMeta " + __dartStr(Number.isNaN(Number.NaN)) + " " + __dartStr((Infinity === Infinity || Infinity === -Infinity)) + " " + __dartStr(Number.isFinite(3.0)) + " " + __dartStr(((-0.0) < 0 || Object.is((-0.0), -0))));
-  const uri = __dartUriParse("https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag");
+  const uri = __dartUriParse("https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag", false);
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
   __dartPrint("uri meta " + __dartStr(uri.authority) + " " + __dartStr(uri.userInfo) + " " + __dartStr(uri.port) + " " + __dartStr(__dartIterableJoin(uri.pathSegments, "|")) + " " + __dartStr(uri.hasScheme) + " " + __dartStr(uri.hasAuthority) + " " + __dartStr(uri.hasPort) + " " + __dartStr(uri.hasQuery) + " " + __dartStr(uri.hasFragment) + " " + __dartStr(uri.isAbsolute));
   __dartPrint("uri query " + __dartStr(uri.queryParameters.get("x")) + " " + __dartStr(uri.queryParameters.get("empty")) + " " + __dartStr(__dartIterableJoin(__dartNullCheck(uri.queryParametersAll.get("x")), "|")));
@@ -226,9 +250,25 @@ export function main() {
   __dartPrint("uri built " + __dartStr(__dartStr(https)) + " " + __dartStr(__dartStr(http)));
   const replaced = __dartUriReplace(uri, { path: "/c/d", queryParameters: new Map([["z", "9"], ["many", ["a", "b"]]]), fragment: null });
   const resolved = __dartUriResolve(uri, "../c?q=1");
-  const resolvedUri = __dartUriResolve(uri, __dartUriParse("/root?q=2"));
-  const normalized = __dartUriNormalizePath(__dartUriParse("https://example.test/a/../b/./c"));
+  const resolvedUri = __dartUriResolve(uri, __dartUriParse("/root?q=2", false));
+  const normalized = __dartUriNormalizePath(__dartUriParse("https://example.test/a/../b/./c", false));
   __dartPrint("uri ops " + __dartStr(__dartStr(replaced)) + " " + __dartStr(__dartUriReplace(uri, { __removeFragment: true }).hasFragment) + " " + __dartStr(resolved.path) + " " + __dartStr(resolved.query) + " " + __dartStr(resolvedUri.path) + " " + __dartStr(normalized.path));
+  const tryUri = __dartUriParse("https://example.test/try", true);
+  const invalidUri = __dartUriParse("http://[::1", true);
+  __dartPrint("uri try " + __dartStr(__dartNullCheck(tryUri).host) + " " + __dartStr((invalidUri === null)));
+  try {
+    {
+      __dartUriParse("http://[::1", false);
+    }
+  } catch ($error) {
+    if (__dartIsCoreError($error, "FormatException")) {
+      {
+        __dartPrint("uri parseError true");
+      }
+    } else {
+      throw $error;
+    }
+  }
 }
 
 main();

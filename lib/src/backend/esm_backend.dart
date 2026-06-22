@@ -5363,7 +5363,13 @@ final class _EsmEmitter {
     if (path == 'dart:core::Uri::@methods::parse' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartUriParse');
-      return '__dartUriParse(${positionalArgs.single})';
+      _usedHelpers.add('__dartCoreError');
+      return '__dartUriParse(${positionalArgs.single}, false)';
+    }
+    if (path == 'dart:core::Uri::@methods::tryParse' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriParse');
+      return '__dartUriParse(${positionalArgs.single}, true)';
     }
     if ((path == 'dart:core::_Uri::@factories::http' ||
             path == 'dart:core::Uri::@factories::http') &&
@@ -7094,13 +7100,20 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartUriParse') ||
         _usedHelpers.contains('__dartUriBuild')) {
-      helper.writeln('function __dartUriParse(source) {');
+      helper.writeln('function __dartUriParse(source, tryParse = false) {');
       helper.writeln('  const text = String(source);');
       helper.writeln('  let url;');
       helper.writeln('  try {');
       helper.writeln('    url = new URL(text);');
       helper.writeln('  } catch (_) {');
-      helper.writeln('    url = new URL(text, "dart://relative");');
+      helper.writeln('    try {');
+      helper.writeln('      url = new URL(text, "dart://relative");');
+      helper.writeln('    } catch (_) {');
+      helper.writeln('      if (tryParse) return null;');
+      helper.writeln(
+        '      throw __dartCoreError("FormatException", "Invalid URI");',
+      );
+      helper.writeln('    }');
       helper.writeln('  }');
       helper.writeln('  const isRelative = url.protocol === "dart:";');
       helper.writeln(

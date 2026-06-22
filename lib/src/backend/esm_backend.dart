@@ -29,7 +29,7 @@ final class _EsmEmitter {
   _EsmEmitter(this.component);
 
   final k.Component component;
-  final _buffer = StringBuffer();
+  var _buffer = StringBuffer();
   final _diagnostics = <String>[];
   final _procedureNames = <k.Procedure, String>{};
   final _classNames = <k.Class, String>{};
@@ -274,6 +274,15 @@ final class _EsmEmitter {
     }
   }
 
+  String _functionAsyncPrefix(k.FunctionNode function, String context) {
+    return switch (function.asyncMarker) {
+      k.AsyncMarker.Sync => '',
+      k.AsyncMarker.Async => 'async ',
+      k.AsyncMarker.SyncStar ||
+      k.AsyncMarker.AsyncStar => throw UnsupportedKernelNode(function, context),
+    };
+  }
+
   String _emitParameterList(k.FunctionNode function) {
     _declareParameters(function);
     final parameters = <String>[];
@@ -361,6 +370,8 @@ final class _EsmEmitter {
         writeln(
           '$keyword ${_variableName(statement)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
         );
+      case k.FunctionDeclaration():
+        _emitFunctionDeclaration(statement);
       case k.IfStatement():
         writeln('if (${emitExpression(statement.condition)}) {');
         _indent++;
@@ -418,6 +429,23 @@ final class _EsmEmitter {
       default:
         throw UnsupportedKernelNode(statement, 'statement');
     }
+  }
+
+  void _emitFunctionDeclaration(k.FunctionDeclaration statement) {
+    _declareVariable(statement.variable);
+    final function = statement.function;
+    final asyncPrefix = _functionAsyncPrefix(function, 'local function');
+    writeln(
+      '${asyncPrefix}function ${_variableName(statement.variable)}(${_emitParameterList(function)}) {',
+    );
+    _indent++;
+    final body = function.body;
+    if (body == null) {
+      throw UnsupportedKernelNode(function, 'local function body');
+    }
+    _emitFunctionBody(body);
+    _indent--;
+    writeln('}');
   }
 
   void _emitDoStatement(k.DoStatement statement) {
@@ -538,12 +566,18 @@ final class _EsmEmitter {
             .join(' + ');
       case k.StaticInvocation():
         return _emitStaticInvocation(expression);
+      case k.StaticTearOff():
+        return _emitStaticTearOff(expression);
       case k.InstanceInvocation():
         return _emitInstanceInvocation(
           expression.receiver,
           expression.name.text,
           expression.arguments,
         );
+      case k.FunctionInvocation():
+        return _emitFunctionInvocation(expression);
+      case k.LocalFunctionInvocation():
+        return '${_variableName(expression.variable)}(${_emitArguments(expression.arguments)})';
       case k.DynamicInvocation():
         return _emitDynamicInvocation(expression);
       case k.Not():
@@ -593,9 +627,50 @@ final class _EsmEmitter {
         return 'this';
       case k.ConstantExpression():
         return _emitConstant(expression.constant);
+      case k.FunctionExpression():
+        return _emitFunctionExpression(expression);
       default:
         throw UnsupportedKernelNode(expression, 'expression');
     }
+  }
+
+  String _emitFunctionExpression(k.FunctionExpression expression) {
+    final function = expression.function;
+    final asyncPrefix = _functionAsyncPrefix(function, 'function expression');
+    final body = function.body;
+    if (body == null) {
+      throw UnsupportedKernelNode(function, 'function expression body');
+    }
+    final inlineBody = _emitInlineFunctionBody(body);
+    if (inlineBody != null) {
+      return '${asyncPrefix}function(${_emitParameterList(function)}) { $inlineBody }';
+    }
+    final bodyCode = _captureFunctionBody(body);
+    return '${asyncPrefix}function(${_emitParameterList(function)}) {\n$bodyCode}';
+  }
+
+  String? _emitInlineFunctionBody(k.Statement body) {
+    return switch (body) {
+      k.ReturnStatement(:final expression) =>
+        expression == null
+            ? 'return;'
+            : 'return ${emitExpression(expression)};',
+      k.Block(statements: [final k.ReturnStatement statement]) =>
+        _emitInlineFunctionBody(statement),
+      _ => null,
+    };
+  }
+
+  String _captureFunctionBody(k.Statement body) {
+    final previousBuffer = _buffer;
+    final previousIndent = _indent;
+    final localBuffer = StringBuffer();
+    _buffer = localBuffer;
+    _indent = previousIndent + 1;
+    _emitFunctionBody(body);
+    _buffer = previousBuffer;
+    _indent = previousIndent;
+    return localBuffer.toString();
   }
 
   String _emitConstant(k.Constant constant) {
@@ -616,6 +691,8 @@ final class _EsmEmitter {
         return 'new Set([${constant.entries.map(_emitConstant).join(', ')}])';
       case k.MapConstant():
         return 'new Map([${constant.entries.map((entry) => '[${_emitConstant(entry.key)}, ${_emitConstant(entry.value)}]').join(', ')}])';
+      case k.StaticTearOffConstant():
+        return _emitStaticTearOffReference(constant.targetReference, constant);
       default:
         throw UnsupportedKernelNode(constant, 'constant');
     }
@@ -670,6 +747,7 @@ final class _EsmEmitter {
     final args = _emitArguments(expression.arguments);
     if (_isCoreReference(expression.targetReference, '@methods', 'print')) {
       _usedHelpers.add('__dartPrint');
+      _usedHelpers.add('__dartStr');
       return '__dartPrint($args)';
     }
     if (_isCoreGrowableListLiteral(expression.targetReference)) {
@@ -689,6 +767,21 @@ final class _EsmEmitter {
     throw UnsupportedKernelNode(
       expression,
       'static invocation ${target.name.text}',
+    );
+  }
+
+  String _emitStaticTearOff(k.StaticTearOff expression) {
+    return _emitStaticTearOffReference(expression.targetReference, expression);
+  }
+
+  String _emitStaticTearOffReference(k.Reference reference, Object node) {
+    final target = reference.node;
+    if (target is k.Procedure && _procedureNames.containsKey(target)) {
+      return _procedureName(target);
+    }
+    throw UnsupportedKernelNode(
+      node,
+      'static tear-off ${_referencePath(reference)}',
     );
   }
 
@@ -745,6 +838,10 @@ final class _EsmEmitter {
       return '__dartStr($left)';
     }
     return '$left.${_memberName(name)}($args)';
+  }
+
+  String _emitFunctionInvocation(k.FunctionInvocation expression) {
+    return '(${emitExpression(expression.receiver)})(${_emitArguments(expression.arguments)})';
   }
 
   String _emitInstanceGet(k.InstanceGet expression) {

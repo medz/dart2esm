@@ -179,13 +179,12 @@ final class _EsmEmitter {
       _emitEnumClass(klass, export: export);
       return;
     }
-    final supertype = klass.supertype;
-    if (supertype != null && !_isCoreClass(supertype.className, 'Object')) {
-      throw UnsupportedKernelNode(klass, 'class inheritance');
-    }
     final previousClass = _currentClass;
     _currentClass = klass;
-    writeln('${export ? 'export ' : ''}class ${_className(klass)} {');
+    final extendsClause = _classExtendsClause(klass);
+    writeln(
+      '${export ? 'export ' : ''}class ${_className(klass)}$extendsClause {',
+    );
     _indent++;
     if (klass.constructors.isEmpty) {
       _emitDefaultConstructor(klass);
@@ -266,12 +265,29 @@ final class _EsmEmitter {
     );
   }
 
+  String _classExtendsClause(k.Class klass) {
+    final supertype = klass.supertype;
+    if (supertype == null || _isCoreClass(supertype.className, 'Object')) {
+      return '';
+    }
+    return ' extends ${_className(supertype.classNode)}';
+  }
+
+  bool _hasNonObjectSuperclass(k.Class klass) {
+    final supertype = klass.supertype;
+    return supertype != null && !_isCoreClass(supertype.className, 'Object');
+  }
+
   void _emitDefaultConstructor(k.Class klass) {
-    if (!klass.fields.any((field) => !field.isStatic)) {
+    final hasSuperclass = _hasNonObjectSuperclass(klass);
+    if (!hasSuperclass && !klass.fields.any((field) => !field.isStatic)) {
       return;
     }
     writeln('constructor() {');
     _indent++;
+    if (hasSuperclass) {
+      writeln('super();');
+    }
     _emitInstanceFieldDefaults(klass);
     _indent--;
     writeln('}');
@@ -279,6 +295,9 @@ final class _EsmEmitter {
 
   bool _canOmitConstructor(k.Constructor constructor, k.Class klass) {
     final function = constructor.function;
+    if (_hasNonObjectSuperclass(klass)) {
+      return false;
+    }
     if (klass.fields.any((field) => !field.isStatic) ||
         function.positionalParameters.isNotEmpty ||
         function.namedParameters.isNotEmpty ||
@@ -310,12 +329,16 @@ final class _EsmEmitter {
     }
     writeln('constructor(${_emitParameterList(function)}) {');
     _indent++;
-    _emitInstanceFieldDefaults(
-      klass,
-      skipFields: _initializedFields(constructor.initializers),
-    );
-    for (final initializer in constructor.initializers) {
-      _emitInitializer(initializer);
+    if (_hasNonObjectSuperclass(klass)) {
+      _emitDerivedConstructorInitializers(constructor, klass);
+    } else {
+      _emitInstanceFieldDefaults(
+        klass,
+        skipFields: _initializedFields(constructor.initializers),
+      );
+      for (final initializer in constructor.initializers) {
+        _emitInitializer(initializer);
+      }
     }
     final body = function.body;
     if (body != null) {
@@ -323,6 +346,41 @@ final class _EsmEmitter {
     }
     _indent--;
     writeln('}');
+  }
+
+  void _emitDerivedConstructorInitializers(
+    k.Constructor constructor,
+    k.Class klass,
+  ) {
+    var emittedSuper = false;
+    final fieldInitializers = <k.FieldInitializer>[];
+    for (final initializer in constructor.initializers) {
+      switch (initializer) {
+        case k.LocalInitializer():
+          emitStatement(initializer.variable);
+        case k.SuperInitializer():
+          _emitSuperInitializer(initializer);
+          emittedSuper = true;
+        case k.FieldInitializer():
+          fieldInitializers.add(initializer);
+        case k.AssertInitializer():
+          _diagnostics.add(
+            'AssertInitializer is currently emitted as a no-op.',
+          );
+        default:
+          throw UnsupportedKernelNode(initializer, 'initializer');
+      }
+    }
+    if (!emittedSuper) {
+      writeln('super();');
+    }
+    _emitInstanceFieldDefaults(
+      klass,
+      skipFields: _initializedFields(constructor.initializers),
+    );
+    for (final initializer in fieldInitializers) {
+      _emitInitializer(initializer);
+    }
   }
 
   void _emitInitializer(k.Initializer initializer) {
@@ -340,12 +398,21 @@ final class _EsmEmitter {
       case k.AssertInitializer():
         _diagnostics.add('AssertInitializer is currently emitted as a no-op.');
       case k.SuperInitializer():
-        if (!initializer.isSynthetic) {
-          throw UnsupportedKernelNode(initializer, 'super initializer');
+        if (initializer.isSynthetic) {
+          return;
         }
+        _emitSuperInitializer(initializer);
       default:
         throw UnsupportedKernelNode(initializer, 'initializer');
     }
+  }
+
+  void _emitSuperInitializer(k.SuperInitializer initializer) {
+    final target = initializer.target;
+    if (target.name.text.isNotEmpty) {
+      throw UnsupportedKernelNode(initializer, 'named super initializer');
+    }
+    writeln('super(${_emitArguments(initializer.arguments)});');
   }
 
   Set<k.Field> _initializedFields(List<k.Initializer> initializers) {
@@ -1246,6 +1313,9 @@ final class _EsmEmitter {
     final type = expression.type;
     if (type is k.InterfaceType) {
       final typeName = type.classNode.name;
+      if (_classNames.containsKey(type.classNode)) {
+        return '$operand instanceof ${_className(type.classNode)}';
+      }
       return switch (typeName) {
         'String' => 'typeof $operand === "string"',
         'int' || 'double' || 'num' => 'typeof $operand === "number"',

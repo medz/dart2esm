@@ -4741,7 +4741,12 @@ final class _EsmEmitter {
           receiverCollectionKind == 'Set') {
         return '$receiver.size === 0';
       }
-      return '$receiver.length === 0';
+      if (_isCoreListMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'List') {
+        return '$receiver.length === 0';
+      }
+      _usedHelpers.add('__dartIterableIsEmpty');
+      return '__dartIterableIsEmpty($receiver)';
     }
     if (name == 'isNotEmpty' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
@@ -4751,7 +4756,12 @@ final class _EsmEmitter {
           receiverCollectionKind == 'Set') {
         return '$receiver.size !== 0';
       }
-      return '$receiver.length !== 0';
+      if (_isCoreListMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'List') {
+        return '$receiver.length !== 0';
+      }
+      _usedHelpers.add('__dartIterableIsEmpty');
+      return '!__dartIterableIsEmpty($receiver)';
     }
     if (name == 'first' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
@@ -4800,15 +4810,20 @@ final class _EsmEmitter {
           receiverCollectionKind == 'Map') {
         return '$receiver.size';
       }
-      return '$receiver.length';
+      if (_isCoreListMember(expression.interfaceTargetReference, name) ||
+          receiverCollectionKind == 'List') {
+        return '$receiver.length';
+      }
+      _usedHelpers.add('__dartIterableLength');
+      return '__dartIterableLength($receiver)';
     }
     if (name == 'keys' &&
         _isCoreMember(expression.interfaceTargetReference, 'Map', 'keys')) {
-      return '$receiver.keys()';
+      return 'Array.from($receiver.keys())';
     }
     if (name == 'values' &&
         _isCoreMember(expression.interfaceTargetReference, 'Map', 'values')) {
-      return '$receiver.values()';
+      return 'Array.from($receiver.values())';
     }
     if (name == 'entries' &&
         _isCoreMember(expression.interfaceTargetReference, 'Map', 'entries')) {
@@ -8629,6 +8644,31 @@ final class _EsmEmitter {
       helper.writeln('  return false;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartIterableIsEmpty')) {
+      helper.writeln('function __dartIterableIsEmpty(iterable) {');
+      helper.writeln(
+        '  if (typeof iterable.length === "number") return iterable.length === 0;',
+      );
+      helper.writeln(
+        '  if (typeof iterable.size === "number") return iterable.size === 0;',
+      );
+      helper.writeln('  for (const _ of iterable) return false;');
+      helper.writeln('  return true;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableLength')) {
+      helper.writeln('function __dartIterableLength(iterable) {');
+      helper.writeln(
+        '  if (typeof iterable.length === "number") return iterable.length;',
+      );
+      helper.writeln(
+        '  if (typeof iterable.size === "number") return iterable.size;',
+      );
+      helper.writeln('  let count = 0;');
+      helper.writeln('  for (const _ of iterable) count++;');
+      helper.writeln('  return count;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartIterableTakeWhile')) {
       helper.writeln('function __dartIterableTakeWhile(iterable, test) {');
       helper.writeln('  const result = [];');
@@ -9815,10 +9855,12 @@ const _generatedGlobalNames = {
   '__dartIterableFirst',
   '__dartIterableFirstOrNull',
   '__dartIterableFirstWhere',
+  '__dartIterableIsEmpty',
   '__dartIterableJoin',
   '__dartIterableLast',
   '__dartIterableLastOrNull',
   '__dartIterableLastWhere',
+  '__dartIterableLength',
   '__dartIterableNoElement',
   '__dartIterableSkipWhile',
   '__dartIterableSingle',

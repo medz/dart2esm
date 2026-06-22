@@ -280,6 +280,19 @@ function __dartIterableContains(iterable, needle) {
   }
   return false;
 }
+function __dartIterableIsEmpty(iterable) {
+  if (typeof iterable.length === "number") return iterable.length === 0;
+  if (typeof iterable.size === "number") return iterable.size === 0;
+  for (const _ of iterable) return false;
+  return true;
+}
+function __dartIterableLength(iterable) {
+  if (typeof iterable.length === "number") return iterable.length;
+  if (typeof iterable.size === "number") return iterable.size;
+  let count = 0;
+  for (const _ of iterable) count++;
+  return count;
+}
 function __dartIterableTakeWhile(iterable, test) {
   const result = [];
   for (const value of iterable) {
@@ -337,6 +350,20 @@ function __dartSetRetainAll(set, values) {
 }
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+}
+function __dartIterableFirst(iterable) {
+  for (const value of iterable) return value;
+  throw new RangeError("No element");
+}
+function __dartIterableLast(iterable) {
+  let found = false;
+  let last;
+  for (const value of iterable) {
+    found = true;
+    last = value;
+  }
+  if (!found) throw new RangeError("No element");
+  return last;
 }
 function __dartIterableSingle(iterable) {
   let found = false;
@@ -601,7 +628,9 @@ export function main() {
   const counts = new Map([["one", 1]]);
   __dartMapSet(counts, "two", 2);
   __dartPrint("map " + __dartStr(counts.size) + " " + __dartStr(__dartMapContainsKey(counts, "two")) + " " + __dartStr(__dartMapGet(counts, "one")));
-  __dartPrint("map iter " + __dartStr(__dartIterableJoin(counts.keys(), ",")) + " " + __dartStr(__dartIterableJoin(counts.values(), ",")));
+  __dartPrint("map iter " + __dartStr(__dartIterableJoin(Array.from(counts.keys()), ",")) + " " + __dartStr(__dartIterableJoin(Array.from(counts.values()), ",")));
+  const countKeys = Array.from(counts.keys());
+  __dartPrint("map views " + __dartStr(__dartIterableIsEmpty(Array.from(new Map([]).keys()))) + " " + __dartStr(!__dartIterableIsEmpty(countKeys)) + " " + __dartStr(__dartIterableLength(countKeys)) + " " + __dartStr(__dartIterableFirst(countKeys)) + " " + __dartStr(__dartIterableLast(Array.from(counts.values()))) + " " + __dartStr(__dartIterableJoin(countKeys, "|")));
   const three = __dartMapPutIfAbsent(counts, "three", function() { return 3; });
   __dartMapUpdate(counts, "two", function(value) { return (value * 10); }, null);
   __dartMapUpdate(counts, "missing", function(value) { return value; }, function() { return 4; });

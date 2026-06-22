@@ -160,6 +160,12 @@ void main() {
   counts['two'] = 2;
   print('map ${counts.length} ${counts.containsKey('two')} ${counts['one']}');
   print('map iter ${counts.keys.join(',')} ${counts.values.join(',')}');
+  final countKeys = counts.keys;
+  print(
+    'map views ${(<String, int>{}).keys.isEmpty} ${countKeys.isNotEmpty} '
+    '${countKeys.length} ${countKeys.first} ${counts.values.last} '
+    '${countKeys.join('|')}',
+  );
   final three = counts.putIfAbsent('three', () => 3);
   counts.update('two', (value) => value * 10);
   counts.update('missing', (value) => value, ifAbsent: () => 4);

@@ -4607,6 +4607,10 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(reference);
+    if (path.startsWith('dart:core::MapEntry::@constructors::') &&
+        positionalArgs.length == 2) {
+      return 'Object.freeze({ key: ${positionalArgs[0]}, value: ${positionalArgs[1]} })';
+    }
     if (path.startsWith('dart:core::StringBuffer::@constructors::')) {
       if (positionalArgs.length > 1) {
         return null;
@@ -4730,7 +4734,11 @@ final class _EsmEmitter {
     if (setFactory != null) {
       return setFactory;
     }
-    final mapFactory = _emitCoreMapFactoryInvocation(path, positionalArgs);
+    final mapFactory = _emitCoreMapFactoryInvocation(
+      path,
+      expression.arguments,
+      positionalArgs,
+    );
     if (mapFactory != null) {
       return mapFactory;
     }
@@ -4911,6 +4919,7 @@ final class _EsmEmitter {
 
   String? _emitCoreMapFactoryInvocation(
     String path,
+    k.Arguments arguments,
     List<String> positionalArgs,
   ) {
     if (!path.startsWith('dart:core::Map::@factories::') &&
@@ -4921,8 +4930,21 @@ final class _EsmEmitter {
     final name = path.split('::').last;
     return switch (name) {
       '' when positionalArgs.isEmpty => 'new Map()',
+      'identity' when positionalArgs.isEmpty => 'new Map()',
       'of' || 'from' when positionalArgs.length == 1 =>
         'new Map(${positionalArgs.single})',
+      'fromEntries' when positionalArgs.length == 1 =>
+        'new Map(Array.from(${positionalArgs.single}, (entry) => [entry.key, entry.value]))',
+      'fromIterable' when positionalArgs.length == 1 => () {
+        _usedHelpers.add('__dartMapFromIterable');
+        final key = _namedArgument(arguments, 'key') ?? 'null';
+        final value = _namedArgument(arguments, 'value') ?? 'null';
+        return '__dartMapFromIterable(${positionalArgs.single}, $key, $value)';
+      }(),
+      'fromIterables' when positionalArgs.length == 2 => () {
+        _usedHelpers.add('__dartMapFromIterables');
+        return '__dartMapFromIterables(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }(),
       'unmodifiable' when positionalArgs.length == 1 => () {
         _usedHelpers.add('__dartConstMap');
         return '__dartConstMap(${positionalArgs.single})';
@@ -6618,6 +6640,31 @@ final class _EsmEmitter {
       helper.writeln('  return false;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartMapFromIterable')) {
+      helper.writeln(
+        'function __dartMapFromIterable(iterable, key = null, value = null) {',
+      );
+      helper.writeln('  const map = new Map();');
+      helper.writeln('  for (const element of iterable) {');
+      helper.writeln(
+        '    map.set(key == null ? element : key(element), value == null ? element : value(element));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return map;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapFromIterables')) {
+      helper.writeln('function __dartMapFromIterables(keys, values) {');
+      helper.writeln('  const keyList = Array.from(keys);');
+      helper.writeln('  const valueList = Array.from(values);');
+      helper.writeln(
+        '  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");',
+      );
+      helper.writeln(
+        '  return new Map(keyList.map((key, index) => [key, valueList[index]]));',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartMapPutIfAbsent')) {
       helper.writeln('function __dartMapPutIfAbsent(map, key, ifAbsent) {');
       helper.writeln('  if (map.has(key)) return map.get(key);');
@@ -7571,6 +7618,8 @@ const _generatedGlobalNames = {
   '__dartListSetAll',
   '__dartListWhereMutate',
   '__dartMapContainsValue',
+  '__dartMapFromIterable',
+  '__dartMapFromIterables',
   '__dartMapRemove',
   '__dartMapUpdateAll',
   '__dartNumClamp',

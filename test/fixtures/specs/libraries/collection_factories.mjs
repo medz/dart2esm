@@ -20,10 +20,31 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartAs(value, test, typeName) {
+  if (test(value)) return value;
+  throw new TypeError("Type cast failed: expected " + typeName);
+}
+function __dartGet(receiver, name) {
+  const value = receiver[name];
+  return typeof value === "function" ? value.bind(receiver) : value;
+}
 function __dartSetAdd(set, value) {
   const hadValue = set.has(value);
   set.add(value);
   return !hadValue;
+}
+function __dartMapFromIterable(iterable, key = null, value = null) {
+  const map = new Map();
+  for (const element of iterable) {
+    map.set(key == null ? element : key(element), value == null ? element : value(element));
+  }
+  return map;
+}
+function __dartMapFromIterables(keys, values) {
+  const keyList = Array.from(keys);
+  const valueList = Array.from(values);
+  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
+  return new Map(keyList.map((key, index) => [key, valueList[index]]));
 }
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
@@ -66,6 +87,13 @@ export function main() {
   const mapOf = new Map(map);
   const mapFixed = __dartConstMap(mapOf);
   __dartPrint("map " + __dartStr(mapFixed.size) + " " + __dartStr(mapFixed.get("one")) + " " + __dartStr(__dartIterableJoin(mapFixed.keys(), ",")));
+  const entries = new Map(Array.from([Object.freeze({ key: "three", value: 3 }), Object.freeze({ key: "four", value: 4 })], (entry) => [entry.key, entry.value]));
+  const iterable = __dartMapFromIterable(["aa", "bbb"], function(value) { return __dartAs(__dartGet(value, "length"), value => typeof value === "number", "int"); }, function(value) { return __dartAs(value.toUpperCase(), value => typeof value === "string", "String"); });
+  const iterables = __dartMapFromIterables(["x", "y"], [10, 20]);
+  const identity = new Map();
+  const identityKey = [1];
+  identity.set(identityKey, "same");
+  __dartPrint("mapFactories " + __dartStr(entries.get("four")) + " " + __dartStr(iterable.get(3)) + " " + __dartStr(iterables.get("y")) + " " + __dartStr(identity.has(identityKey)));
 }
 
 main();

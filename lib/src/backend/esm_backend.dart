@@ -4078,6 +4078,14 @@ final class _EsmEmitter {
           _namedArgument(expression.arguments, 'cancelOnError') ?? 'false';
       return '$left.addStream(${positionalArgs.single}, { cancelOnError: $cancelOnError })';
     }
+    if (expression.arguments.named.isEmpty &&
+        name == 'asUtf8Sink' &&
+        positionalArgs.length == 1 &&
+        _isConvertStringConversionSinkMember(target, name)) {
+      _usedHelpers.add('__dartStringConversionSinkAsUtf8Sink');
+      _usedHelpers.add('__dartUtf8Decode');
+      return '$left.asUtf8Sink(${positionalArgs.single})';
+    }
     if (name == 'listen' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
@@ -5924,10 +5932,32 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartByteConversionSink');
       return '__dartByteConversionSink(${positionalArgs.single})';
     }
+    if (path.startsWith('dart:convert::_ByteAdapterSink::@constructors::') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartByteConversionSinkFrom');
+      return '__dartByteConversionSinkFrom(${positionalArgs.single})';
+    }
+    if (path.startsWith('dart:convert::_SimpleCallbackSink::@constructors::') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartChunkedConversionSink');
+      return '__dartChunkedConversionSink(${positionalArgs.single})';
+    }
     if (path.startsWith('dart:convert::_StringCallbackSink::@constructors::') &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartStringConversionSink');
       return '__dartStringConversionSink(${positionalArgs.single})';
+    }
+    if (path.startsWith('dart:convert::_StringAdapterSink::@constructors::') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStringConversionSinkFrom');
+      return '__dartStringConversionSinkFrom(${positionalArgs.single})';
+    }
+    if (path.startsWith(
+          'dart:convert::_StringSinkConversionSink::@constructors::',
+        ) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStringConversionSinkFromStringSink');
+      return '__dartStringConversionSinkFromStringSink(${positionalArgs.single})';
     }
     if (path.startsWith('dart:core::StringBuffer::@constructors::')) {
       if (positionalArgs.length > 1) {
@@ -6571,11 +6601,33 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartByteConversionSink');
       return '__dartByteConversionSink(${positionalArgs.single})';
     }
+    if (path == 'dart:convert::ByteConversionSink::@factories::from' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartByteConversionSinkFrom');
+      return '__dartByteConversionSinkFrom(${positionalArgs.single})';
+    }
+    if (path ==
+            'dart:convert::ChunkedConversionSink::@factories::withCallback' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartChunkedConversionSink');
+      return '__dartChunkedConversionSink(${positionalArgs.single})';
+    }
     if (path ==
             'dart:convert::StringConversionSink::@factories::withCallback' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartStringConversionSink');
       return '__dartStringConversionSink(${positionalArgs.single})';
+    }
+    if (path == 'dart:convert::StringConversionSink::@factories::from' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStringConversionSinkFrom');
+      return '__dartStringConversionSinkFrom(${positionalArgs.single})';
+    }
+    if (path ==
+            'dart:convert::StringConversionSink::@factories::fromStringSink' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStringConversionSinkFromStringSink');
+      return '__dartStringConversionSinkFromStringSink(${positionalArgs.single})';
     }
     if (path == 'dart:convert::LineSplitter::@methods::split' &&
         positionalArgs.length == 1) {
@@ -7134,6 +7186,22 @@ final class _EsmEmitter {
         path == 'dart:async::Future::$name';
   }
 
+  bool _isConvertStringConversionSinkMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.endsWith('::$name');
+    if (!hasMember) {
+      return false;
+    }
+    return path.startsWith('dart:convert::StringConversionSink::') ||
+        path.contains('::StringConversionSink') ||
+        path.contains('::_StringAdapterSink') ||
+        path.contains('::_StringCallbackSink') ||
+        path.contains('::_StringSinkConversionSink');
+  }
+
   bool _isCollectionQueueMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
     final hasMember =
@@ -7413,6 +7481,7 @@ final class _EsmEmitter {
         _usedHelpers.contains('__dartUtf8Decoder') ||
         _usedHelpers.contains('__dartUtf8Encode') ||
         _usedHelpers.contains('__dartUtf8Decode') ||
+        _usedHelpers.contains('__dartStringConversionSinkAsUtf8Sink') ||
         _usedHelpers.contains('__dartJsonUtf8Encoder');
     final usesAscii =
         _usedHelpers.contains('__dartAsciiCodec') ||
@@ -7442,7 +7511,12 @@ final class _EsmEmitter {
         _usedHelpers.contains('__dartLineSplitter') ||
         _usedHelpers.contains('__dartHtmlEscape') ||
         _usedHelpers.contains('__dartByteConversionSink') ||
-        _usedHelpers.contains('__dartStringConversionSink');
+        _usedHelpers.contains('__dartByteConversionSinkFrom') ||
+        _usedHelpers.contains('__dartChunkedConversionSink') ||
+        _usedHelpers.contains('__dartStringConversionSink') ||
+        _usedHelpers.contains('__dartStringConversionSinkFrom') ||
+        _usedHelpers.contains('__dartStringConversionSinkFromStringSink') ||
+        _usedHelpers.contains('__dartStringConversionSinkAsUtf8Sink');
     if (usesRecord) {
       helper.writeln('const __dartRecordShape = Symbol("dart.recordShape");');
       helper.writeln('function __dartIsRecord(value) {');
@@ -9504,6 +9578,26 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (usesConvert) {
+      helper.writeln('function __dartSinkAdd(sink, value) {');
+      helper.writeln(
+        '  if (sink != null && typeof sink.add === "function") return sink.add(value);',
+      );
+      helper.writeln(
+        '  if (sink != null && typeof sink.write === "function") return sink.write(value);',
+      );
+      helper.writeln(
+        '  if (Array.isArray(sink)) { sink.push(value); return null; }',
+      );
+      helper.writeln(
+        '  throw new TypeError("Sink.add is not available");',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartSinkClose(sink) {');
+      helper.writeln(
+        '  if (sink != null && typeof sink.close === "function") return sink.close();',
+      );
+      helper.writeln('  return null;');
+      helper.writeln('}');
       helper.writeln('function __dartConverterConvert(converter, value) {');
       helper.writeln(
         '  if (converter != null && typeof converter.convert === "function") return converter.convert(value);',
@@ -9577,6 +9671,18 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('  return input;');
       helper.writeln('}');
+      helper.writeln('function __dartChunkedConversionSink(callback) {');
+      helper.writeln('  const chunks = [];');
+      helper.writeln('  let closed = false;');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    add(chunk) { if (closed) return null; chunks.push(chunk); return null; },',
+      );
+      helper.writeln(
+        '    close() { if (closed) return null; closed = true; callback(chunks); return null; },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
       helper.writeln('function __dartByteConversionSink(callback) {');
       helper.writeln('  const bytes = [];');
       helper.writeln('  let closed = false;');
@@ -9592,6 +9698,41 @@ final class _EsmEmitter {
       );
       helper.writeln('  };');
       helper.writeln('}');
+      helper.writeln('function __dartByteConversionSinkFrom(sink) {');
+      helper.writeln('  let closed = false;');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, chunk); },',
+      );
+      helper.writeln('    addSlice(chunk, start, end, isLast = false) {');
+      helper.writeln('      if (closed) return null;');
+      helper.writeln(
+        '      __dartSinkAdd(sink, Array.from(chunk).slice(start, end));',
+      );
+      helper.writeln('      if (isLast) this.close();');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln(
+        '    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringConversionSinkAsUtf8Sink(sink, allowMalformed = false) {',
+      );
+      helper.writeln('  let closed = false;');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    add(chunk) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed)); return null; },',
+      );
+      helper.writeln(
+        '    addSlice(chunk, start, end, isLast = false) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed, start, end)); if (isLast) this.close(); return null; },',
+      );
+      helper.writeln(
+        '    close() { if (closed) return null; closed = true; return typeof sink.close === "function" ? sink.close() : null; },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
       helper.writeln('function __dartStringConversionSink(callback) {');
       helper.writeln('  let text = "";');
       helper.writeln('  let closed = false;');
@@ -9604,6 +9745,55 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    close() { if (closed) return null; closed = true; callback(text); return null; },',
+      );
+      helper.writeln(
+        '    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartStringConversionSinkFrom(sink) {');
+      helper.writeln('  let closed = false;');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },',
+      );
+      helper.writeln('    addSlice(chunk, start, end, isLast = false) {');
+      helper.writeln('      if (closed) return null;');
+      helper.writeln(
+        '      __dartSinkAdd(sink, String(chunk).slice(start, end));',
+      );
+      helper.writeln('      if (isLast) this.close();');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln(
+        '    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },',
+      );
+      helper.writeln(
+        '    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringConversionSinkFromStringSink(sink) {',
+      );
+      helper.writeln('  let closed = false;');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },',
+      );
+      helper.writeln('    addSlice(chunk, start, end, isLast = false) {');
+      helper.writeln('      if (closed) return null;');
+      helper.writeln(
+        '      __dartSinkAdd(sink, String(chunk).slice(start, end));',
+      );
+      helper.writeln('      if (isLast) this.close();');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln(
+        '    close() { closed = true; return null; },',
+      );
+      helper.writeln(
+        '    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -12032,6 +12222,8 @@ const _generatedGlobalNames = {
   '__dartBigIntBitLength',
   '__dartBigIntParse',
   '__dartByteConversionSink',
+  '__dartByteConversionSinkFrom',
+  '__dartChunkedConversionSink',
   '__dartCompleter',
   '__dartConst',
   '__dartConstMap',
@@ -12185,6 +12377,8 @@ const _generatedGlobalNames = {
   '__dartSetRetainWhere',
   '__dartSetUnion',
   '__dartSetWhereMutate',
+  '__dartSinkAdd',
+  '__dartSinkClose',
   '__dartStr',
   '__dartStream',
   '__dartStreamAny',
@@ -12235,6 +12429,9 @@ const _generatedGlobalNames = {
   '__dartStreamIterator',
   '__dartStringBuffer',
   '__dartStringConversionSink',
+  '__dartStringConversionSinkAsUtf8Sink',
+  '__dartStringConversionSinkFrom',
+  '__dartStringConversionSinkFromStringSink',
   '__dartStringAllMatches',
   '__dartStringContains',
   '__dartStringIndexOf',

@@ -1,5 +1,22 @@
 import 'dart:convert';
 
+class _ListSink<T> implements Sink<T> {
+  _ListSink(this.values);
+
+  final List<T> values;
+  bool closed = false;
+
+  @override
+  void add(T data) {
+    values.add(data);
+  }
+
+  @override
+  void close() {
+    closed = true;
+  }
+}
+
 void main() {
   final payload = {
     'name': 'dart2esm',
@@ -75,6 +92,42 @@ void main() {
   chunkedDecoder.add([105]);
   chunkedDecoder.close();
   print('chunked ${chunkedBytes.join(',')} ${chunkedText.join('|')}');
+
+  final adaptedByteChunks = <List<int>>[];
+  final adaptedByteSink = _ListSink<List<int>>(adaptedByteChunks);
+  final byteFrom = ByteConversionSink.from(adaptedByteSink);
+  byteFrom.add([1]);
+  byteFrom.addSlice([2, 3, 4], 1, 3, true);
+  final adaptedStringChunks = <String>[];
+  final adaptedStringSink = _ListSink<String>(adaptedStringChunks);
+  final stringFrom = StringConversionSink.from(adaptedStringSink);
+  stringFrom.add('a');
+  stringFrom.addSlice('bcde', 1, 3, true);
+  final stringBuffer = StringBuffer();
+  final fromStringSink = StringConversionSink.fromStringSink(stringBuffer);
+  fromStringSink.add('x');
+  fromStringSink.addSlice('yz!', 0, 2, true);
+  final utf8SinkText = <String>[];
+  final utf8ViewTarget = StringConversionSink.withCallback((value) {
+    utf8SinkText.add(value);
+  });
+  final utf8View = utf8ViewTarget.asUtf8Sink(false);
+  utf8View.add([104]);
+  utf8View.addSlice([195, 169, 33], 0, 2, false);
+  utf8View.addSlice([33], 0, 1, true);
+  final chunkedValues = <String>[];
+  final genericSink = ChunkedConversionSink<Object?>.withCallback((values) {
+    chunkedValues.add(values.join('/'));
+  });
+  genericSink.add('g');
+  genericSink.add(7);
+  genericSink.close();
+  print(
+    'sinkAdapters ${adaptedByteChunks.map((chunk) => chunk.join('-')).join('|')} '
+    '${adaptedByteSink.closed} ${adaptedStringChunks.join('|')} '
+    '${adaptedStringSink.closed} ${stringBuffer.toString()} '
+    '${utf8SinkText.join('|')} ${chunkedValues.join('|')}',
+  );
 
   final escaped = const HtmlEscape().convert('<a&b>"\'/');
   print('html $escaped');

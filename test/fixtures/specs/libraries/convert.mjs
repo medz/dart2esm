@@ -20,6 +20,20 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartStringBuffer(initial = "") {
+  let value = initial == null ? "" : String(initial);
+  return {
+    write(next) { value += String(next); },
+    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },
+    writeCharCode(charCode) { value += String.fromCodePoint(charCode); },
+    writeln(next = "") { value += String(next) + "\n"; },
+    clear() { value = ""; },
+    toString() { return value; },
+    get length() { return value.length; },
+    get isEmpty() { return value.length === 0; },
+    get isNotEmpty() { return value.length !== 0; },
+  };
+}
 function __dartToJson(value, toEncodable) {
   if (value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
   if (Array.isArray(value)) {
@@ -326,6 +340,16 @@ function __dartHtmlEscape(mode = null) {
     fuse(next) { return __dartConverterFuse(this, next); },
   };
 }
+function __dartSinkAdd(sink, value) {
+  if (sink != null && typeof sink.add === "function") return sink.add(value);
+  if (sink != null && typeof sink.write === "function") return sink.write(value);
+  if (Array.isArray(sink)) { sink.push(value); return null; }
+  throw new TypeError("Sink.add is not available");
+}
+function __dartSinkClose(sink) {
+  if (sink != null && typeof sink.close === "function") return sink.close();
+  return null;
+}
 function __dartConverterConvert(converter, value) {
   if (converter != null && typeof converter.convert === "function") return converter.convert(value);
   if (converter != null && typeof converter.encode === "function") return converter.encode(value);
@@ -367,6 +391,14 @@ function __dartConverterStartChunked(converter, sink) {
   };
   return input;
 }
+function __dartChunkedConversionSink(callback) {
+  const chunks = [];
+  let closed = false;
+  return {
+    add(chunk) { if (closed) return null; chunks.push(chunk); return null; },
+    close() { if (closed) return null; closed = true; callback(chunks); return null; },
+  };
+}
 function __dartByteConversionSink(callback) {
   const bytes = [];
   let closed = false;
@@ -376,6 +408,27 @@ function __dartByteConversionSink(callback) {
     close() { if (closed) return null; closed = true; callback(bytes); return null; },
   };
 }
+function __dartByteConversionSinkFrom(sink) {
+  let closed = false;
+  return {
+    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, chunk); },
+    addSlice(chunk, start, end, isLast = false) {
+      if (closed) return null;
+      __dartSinkAdd(sink, Array.from(chunk).slice(start, end));
+      if (isLast) this.close();
+      return null;
+    },
+    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },
+  };
+}
+function __dartStringConversionSinkAsUtf8Sink(sink, allowMalformed = false) {
+  let closed = false;
+  return {
+    add(chunk) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed)); return null; },
+    addSlice(chunk, start, end, isLast = false) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed, start, end)); if (isLast) this.close(); return null; },
+    close() { if (closed) return null; closed = true; return typeof sink.close === "function" ? sink.close() : null; },
+  };
+}
 function __dartStringConversionSink(callback) {
   let text = "";
   let closed = false;
@@ -383,6 +436,35 @@ function __dartStringConversionSink(callback) {
     add(chunk) { if (closed) return null; text += String(chunk); return null; },
     addSlice(chunk, start, end, isLast = false) { if (closed) return null; text += String(chunk).slice(start, end); if (isLast) this.close(); return null; },
     close() { if (closed) return null; closed = true; callback(text); return null; },
+    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
+  };
+}
+function __dartStringConversionSinkFrom(sink) {
+  let closed = false;
+  return {
+    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },
+    addSlice(chunk, start, end, isLast = false) {
+      if (closed) return null;
+      __dartSinkAdd(sink, String(chunk).slice(start, end));
+      if (isLast) this.close();
+      return null;
+    },
+    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },
+    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
+  };
+}
+function __dartStringConversionSinkFromStringSink(sink) {
+  let closed = false;
+  return {
+    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },
+    addSlice(chunk, start, end, isLast = false) {
+      if (closed) return null;
+      __dartSinkAdd(sink, String(chunk).slice(start, end));
+      if (isLast) this.close();
+      return null;
+    },
+    close() { closed = true; return null; },
+    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
   };
 }
 function __dartAs(value, test, typeName) {
@@ -420,6 +502,19 @@ function __dartConst(key, create) {
 }
 
 // Generated by dart2esm.
+
+export class _ListSink {
+  constructor(values) {
+    this.closed = false;
+    this.values = values;
+  }
+  add(data) {
+    (this.values.push(data), null);
+  }
+  close() {
+    this.closed = true;
+  }
+}
 
 export function main() {
   const payload = new Map([["name", "dart2esm"], ["values", [1, 2, 3]], ["ok", true]]);
@@ -471,6 +566,36 @@ export function main() {
   chunkedDecoder.add([105]);
   chunkedDecoder.close();
   __dartPrint("chunked " + __dartStr(__dartIterableJoin(chunkedBytes, ",")) + " " + __dartStr(__dartIterableJoin(chunkedText, "|")));
+  const adaptedByteChunks = new Array(0).fill(null);
+  const adaptedByteSink = new _ListSink(adaptedByteChunks);
+  const byteFrom = __dartByteConversionSinkFrom(adaptedByteSink);
+  byteFrom.add([1]);
+  byteFrom.addSlice([2, 3, 4], 1, 3, true);
+  const adaptedStringChunks = new Array(0).fill(null);
+  const adaptedStringSink = new _ListSink(adaptedStringChunks);
+  const stringFrom = __dartStringConversionSinkFrom(adaptedStringSink);
+  stringFrom.add("a");
+  stringFrom.addSlice("bcde", 1, 3, true);
+  const stringBuffer = __dartStringBuffer("");
+  const fromStringSink = __dartStringConversionSinkFromStringSink(stringBuffer);
+  fromStringSink.add("x");
+  fromStringSink.addSlice("yz!", 0, 2, true);
+  const utf8SinkText = new Array(0).fill(null);
+  const utf8ViewTarget = __dartStringConversionSink(function(value) {
+    (utf8SinkText.push(value), null);
+});
+  const utf8View = utf8ViewTarget.asUtf8Sink(false);
+  utf8View.add([104]);
+  utf8View.addSlice([195, 169, 33], 0, 2, false);
+  utf8View.addSlice([33], 0, 1, true);
+  const chunkedValues = new Array(0).fill(null);
+  const genericSink = __dartChunkedConversionSink(function(values) {
+    (chunkedValues.push(__dartIterableJoin(values, "/")), null);
+});
+  genericSink.add("g");
+  genericSink.add(7);
+  genericSink.close();
+  __dartPrint("sinkAdapters " + __dartStr(__dartIterableJoin(Array.from(adaptedByteChunks, function(chunk) { return __dartIterableJoin(chunk, "-"); }), "|")) + " " + __dartStr(adaptedByteSink.closed) + " " + __dartStr(__dartIterableJoin(adaptedStringChunks, "|")) + " " + __dartStr(adaptedStringSink.closed) + " " + __dartStr(__dartStr(stringBuffer)) + " " + __dartStr(__dartIterableJoin(utf8SinkText, "|")) + " " + __dartStr(__dartIterableJoin(chunkedValues, "|")));
   const escaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]]]", () => __dartHtmlEscape(__dartConst("[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]", () => __dartHtmlEscapeMode("custom", true, true, true, true)))).convert("<a&b>\"'/");
   __dartPrint("html " + __dartStr(escaped));
   const indented = __dartConst("[\"instance\",\"dart:convert::JsonEncoder\",[\"field\",\"dart:convert::JsonEncoder::@fields::dart:convert::_toEncodable\",[\"null\"]],[\"field\",\"dart:convert::JsonEncoder::@fields::indent\",[\"string\",\"  \"]]]", () => __dartJsonEncoder(null, "  ")).convert(new Map([["a", [1, true]]]));

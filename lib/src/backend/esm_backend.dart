@@ -2212,6 +2212,13 @@ final class _EsmEmitter {
     if (developerInvocation != null) {
       return developerInvocation;
     }
+    final mathInvocation = _emitMathStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (mathInvocation != null) {
+      return mathInvocation;
+    }
     if (_isCoreReference(
           expression.targetReference,
           '@methods',
@@ -2497,6 +2504,10 @@ final class _EsmEmitter {
     final developerGet = _emitDeveloperStaticGet(expression);
     if (developerGet != null) {
       return developerGet;
+    }
+    final mathGet = _emitMathStaticGet(expression);
+    if (mathGet != null) {
+      return mathGet;
     }
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
@@ -3064,6 +3075,60 @@ final class _EsmEmitter {
       return '__dartDeveloperUserTag("Default")';
     }
     return null;
+  }
+
+  String? _emitMathStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:math::@methods::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'min' when positionalArgs.length == 2 =>
+        'Math.min(${positionalArgs[0]}, ${positionalArgs[1]})',
+      'max' when positionalArgs.length == 2 =>
+        'Math.max(${positionalArgs[0]}, ${positionalArgs[1]})',
+      'pow' when positionalArgs.length == 2 =>
+        'Math.pow(${positionalArgs[0]}, ${positionalArgs[1]})',
+      'sqrt' when positionalArgs.length == 1 =>
+        'Math.sqrt(${positionalArgs[0]})',
+      'sin' when positionalArgs.length == 1 => 'Math.sin(${positionalArgs[0]})',
+      'cos' when positionalArgs.length == 1 => 'Math.cos(${positionalArgs[0]})',
+      'tan' when positionalArgs.length == 1 => 'Math.tan(${positionalArgs[0]})',
+      'asin' when positionalArgs.length == 1 =>
+        'Math.asin(${positionalArgs[0]})',
+      'acos' when positionalArgs.length == 1 =>
+        'Math.acos(${positionalArgs[0]})',
+      'atan' when positionalArgs.length == 1 =>
+        'Math.atan(${positionalArgs[0]})',
+      'atan2' when positionalArgs.length == 2 =>
+        'Math.atan2(${positionalArgs[0]}, ${positionalArgs[1]})',
+      'exp' when positionalArgs.length == 1 => 'Math.exp(${positionalArgs[0]})',
+      'log' when positionalArgs.length == 1 => 'Math.log(${positionalArgs[0]})',
+      _ => null,
+    };
+  }
+
+  String? _emitMathStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:math::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'pi' => 'Math.PI',
+      'e' => 'Math.E',
+      'ln2' => 'Math.LN2',
+      'ln10' => 'Math.LN10',
+      'log2e' => 'Math.LOG2E',
+      'log10e' => 'Math.LOG10E',
+      'sqrt1_2' => 'Math.SQRT1_2',
+      'sqrt2' => 'Math.SQRT2',
+      _ => null,
+    };
   }
 
   String? _namedArgument(k.Arguments arguments, String name) {

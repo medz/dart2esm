@@ -2841,6 +2841,18 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return '${positionalArgs.single}.name';
     }
+    if (_referencePath(expression.targetReference) ==
+            'dart:core::@methods::EnumByName|byName' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartEnumByName');
+      return '__dartEnumByName(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (_referencePath(expression.targetReference) ==
+            'dart:core::@methods::EnumByName|asNameMap' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartEnumAsNameMap');
+      return '__dartEnumAsNameMap(${positionalArgs.single})';
+    }
     if (_isCoreReference(expression.targetReference, '@methods', 'print')) {
       _usedHelpers.add('__dartPrint');
       _usedHelpers.add('__dartStr');
@@ -8109,6 +8121,25 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartEnumByName')) {
+      helper.writeln('function __dartEnumByName(values, name) {');
+      helper.writeln('  for (const value of values) {');
+      helper.writeln('    if (value.name === name) return value;');
+      helper.writeln('  }');
+      helper.writeln(
+        '  throw new RangeError("No enum value with name " + name);',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartEnumAsNameMap')) {
+      helper.writeln('function __dartEnumAsNameMap(values) {');
+      helper.writeln('  const map = new Map();');
+      helper.writeln(
+        '  for (const value of values) map.set(value.name, value);',
+      );
+      helper.writeln('  return map;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartFixedList')) {
       helper.writeln('function __dartFixedList(list) {');
       helper.writeln('  return Object.seal(list);');
@@ -9698,6 +9729,8 @@ const _generatedGlobalNames = {
   '__dartDoubleParse',
   '__dartDoubleTryParse',
   '__dartDuration',
+  '__dartEnumAsNameMap',
+  '__dartEnumByName',
   '__dartExpando',
   '__dartEquals',
   '__dartFixedList',
@@ -9733,6 +9766,7 @@ const _generatedGlobalNames = {
   '__dartHtmlEscapeChar',
   '__dartIdentityHashes',
   '__dartIdentityMap',
+  '__dartIsCoreError',
   '__dartIsRecord',
   '__dartIterator',
   '__dartJsonCodec',

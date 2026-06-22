@@ -22,6 +22,9 @@ void main() {
   print('getter ${Status.ready.ok} ${Status.failed.ok}');
   print('method ${Status.ready.describe()}');
   print('values ${Status.values.length} ${Status.values[1].name}');
+  final byName = Status.values.byName('ready');
+  final nameMap = Status.values.asNameMap();
+  print('byName ${byName.code} ${nameMap['failed']!.label}');
   print('static ${Status.fallback.name} ${Status.isErrorCode(500)}');
   print('string ${Status.failed}');
 }

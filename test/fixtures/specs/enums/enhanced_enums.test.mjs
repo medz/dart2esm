@@ -12,6 +12,7 @@ describe('enums/enhanced_enums.mjs', () => {
         'getter true false',
         'method ready:200:Ready',
         'values 2 failed',
+        'byName 200 Failed',
         'static failed true',
         'string Status.failed',
       ]);
@@ -28,6 +29,14 @@ describe('enums/enhanced_enums.mjs', () => {
         module.Status.ready,
         module.Status.failed,
       ]);
+      expect(module.Status.values.find((value) => value.name === 'ready')).toBe(
+        module.Status.ready,
+      );
+      expect(
+        new Map(
+          module.Status.values.map((value) => [value.name, value]),
+        ).get('failed'),
+      ).toBe(module.Status.failed);
       expect(Object.isFrozen(module.Status.ready)).toBe(true);
       expect(String(module.Status.failed)).toBe('Status.failed');
     } finally {

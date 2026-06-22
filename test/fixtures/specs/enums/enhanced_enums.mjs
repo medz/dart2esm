@@ -20,6 +20,41 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartNullCheck(value) {
+  if (value == null) {
+    throw new TypeError("Null check operator used on a null value");
+  }
+  return value;
+}
+function __dartEnumByName(values, name) {
+  for (const value of values) {
+    if (value.name === name) return value;
+  }
+  throw new RangeError("No enum value with name " + name);
+}
+function __dartEnumAsNameMap(values) {
+  const map = new Map();
+  for (const value of values) map.set(value.name, value);
+  return map;
+}
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
+}
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
@@ -65,6 +100,9 @@ export function main() {
   __dartPrint("getter " + __dartStr(Status.ready.ok) + " " + __dartStr(Status.failed.ok));
   __dartPrint("method " + __dartStr(Status.ready.describe()));
   __dartPrint("values " + __dartStr(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])).length) + " " + __dartStr(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed]))[1].name));
+  const byName = __dartEnumByName(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])), "ready");
+  const nameMap = __dartEnumAsNameMap(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])));
+  __dartPrint("byName " + __dartStr(byName.code) + " " + __dartStr(__dartNullCheck(__dartMapGet(nameMap, "failed")).label));
   __dartPrint("static " + __dartStr(Status.failed.name) + " " + __dartStr(Status.isErrorCode(500)));
   __dartPrint("string " + __dartStr(Status.failed));
 }

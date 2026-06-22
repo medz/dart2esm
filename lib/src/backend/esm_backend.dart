@@ -4879,6 +4879,14 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
+    if ((path == 'dart:math::Random::@factories::' ||
+            path == 'dart:math::Random::@factories::secure') &&
+        positionalArgs.length <= 1) {
+      _usedHelpers.add('__dartRandom');
+      final seed = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      final secure = path.endsWith('::secure');
+      return '__dartRandom($seed, ${secure ? 'true' : 'false'})';
+    }
     if (!path.startsWith('dart:math::@methods::')) {
       return null;
     }
@@ -5920,6 +5928,46 @@ final class _EsmEmitter {
         helper.writeln('  return __dartUriParse(url.toString());');
         helper.writeln('}');
       }
+    }
+    if (_usedHelpers.contains('__dartRandom')) {
+      helper.writeln('function __dartRandom(seed = null, secure = false) {');
+      helper.writeln('  let state = seed == null ? 0 : Number(seed) >>> 0;');
+      helper.writeln('  function nextUint32() {');
+      helper.writeln('    if (secure) {');
+      helper.writeln(
+        '      const crypto = globalThis.crypto || globalThis.msCrypto;',
+      );
+      helper.writeln(
+        '      if (crypto && typeof crypto.getRandomValues === "function") {',
+      );
+      helper.writeln('        const values = new Uint32Array(1);');
+      helper.writeln('        crypto.getRandomValues(values);');
+      helper.writeln('        return values[0] >>> 0;');
+      helper.writeln('      }');
+      helper.writeln('    }');
+      helper.writeln('    if (seed == null) {');
+      helper.writeln(
+        '      return Math.floor(Math.random() * 0x100000000) >>> 0;',
+      );
+      helper.writeln('    }');
+      helper.writeln(
+        '    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;',
+      );
+      helper.writeln('    return state;');
+      helper.writeln('  }');
+      helper.writeln('  return {');
+      helper.writeln('    nextInt(max) {');
+      helper.writeln(
+        '      if (!Number.isInteger(max) || max <= 0) throw new RangeError("max must be positive");',
+      );
+      helper.writeln('      return nextUint32() % max;');
+      helper.writeln('    },');
+      helper.writeln(
+        '    nextDouble() { return nextUint32() / 0x100000000; },',
+      );
+      helper.writeln('    nextBool() { return (nextUint32() & 1) === 1; },');
+      helper.writeln('  };');
+      helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartRegExp')) {
       helper.writeln('function __dartRegExp(pattern, options = {}) {');
@@ -7203,6 +7251,7 @@ const _generatedGlobalNames = {
   '__dartObjectHash',
   '__dartObjectHashUnordered',
   '__dartPrint',
+  '__dartRandom',
   '__dartRecord',
   '__dartRecordShape',
   '__dartRegExp',

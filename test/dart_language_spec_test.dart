@@ -94,6 +94,13 @@ void main() {
         '  factory C.d(T x) = D<T>.new;  // same as: `= D<T>;`',
       );
       expect(
+        _exactLine(
+          constructorTearOffsSpec,
+          'const filledIntList = List<int>.filled',
+        ),
+        'const filledIntList = List<int>.filled;  // List<int> Function(int, int)',
+      );
+      expect(
         _exactLine(classModifiersSpec, 'Is not a redirecting constructor'),
         '*   Is not a redirecting constructor _(`Foo(...) : this.other(...);`)_,',
       );
@@ -143,6 +150,26 @@ void main() {
         'factory Widget.d() = Button;',
         'factory Widget.named(String label) = Button.named;',
       ]);
+
+      final tearOffFixture = await File(
+        p.join(
+          'test',
+          'fixtures',
+          'specs',
+          'classes',
+          'constructor_tearoffs.dart',
+        ),
+      ).readAsLines();
+      expect(_constructorTearOffDeclarations(tearOffFixture), [
+        'final unnamed = Box.new;',
+        'final unnamedAgain = Box.new;',
+        'final named = Box.named;',
+        'final alias = Box.alias;',
+        'final aliasType = AliasBox.new;',
+        'final options = Options.new;',
+        'final intHolder = Holder<int>.new;',
+        'const constMakers = <BoxMaker>[Box.new, Box.named, Box.alias];',
+      ]);
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
@@ -191,6 +218,14 @@ List<String> _redirectingGenerativeDeclarations(List<String> lines) {
 List<String> _redirectingFactoryDeclarations(List<String> lines) {
   final source = _singleLineDeclarations(lines);
   final pattern = RegExp(r'^factory [A-Z]\w*(?:\.\w+)?\([^;]*\) = .+;$');
+  return source.where((line) => pattern.hasMatch(line)).toList();
+}
+
+List<String> _constructorTearOffDeclarations(List<String> lines) {
+  final source = _singleLineDeclarations(lines);
+  final pattern = RegExp(
+    r'^(?:final|const) \w+ = (?:[A-Z]\w*(?:<[^>]+>)?|AliasBox)\.(?:new|named|alias)|const constMakers = ',
+  );
   return source.where((line) => pattern.hasMatch(line)).toList();
 }
 

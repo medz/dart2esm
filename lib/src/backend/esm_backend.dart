@@ -35,6 +35,7 @@ final class _EsmEmitter {
   final _procedureNames = <k.Procedure, String>{};
   final _classNames = <k.Class, String>{};
   final _namedConstructorBodyNames = <k.Constructor, String>{};
+  final _constructorTearOffNames = <k.Member, String>{};
   final _fieldNames = <k.Field, _TopLevelFieldNames>{};
   final _staticFieldCellNames = <k.Field, String>{};
   final _variableNames = <k.VariableDeclaration, String>{};
@@ -62,6 +63,7 @@ final class _EsmEmitter {
     for (final library in libraries) {
       _emitLibrary(library, export: identical(library, mainLibrary));
     }
+    _emitConstructorTearOffFunctions();
     if (runMain) {
       _emitMainCall(main);
     }
@@ -179,7 +181,11 @@ final class _EsmEmitter {
       k.IntLiteral() ||
       k.DoubleLiteral() ||
       k.StringLiteral() ||
-      k.StaticTearOff() => emitExpression(initializer),
+      k.StaticTearOff() ||
+      k.ConstructorTearOff() ||
+      k.RedirectingFactoryTearOff() ||
+      k.Instantiation() ||
+      k.TypedefTearOff() => emitExpression(initializer),
       _ => throw UnsupportedKernelNode(field, 'top-level const initializer'),
     };
   }
@@ -785,10 +791,7 @@ final class _EsmEmitter {
     if (target is k.Procedure &&
         target.kind == k.ProcedureKind.Factory &&
         target.enclosingClass != null) {
-      if (target.name.text.isEmpty) {
-        return 'new ${_className(target.enclosingClass!)}($args)';
-      }
-      return '${_className(target.enclosingClass!)}.${_memberName(target.name.text)}($args)';
+      return _emitFactoryTargetCall(target, args);
     }
     throw UnsupportedKernelNode(procedure, 'redirecting factory target');
   }
@@ -1161,6 +1164,14 @@ final class _EsmEmitter {
         return emitExpression(expression.expression);
       case k.StaticTearOff():
         return _emitStaticTearOff(expression);
+      case k.ConstructorTearOff():
+        return _emitConstructorTearOffReference(expression.target, expression);
+      case k.RedirectingFactoryTearOff():
+        return _emitConstructorTearOffReference(expression.target, expression);
+      case k.Instantiation():
+        return emitExpression(expression.expression);
+      case k.TypedefTearOff():
+        return emitExpression(expression.expression);
       case k.InstanceInvocation():
         return _emitInstanceInvocation(
           expression.receiver,
@@ -1328,6 +1339,14 @@ final class _EsmEmitter {
         return '__dartRecord([${constant.positional.map(_emitEsmConst).join(', ')}], ${_emitRecordConstantNamedFields(constant.named)})';
       case k.StaticTearOffConstant():
         return _emitStaticTearOffReference(constant.targetReference, constant);
+      case k.ConstructorTearOffConstant():
+        return _emitConstructorTearOffReference(constant.target, constant);
+      case k.RedirectingFactoryTearOffConstant():
+        return _emitConstructorTearOffReference(constant.target, constant);
+      case k.InstantiationConstant():
+        return _emitEsmConst(constant.tearOffConstant);
+      case k.TypedefTearOffConstant():
+        return _emitEsmConst(constant.tearOffConstant);
       case k.ListConstant():
         final enumValues = _emitEnumValuesConstant(constant);
         if (enumValues != null) {
@@ -1431,7 +1450,10 @@ final class _EsmEmitter {
   }
 
   String _emitFactoryInvocation(k.Procedure target, k.Arguments arguments) {
-    final args = _emitArguments(arguments);
+    return _emitFactoryTargetCall(target, _emitArguments(arguments));
+  }
+
+  String _emitFactoryTargetCall(k.Procedure target, String args) {
     if (target.name.text.isEmpty) {
       return 'new ${_className(target.enclosingClass!)}($args)';
     }
@@ -1501,6 +1523,21 @@ final class _EsmEmitter {
     return _emitStaticTearOffReference(expression.targetReference, expression);
   }
 
+  String _emitConstructorTearOffReference(k.Member target, Object node) {
+    if (target is k.Constructor) {
+      return _constructorTearOffName(target);
+    }
+    if (target is k.Procedure &&
+        target.kind == k.ProcedureKind.Factory &&
+        target.enclosingClass != null) {
+      if (!target.isRedirectingFactory) {
+        throw UnsupportedKernelNode(node, 'non-redirecting factory tear-off');
+      }
+      return _constructorTearOffName(target);
+    }
+    throw UnsupportedKernelNode(node, 'constructor tear-off target');
+  }
+
   String _emitStaticTearOffReference(k.Reference reference, Object node) {
     final target = reference.node;
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
@@ -1518,6 +1555,58 @@ final class _EsmEmitter {
       node,
       'static tear-off ${_referencePath(reference)}',
     );
+  }
+
+  void _emitConstructorTearOffFunctions() {
+    final emitted = <k.Member>{};
+    while (true) {
+      final pending = [
+        for (final target in _constructorTearOffNames.keys)
+          if (!emitted.contains(target)) target,
+      ];
+      if (pending.isEmpty) {
+        return;
+      }
+      for (final target in pending) {
+        emitted.add(target);
+        writeln();
+        _emitConstructorTearOffFunction(
+          target,
+          _constructorTearOffNames[target]!,
+        );
+      }
+    }
+  }
+
+  void _emitConstructorTearOffFunction(k.Member target, String name) {
+    final function = target.function;
+    if (function == null) {
+      throw UnsupportedKernelNode(target, 'constructor tear-off function');
+    }
+    writeln('function $name(${_emitParameterList(function)}) {');
+    _indent++;
+    writeln('return ${_emitConstructorTearOffInvocation(target, function)};');
+    _indent--;
+    writeln('}');
+  }
+
+  String _emitConstructorTearOffInvocation(
+    k.Member target,
+    k.FunctionNode function,
+  ) {
+    final args = _emitParameterForwardingArguments(function);
+    if (target is k.Constructor) {
+      if (target.name.text.isEmpty) {
+        return 'new ${_className(target.enclosingClass)}($args)';
+      }
+      return '${_className(target.enclosingClass)}.${_memberName(target.name.text)}($args)';
+    }
+    if (target is k.Procedure &&
+        target.kind == k.ProcedureKind.Factory &&
+        target.enclosingClass != null) {
+      return _emitFactoryTargetCall(target, args);
+    }
+    throw UnsupportedKernelNode(target, 'constructor tear-off invocation');
   }
 
   String _emitStaticGet(k.StaticGet expression) {
@@ -1760,6 +1849,17 @@ final class _EsmEmitter {
     return _namedConstructorBodyNames.putIfAbsent(constructor, () {
       final klass = constructor.enclosingClass;
       return _freshName('\$${klass.name}_${constructor.name.text}');
+    });
+  }
+
+  String _constructorTearOffName(k.Member target) {
+    return _constructorTearOffNames.putIfAbsent(target, () {
+      final klass = target.enclosingClass;
+      if (klass == null) {
+        throw UnsupportedKernelNode(target, 'constructor tear-off name');
+      }
+      final name = target.name.text.isEmpty ? 'new' : target.name.text;
+      return _freshName('\$${klass.name}_${name}_tearoff');
     });
   }
 

@@ -3846,6 +3846,16 @@ final class _EsmEmitter {
           : positionalArgs.single;
       return '__dartStreamDrain($left, $futureValue)';
     }
+    if (name == 'listen' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      final onError = _namedArgument(expression.arguments, 'onError') ?? 'null';
+      final onDone = _namedArgument(expression.arguments, 'onDone') ?? 'null';
+      final cancelOnError =
+          _namedArgument(expression.arguments, 'cancelOnError') ?? 'false';
+      return '__dartStreamListen($left, ${positionalArgs.single}, $onError, $onDone, $cancelOnError)';
+    }
     if (name == 'then' &&
         positionalArgs.length == 1 &&
         _isAsyncFutureMember(target, name)) {
@@ -9265,6 +9275,59 @@ final class _EsmEmitter {
       helper.writeln('  for await (const _ of stream) {}');
       helper.writeln('  return futureValue;');
       helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {',
+      );
+      helper.writeln('  let canceled = false;');
+      helper.writeln('  let paused = false;');
+      helper.writeln('  let resumeWaiter = null;');
+      helper.writeln('  function waitWhilePaused() {');
+      helper.writeln('    if (!paused) return Promise.resolve();');
+      helper.writeln(
+        '    return new Promise((resolve) => { resumeWaiter = resolve; });',
+      );
+      helper.writeln('  }');
+      helper.writeln('  const done = (async () => {');
+      helper.writeln('    try {');
+      helper.writeln('      for await (const value of stream) {');
+      helper.writeln('        await waitWhilePaused();');
+      helper.writeln('        if (canceled) break;');
+      helper.writeln(
+        '        if (typeof onData === "function") onData(value);',
+      );
+      helper.writeln('      }');
+      helper.writeln(
+        '      if (!canceled && typeof onDone === "function") onDone();',
+      );
+      helper.writeln('    } catch (error) {');
+      helper.writeln(
+        '      if (typeof onError === "function") onError(error);',
+      );
+      helper.writeln('      else throw error;');
+      helper.writeln('      if (cancelOnError) canceled = true;');
+      helper.writeln('    }');
+      helper.writeln('    return null;');
+      helper.writeln('  })();');
+      helper.writeln('  return {');
+      helper.writeln('    get isPaused() { return paused; },');
+      helper.writeln('    pause() { paused = true; return null; },');
+      helper.writeln('    resume() {');
+      helper.writeln('      paused = false;');
+      helper.writeln('      if (resumeWaiter != null) {');
+      helper.writeln('        const resolve = resumeWaiter;');
+      helper.writeln('        resumeWaiter = null;');
+      helper.writeln('        resolve();');
+      helper.writeln('      }');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln(
+        '    cancel() { canceled = true; this.resume(); return done; },',
+      );
+      helper.writeln(
+        '    asFuture(value = null) { return done.then(() => value); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartEquals')) {
       helper.writeln('function __dartEquals(left, right) {');
@@ -9756,6 +9819,7 @@ const _generatedGlobalNames = {
   '__dartStreamLast',
   '__dartStreamLastWhere',
   '__dartStreamLength',
+  '__dartStreamListen',
   '__dartStreamMap',
   '__dartStreamSkip',
   '__dartStreamSkipWhile',

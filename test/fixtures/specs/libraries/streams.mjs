@@ -23,6 +23,28 @@ function __dartPrint(value) {
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
+function __dartCompleter() {
+  let completed = false;
+  let resolveFuture;
+  let rejectFuture;
+  const future = new Promise((resolve, reject) => { resolveFuture = resolve; rejectFuture = reject; });
+  return {
+    future,
+    get isCompleted() { return completed; },
+    complete(value = null) {
+      if (completed) throw new Error("Future already completed");
+      completed = true;
+      Promise.resolve(value).then(resolveFuture, rejectFuture);
+      return null;
+    },
+    completeError(error, stackTrace = null) {
+      if (completed) throw new Error("Future already completed");
+      completed = true;
+      rejectFuture(error);
+      return null;
+    },
+  };
+}
 function __dartStreamController() {
   const queue = [];
   const waiters = [];
@@ -280,6 +302,45 @@ async function __dartStreamDrain(stream, futureValue = null) {
   for await (const _ of stream) {}
   return futureValue;
 }
+function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
+  let canceled = false;
+  let paused = false;
+  let resumeWaiter = null;
+  function waitWhilePaused() {
+    if (!paused) return Promise.resolve();
+    return new Promise((resolve) => { resumeWaiter = resolve; });
+  }
+  const done = (async () => {
+    try {
+      for await (const value of stream) {
+        await waitWhilePaused();
+        if (canceled) break;
+        if (typeof onData === "function") onData(value);
+      }
+      if (!canceled && typeof onDone === "function") onDone();
+    } catch (error) {
+      if (typeof onError === "function") onError(error);
+      else throw error;
+      if (cancelOnError) canceled = true;
+    }
+    return null;
+  })();
+  return {
+    get isPaused() { return paused; },
+    pause() { paused = true; return null; },
+    resume() {
+      paused = false;
+      if (resumeWaiter != null) {
+        const resolve = resumeWaiter;
+        resumeWaiter = null;
+        resolve();
+      }
+      return null;
+    },
+    cancel() { canceled = true; this.resume(); return done; },
+    asFuture(value = null) { return done.then(() => value); },
+  };
+}
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
@@ -318,6 +379,21 @@ export async function main() {
   __dartPrint("checks " + __dartStr(await __dartStreamAny(__dartStreamFromIterable([1, 2, 3]), function(value) { return (value > 2); })) + " " + __dartStr(await __dartStreamEvery(__dartStreamFromIterable([1, 2, 3]), function(value) { return (value > 0); })) + " " + __dartStr(await __dartStreamContains(__dartStreamFromIterable([1, 2, 3]), 2)) + " " + __dartStr(await __dartStreamJoin(__dartStreamFromIterable(["a", "b"]), "-")) + " " + __dartStr(await __dartStreamDrain(__dartStreamFromIterable([1, 2]), "done")));
   __dartPrint("slice " + __dartStr(await __dartStreamJoin(__dartStreamTake(__dartStreamSkip(__dartStreamFromIterable([1, 2, 3, 4, 5]), 1), 3), ",")) + " " + __dartStr(await __dartStreamJoin(__dartStreamTakeWhile(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value < 3); }), ",")) + " " + __dartStr(await __dartStreamJoin(__dartStreamSkipWhile(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value < 3); }), ",")));
   __dartPrint("whereQuery " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value > 2); }, null)) + " " + __dartStr(await __dartStreamLastWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (Math.trunc(value) % 2 !== 0); }, null)) + " " + __dartStr(await __dartStreamSingleWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return __dartEquals(value, 3); }, null)) + " " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2]), function(value) { return (value > 9); }, function() { return (-1); })));
+  const listened = new Array(0).fill(null);
+  const listenDone = __dartCompleter();
+  const subscription = __dartStreamListen(__dartStreamFromIterable([6, 7]), function(value) {
+    (listened.push(value), null);
+}, null, function() {
+    listenDone.complete("done");
+}, false);
+  subscription.pause();
+  const paused = subscription.isPaused;
+  subscription.resume();
+  const listenState = await listenDone.future;
+  const listenFuture = __dartStreamListen(__dartStreamFromIterable([8]), function(value) {
+    (listened.push(value), null);
+}, null, null, false).asFuture("future");
+  __dartPrint("listen " + __dartStr(listenState) + " " + __dartStr(__dartIterableJoin(listened, ",")) + " " + __dartStr(paused) + " " + __dartStr(await listenFuture) + " " + __dartStr(__dartIterableJoin(listened, ",")));
   const controller = __dartStreamController();
   const controlledFuture = __dartStreamToList(controller.stream);
   __dartPrint("state " + __dartStr(controller.isClosed) + " " + __dartStr(controller.hasListener));

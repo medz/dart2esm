@@ -344,6 +344,45 @@ async function __dartStreamDrain(stream, futureValue = null) {
   for await (const _ of stream) {}
   return futureValue;
 }
+function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
+  let canceled = false;
+  let paused = false;
+  let resumeWaiter = null;
+  function waitWhilePaused() {
+    if (!paused) return Promise.resolve();
+    return new Promise((resolve) => { resumeWaiter = resolve; });
+  }
+  const done = (async () => {
+    try {
+      for await (const value of stream) {
+        await waitWhilePaused();
+        if (canceled) break;
+        if (typeof onData === "function") onData(value);
+      }
+      if (!canceled && typeof onDone === "function") onDone();
+    } catch (error) {
+      if (typeof onError === "function") onError(error);
+      else throw error;
+      if (cancelOnError) canceled = true;
+    }
+    return null;
+  })();
+  return {
+    get isPaused() { return paused; },
+    pause() { paused = true; return null; },
+    resume() {
+      paused = false;
+      if (resumeWaiter != null) {
+        const resolve = resumeWaiter;
+        resumeWaiter = null;
+        resolve();
+      }
+      return null;
+    },
+    cancel() { canceled = true; this.resume(); return done; },
+    asFuture(value = null) { return done.then(() => value); },
+  };
+}
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;

@@ -39,6 +39,29 @@ Future<void> main() async {
     '${await Stream<int>.fromIterable([1, 2, 3, 4]).singleWhere((value) => value == 3)} '
     '${await Stream<int>.fromIterable([1, 2]).firstWhere((value) => value > 9, orElse: () => -1)}',
   );
+  final listened = <int>[];
+  final listenDone = Completer<String>();
+  final subscription = Stream<int>.fromIterable([6, 7]).listen(
+    (value) {
+      listened.add(value);
+    },
+    onDone: () {
+      listenDone.complete('done');
+    },
+  );
+  subscription.pause();
+  final paused = subscription.isPaused;
+  subscription.resume();
+  final listenState = await listenDone.future;
+  final listenFuture = Stream<int>.fromIterable([8])
+      .listen((value) {
+        listened.add(value);
+      })
+      .asFuture<String>('future');
+  print(
+    'listen $listenState ${listened.join(',')} $paused '
+    '${await listenFuture} ${listened.join(',')}',
+  );
 
   final controller = StreamController<int>();
   final controlledFuture = controller.stream.toList();

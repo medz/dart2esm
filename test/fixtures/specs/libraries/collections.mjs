@@ -30,6 +30,17 @@ function __dartMapRemove(map, key) {
   map.delete(key);
   return value;
 }
+function __dartListSort(list, compare = null) {
+  if (typeof compare === "function") {
+    list.sort((left, right) => compare(left, right));
+  } else {
+    list.sort((left, right) => left < right ? -1 : (left > right ? 1 : 0));
+  }
+  return null;
+}
+function __dartListAsMap(list) {
+  return new Map(Array.from(list, (value, index) => [index, value]));
+}
 function __dartIterableContains(iterable, needle) {
   for (const value of iterable) {
     if (__dartEquals(value, needle)) return true;
@@ -58,6 +69,19 @@ export function main() {
   const filtered = Array.from(Array.from(Array.from(values).filter(function(value) { return __dartEquals((value % 2), 0); }), function(value) { return (value * 10); }));
   __dartPrint("filtered " + __dartStr(__dartIterableJoin(filtered, "|")));
   __dartPrint("fold " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value), 0)) + " " + __dartStr(Array.from(values).some(function(value) { return (value > 5); })) + " " + __dartStr(Array.from(values).every(function(value) { return (value > 0); })));
+  __dartPrint("iter " + __dartStr(__dartIterableJoin(Array.from(Array.from(values).slice(2)).slice(0, 3), ",")) + " " + __dartStr(Array.from(values)[2]) + " " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value))));
+  let visited = 0;
+  (Array.from(values).forEach(function(value) {
+    visited = (visited + value);
+}), null);
+  __dartPrint("forEach " + __dartStr(visited));
+  const mutable = [3, 1, 2];
+  __dartListSort(mutable, null);
+  const removed = mutable.splice(1, 1)[0];
+  (mutable.splice(1, 0, 9), null);
+  __dartPrint("mutable " + __dartStr(__dartIterableJoin(mutable, ",")) + " " + __dartStr(removed) + " " + __dartStr(__dartIterableJoin(mutable.slice(1), ",")) + " " + __dartStr(__dartIterableJoin(Array.from(mutable).reverse(), ",")));
+  const indexed = __dartListAsMap(mutable);
+  __dartPrint("asMap " + __dartStr(indexed.size) + " " + __dartStr(indexed.get(1)));
   const names = (() => {
     const v = new Set();
     __dartSetAdd(v, "ada");

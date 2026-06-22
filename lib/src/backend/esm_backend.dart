@@ -2786,6 +2786,36 @@ final class _EsmEmitter {
       return 'Array.from($left).reduce((previous, value) => (${positionalArgs[1]})(previous, value), ${positionalArgs[0]})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'reduce' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).reduce((previous, value) => (${positionalArgs.single})(previous, value))';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'forEach' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return '(Array.from($left).forEach(${positionalArgs.single}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'take' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).slice(0, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'skip' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).slice(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'elementAt' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left)[${positionalArgs.single}]';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'any' &&
         positionalArgs.length == 1 &&
         _isCoreCollectionMember(target, name)) {
@@ -2896,6 +2926,49 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'List', 'addAll')) {
       return '($left.push(...Array.from(${positionalArgs.single})), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'sort' &&
+        positionalArgs.length <= 1 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListSort');
+      final compare = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return '__dartListSort($left, $compare)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeAt' &&
+        positionalArgs.length == 1 &&
+        _isCoreListMember(target, name)) {
+      return '$left.splice(${positionalArgs.single}, 1)[0]';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'insert' &&
+        positionalArgs.length == 2 &&
+        _isCoreListMember(target, name)) {
+      return '($left.splice(${positionalArgs[0]}, 0, ${positionalArgs[1]}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'sublist' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isCoreListMember(target, name)) {
+      if (positionalArgs.length == 1) {
+        return '$left.slice(${positionalArgs.single})';
+      }
+      return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'clear' &&
+        positionalArgs.isEmpty &&
+        _isCoreListMember(target, name)) {
+      return '($left.length = 0, null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'asMap' &&
+        positionalArgs.isEmpty &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListAsMap');
+      return '__dartListAsMap($left)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'add' &&
@@ -3027,6 +3100,10 @@ final class _EsmEmitter {
       }
       _usedHelpers.add('__dartIterableLast');
       return '__dartIterableLast($receiver)';
+    }
+    if (name == 'reversed' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      return 'Array.from($receiver).reverse()';
     }
     if (name == 'length' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
@@ -4995,6 +5072,25 @@ final class _EsmEmitter {
       helper.writeln('  const value = map.has(key) ? map.get(key) : null;');
       helper.writeln('  map.delete(key);');
       helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartListSort')) {
+      helper.writeln('function __dartListSort(list, compare = null) {');
+      helper.writeln('  if (typeof compare === "function") {');
+      helper.writeln('    list.sort((left, right) => compare(left, right));');
+      helper.writeln('  } else {');
+      helper.writeln(
+        '    list.sort((left, right) => left < right ? -1 : (left > right ? 1 : 0));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartListAsMap')) {
+      helper.writeln('function __dartListAsMap(list) {');
+      helper.writeln(
+        '  return new Map(Array.from(list, (value, index) => [index, value]));',
+      );
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartIterableContains')) {

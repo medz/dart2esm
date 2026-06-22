@@ -19,6 +19,26 @@ void main() {
     'fold ${values.fold<int>(0, (total, value) => total + value)} '
     '${values.any((value) => value > 5)} ${values.every((value) => value > 0)}',
   );
+  print(
+    'iter ${values.skip(2).take(3).join(',')} ${values.elementAt(2)} '
+    '${values.reduce((total, value) => total + value)}',
+  );
+  var visited = 0;
+  values.forEach((value) {
+    visited += value;
+  });
+  print('forEach $visited');
+
+  final mutable = [3, 1, 2];
+  mutable.sort();
+  final removed = mutable.removeAt(1);
+  mutable.insert(1, 9);
+  print(
+    'mutable ${mutable.join(',')} $removed ${mutable.sublist(1).join(',')} '
+    '${mutable.reversed.join(',')}',
+  );
+  final indexed = mutable.asMap();
+  print('asMap ${indexed.length} ${indexed[1]}');
 
   final names = <String>{'ada', 'bob'};
   names.add('cy');

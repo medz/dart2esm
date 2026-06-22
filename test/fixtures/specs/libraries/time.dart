@@ -89,6 +89,17 @@ Future<void> main() async {
     '${parsedMicros.microsecondsSinceEpoch} ${parsedMicros.microsecond}',
   );
 
+  final tryParsed = DateTime.tryParse('2026-01-02T03:04:05.006Z');
+  final tryInvalid = DateTime.tryParse('not a date');
+  print(
+    'tryParsed ${tryParsed!.toUtc().toIso8601String()} ${tryInvalid == null}',
+  );
+  try {
+    DateTime.parse('not a date');
+  } on FormatException {
+    print('parseError true');
+  }
+
   final watch = Stopwatch();
   print('watch-start ${watch.isRunning} ${watch.elapsedMicroseconds}');
   watch.start();

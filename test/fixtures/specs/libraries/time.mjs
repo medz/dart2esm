@@ -79,9 +79,13 @@ function __dartDateTime(millis, isUtc = false, microsecond = 0) {
     toString() { return this.toIso8601String(); },
   };
 }
-function __dartDateTimeParse(source) {
+function __dartDateTimeParse(source, tryParse = false) {
   const text = String(source);
   const millis = Date.parse(text);
+  if (Number.isNaN(millis)) {
+    if (tryParse) return null;
+    throw __dartCoreError("FormatException", "Invalid date format");
+  }
   const isUtc = /(?:z|[+-]\d\d(?::?\d\d)?)$/i.test(text);
   const fraction = /\.(\d+)/.exec(text);
   const microsecond = fraction == null ? 0 : Number((fraction[1] + "000000").slice(0, 6).slice(3));
@@ -118,6 +122,31 @@ function __dartStopwatch() {
     },
   };
   return watch;
+}
+function __dartNullCheck(value) {
+  if (value == null) {
+    throw new TypeError("Null check operator used on a null value");
+  }
+  return value;
+}
+function __dartCoreError(typeName, message) {
+  const text = message == null ? "" : String(message);
+  const display = text === "" ? typeName : typeName + ": " + text;
+  const error = new Error(text);
+  error.name = typeName;
+  Object.defineProperty(error, "__dartCoreErrorType", { value: typeName });
+  Object.defineProperty(error, "toString", { value() { return display; } });
+  return error;
+}
+function __dartIsCoreError(value, typeName) {
+  const actual = value == null ? null : value.__dartCoreErrorType;
+  if (actual != null) {
+    if (actual === typeName) return true;
+    if (typeName === "Exception" && actual === "FormatException") return true;
+    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
+  }
+  if (typeName === "TypeError" && value instanceof TypeError) return true;
+  return typeName === "Error" && value instanceof Error;
 }
 function __dartRoundToInt(value) {
   return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5);
@@ -164,10 +193,26 @@ export async function main() {
   __dartPrint("dateOps " + __dartStr(shifted.toIso8601String()) + " " + __dartStr(shiftedBack.microsecondsSinceEpoch) + " " + __dartStr(delta.inMicroseconds));
   __dartPrint("dateCompare " + __dartStr(epoch.isBefore(shifted)) + " " + __dartStr(shifted.isAfter(epoch)) + " " + __dartStr(epoch.isAtSameMomentAs(__dartDateTime(0, true))) + " " + __dartStr(shifted.compareTo(epoch)) + " " + __dartStr(epoch.compareTo(shifted)));
   __dartPrint("dateEquals " + __dartStr((() => { const $left_3 = epoch; const $right_3 = __dartDateTimeFromMicros(0, true); return $left_3 === null ? $right_3 === null : $left_3["=="]($right_3); })()));
-  const parsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z");
+  const parsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z", false);
   __dartPrint("parsed " + __dartStr(parsed.toUtc().toIso8601String()));
-  const parsedMicros = __dartDateTimeParse("2026-01-02T03:04:05.006007Z");
+  const parsedMicros = __dartDateTimeParse("2026-01-02T03:04:05.006007Z", false);
   __dartPrint("parsedMicros " + __dartStr(parsedMicros.toUtc().toIso8601String()) + " " + __dartStr(parsedMicros.microsecondsSinceEpoch) + " " + __dartStr(parsedMicros.microsecond));
+  const tryParsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z", true);
+  const tryInvalid = __dartDateTimeParse("not a date", true);
+  __dartPrint("tryParsed " + __dartStr(__dartNullCheck(tryParsed).toUtc().toIso8601String()) + " " + __dartStr((tryInvalid === null)));
+  try {
+    {
+      __dartDateTimeParse("not a date", false);
+    }
+  } catch ($error) {
+    if (__dartIsCoreError($error, "FormatException")) {
+      {
+        __dartPrint("parseError true");
+      }
+    } else {
+      throw $error;
+    }
+  }
   const watch = __dartStopwatch();
   __dartPrint("watch-start " + __dartStr(watch.isRunning) + " " + __dartStr(watch.elapsedMicroseconds));
   watch.start();

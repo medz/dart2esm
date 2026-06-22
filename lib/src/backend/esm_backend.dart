@@ -5293,7 +5293,13 @@ final class _EsmEmitter {
     if (path == 'dart:core::DateTime::@methods::parse' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartDateTime');
-      return '__dartDateTimeParse(${positionalArgs.single})';
+      _usedHelpers.add('__dartCoreError');
+      return '__dartDateTimeParse(${positionalArgs.single}, false)';
+    }
+    if (path == 'dart:core::DateTime::@methods::tryParse' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartDateTime');
+      return '__dartDateTimeParse(${positionalArgs.single}, true)';
     }
     if (path == 'dart:core::Object::@methods::hash' &&
         positionalArgs.length >= 2) {
@@ -7019,9 +7025,17 @@ final class _EsmEmitter {
       helper.writeln('    toString() { return this.toIso8601String(); },');
       helper.writeln('  };');
       helper.writeln('}');
-      helper.writeln('function __dartDateTimeParse(source) {');
+      helper.writeln(
+        'function __dartDateTimeParse(source, tryParse = false) {',
+      );
       helper.writeln('  const text = String(source);');
       helper.writeln('  const millis = Date.parse(text);');
+      helper.writeln('  if (Number.isNaN(millis)) {');
+      helper.writeln('    if (tryParse) return null;');
+      helper.writeln(
+        '    throw __dartCoreError("FormatException", "Invalid date format");',
+      );
+      helper.writeln('  }');
       helper.writeln(
         "  const isUtc = /(?:z|[+-]\\d\\d(?::?\\d\\d)?)\$/i.test(text);",
       );

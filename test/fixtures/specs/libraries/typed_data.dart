@@ -52,6 +52,21 @@ void main() {
   final byteSlice = ByteData.sublistView(bytes, 0, 2);
   print('byteslice ${byteSlice.lengthInBytes} ${byteSlice.getUint8(1)}');
 
+  final numbers = ByteData(36);
+  numbers.setInt32(0, -123456, Endian.little);
+  numbers.setUint32(4, 0x89abcdef);
+  numbers.setFloat32(8, 3.5, Endian.little);
+  numbers.setFloat64(12, -6.25);
+  numbers.setInt64(20, -9007199254740991, Endian.little);
+  numbers.setUint64(28, 9007199254740991);
+  print(
+    'byteNumbers ${numbers.getInt32(0, Endian.little)} '
+    '${numbers.getUint32(4)} '
+    '${numbers.getFloat32(8, Endian.little).toStringAsFixed(1)} '
+    '${numbers.getFloat64(12).toStringAsFixed(2)} '
+    '${numbers.getInt64(20, Endian.little)} ${numbers.getUint64(28)}',
+  );
+
   final ops = Uint8List.fromList([1, 2, 3, 4]);
   final opsCopy = ops.sublist(1, 3);
   ops.setAll(1, [9, 8]);

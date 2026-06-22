@@ -3895,6 +3895,16 @@ final class _EsmEmitter {
       final skipCount = positionalArgs.length == 4 ? positionalArgs[3] : '0';
       return '__dartListSetRange($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, $skipCount)';
     }
+    final byteDataInvocation = _emitByteDataInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments.named.isEmpty,
+    );
+    if (byteDataInvocation != null) {
+      return byteDataInvocation;
+    }
     if (expression.arguments.named.isEmpty &&
         name == 'setAll' &&
         positionalArgs.length == 2 &&
@@ -4233,6 +4243,34 @@ final class _EsmEmitter {
       'toStringAsPrecision' => 'Number($left).toPrecision($argument)',
       _ => null,
     };
+  }
+
+  String? _emitByteDataInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    bool namedArgumentsEmpty,
+  ) {
+    if (!namedArgumentsEmpty ||
+        !_isTypedDataClassMember(target, 'ByteData', name)) {
+      return null;
+    }
+    if ((name == 'getInt64' || name == 'getUint64') &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      final method = name == 'getInt64' ? 'getBigInt64' : 'getBigUint64';
+      final endian = positionalArgs.length == 2 ? positionalArgs[1] : 'false';
+      return 'Number($receiver.$method(${positionalArgs[0]}, $endian))';
+    }
+    if ((name == 'setInt64' || name == 'setUint64') &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3) {
+      final method = name == 'setInt64' ? 'setBigInt64' : 'setBigUint64';
+      final endian = positionalArgs.length == 3 ? positionalArgs[2] : 'false';
+      return '($receiver.$method(${positionalArgs[0]}, BigInt(${positionalArgs[1]}), $endian), null)';
+    }
+    return null;
   }
 
   String? _emitBigIntInstanceInvocation(
@@ -5920,6 +5958,18 @@ final class _EsmEmitter {
   bool _isTypedDataMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
     return path.startsWith('dart:typed_data::') &&
+        (path.contains('::@methods::$name') ||
+            path.contains('::@getters::$name') ||
+            path.endsWith('::$name'));
+  }
+
+  bool _isTypedDataClassMember(
+    k.Reference reference,
+    String className,
+    String name,
+  ) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:typed_data::$className::') &&
         (path.contains('::@methods::$name') ||
             path.contains('::@getters::$name') ||
             path.endsWith('::$name'));

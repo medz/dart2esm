@@ -104,6 +104,14 @@ export function main() {
   __dartPrint("viewdata " + __dartStr(bytes[0]) + " " + __dartStr(bytes[1]) + " " + __dartStr(dataView.byteOffset) + " " + __dartStr((dataView instanceof DataView ? 1 : dataView.BYTES_PER_ELEMENT)));
   const byteSlice = __dartTypedDataSublistView(bytes, 0, 2, DataView, 1);
   __dartPrint("byteslice " + __dartStr(byteSlice.byteLength) + " " + __dartStr(byteSlice.getUint8(1)));
+  const numbers = new DataView(new ArrayBuffer(36));
+  numbers.setInt32(0, (-123456), true);
+  numbers.setUint32(4, 2309737967);
+  numbers.setFloat32(8, 3.5, true);
+  numbers.setFloat64(12, (-6.25));
+  (numbers.setBigInt64(20, BigInt((-9007199254740991)), true), null);
+  (numbers.setBigUint64(28, BigInt(9007199254740991), false), null);
+  __dartPrint("byteNumbers " + __dartStr(numbers.getInt32(0, true)) + " " + __dartStr(numbers.getUint32(4)) + " " + __dartStr(Number(numbers.getFloat32(8, true)).toFixed(1)) + " " + __dartStr(Number(numbers.getFloat64(12)).toFixed(2)) + " " + __dartStr(Number(numbers.getBigInt64(20, true))) + " " + __dartStr(Number(numbers.getBigUint64(28, false))));
   const ops = Uint8Array.from([1, 2, 3, 4]);
   const opsCopy = ops.slice(1, 3);
   __dartListSetAll(ops, 1, [9, 8]);

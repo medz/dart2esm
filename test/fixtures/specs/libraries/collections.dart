@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 class EqBox {
   EqBox(this.value);
 
@@ -83,11 +85,17 @@ void main() {
 
   final mutable = [3, 1, 2];
   mutable.sort();
+  final shuffled = [1, 2, 3, 4, 5];
+  shuffled.shuffle(math.Random(1));
   final removed = mutable.removeAt(1);
   mutable.insert(1, 9);
   print(
     'mutable ${mutable.join(',')} $removed ${mutable.sublist(1).join(',')} '
     '${mutable.reversed.join(',')}',
+  );
+  print(
+    'shuffle ${shuffled.length} ${shuffled.toSet().length} '
+    '${shuffled.every((value) => value >= 1 && value <= 5)}',
   );
   final indexed = mutable.asMap();
   print('asMap ${indexed.length} ${indexed[1]}');

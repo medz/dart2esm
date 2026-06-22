@@ -3994,6 +3994,14 @@ final class _EsmEmitter {
       return '__dartListSort($left, $compare)';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'shuffle' &&
+        positionalArgs.length <= 1 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListShuffle');
+      final random = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return '__dartListShuffle($left, $random)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'removeAt' &&
         positionalArgs.length == 1 &&
         _isCoreListMember(target, name)) {
@@ -8478,6 +8486,21 @@ final class _EsmEmitter {
       helper.writeln('  return null;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartListShuffle')) {
+      helper.writeln('function __dartListShuffle(list, random = null) {');
+      helper.writeln(
+        '  for (let index = list.length - 1; index > 0; index--) {',
+      );
+      helper.writeln(
+        '    const selected = random == null ? Math.floor(Math.random() * (index + 1)) : random.nextInt(index + 1);',
+      );
+      helper.writeln('    const value = list[index];');
+      helper.writeln('    list[index] = list[selected];');
+      helper.writeln('    list[selected] = value;');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListRemove')) {
       helper.writeln('function __dartListRemove(list, needle) {');
       helper.writeln(
@@ -9830,6 +9853,7 @@ const _generatedGlobalNames = {
   '__dartListRetainWhere',
   '__dartListSetAll',
   '__dartListSetRange',
+  '__dartListShuffle',
   '__dartListSort',
   '__dartListWhereMutate',
   '__dartMapAddAll',

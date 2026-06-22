@@ -24,6 +24,32 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartRandom(seed = null, secure = false) {
+  let state = seed == null ? 0 : Number(seed) >>> 0;
+  function nextUint32() {
+    if (secure) {
+      const crypto = globalThis.crypto || globalThis.msCrypto;
+      if (crypto && typeof crypto.getRandomValues === "function") {
+        const values = new Uint32Array(1);
+        crypto.getRandomValues(values);
+        return values[0] >>> 0;
+      }
+    }
+    if (seed == null) {
+      return Math.floor(Math.random() * 0x100000000) >>> 0;
+    }
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state;
+  }
+  return {
+    nextInt(max) {
+      if (!Number.isInteger(max) || max <= 0) throw new RangeError("max must be positive");
+      return nextUint32() % max;
+    },
+    nextDouble() { return nextUint32() / 0x100000000; },
+    nextBool() { return (nextUint32() & 1) === 1; },
+  };
+}
 function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
@@ -174,6 +200,15 @@ function __dartListSort(list, compare = null) {
     list.sort((left, right) => compare(left, right));
   } else {
     list.sort((left, right) => left < right ? -1 : (left > right ? 1 : 0));
+  }
+  return null;
+}
+function __dartListShuffle(list, random = null) {
+  for (let index = list.length - 1; index > 0; index--) {
+    const selected = random == null ? Math.floor(Math.random() * (index + 1)) : random.nextInt(index + 1);
+    const value = list[index];
+    list[index] = list[selected];
+    list[selected] = value;
   }
   return null;
 }
@@ -462,9 +497,12 @@ export function main() {
   __dartPrint("forEach " + __dartStr(visited));
   const mutable = [3, 1, 2];
   __dartListSort(mutable, null);
+  const shuffled = [1, 2, 3, 4, 5];
+  __dartListShuffle(shuffled, __dartRandom(1, false));
   const removed = mutable.splice(1, 1)[0];
   (mutable.splice(1, 0, 9), null);
   __dartPrint("mutable " + __dartStr(__dartIterableJoin(mutable, ",")) + " " + __dartStr(removed) + " " + __dartStr(__dartIterableJoin(mutable.slice(1), ",")) + " " + __dartStr(__dartIterableJoin(Array.from(mutable).reverse(), ",")));
+  __dartPrint("shuffle " + __dartStr(shuffled.length) + " " + __dartStr(__dartSetFrom(shuffled).size) + " " + __dartStr(Array.from(shuffled).every(function(value) { return ((value >= 1) && (value <= 5)); })));
   const indexed = __dartListAsMap(mutable);
   __dartPrint("asMap " + __dartStr(indexed.size) + " " + __dartStr(__dartMapGet(indexed, 1)));
   const removedValue = __dartListRemove(mutable, 9);

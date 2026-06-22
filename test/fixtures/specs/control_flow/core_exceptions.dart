@@ -23,9 +23,40 @@ String classify(String kind) {
   }
 }
 
+String classifyConstructed(String kind) {
+  try {
+    if (kind == 'range') {
+      throw RangeError.index(5, [1, 2]);
+    }
+    if (kind == 'argument') {
+      throw ArgumentError.notNull('name');
+    }
+    if (kind == 'state') {
+      throw StateError('bad');
+    }
+    if (kind == 'unsupported') {
+      throw UnsupportedError('nope');
+    }
+    throw UnimplementedError('later');
+  } on RangeError catch (error) {
+    return 'range:${error.toString().contains('5')}';
+  } on ArgumentError catch (error) {
+    return 'argument:${error.toString().contains('name')}';
+  } on StateError catch (error) {
+    return 'state:${error.toString().contains('bad')}';
+  } on Error catch (error) {
+    return 'error:${error.toString().contains(kind == 'unsupported' ? 'nope' : 'later')}';
+  }
+}
+
 void main() {
   print(classify('format'));
   print(classify('plain'));
   print(classify('text'));
   print(classify('cast'));
+  print(classifyConstructed('range'));
+  print(classifyConstructed('argument'));
+  print(classifyConstructed('state'));
+  print(classifyConstructed('unsupported'));
+  print(classifyConstructed('unimplemented'));
 }

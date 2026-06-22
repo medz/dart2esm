@@ -143,6 +143,8 @@ function __dartIsCoreError(value, typeName) {
   if (actual != null) {
     if (actual === typeName) return true;
     if (typeName === "Exception" && actual === "FormatException") return true;
+    if (typeName === "RangeError" && actual === "IndexError") return true;
+    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
     return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
   }
   if (typeName === "TypeError" && value instanceof TypeError) return true;

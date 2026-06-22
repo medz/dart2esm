@@ -5070,6 +5070,12 @@ final class _EsmEmitter {
         'Record' => _emitRecordObjectTest(operand),
         'Exception' ||
         'FormatException' ||
+        'ArgumentError' ||
+        'RangeError' ||
+        'IndexError' ||
+        'StateError' ||
+        'UnsupportedError' ||
+        'UnimplementedError' ||
         'Error' ||
         'TypeError' => _emitCoreErrorTypeTest(operand, typeName),
         _ =>
@@ -8453,6 +8459,12 @@ final class _EsmEmitter {
         '    if (typeName === "Exception" && actual === "FormatException") return true;',
       );
       helper.writeln(
+        '    if (typeName === "RangeError" && actual === "IndexError") return true;',
+      );
+      helper.writeln(
+        '    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;',
+      );
+      helper.writeln(
         '    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";',
       );
       helper.writeln('  }');
@@ -10324,6 +10336,12 @@ const _generatedGlobalNames = {
 const _coreErrorTypeNames = {
   'Exception',
   'FormatException',
+  'ArgumentError',
+  'RangeError',
+  'IndexError',
+  'StateError',
+  'UnsupportedError',
+  'UnimplementedError',
   'Error',
   'TypeError',
 };

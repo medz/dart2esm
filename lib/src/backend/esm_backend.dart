@@ -105,46 +105,20 @@ final class _EsmEmitter {
     }
     final names = _fieldName(field);
     final initializer = field.initializer;
-    if (_isEagerTopLevelField(field)) {
-      final keyword = field.isFinal || field.isConst ? 'const' : 'let';
-      writeln(
-        '$keyword ${names.value} = ${initializer == null ? 'null' : emitExpression(initializer)};',
-      );
-      return;
-    }
     _usedHelpers.add('__dartLazyField');
     writeln('let ${names.value};');
-    writeln(
-      'const ${names.cell} = __dartLazyField(${jsonEncode(field.name.text)}, () => ${names.value}, (value) => ${names.value} = value, () => ${initializer == null ? 'null' : emitExpression(initializer)});',
-    );
-  }
-
-  bool _isEagerTopLevelField(k.Field field) {
-    return _isEagerTopLevelInitializer(field.initializer);
-  }
-
-  bool _isEagerTopLevelInitializer(k.Expression? expression) {
-    return switch (expression) {
-      null => true,
-      k.NullLiteral() ||
-      k.BoolLiteral() ||
-      k.IntLiteral() ||
-      k.DoubleLiteral() ||
-      k.StringLiteral() => true,
-      k.ConstantExpression() => _isEagerTopLevelConstant(expression.constant),
-      _ => false,
-    };
-  }
-
-  bool _isEagerTopLevelConstant(k.Constant constant) {
-    return switch (constant) {
-      k.NullConstant() ||
-      k.BoolConstant() ||
-      k.IntConstant() ||
-      k.DoubleConstant() ||
-      k.StringConstant() => true,
-      _ => false,
-    };
+    final initializerCode = initializer == null
+        ? 'null'
+        : emitExpression(initializer);
+    if (field.hasSetter) {
+      writeln(
+        'const ${names.cell} = __dartLazyField(${jsonEncode(field.name.text)}, () => ${names.value}, (value) => ${names.value} = value, () => $initializerCode);',
+      );
+    } else {
+      writeln(
+        'const ${names.cell} = __dartFinalLazyField(${jsonEncode(field.name.text)}, () => ${names.value}, (value) => ${names.value} = value, () => $initializerCode);',
+      );
+    }
   }
 
   void _emitClass(k.Class klass) {
@@ -721,9 +695,6 @@ final class _EsmEmitter {
   String _emitStaticGet(k.StaticGet expression) {
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
-      if (_isEagerTopLevelField(target)) {
-        return _fieldName(target).value;
-      }
       return '${_fieldName(target).cell}.get()';
     }
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
@@ -740,9 +711,6 @@ final class _EsmEmitter {
     if (target is k.Field && _fieldNames.containsKey(target)) {
       if (!target.hasSetter) {
         throw UnsupportedKernelNode(expression, 'write to final field');
-      }
-      if (_isEagerTopLevelField(target)) {
-        return '${_fieldName(target).value} = ${emitExpression(expression.value)}';
       }
       return '${_fieldName(target).cell}.set(${emitExpression(expression.value)})';
     }
@@ -995,6 +963,14 @@ final class _EsmEmitter {
       helper.writeln('      return value;');
       helper.writeln('    },');
       helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartFinalLazyField(name, read, write, initialize) {',
+      );
+      helper.writeln(
+        '  const field = __dartLazyField(name, read, write, initialize);',
+      );
+      helper.writeln('  return { get: field.get };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartIterator')) {

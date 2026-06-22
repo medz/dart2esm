@@ -834,8 +834,19 @@ final class _EsmEmitter {
           'new.target',
         );
       } else {
+        var bodyEmitted = false;
         if (_hasNonObjectSuperclass(klass)) {
-          _emitDerivedConstructorInitializers(constructor, klass);
+          final namedSuperInitializer = _namedSuperInitializer(constructor);
+          if (namedSuperInitializer == null) {
+            _emitDerivedConstructorInitializers(constructor, klass);
+          } else {
+            _emitDerivedConstructorWithNamedSuper(
+              constructor,
+              klass,
+              namedSuperInitializer,
+            );
+            bodyEmitted = true;
+          }
         } else {
           if (_hasJsSuperclass(klass)) {
             writeln('super();');
@@ -849,7 +860,7 @@ final class _EsmEmitter {
           }
         }
         final body = function.body;
-        if (body != null) {
+        if (body != null && !bodyEmitted) {
           _emitFunctionBody(body);
         }
       }
@@ -1111,6 +1122,79 @@ final class _EsmEmitter {
     for (final initializer in fieldInitializers) {
       _emitInitializer(initializer);
     }
+  }
+
+  k.SuperInitializer? _namedSuperInitializer(k.Constructor constructor) {
+    k.SuperInitializer? result;
+    for (final initializer in constructor.initializers) {
+      if (initializer is! k.SuperInitializer || initializer.isSynthetic) {
+        continue;
+      }
+      if (_isCoreObjectConstructorReference(initializer.targetReference)) {
+        continue;
+      }
+      final target = initializer.target;
+      if (target.name.text.isEmpty) {
+        continue;
+      }
+      if (result != null) {
+        throw UnsupportedKernelNode(initializer, 'multiple super calls');
+      }
+      result = initializer;
+    }
+    return result;
+  }
+
+  void _emitDerivedConstructorWithNamedSuper(
+    k.Constructor constructor,
+    k.Class klass,
+    k.SuperInitializer superInitializer,
+  ) {
+    final self = _freshScopedName('\$self');
+    final fieldInitializers = <k.FieldInitializer>[];
+    for (final initializer in constructor.initializers) {
+      switch (initializer) {
+        case k.LocalInitializer():
+          emitStatement(initializer.variable);
+        case k.SuperInitializer():
+          if (!identical(initializer, superInitializer) &&
+              !initializer.isSynthetic) {
+            throw UnsupportedKernelNode(initializer, 'multiple super calls');
+          }
+        case k.FieldInitializer():
+          fieldInitializers.add(initializer);
+        case k.AssertInitializer():
+          _diagnostics.add(
+            'AssertInitializer is currently emitted as a no-op.',
+          );
+        default:
+          throw UnsupportedKernelNode(initializer, 'initializer');
+      }
+    }
+
+    final superArgs = _emitArguments(superInitializer.arguments);
+    final superSuffix = superArgs.isEmpty ? '' : ', $superArgs';
+    writeln(
+      'const $self = ${_namedConstructorBodyName(superInitializer.target)}(new.target$superSuffix);',
+    );
+    _withConstructorContext(
+      thisAlias: self,
+      emptyReturnValue: self,
+      body: () {
+        _emitInstanceFieldDefaults(
+          klass,
+          skipFields: _initializedFields(constructor.initializers),
+        );
+        for (final initializer in fieldInitializers) {
+          _emitInitializer(initializer);
+        }
+        final body = constructor.function.body;
+        if (body != null) {
+          _emitFunctionBody(body);
+        }
+      },
+    );
+    writeln('return $self;');
   }
 
   void _emitInitializer(k.Initializer initializer) {

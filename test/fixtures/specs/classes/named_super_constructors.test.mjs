@@ -8,6 +8,7 @@ describe('classes/named_super_constructors.mjs', () => {
 
       expect(log.mock.calls.map(([value]) => value)).toEqual([
         'named animal! Rex dog! 4',
+        'named animal! Mia cat black!',
         'named animal! Tiny dog! 1 toy ball',
       ]);
 
@@ -19,6 +20,14 @@ describe('classes/named_super_constructors.mjs', () => {
       expect(dog.age).toBe(3);
       expect(dog.label).toBe('dog!');
       expect(dog.describe()).toBe('named animal! Ada dog! 3');
+
+      const cat = new module.Cat('Mia', 'white');
+      expect(cat).toBeInstanceOf(module.Cat);
+      expect(cat).toBeInstanceOf(module.Animal);
+      expect(cat.name).toBe('Mia');
+      expect(cat.source).toBe('named animal!');
+      expect(cat.color).toBe('white!');
+      expect(cat.describe()).toBe('named animal! Mia cat white!');
 
       const puppy = module.Puppy.named('Tiny', 1, 'rope');
       expect(puppy).toBeInstanceOf(module.Puppy);

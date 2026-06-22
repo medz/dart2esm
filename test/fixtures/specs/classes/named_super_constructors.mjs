@@ -63,6 +63,18 @@ function $Dog_named($newTarget, name, age) {
   return $self;
 }
 
+export class Cat extends Animal {
+  constructor(name, color) {
+    const $self = $Animal_named(new.target, name);
+    $self.color = color;
+    $self.color = __dartStr($self.color) + "!";
+    return $self;
+  }
+  describe() {
+    return __dartStr(super.describe()) + " cat " + __dartStr(this.color);
+  }
+}
+
 export class Puppy extends Dog {
   constructor() {
     throw new TypeError("Class Puppy has no unnamed constructor");
@@ -83,8 +95,10 @@ function $Puppy_named($newTarget, name, age, toy) {
 
 export function main() {
   const dog = Dog.named("Rex", 4);
+  const cat = new Cat("Mia", "black");
   const puppy = Puppy.named("Tiny", 1, "ball");
   __dartPrint(dog.describe());
+  __dartPrint(cat.describe());
   __dartPrint(puppy.describe());
 }
 

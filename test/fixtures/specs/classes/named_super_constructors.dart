@@ -20,6 +20,16 @@ class Dog extends Animal {
   String describe() => '${super.describe()} $label $age';
 }
 
+class Cat extends Animal {
+  String color;
+
+  Cat(String name, this.color) : super.named(name) {
+    color = '$color!';
+  }
+
+  String describe() => '${super.describe()} cat $color';
+}
+
 class Puppy extends Dog {
   String toy;
 
@@ -30,8 +40,10 @@ class Puppy extends Dog {
 
 void main() {
   final dog = Dog.named('Rex', 4);
+  final cat = Cat('Mia', 'black');
   final puppy = Puppy.named('Tiny', 1, 'ball');
 
   print(dog.describe());
+  print(cat.describe());
   print(puppy.describe());
 }

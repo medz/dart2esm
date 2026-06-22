@@ -2780,6 +2780,17 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
+    if (_referencePath(expression.targetReference) ==
+            'dart:collection::@methods::NullableIterableExtensions|get#nonNulls' &&
+        positionalArgs.length == 1) {
+      return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';
+    }
+    if (_referencePath(expression.targetReference) ==
+            'dart:collection::@methods::IterableExtensions|get#indexed' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartRecord');
+      return 'Array.from(${positionalArgs.single}, (value, index) => __dartRecord([index, value], {}))';
+    }
     final coreInvocation = _emitCoreStaticInvocation(
       expression,
       positionalArgs,
@@ -3426,6 +3437,28 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreCollectionMember(target, name)) {
       return 'Array.from($left).filter(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'whereType' &&
+        positionalArgs.isEmpty &&
+        expression.arguments.types.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      final typeTest = _emitTypeTest(
+        'value',
+        expression.arguments.types.single,
+        expression,
+      );
+      return 'Array.from($left).filter((value) => $typeTest)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'cast' &&
+        positionalArgs.isEmpty &&
+        expression.arguments.types.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      _usedHelpers.add('__dartAs');
+      final type = expression.arguments.types.single;
+      final typeTest = _emitTypeTest('value', type, expression);
+      return 'Array.from($left, (value) => __dartAs(value, (value) => $typeTest, ${jsonEncode(type.toString())}))';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'map' &&
@@ -4110,6 +4143,15 @@ final class _EsmEmitter {
     final receiverCollectionKind = _expressionCollectionKind(
       expression.receiver,
     );
+    if (name == 'nonNulls' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      return 'Array.from($receiver).filter((value) => value != null)';
+    }
+    if (name == 'indexed' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartRecord');
+      return 'Array.from($receiver, (value, index) => __dartRecord([index, value], {}))';
+    }
     if (name == 'isEmpty' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
       if (_isCoreMapMember(expression.interfaceTargetReference, name) ||

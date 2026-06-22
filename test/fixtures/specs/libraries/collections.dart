@@ -40,6 +40,15 @@ void main() {
     '${values.singleWhere((value) => value == 4)} '
     '${values.firstWhere((value) => value > 99, orElse: () => -1)}',
   );
+  final mixedValues = <Object?>[1, 'two', null, 3, 'four'];
+  print(
+    'typed ${mixedValues.whereType<int>().join(',')} '
+    '${mixedValues.nonNulls.join('|')} '
+    '${values.cast<num>().map((value) => value + 1).join(',')}',
+  );
+  print(
+    'indexed ${values.indexed.map((entry) => '${entry.$1}:${entry.$2}').take(3).join('|')}',
+  );
   var visited = 0;
   values.forEach((value) {
     visited += value;

@@ -4141,12 +4141,25 @@ final class _EsmEmitter {
     if (path.startsWith('dart:core::DateTime::@constructors::')) {
       _usedHelpers.add('__dartDateTime');
       final constructorName = path.split('::').last;
+      if (constructorName == 'now' && positionalArgs.isEmpty) {
+        return '__dartDateTime(Date.now(), false)';
+      }
+      if (constructorName == 'timestamp' && positionalArgs.isEmpty) {
+        return '__dartDateTime(Date.now(), true)';
+      }
       if (constructorName == 'fromMillisecondsSinceEpoch') {
         if (positionalArgs.length != 1) {
           return null;
         }
         final isUtc = _namedArgument(arguments, 'isUtc') ?? 'false';
         return '__dartDateTime(${positionalArgs.single}, $isUtc)';
+      }
+      if (constructorName == 'fromMicrosecondsSinceEpoch') {
+        if (positionalArgs.length != 1) {
+          return null;
+        }
+        final isUtc = _namedArgument(arguments, 'isUtc') ?? 'false';
+        return '__dartDateTimeFromMicros(${positionalArgs.single}, $isUtc)';
       }
       final isUtc = constructorName == 'utc';
       final defaults = ['0', '1', '1', '0', '0', '0', '0', '0'];
@@ -5253,6 +5266,11 @@ final class _EsmEmitter {
       );
       helper.writeln('  return __dartDateTime(millis, isUtc, microsecond);');
       helper.writeln('}');
+      helper.writeln('function __dartDateTimeFromMicros(micros, isUtc) {');
+      helper.writeln('  const millis = Math.floor(micros / 1000);');
+      helper.writeln('  const microsecond = ((micros % 1000) + 1000) % 1000;');
+      helper.writeln('  return __dartDateTime(millis, isUtc, microsecond);');
+      helper.writeln('}');
       helper.writeln(
         'function __dartDateTime(millis, isUtc = false, microsecond = 0) {',
       );
@@ -5262,6 +5280,9 @@ final class _EsmEmitter {
       );
       helper.writeln('  return {');
       helper.writeln('    get millisecondsSinceEpoch() { return millis; },');
+      helper.writeln(
+        '    get microsecondsSinceEpoch() { return millis * 1000 + microsecond; },',
+      );
       helper.writeln('    get microsecond() { return microsecond; },');
       helper.writeln(
         '    get millisecond() { return read("getUTCMilliseconds", "getMilliseconds"); },',
@@ -5291,7 +5312,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    toLocal() { return __dartDateTime(millis, false, microsecond); },',
       );
-      helper.writeln('    toIso8601String() { return date.toISOString(); },');
+      helper.writeln(
+        '    toIso8601String() { const text = date.toISOString(); return microsecond === 0 ? text : text.replace(/(\\.\\d{3})Z\$/, "\$1" + String(microsecond).padStart(3, "0") + "Z"); },',
+      );
       helper.writeln('    toString() { return this.toIso8601String(); },');
       helper.writeln('  };');
       helper.writeln('}');
@@ -6475,6 +6498,7 @@ const _generatedGlobalNames = {
   '__dartConstValues',
   '__dartCoreError',
   '__dartDateTime',
+  '__dartDateTimeFromMicros',
   '__dartDateTimeFromParts',
   '__dartDateTimeParse',
   '__dartDoubleParse',

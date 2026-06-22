@@ -19,6 +19,29 @@ Future<void> main() async {
   final epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   print('epoch ${epoch.toIso8601String()} ${epoch.millisecondsSinceEpoch}');
 
+  final epochMicros = DateTime.fromMicrosecondsSinceEpoch(1007, isUtc: true);
+  print(
+    'epochMicros ${epochMicros.toIso8601String()} '
+    '${epochMicros.millisecondsSinceEpoch} '
+    '${epochMicros.microsecondsSinceEpoch} ${epochMicros.microsecond}',
+  );
+
+  final epochMicrosNegative = DateTime.fromMicrosecondsSinceEpoch(
+    -1,
+    isUtc: true,
+  );
+  print(
+    'epochMicrosNegative ${epochMicrosNegative.toIso8601String()} '
+    '${epochMicrosNegative.millisecondsSinceEpoch} '
+    '${epochMicrosNegative.microsecondsSinceEpoch} '
+    '${epochMicrosNegative.microsecond}',
+  );
+
+  final now = DateTime.now();
+  final timestamp = DateTime.timestamp();
+  print('now ${now.millisecondsSinceEpoch > 0} ${now.isUtc}');
+  print('timestamp ${timestamp.millisecondsSinceEpoch > 0} ${timestamp.isUtc}');
+
   final parsed = DateTime.parse('2026-01-02T03:04:05.006Z');
   print('parsed ${parsed.toUtc().toIso8601String()}');
 

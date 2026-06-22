@@ -36,11 +36,17 @@ function __dartDateTimeFromParts(isUtc, year, month = 1, day = 1, hour = 0, minu
   const millis = isUtc ? Date.UTC(year, month - 1, day, hour, minute, second, millisecond) : new Date(year, month - 1, day, hour, minute, second, millisecond).getTime();
   return __dartDateTime(millis, isUtc, microsecond);
 }
+function __dartDateTimeFromMicros(micros, isUtc) {
+  const millis = Math.floor(micros / 1000);
+  const microsecond = ((micros % 1000) + 1000) % 1000;
+  return __dartDateTime(millis, isUtc, microsecond);
+}
 function __dartDateTime(millis, isUtc = false, microsecond = 0) {
   const date = new Date(millis);
   const read = (utcName, localName) => isUtc ? date[utcName]() : date[localName]();
   return {
     get millisecondsSinceEpoch() { return millis; },
+    get microsecondsSinceEpoch() { return millis * 1000 + microsecond; },
     get microsecond() { return microsecond; },
     get millisecond() { return read("getUTCMilliseconds", "getMilliseconds"); },
     get second() { return read("getUTCSeconds", "getSeconds"); },
@@ -52,7 +58,7 @@ function __dartDateTime(millis, isUtc = false, microsecond = 0) {
     get isUtc() { return isUtc; },
     toUtc() { return __dartDateTime(millis, true, microsecond); },
     toLocal() { return __dartDateTime(millis, false, microsecond); },
-    toIso8601String() { return date.toISOString(); },
+    toIso8601String() { const text = date.toISOString(); return microsecond === 0 ? text : text.replace(/(\.\d{3})Z$/, "$1" + String(microsecond).padStart(3, "0") + "Z"); },
     toString() { return this.toIso8601String(); },
   };
 }
@@ -111,6 +117,14 @@ export async function main() {
   __dartPrint("utc " + __dartStr(utc.year) + "-" + __dartStr(utc.month) + "-" + __dartStr(utc.day) + " " + __dartStr(utc.hour) + ":" + __dartStr(utc.minute) + ":" + __dartStr(utc.second) + " " + __dartStr(utc.millisecond) + " " + __dartStr(utc.microsecond) + " " + __dartStr(utc.isUtc));
   const epoch = __dartDateTime(0, true);
   __dartPrint("epoch " + __dartStr(epoch.toIso8601String()) + " " + __dartStr(epoch.millisecondsSinceEpoch));
+  const epochMicros = __dartDateTimeFromMicros(1007, true);
+  __dartPrint("epochMicros " + __dartStr(epochMicros.toIso8601String()) + " " + __dartStr(epochMicros.millisecondsSinceEpoch) + " " + __dartStr(epochMicros.microsecondsSinceEpoch) + " " + __dartStr(epochMicros.microsecond));
+  const epochMicrosNegative = __dartDateTimeFromMicros((-1), true);
+  __dartPrint("epochMicrosNegative " + __dartStr(epochMicrosNegative.toIso8601String()) + " " + __dartStr(epochMicrosNegative.millisecondsSinceEpoch) + " " + __dartStr(epochMicrosNegative.microsecondsSinceEpoch) + " " + __dartStr(epochMicrosNegative.microsecond));
+  const now = __dartDateTime(Date.now(), false);
+  const timestamp = __dartDateTime(Date.now(), true);
+  __dartPrint("now " + __dartStr((now.millisecondsSinceEpoch > 0)) + " " + __dartStr(now.isUtc));
+  __dartPrint("timestamp " + __dartStr((timestamp.millisecondsSinceEpoch > 0)) + " " + __dartStr(timestamp.isUtc));
   const parsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z");
   __dartPrint("parsed " + __dartStr(parsed.toUtc().toIso8601String()));
   const watch = __dartStopwatch();

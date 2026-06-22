@@ -2793,8 +2793,34 @@ final class _EsmEmitter {
     if (type is k.DynamicType || type is k.VoidType) {
       return 'true';
     }
+    if (type is k.NullType) {
+      return '$operand === null';
+    }
+    if (type.declaredNullability == k.Nullability.nullable) {
+      final nonNullableType = type.withDeclaredNullability(
+        k.Nullability.nonNullable,
+      );
+      return '($operand === null || ${_emitNonNullableTypeTest(operand, nonNullableType, node)})';
+    }
+    return _emitNonNullableTypeTest(operand, type, node);
+  }
+
+  String _emitNonNullableTypeTest(
+    String operand,
+    k.DartType type,
+    Object node,
+  ) {
+    if (type is k.NeverType) {
+      return 'false';
+    }
     if (type is k.ExtensionType) {
       return '$operand instanceof ${_extensionTypeName(type.extensionTypeDeclaration)}';
+    }
+    if (type is k.FunctionType) {
+      return 'typeof $operand === "function"';
+    }
+    if (type is k.RecordType) {
+      return _emitRecordTypeTest(operand, type, node);
     }
     if (type is k.InterfaceType) {
       final classReference = type.classReference;
@@ -2811,10 +2837,57 @@ final class _EsmEmitter {
         'int' || 'double' || 'num' => 'typeof $operand === "number"',
         'bool' => 'typeof $operand === "boolean"',
         'Null' => '$operand === null',
+        'List' => 'Array.isArray($operand)',
+        'Set' => '$operand instanceof Set',
+        'Map' => '$operand instanceof Map',
+        'Iterable' =>
+          '$operand != null && typeof $operand !== "string" && !($operand instanceof Map) && typeof $operand[Symbol.iterator] === "function"',
+        'Iterator' => '$operand != null && typeof $operand.next === "function"',
+        'Function' => 'typeof $operand === "function"',
+        'Record' => _emitRecordObjectTest(operand),
         _ => throw UnsupportedKernelNode(node, 'type test $typeName'),
       };
     }
     throw UnsupportedKernelNode(node, 'type test');
+  }
+
+  String _emitRecordObjectTest(String operand) {
+    _usedHelpers.add('__dartRecord');
+    return '__dartIsRecord($operand)';
+  }
+
+  String _emitRecordTypeTest(String operand, k.RecordType type, Object node) {
+    final positionalChecks = <String>[];
+    final shape = <String>[];
+    for (var i = 0; i < type.positional.length; i++) {
+      final name = '\$${i + 1}';
+      shape.add(name);
+      positionalChecks.add(
+        _emitTypeTest(
+          _emitPropertyGet(operand, name),
+          type.positional[i],
+          node,
+        ),
+      );
+    }
+    final named = type.named.toList()
+      ..sort((left, right) => left.name.compareTo(right.name));
+    final namedChecks = <String>[];
+    for (final field in named) {
+      shape.add(field.name);
+      namedChecks.add(
+        _emitTypeTest(_emitPropertyGet(operand, field.name), field.type, node),
+      );
+    }
+    final checks = <String>[
+      _emitRecordObjectTest(operand),
+      '$operand[__dartRecordShape].length === ${shape.length}',
+      for (var i = 0; i < shape.length; i++)
+        '$operand[__dartRecordShape][$i] === ${jsonEncode(shape[i])}',
+      ...positionalChecks,
+      ...namedChecks,
+    ];
+    return checks.join(' && ');
   }
 
   String _emitAsExpression(k.AsExpression expression) {

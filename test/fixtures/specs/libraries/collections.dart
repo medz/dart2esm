@@ -30,6 +30,17 @@ void main() {
     'iterableFactory ${iterableGenerated.join(',')} '
     '${iterableGeneratedDefault.join(',')} ${iterableEmpty.isEmpty}',
   );
+  final castList = List.castFrom<int, num>([1, 2]);
+  final castSet = Set.castFrom<int, num>({1, 2});
+  final castMap = Map.castFrom<String, int, String, num>({'a': 1});
+  final copyTarget = [0, 0, 0, 0];
+  List.copyRange(copyTarget, 1, [7, 8, 9], 0, 2);
+  final writeTarget = [0, 0, 0];
+  List.writeIterable(writeTarget, 0, [4, 5]);
+  print(
+    'staticCollections ${castList.join(',')} ${castSet.join(',')} '
+    '${castMap['a']} ${copyTarget.join(',')} ${writeTarget.join(',')}',
+  );
 
   final filtered = values
       .where((value) => value % 2 == 0)

@@ -181,6 +181,13 @@ function __dartMapContainsValue(map, needle) {
   }
   return false;
 }
+function __dartMapFromEntries(entries) {
+  const map = new Map();
+  for (const [key, value] of entries) {
+    __dartMapSet(map, key, value);
+  }
+  return map;
+}
 function __dartMapPutIfAbsent(map, key, ifAbsent) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey !== __dartMapMissingKey) return map.get(actualKey);
@@ -230,6 +237,16 @@ function __dartListRemove(list, needle) {
   if (index < 0) return false;
   list.splice(index, 1);
   return true;
+}
+function __dartListCopyRange(target, at, source, start = 0, end = null) {
+  const values = Array.from(source).slice(start, end == null ? undefined : end);
+  for (let index = 0; index < values.length; index++) target[at + index] = values[index];
+  return null;
+}
+function __dartListWriteIterable(target, at, source) {
+  let index = at;
+  for (const value of source) target[index++] = value;
+  return null;
 }
 function __dartListIndexOf(list, needle, start = 0) {
   const begin = Math.max(0, Math.trunc(start));
@@ -518,6 +535,19 @@ export function main() {
   const iterableGeneratedDefault = Array.from({ length: 3 }, (_, index) => index);
   const iterableEmpty = [];
   __dartPrint("iterableFactory " + __dartStr(__dartIterableJoin(iterableGenerated, ",")) + " " + __dartStr(__dartIterableJoin(iterableGeneratedDefault, ",")) + " " + __dartStr(__dartIterableIsEmpty(iterableEmpty)));
+  const castList = Array.from([1, 2], (value) => __dartAs(value, (value) => typeof value === "number", "InterfaceType(num)"));
+  const castSet = __dartSetFrom(Array.from((() => {
+    const v = new Set();
+    __dartSetAdd(v, 1);
+    __dartSetAdd(v, 2);
+    return v;
+  })(), (value) => __dartAs(value, (value) => typeof value === "number", "InterfaceType(num)")));
+  const castMap = __dartMapFromEntries(Array.from(new Map([["a", 1]]), ([key, value]) => [__dartAs(key, (key) => typeof key === "string", "InterfaceType(String)"), __dartAs(value, (value) => typeof value === "number", "InterfaceType(num)")]));
+  const copyTarget = [0, 0, 0, 0];
+  __dartListCopyRange(copyTarget, 1, [7, 8, 9], 0, 2);
+  const writeTarget = [0, 0, 0];
+  __dartListWriteIterable(writeTarget, 0, [4, 5]);
+  __dartPrint("staticCollections " + __dartStr(__dartIterableJoin(castList, ",")) + " " + __dartStr(__dartIterableJoin(castSet, ",")) + " " + __dartStr(__dartMapGet(castMap, "a")) + " " + __dartStr(__dartIterableJoin(copyTarget, ",")) + " " + __dartStr(__dartIterableJoin(writeTarget, ",")));
   const filtered = Array.from(Array.from(Array.from(values).filter(function(value) { return __dartEquals((value % 2), 0); }), function(value) { return (value * 10); }));
   __dartPrint("filtered " + __dartStr(__dartIterableJoin(filtered, "|")));
   __dartPrint("fold " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value), 0)) + " " + __dartStr(Array.from(values).some(function(value) { return (value > 5); })) + " " + __dartStr(Array.from(values).every(function(value) { return (value > 0); })));

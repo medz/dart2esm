@@ -5504,6 +5504,53 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartObjectHash');
       return '__dartObjectHashUnordered(Array.from(${positionalArgs.single}))';
     }
+    if (path == 'dart:core::List::@methods::castFrom' &&
+        positionalArgs.length == 1 &&
+        expression.arguments.types.length >= 2) {
+      _usedHelpers.add('__dartAs');
+      final type = expression.arguments.types[1];
+      final typeTest = _emitTypeTest('value', type, expression);
+      return 'Array.from(${positionalArgs.single}, (value) => __dartAs(value, (value) => $typeTest, ${jsonEncode(type.toString())}))';
+    }
+    if (path == 'dart:core::Set::@methods::castFrom' &&
+        positionalArgs.length == 1 &&
+        expression.arguments.types.length >= 2) {
+      _usedHelpers.add('__dartAs');
+      _usedHelpers.add('__dartSetFrom');
+      _usedHelpers.add('__dartSetAdd');
+      _usedHelpers.add('__dartIterableContains');
+      _usedHelpers.add('__dartEquals');
+      final type = expression.arguments.types[1];
+      final typeTest = _emitTypeTest('value', type, expression);
+      return '__dartSetFrom(Array.from(${positionalArgs.single}, (value) => __dartAs(value, (value) => $typeTest, ${jsonEncode(type.toString())})))';
+    }
+    if (path == 'dart:core::Map::@methods::castFrom' &&
+        positionalArgs.length == 1 &&
+        expression.arguments.types.length >= 4) {
+      _usedHelpers.add('__dartAs');
+      _usedHelpers.add('__dartMapFromEntries');
+      _usedHelpers.add('__dartMapSet');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
+      final keyType = expression.arguments.types[2];
+      final valueType = expression.arguments.types[3];
+      final keyTest = _emitTypeTest('key', keyType, expression);
+      final valueTest = _emitTypeTest('value', valueType, expression);
+      return '__dartMapFromEntries(Array.from(${positionalArgs.single}, ([key, value]) => [__dartAs(key, (key) => $keyTest, ${jsonEncode(keyType.toString())}), __dartAs(value, (value) => $valueTest, ${jsonEncode(valueType.toString())})]))';
+    }
+    if (path == 'dart:core::List::@methods::copyRange' &&
+        positionalArgs.length >= 3 &&
+        positionalArgs.length <= 5) {
+      _usedHelpers.add('__dartListCopyRange');
+      final start = positionalArgs.length >= 4 ? positionalArgs[3] : '0';
+      final end = positionalArgs.length >= 5 ? positionalArgs[4] : 'null';
+      return '__dartListCopyRange(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, $start, $end)';
+    }
+    if (path == 'dart:core::List::@methods::writeIterable' &&
+        positionalArgs.length == 3) {
+      _usedHelpers.add('__dartListWriteIterable');
+      return '__dartListWriteIterable(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]})';
+    }
     final bigIntInvocation = _emitCoreBigIntStaticInvocation(
       expression,
       positionalArgs,
@@ -8734,6 +8781,26 @@ final class _EsmEmitter {
       helper.writeln('  return true;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartListCopyRange')) {
+      helper.writeln(
+        'function __dartListCopyRange(target, at, source, start = 0, end = null) {',
+      );
+      helper.writeln(
+        '  const values = Array.from(source).slice(start, end == null ? undefined : end);',
+      );
+      helper.writeln(
+        '  for (let index = 0; index < values.length; index++) target[at + index] = values[index];',
+      );
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartListWriteIterable')) {
+      helper.writeln('function __dartListWriteIterable(target, at, source) {');
+      helper.writeln('  let index = at;');
+      helper.writeln('  for (const value of source) target[index++] = value;');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListIndexOf')) {
       helper.writeln('function __dartListIndexOf(list, needle, start = 0) {');
       helper.writeln('  const begin = Math.max(0, Math.trunc(start));');
@@ -10101,6 +10168,7 @@ const _generatedGlobalNames = {
   '__dartLineSplit',
   '__dartLineSplitter',
   '__dartListAsMap',
+  '__dartListCopyRange',
   '__dartListIndexOf',
   '__dartListLastIndexOf',
   '__dartListRemove',
@@ -10112,6 +10180,7 @@ const _generatedGlobalNames = {
   '__dartListShuffle',
   '__dartListSort',
   '__dartListWhereMutate',
+  '__dartListWriteIterable',
   '__dartMapAddAll',
   '__dartMapAddEntries',
   '__dartMapContainsKey',

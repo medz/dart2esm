@@ -55,6 +55,11 @@ function __dartAs(value, test, typeName) {
   throw new TypeError("Type cast failed: expected " + typeName);
 }
 function __dartSetAdd(set, value) {
+  if (set.__dartIdentitySet) {
+    if (set.has(value)) return false;
+    set.add(value);
+    return true;
+  }
   if (__dartIterableContains(set, value)) return false;
   set.add(value);
   return true;
@@ -70,6 +75,7 @@ function __dartSetFrom(values) {
 }
 function __dartSetDifference(set, other) {
   const result = new Set();
+  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
   for (const value of set) {
     if (!__dartIterableContains(other, value)) result.add(value);
   }
@@ -77,6 +83,7 @@ function __dartSetDifference(set, other) {
 }
 function __dartSetIntersection(set, other) {
   const result = new Set();
+  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
   for (const value of set) {
     if (__dartIterableContains(other, value)) result.add(value);
   }
@@ -84,10 +91,16 @@ function __dartSetIntersection(set, other) {
 }
 function __dartSetUnion(set, other) {
   const result = new Set(set);
+  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
   for (const value of other) __dartSetAdd(result, value);
   return result;
 }
 function __dartSetRemove(set, needle) {
+  if (set.__dartIdentitySet) {
+    const found = set.has(needle);
+    set.delete(needle);
+    return found;
+  }
   for (const value of set) {
     if (__dartEquals(value, needle)) {
       set.delete(value);
@@ -275,6 +288,7 @@ function __dartListAsMap(list) {
   })();
 }
 function __dartIterableContains(iterable, needle) {
+  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
   for (const value of iterable) {
     if (__dartEquals(value, needle)) return true;
   }
@@ -312,6 +326,7 @@ function __dartIterableSkipWhile(iterable, test) {
   return result;
 }
 function __dartSetLookup(set, needle) {
+  if (set.__dartIdentitySet) return set.has(needle) ? needle : null;
   for (const value of set) {
     if (__dartEquals(value, needle)) return value;
   }
@@ -319,18 +334,15 @@ function __dartSetLookup(set, needle) {
 }
 function __dartSetContainsAll(set, values) {
   for (const value of values) {
-    let found = false;
-    for (const candidate of set) {
-      if (__dartEquals(candidate, value)) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) return false;
+    if (!__dartIterableContains(set, value)) return false;
   }
   return true;
 }
 function __dartSetRemoveAll(set, values) {
+  if (set.__dartIdentitySet) {
+    for (const value of values) set.delete(value);
+    return null;
+  }
   for (const value of values) {
     for (const candidate of Array.from(set)) {
       if (__dartEquals(candidate, value)) {
@@ -344,7 +356,7 @@ function __dartSetRemoveAll(set, values) {
 function __dartSetRetainAll(set, values) {
   const retained = Array.from(values);
   for (const value of Array.from(set)) {
-    if (retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);
+    if (set.__dartIdentitySet ? !retained.includes(value) : retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);
   }
   return null;
 }

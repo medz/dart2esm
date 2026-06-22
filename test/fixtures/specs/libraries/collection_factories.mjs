@@ -32,9 +32,19 @@ function __dartGet(receiver, name) {
   return typeof value === "function" ? value.bind(receiver) : value;
 }
 function __dartSetAdd(set, value) {
+  if (set.__dartIdentitySet) {
+    if (set.has(value)) return false;
+    set.add(value);
+    return true;
+  }
   if (__dartIterableContains(set, value)) return false;
   set.add(value);
   return true;
+}
+function __dartIdentitySet() {
+  const set = new Set();
+  Object.defineProperty(set, "__dartIdentitySet", { value: true });
+  return set;
 }
 function __dartSetFrom(values) {
   const set = new Set();
@@ -91,6 +101,7 @@ function __dartMapFromIterables(keys, values) {
   return map;
 }
 function __dartIterableContains(iterable, needle) {
+  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
   for (const value of iterable) {
     if (__dartEquals(value, needle)) return true;
   }
@@ -200,6 +211,11 @@ export function main() {
   })());
   const eqSetFixed = __dartConstSet(__dartSetFrom([new EqBox(1), new EqBox(1)]));
   __dartPrint("setFactories " + __dartStr(eqSetFrom.size) + " " + __dartStr(__dartIterableContains(eqSetFrom, new EqBox(1))) + " " + __dartStr(eqSetOf.size) + " " + __dartStr(eqSetFixed.size) + " " + __dartStr(__dartIterableContains(eqSetFixed, new EqBox(1))));
+  const identitySet = __dartIdentitySet();
+  const identityBox = new EqBox(1);
+  __dartSetAdd(identitySet, identityBox);
+  __dartSetAdd(identitySet, new EqBox(1));
+  __dartPrint("setIdentity " + __dartStr(__dartIterableContains(identitySet, identityBox)) + " " + __dartStr(__dartIterableContains(identitySet, new EqBox(1))) + " " + __dartStr(identitySet.size));
   const map = __dartMapFromEntries(new Map([["one", 1], ["two", 2]]));
   const mapOf = __dartMapFromEntries(map);
   const mapFixed = __dartConstMap(mapOf);

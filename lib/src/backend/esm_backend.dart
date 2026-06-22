@@ -4336,6 +4336,7 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Set', 'containsAll')) {
       _usedHelpers.add('__dartSetContainsAll');
+      _usedHelpers.add('__dartIterableContains');
       _usedHelpers.add('__dartEquals');
       return '__dartSetContainsAll($left, ${positionalArgs.single})';
     }
@@ -5838,6 +5839,10 @@ final class _EsmEmitter {
     final name = path.split('::').last;
     return switch (name) {
       '' when positionalArgs.isEmpty => 'new Set()',
+      'identity' when positionalArgs.isEmpty => () {
+        _usedHelpers.add('__dartIdentitySet');
+        return '__dartIdentitySet()';
+      }(),
       'of' || 'from' when positionalArgs.length == 1 => () {
         _usedHelpers.add('__dartSetFrom');
         _usedHelpers.add('__dartSetAdd');
@@ -8419,9 +8424,23 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartSetAdd')) {
       helper.writeln('function __dartSetAdd(set, value) {');
+      helper.writeln('  if (set.__dartIdentitySet) {');
+      helper.writeln('    if (set.has(value)) return false;');
+      helper.writeln('    set.add(value);');
+      helper.writeln('    return true;');
+      helper.writeln('  }');
       helper.writeln('  if (__dartIterableContains(set, value)) return false;');
       helper.writeln('  set.add(value);');
       helper.writeln('  return true;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIdentitySet')) {
+      helper.writeln('function __dartIdentitySet() {');
+      helper.writeln('  const set = new Set();');
+      helper.writeln(
+        '  Object.defineProperty(set, "__dartIdentitySet", { value: true });',
+      );
+      helper.writeln('  return set;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSetAddAll')) {
@@ -8440,6 +8459,9 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartSetAlgebra')) {
       helper.writeln('function __dartSetDifference(set, other) {');
       helper.writeln('  const result = new Set();');
+      helper.writeln(
+        '  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });',
+      );
       helper.writeln('  for (const value of set) {');
       helper.writeln(
         '    if (!__dartIterableContains(other, value)) result.add(value);',
@@ -8449,6 +8471,9 @@ final class _EsmEmitter {
       helper.writeln('}');
       helper.writeln('function __dartSetIntersection(set, other) {');
       helper.writeln('  const result = new Set();');
+      helper.writeln(
+        '  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });',
+      );
       helper.writeln('  for (const value of set) {');
       helper.writeln(
         '    if (__dartIterableContains(other, value)) result.add(value);',
@@ -8459,6 +8484,9 @@ final class _EsmEmitter {
       helper.writeln('function __dartSetUnion(set, other) {');
       helper.writeln('  const result = new Set(set);');
       helper.writeln(
+        '  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });',
+      );
+      helper.writeln(
         '  for (const value of other) __dartSetAdd(result, value);',
       );
       helper.writeln('  return result;');
@@ -8466,6 +8494,11 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartSetRemove')) {
       helper.writeln('function __dartSetRemove(set, needle) {');
+      helper.writeln('  if (set.__dartIdentitySet) {');
+      helper.writeln('    const found = set.has(needle);');
+      helper.writeln('    set.delete(needle);');
+      helper.writeln('    return found;');
+      helper.writeln('  }');
       helper.writeln('  for (const value of set) {');
       helper.writeln('    if (__dartEquals(value, needle)) {');
       helper.writeln('      set.delete(value);');
@@ -8809,6 +8842,9 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartIterableContains')) {
       helper.writeln('function __dartIterableContains(iterable, needle) {');
+      helper.writeln(
+        '  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);',
+      );
       helper.writeln('  for (const value of iterable) {');
       if (_usedHelpers.contains('__dartEquals')) {
         helper.writeln('    if (__dartEquals(value, needle)) return true;');
@@ -8868,6 +8904,9 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartSetLookup')) {
       helper.writeln('function __dartSetLookup(set, needle) {');
+      helper.writeln(
+        '  if (set.__dartIdentitySet) return set.has(needle) ? needle : null;',
+      );
       helper.writeln('  for (const value of set) {');
       helper.writeln('    if (__dartEquals(value, needle)) return value;');
       helper.writeln('  }');
@@ -8877,20 +8916,19 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartSetContainsAll')) {
       helper.writeln('function __dartSetContainsAll(set, values) {');
       helper.writeln('  for (const value of values) {');
-      helper.writeln('    let found = false;');
-      helper.writeln('    for (const candidate of set) {');
-      helper.writeln('      if (__dartEquals(candidate, value)) {');
-      helper.writeln('        found = true;');
-      helper.writeln('        break;');
-      helper.writeln('      }');
-      helper.writeln('    }');
-      helper.writeln('    if (!found) return false;');
+      helper.writeln(
+        '    if (!__dartIterableContains(set, value)) return false;',
+      );
       helper.writeln('  }');
       helper.writeln('  return true;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSetRemoveAll')) {
       helper.writeln('function __dartSetRemoveAll(set, values) {');
+      helper.writeln('  if (set.__dartIdentitySet) {');
+      helper.writeln('    for (const value of values) set.delete(value);');
+      helper.writeln('    return null;');
+      helper.writeln('  }');
       helper.writeln('  for (const value of values) {');
       helper.writeln('    for (const candidate of Array.from(set)) {');
       helper.writeln('      if (__dartEquals(candidate, value)) {');
@@ -8907,7 +8945,7 @@ final class _EsmEmitter {
       helper.writeln('  const retained = Array.from(values);');
       helper.writeln('  for (const value of Array.from(set)) {');
       helper.writeln(
-        '    if (retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);',
+        '    if (set.__dartIdentitySet ? !retained.includes(value) : retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);',
       );
       helper.writeln('  }');
       helper.writeln('  return null;');
@@ -10049,6 +10087,7 @@ const _generatedGlobalNames = {
   '__dartHtmlEscapeChar',
   '__dartIdentityHashes',
   '__dartIdentityMap',
+  '__dartIdentitySet',
   '__dartIsCoreError',
   '__dartIsRecord',
   '__dartIterator',

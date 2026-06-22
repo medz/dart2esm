@@ -54,6 +54,14 @@ void main() {
     'setFactories ${eqSetFrom.length} ${eqSetFrom.contains(EqBox(1))} '
     '${eqSetOf.length} ${eqSetFixed.length} ${eqSetFixed.contains(EqBox(1))}',
   );
+  final identitySet = Set<EqBox>.identity();
+  final identityBox = EqBox(1);
+  identitySet.add(identityBox);
+  identitySet.add(EqBox(1));
+  print(
+    'setIdentity ${identitySet.contains(identityBox)} '
+    '${identitySet.contains(EqBox(1))} ${identitySet.length}',
+  );
 
   final map = Map<String, int>.from({'one': 1, 'two': 2});
   final mapOf = Map<String, int>.of(map);

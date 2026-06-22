@@ -35,6 +35,11 @@ function __dartGet(receiver, name) {
   return typeof value === "function" ? value.bind(receiver) : value;
 }
 function __dartSetAdd(set, value) {
+  if (set.__dartIdentitySet) {
+    if (set.has(value)) return false;
+    set.add(value);
+    return true;
+  }
   if (__dartIterableContains(set, value)) return false;
   set.add(value);
   return true;
@@ -61,6 +66,7 @@ function __dartMapAddAll(map, entries) {
   return null;
 }
 function __dartIterableContains(iterable, needle) {
+  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
   for (const value of iterable) {
     if (__dartEquals(value, needle)) return true;
   }

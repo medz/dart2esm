@@ -344,6 +344,7 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
   const equals = left["=="];
   return typeof equals === "function" ? equals.call(left, right) : false;
 }

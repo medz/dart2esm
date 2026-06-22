@@ -49,6 +49,24 @@ void main() {
     'numMeta ${double.nan.isNaN} ${double.infinity.isInfinite} '
     '${3.0.isFinite} ${(-0.0).isNegative}',
   );
+  print(
+    'intMore ${5.isEven} ${5.isOdd} ${5.gcd(15)} ${(-12).gcd(18)} '
+    '${5.modInverse(7)} ${5.modPow(3, 7)} ${(-31).toRadixString(16)}',
+  );
+  print(
+    'doubleMore ${3.7.roundToDouble()} ${3.7.floorToDouble()} '
+    '${3.2.ceilToDouble()} ${3.2.truncateToDouble()}',
+  );
+  try {
+    6.modInverse(9);
+  } on Exception catch (error) {
+    print('modInverseError ${error.toString().contains('Not coprime')}');
+  }
+  try {
+    5.modPow(-1, 7);
+  } on RangeError {
+    print('modPowError true');
+  }
 
   final uri = Uri.parse(
     'https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag',

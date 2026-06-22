@@ -75,6 +75,7 @@ function __dartIterableContains(iterable, needle) {
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
   if (__dartIsRecord(left) && __dartIsRecord(right)) {
     const leftShape = left[__dartRecordShape];
     const rightShape = right[__dartRecordShape];

@@ -72,6 +72,7 @@ function __dartRuntimeType(value) {
   if (typeof value === "boolean") return __dartType("bool");
   if (typeof value === "bigint") return __dartType("BigInt");
   if (typeof value === "number") return __dartType(Number.isInteger(value) ? "int" : "double");
+  if (typeof value.__dartType === "string") return __dartType(value.__dartType);
   if (Array.isArray(value)) return __dartType("List<dynamic>");
   if (value instanceof Set) return __dartType("Set<dynamic>");
   if (value instanceof Map) return __dartType("Map<dynamic, dynamic>");
@@ -91,6 +92,7 @@ function __dartIterableLast(iterable) {
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
   const equals = left["=="];
   return typeof equals === "function" ? equals.call(left, right) : false;
 }

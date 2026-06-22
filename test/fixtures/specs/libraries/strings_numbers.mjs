@@ -17,6 +17,31 @@ function __dartStr(value) {
   }
   return String(value);
 }
+function __dartDouble(value) {
+  const number = Number(value);
+  const boxed = new Number(number);
+  Object.defineProperty(boxed, "__dartType", { value: "double" });
+  Object.defineProperty(boxed, "toString", { value() {
+    if (Number.isNaN(number)) return "NaN";
+    if (number === Infinity) return "Infinity";
+    if (number === -Infinity) return "-Infinity";
+    if (Object.is(number, -0)) return "-0.0";
+    return Number.isInteger(number) ? String(number) + ".0" : String(number);
+  } });
+  return boxed;
+}
+function __dartObjectToString(value) {
+  if (value == null) return "null";
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+    const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+  return String(value);
+}
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
@@ -315,6 +340,7 @@ function __dartIterableJoin(iterable, separator = "") {
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
   const equals = left["=="];
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
@@ -325,6 +351,55 @@ function __dartNumClamp(value, lower, upper) {
   if (value < lower) return lower;
   if (value > upper) return upper;
   return value;
+}
+function __dartIntGcd(left, right) {
+  let a = Math.abs(Math.trunc(left));
+  let b = Math.abs(Math.trunc(right));
+  while (b !== 0) {
+    const next = a % b;
+    a = b;
+    b = next;
+  }
+  return a;
+}
+function __dartIntModInverse(value, modulus) {
+  const m = Math.trunc(modulus);
+  if (m < 1) throw __dartCoreError("RangeError", "Invalid value");
+  const a = ((Math.trunc(value) % m) + m) % m;
+  let t = 0;
+  let nextT = 1;
+  let r = m;
+  let nextR = a;
+  while (nextR !== 0) {
+    const quotient = Math.trunc(r / nextR);
+    const oldT = t;
+    t = nextT;
+    nextT = oldT - quotient * nextT;
+    const oldR = r;
+    r = nextR;
+    nextR = oldR - quotient * nextR;
+  }
+  if (r !== 1) throw __dartCoreError("Exception", "Not coprime");
+  return t < 0 ? t + m : t;
+}
+function __dartIntModPow(value, exponent, modulus) {
+  let exp = Math.trunc(exponent);
+  const m = Math.trunc(modulus);
+  if (exp < 0) throw __dartCoreError("RangeError", "Invalid value");
+  if (m < 1) throw __dartCoreError("RangeError", "Invalid value");
+  let result = 1 % m;
+  let base = ((Math.trunc(value) % m) + m) % m;
+  while (exp > 0) {
+    if (exp % 2 === 1) result = (result * base) % m;
+    exp = Math.trunc(exp / 2);
+    base = (base * base) % m;
+  }
+  return result;
+}
+function __dartIntToRadixString(value, radix) {
+  const base = Math.trunc(radix);
+  if (base < 2 || base > 36) throw __dartCoreError("RangeError", "Invalid value");
+  return Math.trunc(value).toString(base);
 }
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
@@ -355,9 +430,38 @@ export function main() {
   __dartPrint("stringMeta " + __dartStr(trimmed.length) + " " + __dartStr(trimmed.length !== 0) + " " + __dartStr("".length === 0) + " " + __dartStr(trimmed.includes("l", 3)) + " " + __dartStr("7".padStart(3, "0")) + " " + __dartStr("x".padEnd(3, ".")) + " " + __dartStr("  left".trimStart()) + " " + __dartStr("right  ".trimEnd()) + " " + __dartStr(("abc" < "abd" ? -1 : ("abc" > "abd" ? 1 : 0))));
   __dartPrint("stringOps " + __dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 0)) + " " + __dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 3)) + " " + __dartStr(__dartStringReplaceRange(trimmed, 1, 4, "EL")) + " " + __dartStr(__dartIterableJoin(Array.from(Array.from({ length: trimmed.length }, (_, index) => trimmed.charCodeAt(index))).slice(0, 3), "-")));
   const numeric = (-3.6);
-  __dartPrint("numOps " + __dartStr(Math.abs(numeric)) + " " + __dartStr(((Number.isNaN(numeric) ? Number.NaN : (numeric < 0 ? -1 : (numeric > 0 ? 1 : numeric))) < 0)) + " " + __dartStr(__dartRoundToInt(numeric)) + " " + __dartStr(Math.floor(numeric)) + " " + __dartStr(Math.ceil(numeric)) + " " + __dartStr(Math.trunc(numeric)));
+  __dartPrint("numOps " + __dartStr(Math.abs(numeric)) + " " + __dartStr(((Number.isNaN(Number(numeric)) ? Number.NaN : (Number(numeric) < 0 ? -1 : (Number(numeric) > 0 ? 1 : Number(numeric)))) < 0)) + " " + __dartStr(__dartRoundToInt(numeric)) + " " + __dartStr(Math.floor(numeric)) + " " + __dartStr(Math.ceil(numeric)) + " " + __dartStr(Math.trunc(numeric)));
   __dartPrint("numFormat " + __dartStr(__dartNumClamp(numeric, (-3), 2)) + " " + __dartStr((numeric % 2)) + " " + __dartStr(Number(3.14159).toFixed(2)) + " " + __dartStr(Number(3.14159).toPrecision(3)));
-  __dartPrint("numMeta " + __dartStr(Number.isNaN(Number.NaN)) + " " + __dartStr((Infinity === Infinity || Infinity === -Infinity)) + " " + __dartStr(Number.isFinite(3.0)) + " " + __dartStr(((-0.0) < 0 || Object.is((-0.0), -0))));
+  __dartPrint("numMeta " + __dartStr(Number.isNaN(Number(Number.NaN))) + " " + __dartStr((Number(Infinity) === Infinity || Number(Infinity) === -Infinity)) + " " + __dartStr(Number.isFinite(Number(3.0))) + " " + __dartStr((Number((-0.0)) < 0 || Object.is(Number((-0.0)), -0))));
+  __dartPrint("intMore " + __dartStr((Math.trunc(5) % 2 === 0)) + " " + __dartStr((Math.trunc(5) % 2 !== 0)) + " " + __dartStr(__dartIntGcd(5, 15)) + " " + __dartStr(__dartIntGcd((-12), 18)) + " " + __dartStr(__dartIntModInverse(5, 7)) + " " + __dartStr(__dartIntModPow(5, 3, 7)) + " " + __dartStr(__dartIntToRadixString((-31), 16)));
+  __dartPrint("doubleMore " + __dartStr(__dartDouble(__dartRoundToInt(3.7))) + " " + __dartStr(__dartDouble(Math.floor(3.7))) + " " + __dartStr(__dartDouble(Math.ceil(3.2))) + " " + __dartStr(__dartDouble(Math.trunc(3.2))));
+  try {
+    {
+      __dartIntModInverse(6, 9);
+    }
+  } catch ($error) {
+    if (__dartIsCoreError($error, "Exception")) {
+      const error = $error;
+      {
+        __dartPrint("modInverseError " + __dartStr(__dartObjectToString(error).includes("Not coprime")));
+      }
+    } else {
+      throw $error;
+    }
+  }
+  try {
+    {
+      __dartIntModPow(5, (-1), 7);
+    }
+  } catch ($error_1) {
+    if (__dartIsCoreError($error_1, "RangeError")) {
+      {
+        __dartPrint("modPowError true");
+      }
+    } else {
+      throw $error_1;
+    }
+  }
   const uri = __dartUriParse("https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag", false);
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
   __dartPrint("uri meta " + __dartStr(uri.authority) + " " + __dartStr(uri.userInfo) + " " + __dartStr(uri.port) + " " + __dartStr(__dartIterableJoin(uri.pathSegments, "|")) + " " + __dartStr(uri.hasScheme) + " " + __dartStr(uri.hasAuthority) + " " + __dartStr(uri.hasPort) + " " + __dartStr(uri.hasQuery) + " " + __dartStr(uri.hasFragment) + " " + __dartStr(uri.isAbsolute));
@@ -392,13 +496,13 @@ export function main() {
     {
       __dartUriParse("http://[::1", false);
     }
-  } catch ($error) {
-    if (__dartIsCoreError($error, "FormatException")) {
+  } catch ($error_2) {
+    if (__dartIsCoreError($error_2, "FormatException")) {
       {
         __dartPrint("uri parseError true");
       }
     } else {
-      throw $error;
+      throw $error_2;
     }
   }
 }

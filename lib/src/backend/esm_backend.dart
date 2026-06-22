@@ -4476,14 +4476,64 @@ final class _EsmEmitter {
         'floor' => 'Math.floor($left)',
         'ceil' => 'Math.ceil($left)',
         'truncate' || 'toInt' => 'Math.trunc($left)',
-        'toDouble' => 'Number($left)',
-        'toString' => 'String($left)',
+        'roundToDouble' => () {
+          _usedHelpers.add('__dartDouble');
+          _usedHelpers.add('__dartRoundToInt');
+          return '__dartDouble(__dartRoundToInt($left))';
+        }(),
+        'floorToDouble' => () {
+          _usedHelpers.add('__dartDouble');
+          return '__dartDouble(Math.floor($left))';
+        }(),
+        'ceilToDouble' => () {
+          _usedHelpers.add('__dartDouble');
+          return '__dartDouble(Math.ceil($left))';
+        }(),
+        'truncateToDouble' => () {
+          _usedHelpers.add('__dartDouble');
+          return '__dartDouble(Math.trunc($left))';
+        }(),
+        'toDouble' => () {
+          _usedHelpers.add('__dartDouble');
+          return '__dartDouble($left)';
+        }(),
+        'toString' => () {
+          _usedHelpers.add('__dartStr');
+          return '__dartStr($left)';
+        }(),
         _ => null,
       };
     }
     if (name == 'clamp' && positionalArgs.length == 2) {
       _usedHelpers.add('__dartNumClamp');
       return '__dartNumClamp($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (_isCoreMember(target, 'int', name)) {
+      if (name == 'modPow' && positionalArgs.length == 2) {
+        _usedHelpers.add('__dartCoreError');
+        _usedHelpers.add('__dartIntModPow');
+        return '__dartIntModPow($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
+      if (positionalArgs.length == 1) {
+        final argument = positionalArgs.single;
+        return switch (name) {
+          'gcd' => () {
+            _usedHelpers.add('__dartIntGcd');
+            return '__dartIntGcd($left, $argument)';
+          }(),
+          'modInverse' => () {
+            _usedHelpers.add('__dartCoreError');
+            _usedHelpers.add('__dartIntModInverse');
+            return '__dartIntModInverse($left, $argument)';
+          }(),
+          'toRadixString' => () {
+            _usedHelpers.add('__dartCoreError');
+            _usedHelpers.add('__dartIntToRadixString');
+            return '__dartIntToRadixString($left, $argument)';
+          }(),
+          _ => null,
+        };
+      }
     }
     if (positionalArgs.length != 1) {
       return null;
@@ -4858,13 +4908,14 @@ final class _EsmEmitter {
     if (!_isCoreNumberMember(target, name)) {
       return null;
     }
+    final value = 'Number($receiver)';
     return switch (name) {
       'sign' =>
-        '(Number.isNaN($receiver) ? Number.NaN : ($receiver < 0 ? -1 : ($receiver > 0 ? 1 : $receiver)))',
-      'isNaN' => 'Number.isNaN($receiver)',
-      'isInfinite' => '($receiver === Infinity || $receiver === -Infinity)',
-      'isFinite' => 'Number.isFinite($receiver)',
-      'isNegative' => '($receiver < 0 || Object.is($receiver, -0))',
+        '(Number.isNaN($value) ? Number.NaN : ($value < 0 ? -1 : ($value > 0 ? 1 : $value)))',
+      'isNaN' => 'Number.isNaN($value)',
+      'isInfinite' => '($value === Infinity || $value === -Infinity)',
+      'isFinite' => 'Number.isFinite($value)',
+      'isNegative' => '($value < 0 || Object.is($value, -0))',
       _ => null,
     };
   }
@@ -6861,6 +6912,25 @@ final class _EsmEmitter {
       helper.writeln('  return String(value);');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartDouble')) {
+      helper.writeln('function __dartDouble(value) {');
+      helper.writeln('  const number = Number(value);');
+      helper.writeln('  const boxed = new Number(number);');
+      helper.writeln(
+        '  Object.defineProperty(boxed, "__dartType", { value: "double" });',
+      );
+      helper.writeln('  Object.defineProperty(boxed, "toString", { value() {');
+      helper.writeln('    if (Number.isNaN(number)) return "NaN";');
+      helper.writeln('    if (number === Infinity) return "Infinity";');
+      helper.writeln('    if (number === -Infinity) return "-Infinity";');
+      helper.writeln('    if (Object.is(number, -0)) return "-0.0";');
+      helper.writeln(
+        '    return Number.isInteger(number) ? String(number) + ".0" : String(number);',
+      );
+      helper.writeln('  } });');
+      helper.writeln('  return boxed;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartObjectToString')) {
       helper.writeln('function __dartObjectToString(value) {');
       helper.writeln('  if (value == null) return "null";');
@@ -8391,6 +8461,9 @@ final class _EsmEmitter {
         '  if (typeof value === "number") return __dartType(Number.isInteger(value) ? "int" : "double");',
       );
       helper.writeln(
+        '  if (typeof value.__dartType === "string") return __dartType(value.__dartType);',
+      );
+      helper.writeln(
         '  if (Array.isArray(value)) return __dartType("List<dynamic>");',
       );
       helper.writeln(
@@ -9803,6 +9876,9 @@ final class _EsmEmitter {
       helper.writeln('function __dartEquals(left, right) {');
       helper.writeln('  if (left === right) return true;');
       helper.writeln('  if (left == null || right == null) return false;');
+      helper.writeln(
+        '  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);',
+      );
       if (usesRecord) {
         helper.writeln(
           '  if (__dartIsRecord(left) && __dartIsRecord(right)) {',
@@ -9840,6 +9916,73 @@ final class _EsmEmitter {
       helper.writeln('  if (value < lower) return lower;');
       helper.writeln('  if (value > upper) return upper;');
       helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIntGcd')) {
+      helper.writeln('function __dartIntGcd(left, right) {');
+      helper.writeln('  let a = Math.abs(Math.trunc(left));');
+      helper.writeln('  let b = Math.abs(Math.trunc(right));');
+      helper.writeln('  while (b !== 0) {');
+      helper.writeln('    const next = a % b;');
+      helper.writeln('    a = b;');
+      helper.writeln('    b = next;');
+      helper.writeln('  }');
+      helper.writeln('  return a;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIntModInverse')) {
+      helper.writeln('function __dartIntModInverse(value, modulus) {');
+      helper.writeln('  const m = Math.trunc(modulus);');
+      helper.writeln(
+        '  if (m < 1) throw __dartCoreError("RangeError", "Invalid value");',
+      );
+      helper.writeln('  const a = ((Math.trunc(value) % m) + m) % m;');
+      helper.writeln('  let t = 0;');
+      helper.writeln('  let nextT = 1;');
+      helper.writeln('  let r = m;');
+      helper.writeln('  let nextR = a;');
+      helper.writeln('  while (nextR !== 0) {');
+      helper.writeln('    const quotient = Math.trunc(r / nextR);');
+      helper.writeln('    const oldT = t;');
+      helper.writeln('    t = nextT;');
+      helper.writeln('    nextT = oldT - quotient * nextT;');
+      helper.writeln('    const oldR = r;');
+      helper.writeln('    r = nextR;');
+      helper.writeln('    nextR = oldR - quotient * nextR;');
+      helper.writeln('  }');
+      helper.writeln(
+        '  if (r !== 1) throw __dartCoreError("Exception", "Not coprime");',
+      );
+      helper.writeln('  return t < 0 ? t + m : t;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIntModPow')) {
+      helper.writeln('function __dartIntModPow(value, exponent, modulus) {');
+      helper.writeln('  let exp = Math.trunc(exponent);');
+      helper.writeln('  const m = Math.trunc(modulus);');
+      helper.writeln(
+        '  if (exp < 0) throw __dartCoreError("RangeError", "Invalid value");',
+      );
+      helper.writeln(
+        '  if (m < 1) throw __dartCoreError("RangeError", "Invalid value");',
+      );
+      helper.writeln('  let result = 1 % m;');
+      helper.writeln('  let base = ((Math.trunc(value) % m) + m) % m;');
+      helper.writeln('  while (exp > 0) {');
+      helper.writeln('    if (exp % 2 === 1) result = (result * base) % m;');
+      helper.writeln('    exp = Math.trunc(exp / 2);');
+      helper.writeln('    base = (base * base) % m;');
+      helper.writeln('  }');
+      helper.writeln('  return result;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIntToRadixString')) {
+      helper.writeln('function __dartIntToRadixString(value, radix) {');
+      helper.writeln('  const base = Math.trunc(radix);');
+      helper.writeln(
+        '  if (base < 2 || base > 36) throw __dartCoreError("RangeError", "Invalid value");',
+      );
+      helper.writeln('  return Math.trunc(value).toString(base);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartObjectHash')) {
@@ -10166,6 +10309,7 @@ const _generatedGlobalNames = {
   '__dartDateTimeParse',
   '__dartDeveloperServiceInfo',
   '__dartDeveloperUserTag',
+  '__dartDouble',
   '__dartDoubleParse',
   '__dartDoubleTryParse',
   '__dartDuration',
@@ -10183,7 +10327,11 @@ const _generatedGlobalNames = {
   '__dartFutureTimeout',
   '__dartFutureWait',
   '__dartGet',
+  '__dartIntGcd',
+  '__dartIntModInverse',
+  '__dartIntModPow',
   '__dartIntParse',
+  '__dartIntToRadixString',
   '__dartIntTryParse',
   '__dartIterableContains',
   '__dartIterableElementAtOrNull',

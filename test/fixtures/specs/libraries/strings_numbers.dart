@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 void main() {
   final parsedInt = int.parse('42');
   final parsedHex = int.parse('ff', radix: 16);
@@ -98,6 +100,26 @@ void main() {
     'uri factories ${relative.path} ${relative.isAbsolute} '
     '${file.scheme} ${file.path} ${directory.path.endsWith('/')} '
     '${relativeFile.scheme} ${relativeFile.path}',
+  );
+  final dataText = Uri.dataFromString('hello world');
+  final dataJson = Uri.dataFromString(
+    'hello world',
+    mimeType: 'application/json',
+  );
+  final dataUtf8 = Uri.dataFromString('å', encoding: utf8);
+  final dataBase64 = Uri.dataFromString('hello', base64: true);
+  final dataBytes = Uri.dataFromBytes([65, 66, 67]);
+  final dataBytesText = Uri.dataFromBytes([65, 66, 67], mimeType: 'text/plain');
+  final dataBytesPercent = Uri.dataFromBytes([
+    65,
+    66,
+    67,
+  ], percentEncoded: true);
+  print(
+    'uri data ${dataText.toString()} ${dataJson.toString()} '
+    '${dataUtf8.toString()} ${dataBase64.toString()} '
+    '${dataBytes.toString()} ${dataBytesText.toString()} '
+    '${dataBytesPercent.toString()}',
   );
   final tryUri = Uri.tryParse('https://example.test/try');
   final invalidUri = Uri.tryParse('http://[::1');

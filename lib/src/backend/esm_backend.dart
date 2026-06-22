@@ -5597,6 +5597,35 @@ final class _EsmEmitter {
           _namedArgument(expression.arguments, 'windows') ?? 'false';
       return '__dartUriFile(${positionalArgs.single}, $windows, true)';
     }
+    if ((path == 'dart:core::_Uri::@factories::dataFromString' ||
+            path == 'dart:core::Uri::@factories::dataFromString') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriData');
+      _usedHelpers.add('__dartBase64Encode');
+      final mimeType =
+          _namedArgument(expression.arguments, 'mimeType') ?? 'null';
+      final encoding =
+          _namedArgument(expression.arguments, 'encoding') ?? 'null';
+      final parameters =
+          _namedArgument(expression.arguments, 'parameters') ?? 'null';
+      final base64 = _namedArgument(expression.arguments, 'base64') ?? 'false';
+      return '__dartUriDataFromString(${positionalArgs.single}, $mimeType, $encoding, $parameters, $base64)';
+    }
+    if ((path == 'dart:core::_Uri::@factories::dataFromBytes' ||
+            path == 'dart:core::Uri::@factories::dataFromBytes') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriParse');
+      _usedHelpers.add('__dartUriData');
+      _usedHelpers.add('__dartBase64Encode');
+      final mimeType =
+          _namedArgument(expression.arguments, 'mimeType') ?? 'null';
+      final parameters =
+          _namedArgument(expression.arguments, 'parameters') ?? 'null';
+      final percentEncoded =
+          _namedArgument(expression.arguments, 'percentEncoded') ?? 'false';
+      return '__dartUriDataFromBytes(${positionalArgs.single}, $mimeType, $parameters, $percentEncoded)';
+    }
     if (!path.startsWith('dart:core::Uri::@methods::')) {
       return null;
     }
@@ -7501,6 +7530,71 @@ final class _EsmEmitter {
           '  const filePath = windows && /^[a-zA-Z]:\\//.test(encoded) ? "/" + encoded : encoded;',
         );
         helper.writeln('  return __dartUriParse("file://" + filePath, false);');
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUriData')) {
+        helper.writeln('function __dartUriDataParameters(parameters) {');
+        helper.writeln('  if (parameters == null) return "";');
+        helper.writeln('  let result = "";');
+        helper.writeln('  for (const [key, value] of parameters) {');
+        helper.writeln(
+          '    result += ";" + encodeURIComponent(String(key)) + "=" + encodeURIComponent(String(value));',
+        );
+        helper.writeln('  }');
+        helper.writeln('  return result;');
+        helper.writeln('}');
+        helper.writeln('function __dartUriDataMediaType(mimeType) {');
+        helper.writeln(
+          '  if (mimeType == null || String(mimeType).toLowerCase() === "text/plain") return "";',
+        );
+        helper.writeln('  return String(mimeType);');
+        helper.writeln('}');
+        helper.writeln('function __dartUriPercentEncodeBytes(bytes) {');
+        helper.writeln('  let result = "";');
+        helper.writeln('  for (const byte of bytes) {');
+        helper.writeln('    const value = Number(byte) & 255;');
+        helper.writeln('    const char = String.fromCharCode(value);');
+        helper.writeln(
+          '    result += /[A-Za-z0-9\\-._~]/.test(char) ? char : "%" + value.toString(16).toUpperCase().padStart(2, "0");',
+        );
+        helper.writeln('  }');
+        helper.writeln('  return result;');
+        helper.writeln('}');
+        helper.writeln(
+          'function __dartUriDataFromString(content, mimeType = null, encoding = null, parameters = null, base64 = false) {',
+        );
+        helper.writeln('  const text = String(content);');
+        helper.writeln('  let metadata = __dartUriDataMediaType(mimeType);');
+        helper.writeln('  if (encoding != null) metadata += ";charset=utf-8";');
+        helper.writeln('  metadata += __dartUriDataParameters(parameters);');
+        helper.writeln('  if (base64) {');
+        helper.writeln('    const bytes = new TextEncoder().encode(text);');
+        helper.writeln(
+          '    return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(bytes), false);',
+        );
+        helper.writeln('  }');
+        helper.writeln(
+          '  return __dartUriParse("data:" + metadata + "," + encodeURIComponent(text), false);',
+        );
+        helper.writeln('}');
+        helper.writeln(
+          'function __dartUriDataFromBytes(bytes, mimeType = null, parameters = null, percentEncoded = false) {',
+        );
+        helper.writeln(
+          '  const byteList = Array.from(bytes, (byte) => Number(byte) & 255);',
+        );
+        helper.writeln(
+          '  let metadata = mimeType == null ? "application/octet-stream" : __dartUriDataMediaType(mimeType);',
+        );
+        helper.writeln('  metadata += __dartUriDataParameters(parameters);');
+        helper.writeln('  if (percentEncoded) {');
+        helper.writeln(
+          '    return __dartUriParse("data:" + metadata + "," + __dartUriPercentEncodeBytes(byteList), false);',
+        );
+        helper.writeln('  }');
+        helper.writeln(
+          '  return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(byteList), false);',
+        );
         helper.writeln('}');
       }
       if (_usedHelpers.contains('__dartUriBuild') ||
@@ -10057,10 +10151,16 @@ const _generatedGlobalNames = {
   '__dartTypedDataSublistView',
   '__dartUriAssignQueryParameters',
   '__dartUriBuild',
+  '__dartUriData',
+  '__dartUriDataFromBytes',
+  '__dartUriDataFromString',
+  '__dartUriDataMediaType',
+  '__dartUriDataParameters',
   '__dartUriEncodePath',
   '__dartUriFile',
   '__dartUriNormalizePath',
   '__dartUriParse',
+  '__dartUriPercentEncodeBytes',
   '__dartUriReplace',
   '__dartUriResolve',
   '__dartUtf8Codec',

@@ -2842,6 +2842,20 @@ final class _EsmEmitter {
       return '$left.finally(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'asStream' &&
+        positionalArgs.isEmpty &&
+        _isAsyncFutureMember(target, name)) {
+      _usedHelpers.add('__dartFutureAsStream');
+      return '__dartFutureAsStream($left)';
+    }
+    if (name == 'timeout' &&
+        positionalArgs.length == 1 &&
+        _isAsyncFutureMember(target, name)) {
+      _usedHelpers.add('__dartFutureTimeout');
+      final onTimeout = _namedArgument(expression.arguments, 'onTimeout');
+      return '__dartFutureTimeout($left, ${positionalArgs.single}, ${onTimeout ?? 'null'})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'add' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'List', 'add')) {
@@ -5134,6 +5148,54 @@ final class _EsmEmitter {
       helper.writeln('    }, delay);');
       helper.writeln('  }');
       helper.writeln('  return timer;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartFutureAsStream')) {
+      helper.writeln('function __dartFutureAsStream(future) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    yield await future;');
+      helper.writeln('  })();');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartFutureTimeout')) {
+      helper.writeln(
+        'function __dartFutureTimeout(future, duration, onTimeout = null) {',
+      );
+      helper.writeln(
+        '  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);',
+      );
+      helper.writeln('  return new Promise((resolve, reject) => {');
+      helper.writeln('    let settled = false;');
+      helper.writeln('    const id = setTimeout(() => {');
+      helper.writeln('      if (settled) return;');
+      helper.writeln('      settled = true;');
+      helper.writeln('      try {');
+      helper.writeln('        if (typeof onTimeout === "function") {');
+      helper.writeln('          resolve(onTimeout());');
+      helper.writeln('        } else {');
+      helper.writeln(
+        '          reject(new Error("TimeoutException: Future not completed"));',
+      );
+      helper.writeln('        }');
+      helper.writeln('      } catch (error) {');
+      helper.writeln('        reject(error);');
+      helper.writeln('      }');
+      helper.writeln('    }, delay);');
+      helper.writeln('    Promise.resolve(future).then(');
+      helper.writeln('      (value) => {');
+      helper.writeln('        if (settled) return;');
+      helper.writeln('        settled = true;');
+      helper.writeln('        clearTimeout(id);');
+      helper.writeln('        resolve(value);');
+      helper.writeln('      },');
+      helper.writeln('      (error) => {');
+      helper.writeln('        if (settled) return;');
+      helper.writeln('        settled = true;');
+      helper.writeln('        clearTimeout(id);');
+      helper.writeln('        reject(error);');
+      helper.writeln('      },');
+      helper.writeln('    );');
+      helper.writeln('  });');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStreamController')) {

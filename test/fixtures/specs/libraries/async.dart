@@ -83,6 +83,16 @@ Future<void> main() async {
     'chain $chained $recovered $completed $finalized $handledThen $filtered',
   );
 
+  final streamed = await Future<String>.value('streamed').asStream().first;
+  final fast = await Future<String>.value(
+    'fast',
+  ).timeout(const Duration(milliseconds: 10));
+  final fallback = await Future<String>.delayed(
+    const Duration(milliseconds: 10),
+    () => 'slow',
+  ).timeout(const Duration(milliseconds: 1), onTimeout: () => 'fallback');
+  print('futureStream $streamed $fast $fallback');
+
   try {
     await Future.error('boom');
   } catch (error) {

@@ -88,6 +88,72 @@ function __dartTimer(duration, callback, periodic) {
   }
   return timer;
 }
+function __dartFutureAsStream(future) {
+  return (async function*() {
+    yield await future;
+  })();
+}
+function __dartFutureTimeout(future, duration, onTimeout = null) {
+  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const id = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        if (typeof onTimeout === "function") {
+          resolve(onTimeout());
+        } else {
+          reject(new Error("TimeoutException: Future not completed"));
+        }
+      } catch (error) {
+        reject(error);
+      }
+    }, delay);
+    Promise.resolve(future).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(id);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(id);
+        reject(error);
+      },
+    );
+  });
+}
+function __dartStreamFromIterable(values) {
+  return (async function*() {
+    for (const value of values) yield value;
+  })();
+}
+function __dartStreamMap(stream, convert) {
+  return (async function*() {
+    for await (const value of stream) {
+      yield convert(value);
+    }
+  })();
+}
+function __dartStreamWhere(stream, test) {
+  return (async function*() {
+    for await (const value of stream) {
+      if (test(value)) yield value;
+    }
+  })();
+}
+async function __dartStreamToList(stream) {
+  const values = [];
+  for await (const value of stream) values.push(value);
+  return values;
+}
+async function __dartStreamFirst(stream) {
+  for await (const value of stream) return value;
+  throw new RangeError("No element");
+}
 function __dartEquals(left, right) {
   return left === right;
 }
@@ -162,6 +228,10 @@ export async function main() {
   const handledThen = await Promise.reject("then-error").then(function(__wc0_formal) { return 0; }, function(error) { return 10; });
   const filtered = await Promise.reject("filtered").catch((error) => (function(error) { return __dartEquals(error, "filtered"); })(error) ? (function(error) { return 11; })(error) : Promise.reject(error));
   __dartPrint("chain " + __dartStr(chained) + " " + __dartStr(recovered) + " " + __dartStr(completed) + " " + __dartStr(finalized) + " " + __dartStr(handledThen) + " " + __dartStr(filtered));
+  const streamed = await __dartStreamFirst(__dartFutureAsStream(Promise.resolve("streamed")));
+  const fast = await __dartFutureTimeout(Promise.resolve("fast"), __dartDuration({ microseconds: 10000 }), null);
+  const fallback = await __dartFutureTimeout(new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return "slow"; })()); } catch (error) { reject(error); } }, Math.max(0, __dartDuration({ microseconds: 10000 }).inMilliseconds))), __dartDuration({ microseconds: 1000 }), function() { return "fallback"; });
+  __dartPrint("futureStream " + __dartStr(streamed) + " " + __dartStr(fast) + " " + __dartStr(fallback));
   try {
     {
       await Promise.reject("boom");

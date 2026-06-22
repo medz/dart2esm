@@ -20,7 +20,8 @@ void main() {
   final mixed = 'a1 b22';
   print(
     'stringPattern ${mixed.contains(digits)} ${mixed.contains(digits, 2)} '
-    '${mixed.startsWith(RegExp(r'a\d'))} ${mixed.indexOf(digits, 2)}',
+    '${mixed.startsWith(RegExp(r'a\d'))} ${mixed.indexOf(digits, 2)} '
+    '${mixed.lastIndexOf(digits)} ${mixed.lastIndexOf(digits, 2)}',
   );
   print(
     'stringReplace ${mixed.split(digits).join('|')} '
@@ -36,6 +37,12 @@ void main() {
   print(
     'stringMapped ${'aa bb aa'.replaceAllMapped('aa', (match) => '${match.start}:${match.group(0)}')} '
     '${'aa bb aa'.splitMapJoin('bb', onMatch: (match) => '<${match.group(0)}>', onNonMatch: (part) => part.trim())}',
+  );
+  final stringPatternMatches = 'aa'.allMatches('aa bb aa', 1);
+  final stringPrefix = 'bb'.matchAsPrefix('aa bb aa', 3)!;
+  print(
+    'stringPatternDirect ${stringPatternMatches.map((match) => match.start).join(',')} '
+    '${stringPrefix.group(0)} ${stringPrefix.start} ${stringPrefix.end}',
   );
 
   final prefix = digits.matchAsPrefix(mixed, 1)!;

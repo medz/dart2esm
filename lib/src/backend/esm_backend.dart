@@ -3333,6 +3333,43 @@ final class _EsmEmitter {
       return '__dartStringIndexOf($left, ${positionalArgs[0]}, $start)';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'lastIndexOf' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isCoreMember(target, 'String', 'lastIndexOf')) {
+      if (_isStringLiteralArgument(expression.arguments, 0)) {
+        if (positionalArgs.length == 1) {
+          return '$left.lastIndexOf(${positionalArgs.single})';
+        }
+        return '$left.lastIndexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
+      _usedHelpers.add('__dartStringPattern');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
+      return '__dartStringLastIndexOf($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'allMatches' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        (_isCoreMember(target, 'String', 'allMatches') ||
+            _isCoreMember(target, 'Pattern', 'allMatches') &&
+                _isStaticStringExpression(expression.receiver))) {
+      _usedHelpers.add('__dartStringPattern');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+      return '__dartStringAllMatches($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'matchAsPrefix' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        (_isCoreMember(target, 'String', 'matchAsPrefix') ||
+            _isCoreMember(target, 'Pattern', 'matchAsPrefix') &&
+                _isStaticStringExpression(expression.receiver))) {
+      _usedHelpers.add('__dartStringPattern');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+      return '__dartStringMatchAsPrefix($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'split' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'String', 'split')) {
@@ -4401,6 +4438,20 @@ final class _EsmEmitter {
   bool _isStringLiteralArgument(k.Arguments arguments, int index) {
     return index < arguments.positional.length &&
         arguments.positional[index] is k.StringLiteral;
+  }
+
+  bool _isStaticStringExpression(k.Expression expression) {
+    return switch (expression) {
+      k.StringLiteral() || k.StringConcatenation() => true,
+      k.VariableGet(:final variable) => _isStringType(variable.type),
+      k.AsExpression(:final type) => _isStringType(type),
+      _ => false,
+    };
+  }
+
+  bool _isStringType(k.DartType type) {
+    type = type.unalias;
+    return type is k.InterfaceType && _interfaceTypeName(type) == 'String';
   }
 
   String _emitArgumentsWithoutFirstPositional(k.Arguments arguments) {
@@ -6014,6 +6065,25 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  return text.indexOf(String(pattern), start);');
       helper.writeln('}');
+      helper.writeln(
+        'function __dartStringLastIndexOf(source, pattern, start = null) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const limit = start == null ? text.length : start;');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln(
+        '    for (let index = Math.min(limit, text.length); index >= 0; index--) {',
+      );
+      helper.writeln('      const match = regexp.exec(text.slice(index));');
+      helper.writeln('      if (match != null && match.index === 0) {');
+      helper.writeln('        return index;');
+      helper.writeln('      }');
+      helper.writeln('    }');
+      helper.writeln('    return -1;');
+      helper.writeln('  }');
+      helper.writeln('  return text.lastIndexOf(String(pattern), limit);');
+      helper.writeln('}');
       helper.writeln('function __dartStringSplit(source, pattern) {');
       helper.writeln('  const text = String(source);');
       helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
@@ -6139,6 +6209,33 @@ final class _EsmEmitter {
       );
       helper.writeln('  }');
       helper.writeln('  return matches;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringAllMatches(pattern, input, start = 0) {',
+      );
+      helper.writeln('  const text = String(input);');
+      helper.writeln('  const needle = String(pattern);');
+      helper.writeln('  const matches = [];');
+      helper.writeln('  if (needle === "") return matches;');
+      helper.writeln('  let index = text.indexOf(needle, start);');
+      helper.writeln('  while (index >= 0) {');
+      helper.writeln(
+        '    matches.push(__dartStringMatch(text, index, needle));',
+      );
+      helper.writeln(
+        '    index = text.indexOf(needle, index + needle.length);',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return matches;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStringMatchAsPrefix(pattern, input, start = 0) {',
+      );
+      helper.writeln('  const text = String(input);');
+      helper.writeln('  const needle = String(pattern);');
+      helper.writeln(
+        '  return text.startsWith(needle, start) ? __dartStringMatch(text, start, needle) : null;',
+      );
       helper.writeln('}');
       helper.writeln('function __dartStringMatch(input, start, value) {');
       helper.writeln('  return {');
@@ -8279,8 +8376,11 @@ const _generatedGlobalNames = {
   '__dartStreamToList',
   '__dartStreamWhere',
   '__dartStringBuffer',
+  '__dartStringAllMatches',
   '__dartStringContains',
   '__dartStringIndexOf',
+  '__dartStringLastIndexOf',
+  '__dartStringMatchAsPrefix',
   '__dartStringPattern',
   '__dartStringPatternMatches',
   '__dartStringReplaceAllMapped',

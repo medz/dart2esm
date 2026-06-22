@@ -53,6 +53,21 @@ function __dartStringIndexOf(source, pattern, start = 0) {
   }
   return text.indexOf(String(pattern), start);
 }
+function __dartStringLastIndexOf(source, pattern, start = null) {
+  const text = String(source);
+  const limit = start == null ? text.length : start;
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    for (let index = Math.min(limit, text.length); index >= 0; index--) {
+      const match = regexp.exec(text.slice(index));
+      if (match != null && match.index === 0) {
+        return index;
+      }
+    }
+    return -1;
+  }
+  return text.lastIndexOf(String(pattern), limit);
+}
 function __dartStringSplit(source, pattern) {
   const text = String(source);
   const regexp = __dartPatternRegExp(pattern, false);
@@ -138,6 +153,23 @@ function __dartStringPatternMatches(text, pattern) {
     index = text.indexOf(needle, index + needle.length);
   }
   return matches;
+}
+function __dartStringAllMatches(pattern, input, start = 0) {
+  const text = String(input);
+  const needle = String(pattern);
+  const matches = [];
+  if (needle === "") return matches;
+  let index = text.indexOf(needle, start);
+  while (index >= 0) {
+    matches.push(__dartStringMatch(text, index, needle));
+    index = text.indexOf(needle, index + needle.length);
+  }
+  return matches;
+}
+function __dartStringMatchAsPrefix(pattern, input, start = 0) {
+  const text = String(input);
+  const needle = String(pattern);
+  return text.startsWith(needle, start) ? __dartStringMatch(text, start, needle) : null;
 }
 function __dartStringMatch(input, start, value) {
   return {
@@ -299,11 +331,14 @@ export function main() {
   __dartPrint("all " + __dartStr(parts));
   const digits = __dartRegExp("\\d+", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
   const mixed = "a1 b22";
-  __dartPrint("stringPattern " + __dartStr(__dartStringContains(mixed, digits, 0)) + " " + __dartStr(__dartStringContains(mixed, digits, 2)) + " " + __dartStr(__dartStringStartsWith(mixed, __dartRegExp("a\\d", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), 0)) + " " + __dartStr(__dartStringIndexOf(mixed, digits, 2)));
+  __dartPrint("stringPattern " + __dartStr(__dartStringContains(mixed, digits, 0)) + " " + __dartStr(__dartStringContains(mixed, digits, 2)) + " " + __dartStr(__dartStringStartsWith(mixed, __dartRegExp("a\\d", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), 0)) + " " + __dartStr(__dartStringIndexOf(mixed, digits, 2)) + " " + __dartStr(__dartStringLastIndexOf(mixed, digits, null)) + " " + __dartStr(__dartStringLastIndexOf(mixed, digits, 2)));
   __dartPrint("stringReplace " + __dartStr(__dartIterableJoin(__dartStringSplit(mixed, digits), "|")) + " " + __dartStr(__dartStringReplaceAll(mixed, digits, "#")) + " " + __dartStr(__dartStringReplaceFirstPattern(mixed, digits, "#", 0)));
   __dartPrint("mapped " + __dartStr(__dartStringReplaceAllMapped(mixed, digits, function(match) { return "[" + __dartStr(match.group(0)) + ":" + __dartStr(match.start) + "]"; })) + " " + __dartStr(__dartStringReplaceFirstMapped(mixed, digits, function(match) { return "[" + __dartStr(match[0]) + "]"; }, 2)));
   __dartPrint("splitMap " + __dartStr(__dartStringSplitMapJoin(mixed, digits, function(match) { return "<" + __dartStr(match[0]) + ">"; }, function(part) { return part.toUpperCase(); })));
   __dartPrint("stringMapped " + __dartStr(__dartStringReplaceAllMapped("aa bb aa", "aa", function(match) { return __dartStr(match.start) + ":" + __dartStr(match.group(0)); })) + " " + __dartStr(__dartStringSplitMapJoin("aa bb aa", "bb", function(match) { return "<" + __dartStr(match.group(0)) + ">"; }, function(part) { return part.trim(); })));
+  const stringPatternMatches = __dartStringAllMatches("aa", "aa bb aa", 1);
+  const stringPrefix = __dartNullCheck(__dartStringMatchAsPrefix("bb", "aa bb aa", 3));
+  __dartPrint("stringPatternDirect " + __dartStr(__dartIterableJoin(Array.from(stringPatternMatches, function(match) { return match.start; }), ",")) + " " + __dartStr(stringPrefix.group(0)) + " " + __dartStr(stringPrefix.start) + " " + __dartStr(stringPrefix.end));
   const prefix = __dartNullCheck(digits.matchAsPrefix(mixed, 1));
   __dartPrint("meta " + __dartStr(pattern.pattern) + " " + __dartStr(pattern.isCaseSensitive) + " " + __dartStr(pattern.isMultiLine) + " " + __dartStr(pattern.isUnicode) + " " + __dartStr(pattern.isDotAll));
   __dartPrint("prefix " + __dartStr(prefix.group(0)) + " " + __dartStr(prefix.start) + " " + __dartStr(prefix.end));

@@ -13,6 +13,12 @@ function __dartStr(value) {
   if (value instanceof Map) {
     return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
   }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
   return String(value);
 }
 function __dartPrint(value) {

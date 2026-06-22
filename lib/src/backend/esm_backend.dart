@@ -2173,6 +2173,16 @@ final class _EsmEmitter {
   }
 
   String _emitConstructorInvocation(k.ConstructorInvocation expression) {
+    final positionalArgs = expression.arguments.positional
+        .map(emitExpression)
+        .toList();
+    final coreConstructor = _emitCoreConstructorInvocation(
+      expression.targetReference,
+      positionalArgs,
+    );
+    if (coreConstructor != null) {
+      return coreConstructor;
+    }
     if (_isCompactHashSetConstructorReference(expression.targetReference)) {
       return 'new Set()';
     }
@@ -2277,6 +2287,13 @@ final class _EsmEmitter {
     if (_isCoreReference(expression.targetReference, '@methods', 'identical') &&
         positionalArgs.length == 2) {
       return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    final coreInvocation = _emitCoreStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (coreInvocation != null) {
+      return coreInvocation;
     }
     if (_isCoreGrowableListLiteral(expression.targetReference)) {
       return '[${positionalArgs.join(', ')}]';
@@ -2666,6 +2683,12 @@ final class _EsmEmitter {
         return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
       }
       return '$left[${positionalArgs[0]}] = ${positionalArgs[1]}';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'contains' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'String', 'contains')) {
+      return '$left.includes(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'add' &&
@@ -3101,6 +3124,48 @@ final class _EsmEmitter {
       return 'null';
     }
     return null;
+  }
+
+  String? _emitCoreConstructorInvocation(
+    k.Reference reference,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(reference);
+    if (path.startsWith('dart:core::StringBuffer::@constructors::')) {
+      if (positionalArgs.length > 1) {
+        return null;
+      }
+      _usedHelpers.add('__dartStringBuffer');
+      final initial = positionalArgs.isEmpty ? '""' : positionalArgs.single;
+      return '__dartStringBuffer($initial)';
+    }
+    return null;
+  }
+
+  String? _emitCoreStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:core::Uri::@methods::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'encodeComponent' when positionalArgs.length == 1 =>
+        'encodeURIComponent(${positionalArgs.single})',
+      'decodeComponent' when positionalArgs.length == 1 =>
+        'decodeURIComponent(${positionalArgs.single})',
+      'encodeFull' when positionalArgs.length == 1 =>
+        'encodeURI(${positionalArgs.single})',
+      'decodeFull' when positionalArgs.length == 1 =>
+        'decodeURI(${positionalArgs.single})',
+      'encodeQueryComponent' when positionalArgs.length == 1 =>
+        'encodeURIComponent(${positionalArgs.single})',
+      'decodeQueryComponent' when positionalArgs.length == 1 =>
+        'decodeURIComponent(String(${positionalArgs.single}).replace(/\\+/g, " "))',
+      _ => null,
+    };
   }
 
   String? _emitDeveloperStaticGet(k.StaticGet expression) {
@@ -3577,12 +3642,36 @@ final class _EsmEmitter {
         '    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";',
       );
       helper.writeln('  }');
+      helper.writeln('  if (typeof value === "object") {');
+      helper.writeln('    const toString = value.toString;');
+      helper.writeln(
+        '    if (typeof toString === "function" && toString !== Object.prototype.toString) {',
+      );
+      helper.writeln('      return String(toString.call(value));');
+      helper.writeln('    }');
+      helper.writeln('  }');
       helper.writeln('  return String(value);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartPrint')) {
       helper.writeln('function __dartPrint(value) {');
       helper.writeln('  console.log(__dartStr(value));');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartStringBuffer')) {
+      helper.writeln('function __dartStringBuffer(initial = "") {');
+      helper.writeln('  let value = initial == null ? "" : String(initial);');
+      helper.writeln('  return {');
+      helper.writeln('    write(next) { value += String(next); },');
+      helper.writeln(
+        '    writeln(next = "") { value += String(next) + "\\n"; },',
+      );
+      helper.writeln('    clear() { value = ""; },');
+      helper.writeln('    toString() { return value; },');
+      helper.writeln('    get length() { return value.length; },');
+      helper.writeln('    get isEmpty() { return value.length === 0; },');
+      helper.writeln('    get isNotEmpty() { return value.length !== 0; },');
+      helper.writeln('  };');
       helper.writeln('}');
     }
     if (usesJson) {
@@ -4156,6 +4245,7 @@ const _generatedGlobalNames = {
   '__dartRecord',
   '__dartRecordShape',
   '__dartStr',
+  '__dartStringBuffer',
   '__dartTruncDiv',
   '__dartToJson',
   '__dartUtf8Codec',

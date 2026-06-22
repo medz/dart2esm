@@ -150,6 +150,20 @@ Future<void> main() async {
   streamFromFutures.sort();
   print('streamFuture $streamFromFuture ${streamFromFutures.join(',')}');
 
+  final streamMultiValues = await Stream<int>.multi((controller) {
+    controller.add(3);
+    controller.add(4);
+    controller.close();
+  }).join(',');
+  final streamMultiBroadcast = Stream<int>.multi((controller) {
+    controller.add(5);
+    controller.close();
+  }, isBroadcast: true);
+  print(
+    'streamMulti $streamMultiValues ${await streamMultiBroadcast.single} '
+    '${streamMultiBroadcast.isBroadcast}',
+  );
+
   final streamValue = await Stream<int>.value(7).single;
   try {
     await Stream<int>.error('stream-boom').first;

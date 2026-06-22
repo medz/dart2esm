@@ -381,6 +381,21 @@ function __dartStreamFromFutures(futures) {
   }
   return controller.stream;
 }
+function __dartStreamMulti(onListen, isBroadcast = false) {
+  let listened = false;
+  return {
+    isBroadcast,
+    [Symbol.asyncIterator]() {
+      if (!isBroadcast) {
+        if (listened) throw new Error("Bad state: Stream has already been listened to.");
+        listened = true;
+      }
+      const controller = __dartStreamController(false);
+      onListen(controller);
+      return controller.stream[Symbol.asyncIterator]();
+    },
+  };
+}
 function __dartStreamError(error) {
   return (async function*() {
     throw error;
@@ -911,6 +926,16 @@ export async function main() {
   const streamFromFutures = await __dartStreamToList(__dartStreamFromFutures([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 1; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"2000\"]]]", () => __dartDuration({ microseconds: 2000 })).inMilliseconds))), Promise.resolve(2)]));
   __dartListSort(streamFromFutures, null);
   __dartPrint("streamFuture " + __dartStr(streamFromFuture) + " " + __dartStr(__dartIterableJoin(streamFromFutures, ",")));
+  const streamMultiValues = await __dartStreamJoin(__dartStreamMulti(function(controller) {
+    controller.add(3);
+    controller.add(4);
+    controller.close();
+}, false), ",");
+  const streamMultiBroadcast = __dartStreamMulti(function(controller) {
+    controller.add(5);
+    controller.close();
+}, true);
+  __dartPrint("streamMulti " + __dartStr(streamMultiValues) + " " + __dartStr(await __dartStreamSingle(streamMultiBroadcast)) + " " + __dartStr(streamMultiBroadcast.isBroadcast));
   const streamValue = await __dartStreamSingle(__dartStreamFromIterable([7]));
   try {
     {

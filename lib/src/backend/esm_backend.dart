@@ -5613,6 +5613,14 @@ final class _EsmEmitter {
           : 'null';
       return '__dartStreamPeriodic(${positionalArgs[0]}, $computation)';
     }
+    if (path == 'dart:async::Stream::@factories::multi' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      final isBroadcast =
+          _namedArgument(expression.arguments, 'isBroadcast') ?? 'false';
+      return '__dartStreamMulti(${positionalArgs.single}, $isBroadcast)';
+    }
     if (path == 'dart:async::Stream::@factories::empty') {
       _usedHelpers.add('__dartStream');
       return '__dartStreamFromIterable([])';
@@ -10496,6 +10504,25 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  return controller.stream;');
       helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamMulti(onListen, isBroadcast = false) {',
+      );
+      helper.writeln('  let listened = false;');
+      helper.writeln('  return {');
+      helper.writeln('    isBroadcast,');
+      helper.writeln('    [Symbol.asyncIterator]() {');
+      helper.writeln('      if (!isBroadcast) {');
+      helper.writeln(
+        '        if (listened) throw new Error("Bad state: Stream has already been listened to.");',
+      );
+      helper.writeln('        listened = true;');
+      helper.writeln('      }');
+      helper.writeln('      const controller = __dartStreamController(false);');
+      helper.writeln('      onListen(controller);');
+      helper.writeln('      return controller.stream[Symbol.asyncIterator]();');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('}');
       helper.writeln('function __dartStreamError(error) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    throw error;');
@@ -11570,6 +11597,7 @@ const _generatedGlobalNames = {
   '__dartStreamLength',
   '__dartStreamListen',
   '__dartStreamMap',
+  '__dartStreamMulti',
   '__dartStreamPeriodic',
   '__dartStreamReduce',
   '__dartStreamSkip',

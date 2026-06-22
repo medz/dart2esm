@@ -282,6 +282,21 @@ function __dartStreamFromFutures(futures) {
   }
   return controller.stream;
 }
+function __dartStreamMulti(onListen, isBroadcast = false) {
+  let listened = false;
+  return {
+    isBroadcast,
+    [Symbol.asyncIterator]() {
+      if (!isBroadcast) {
+        if (listened) throw new Error("Bad state: Stream has already been listened to.");
+        listened = true;
+      }
+      const controller = __dartStreamController(false);
+      onListen(controller);
+      return controller.stream[Symbol.asyncIterator]();
+    },
+  };
+}
 function __dartStreamError(error) {
   return (async function*() {
     throw error;

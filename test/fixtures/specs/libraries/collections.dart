@@ -23,6 +23,12 @@ void main() {
     'iter ${values.skip(2).take(3).join(',')} ${values.elementAt(2)} '
     '${values.reduce((total, value) => total + value)}',
   );
+  print(
+    'where ${values.firstWhere((value) => value > 3)} '
+    '${values.lastWhere((value) => value.isOdd)} '
+    '${values.singleWhere((value) => value == 4)} '
+    '${values.firstWhere((value) => value > 99, orElse: () => -1)}',
+  );
   var visited = 0;
   values.forEach((value) {
     visited += value;
@@ -52,6 +58,16 @@ void main() {
   counts['two'] = 2;
   print('map ${counts.length} ${counts.containsKey('two')} ${counts['one']}');
   print('map iter ${counts.keys.join(',')} ${counts.values.join(',')}');
+  final three = counts.putIfAbsent('three', () => 3);
+  counts.update('two', (value) => value * 10);
+  counts.update('missing', (value) => value, ifAbsent: () => 4);
+  final mapPairs = <String>[];
+  counts.forEach((key, value) {
+    mapPairs.add('$key=$value');
+  });
+  print(
+    'map ops $three ${counts['two']} ${counts['missing']} ${mapPairs.join('|')}',
+  );
   counts.remove('one');
   print('map removed ${counts.length} ${counts['one']}');
 }

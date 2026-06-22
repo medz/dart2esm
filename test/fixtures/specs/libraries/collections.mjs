@@ -30,6 +30,25 @@ function __dartMapRemove(map, key) {
   map.delete(key);
   return value;
 }
+function __dartMapPutIfAbsent(map, key, ifAbsent) {
+  if (map.has(key)) return map.get(key);
+  const value = ifAbsent();
+  map.set(key, value);
+  return value;
+}
+function __dartMapUpdate(map, key, update, ifAbsent = null) {
+  if (map.has(key)) {
+    const value = update(map.get(key));
+    map.set(key, value);
+    return value;
+  }
+  if (typeof ifAbsent === "function") {
+    const value = ifAbsent();
+    map.set(key, value);
+    return value;
+  }
+  throw new Error("Key not in map");
+}
 function __dartListSort(list, compare = null) {
   if (typeof compare === "function") {
     list.sort((left, right) => compare(left, right));
@@ -49,6 +68,35 @@ function __dartIterableContains(iterable, needle) {
 }
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+}
+function __dartIterableNoElement(orElse) {
+  if (typeof orElse === "function") return orElse();
+  throw new Error("Bad state: No element");
+}
+function __dartIterableFirstWhere(iterable, test, orElse = null) {
+  for (const value of iterable) {
+    if (test(value)) return value;
+  }
+  return __dartIterableNoElement(orElse);
+}
+function __dartIterableLastWhere(iterable, test, orElse = null) {
+  let found = false;
+  let last;
+  for (const value of iterable) {
+    if (test(value)) { found = true; last = value; }
+  }
+  return found ? last : __dartIterableNoElement(orElse);
+}
+function __dartIterableSingleWhere(iterable, test, orElse = null) {
+  let found = false;
+  let single;
+  for (const value of iterable) {
+    if (!test(value)) continue;
+    if (found) throw new Error("Bad state: Too many elements");
+    found = true;
+    single = value;
+  }
+  return found ? single : __dartIterableNoElement(orElse);
 }
 function __dartEquals(left, right) {
   return left === right;
@@ -70,6 +118,7 @@ export function main() {
   __dartPrint("filtered " + __dartStr(__dartIterableJoin(filtered, "|")));
   __dartPrint("fold " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value), 0)) + " " + __dartStr(Array.from(values).some(function(value) { return (value > 5); })) + " " + __dartStr(Array.from(values).every(function(value) { return (value > 0); })));
   __dartPrint("iter " + __dartStr(__dartIterableJoin(Array.from(Array.from(values).slice(2)).slice(0, 3), ",")) + " " + __dartStr(Array.from(values)[2]) + " " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value))));
+  __dartPrint("where " + __dartStr(__dartIterableFirstWhere(values, function(value) { return (value > 3); }, null)) + " " + __dartStr(__dartIterableLastWhere(values, function(value) { return (Math.trunc(value) % 2 !== 0); }, null)) + " " + __dartStr(__dartIterableSingleWhere(values, function(value) { return __dartEquals(value, 4); }, null)) + " " + __dartStr(__dartIterableFirstWhere(values, function(value) { return (value > 99); }, function() { return (-1); })));
   let visited = 0;
   (Array.from(values).forEach(function(value) {
     visited = (visited + value);
@@ -96,6 +145,14 @@ export function main() {
   counts.set("two", 2);
   __dartPrint("map " + __dartStr(counts.size) + " " + __dartStr(counts.has("two")) + " " + __dartStr(counts.get("one")));
   __dartPrint("map iter " + __dartStr(__dartIterableJoin(counts.keys(), ",")) + " " + __dartStr(__dartIterableJoin(counts.values(), ",")));
+  const three = __dartMapPutIfAbsent(counts, "three", function() { return 3; });
+  __dartMapUpdate(counts, "two", function(value) { return (value * 10); }, null);
+  __dartMapUpdate(counts, "missing", function(value) { return value; }, function() { return 4; });
+  const mapPairs = new Array(0).fill(null);
+  (counts.forEach((value, key) => (function(key, value) {
+    (mapPairs.push(__dartStr(key) + "=" + __dartStr(value)), null);
+})(key, value)), null);
+  __dartPrint("map ops " + __dartStr(three) + " " + __dartStr(counts.get("two")) + " " + __dartStr(counts.get("missing")) + " " + __dartStr(__dartIterableJoin(mapPairs, "|")));
   __dartMapRemove(counts, "one");
   __dartPrint("map removed " + __dartStr(counts.size) + " " + __dartStr(counts.get("one")));
 }

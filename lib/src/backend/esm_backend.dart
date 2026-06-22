@@ -2898,11 +2898,32 @@ final class _EsmEmitter {
         _isCoreCollectionMember(target, name)) {
       return 'Array.from($left).reduce((previous, value) => (${positionalArgs[1]})(previous, value), ${positionalArgs[0]})';
     }
+    if ((name == 'firstWhere' ||
+            name == 'lastWhere' ||
+            name == 'singleWhere') &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      final helper = switch (name) {
+        'firstWhere' => '__dartIterableFirstWhere',
+        'lastWhere' => '__dartIterableLastWhere',
+        'singleWhere' => '__dartIterableSingleWhere',
+        _ => throw StateError('unreachable'),
+      };
+      _usedHelpers.add('__dartIterableWhereElement');
+      final orElse = _namedArgument(expression.arguments, 'orElse');
+      return '$helper($left, ${positionalArgs.single}, ${orElse ?? 'null'})';
+    }
     if (expression.arguments.named.isEmpty &&
         name == 'reduce' &&
         positionalArgs.length == 1 &&
         _isCoreCollectionMember(target, name)) {
       return 'Array.from($left).reduce((previous, value) => (${positionalArgs.single})(previous, value))';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'forEach' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', name)) {
+      return '($left.forEach((value, key) => (${positionalArgs.single})(key, value)), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'forEach' &&
@@ -3123,6 +3144,20 @@ final class _EsmEmitter {
         _isCoreMember(target, 'Map', 'containsKey')) {
       return '$left.has(${positionalArgs.single})';
     }
+    if (expression.arguments.named.isEmpty &&
+        name == 'putIfAbsent' &&
+        positionalArgs.length == 2 &&
+        _isCoreMember(target, 'Map', name)) {
+      _usedHelpers.add('__dartMapPutIfAbsent');
+      return '__dartMapPutIfAbsent($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (name == 'update' &&
+        positionalArgs.length == 2 &&
+        _isCoreMember(target, 'Map', name)) {
+      _usedHelpers.add('__dartMapUpdate');
+      final ifAbsent = _namedArgument(expression.arguments, 'ifAbsent');
+      return '__dartMapUpdate($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${ifAbsent ?? 'null'})';
+    }
     final byteBufferView = _emitTypedDataByteBufferViewInvocation(
       target,
       name,
@@ -3168,6 +3203,14 @@ final class _EsmEmitter {
     if (name == 'isNotEmpty' &&
         _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
       return '$receiver.length !== 0';
+    }
+    if (name == 'isOdd' &&
+        _isCoreMember(expression.interfaceTargetReference, 'int', name)) {
+      return '(Math.trunc($receiver) % 2 !== 0)';
+    }
+    if (name == 'isEven' &&
+        _isCoreMember(expression.interfaceTargetReference, 'int', name)) {
+      return '(Math.trunc($receiver) % 2 === 0)';
     }
     if (name == 'offsetInBytes' &&
         _isTypedDataMember(expression.interfaceTargetReference, name)) {
@@ -5247,6 +5290,31 @@ final class _EsmEmitter {
       helper.writeln('  return value;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartMapPutIfAbsent')) {
+      helper.writeln('function __dartMapPutIfAbsent(map, key, ifAbsent) {');
+      helper.writeln('  if (map.has(key)) return map.get(key);');
+      helper.writeln('  const value = ifAbsent();');
+      helper.writeln('  map.set(key, value);');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapUpdate')) {
+      helper.writeln(
+        'function __dartMapUpdate(map, key, update, ifAbsent = null) {',
+      );
+      helper.writeln('  if (map.has(key)) {');
+      helper.writeln('    const value = update(map.get(key));');
+      helper.writeln('    map.set(key, value);');
+      helper.writeln('    return value;');
+      helper.writeln('  }');
+      helper.writeln('  if (typeof ifAbsent === "function") {');
+      helper.writeln('    const value = ifAbsent();');
+      helper.writeln('    map.set(key, value);');
+      helper.writeln('    return value;');
+      helper.writeln('  }');
+      helper.writeln('  throw new Error("Key not in map");');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListSort')) {
       helper.writeln('function __dartListSort(list, compare = null) {');
       helper.writeln('  if (typeof compare === "function") {');
@@ -5301,6 +5369,49 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  if (!found) throw new RangeError("No element");');
       helper.writeln('  return last;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableWhereElement')) {
+      helper.writeln('function __dartIterableNoElement(orElse) {');
+      helper.writeln('  if (typeof orElse === "function") return orElse();');
+      helper.writeln('  throw new Error("Bad state: No element");');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartIterableFirstWhere(iterable, test, orElse = null) {',
+      );
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    if (test(value)) return value;');
+      helper.writeln('  }');
+      helper.writeln('  return __dartIterableNoElement(orElse);');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartIterableLastWhere(iterable, test, orElse = null) {',
+      );
+      helper.writeln('  let found = false;');
+      helper.writeln('  let last;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    if (test(value)) { found = true; last = value; }');
+      helper.writeln('  }');
+      helper.writeln(
+        '  return found ? last : __dartIterableNoElement(orElse);',
+      );
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartIterableSingleWhere(iterable, test, orElse = null) {',
+      );
+      helper.writeln('  let found = false;');
+      helper.writeln('  let single;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    if (!test(value)) continue;');
+      helper.writeln(
+        '    if (found) throw new Error("Bad state: Too many elements");',
+      );
+      helper.writeln('    found = true;');
+      helper.writeln('    single = value;');
+      helper.writeln('  }');
+      helper.writeln(
+        '  return found ? single : __dartIterableNoElement(orElse);',
+      );
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartTypedDataSublistView')) {

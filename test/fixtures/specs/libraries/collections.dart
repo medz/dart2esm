@@ -141,6 +141,8 @@ void main() {
     '$containsBox $removedBox ${eqSet.length} ${eqUnion.length} '
     '${eqIntersection.length} ${eqDifference.length}',
   );
+  final eqToSet = [EqBox(1), EqBox(1), EqBox(2)].toSet();
+  print('setToSet ${eqToSet.length} ${eqToSet.contains(EqBox(1))}');
 
   final counts = <String, int>{'one': 1};
   counts['two'] = 2;

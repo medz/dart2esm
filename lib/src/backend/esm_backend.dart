@@ -3684,7 +3684,11 @@ final class _EsmEmitter {
         name == 'toSet' &&
         positionalArgs.isEmpty &&
         _isCoreCollectionMember(target, name)) {
-      return 'new Set($left)';
+      _usedHelpers.add('__dartSetFrom');
+      _usedHelpers.add('__dartSetAdd');
+      _usedHelpers.add('__dartIterableContains');
+      _usedHelpers.add('__dartEquals');
+      return '__dartSetFrom($left)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'fold' &&

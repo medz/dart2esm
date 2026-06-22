@@ -37,6 +37,11 @@ function __dartSetAddAll(set, values) {
   for (const value of values) __dartSetAdd(set, value);
   return null;
 }
+function __dartSetFrom(values) {
+  const set = new Set();
+  for (const value of values) __dartSetAdd(set, value);
+  return set;
+}
 function __dartSetDifference(set, other) {
   const result = new Set();
   for (const value of set) {
@@ -524,6 +529,8 @@ export function main() {
     return v;
   })());
   __dartPrint("setEquality " + __dartStr(firstBoxAdd) + " " + __dartStr(duplicateBoxAdd) + " " + __dartStr(eqSet.size) + " " + __dartStr(containsBox) + " " + __dartStr(removedBox) + " " + __dartStr(eqSet.size) + " " + __dartStr(eqUnion.size) + " " + __dartStr(eqIntersection.size) + " " + __dartStr(eqDifference.size));
+  const eqToSet = __dartSetFrom([new EqBox(1), new EqBox(1), new EqBox(2)]);
+  __dartPrint("setToSet " + __dartStr(eqToSet.size) + " " + __dartStr(__dartIterableContains(eqToSet, new EqBox(1))));
   const counts = new Map([["one", 1]]);
   __dartMapSet(counts, "two", 2);
   __dartPrint("map " + __dartStr(counts.size) + " " + __dartStr(__dartMapContainsKey(counts, "two")) + " " + __dartStr(__dartMapGet(counts, "one")));

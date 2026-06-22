@@ -140,6 +140,10 @@ final class _EsmEmitter {
   }
 
   void _emitClass(k.Class klass) {
+    if (klass.isEnum) {
+      _emitEnumClass(klass);
+      return;
+    }
     final supertype = klass.supertype;
     if (supertype != null && !_isCoreClass(supertype.className, 'Object')) {
       throw UnsupportedKernelNode(klass, 'class inheritance');
@@ -170,6 +174,60 @@ final class _EsmEmitter {
     _indent--;
     writeln('}');
     _currentClass = previousClass;
+  }
+
+  void _emitEnumClass(k.Class klass) {
+    final valuesFields = klass.fields
+        .where((field) => field.isStatic && field.name.text == 'values')
+        .toList();
+    final entries = klass.fields
+        .where((field) => field.isStatic && field.name.text != 'values')
+        .toList();
+    if (valuesFields.length != 1 ||
+        entries.isEmpty ||
+        klass.fields.any((field) => !field.isStatic) ||
+        klass.constructors.length != 1 ||
+        klass.procedures.any(
+          (procedure) => procedure.name.text != '_enumToString',
+        )) {
+      throw UnsupportedKernelNode(klass, 'enhanced enum');
+    }
+
+    final className = _className(klass);
+    writeln('export class $className {');
+    _indent++;
+    writeln('constructor(index, name) {');
+    _indent++;
+    writeln(
+      'Object.defineProperty(this, "index", { value: index, enumerable: true });',
+    );
+    writeln(
+      'Object.defineProperty(this, "name", { value: name, enumerable: true });',
+    );
+    writeln('Object.freeze(this);');
+    _indent--;
+    writeln('}');
+    writeln('toString() {');
+    _indent++;
+    writeln('return ${jsonEncode('${klass.name}.')} + this.name;');
+    _indent--;
+    writeln('}');
+    _indent--;
+    writeln('}');
+    writeln('Object.defineProperties($className, {');
+    _indent++;
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      final comma = i == entries.length - 1 ? '' : ',';
+      writeln(
+        '${_propertyKey(entry.name.text)}: { value: new $className($i, ${jsonEncode(entry.name.text)}), enumerable: true }$comma',
+      );
+    }
+    _indent--;
+    writeln('});');
+    writeln(
+      'Object.defineProperty($className, "values", { value: Object.freeze([${entries.map((entry) => '$className.${_memberName(entry.name.text)}').join(', ')}]), enumerable: true });',
+    );
   }
 
   void _emitDefaultConstructor(k.Class klass) {
@@ -788,12 +846,23 @@ final class _EsmEmitter {
         return _emitDouble(constant.value);
       case k.StringConstant():
         return jsonEncode(constant.value);
+      case k.InstanceConstant():
+        return _emitInstanceConstant(constant);
       case k.RecordConstant():
         _usedHelpers.add('__dartRecord');
         return '__dartRecord([${constant.positional.map(_emitEsmConst).join(', ')}], ${_emitRecordConstantNamedFields(constant.named)})';
       case k.StaticTearOffConstant():
         return _emitStaticTearOffReference(constant.targetReference, constant);
-      case k.ListConstant() || k.SetConstant() || k.MapConstant():
+      case k.ListConstant():
+        final enumValues = _emitEnumValuesConstant(constant);
+        if (enumValues != null) {
+          return enumValues;
+        }
+        throw UnsupportedKernelNode(
+          constant,
+          'const collection with Dart immutability/canonicalization semantics',
+        );
+      case k.SetConstant() || k.MapConstant():
         throw UnsupportedKernelNode(
           constant,
           'const collection with Dart immutability/canonicalization semantics',
@@ -814,6 +883,56 @@ final class _EsmEmitter {
       return '-Infinity';
     }
     return value.toString();
+  }
+
+  String _emitInstanceConstant(k.InstanceConstant constant) {
+    final classNode = constant.classReference.node;
+    if (classNode is k.Class && classNode.isEnum) {
+      final name = constant.fieldValues.values
+          .whereType<k.StringConstant>()
+          .single
+          .value;
+      return '${_className(classNode)}.${_memberName(name)}';
+    }
+    throw UnsupportedKernelNode(constant, 'instance constant');
+  }
+
+  String? _emitEnumValuesConstant(k.ListConstant constant) {
+    k.Class? enumClass;
+    final names = <String>[];
+    for (final entry in constant.entries) {
+      if (entry is! k.InstanceConstant) {
+        return null;
+      }
+      final classNode = entry.classReference.node;
+      if (classNode is! k.Class || !classNode.isEnum) {
+        return null;
+      }
+      enumClass ??= classNode;
+      if (enumClass != classNode) {
+        return null;
+      }
+      names.add(
+        entry.fieldValues.values.whereType<k.StringConstant>().single.value,
+      );
+    }
+    final klass = enumClass;
+    if (klass == null) {
+      return null;
+    }
+    final enumEntryNames = klass.fields
+        .where((field) => field.isStatic && field.name.text != 'values')
+        .map((field) => field.name.text)
+        .toList();
+    if (names.length != enumEntryNames.length) {
+      return null;
+    }
+    for (var i = 0; i < names.length; i++) {
+      if (names[i] != enumEntryNames[i]) {
+        return null;
+      }
+    }
+    return '${_className(klass)}.values';
   }
 
   String _emitRecordConstantNamedFields(Map<String, k.Constant> fields) {
@@ -857,6 +976,14 @@ final class _EsmEmitter {
         .map(emitExpression)
         .toList();
     final args = _emitArguments(expression.arguments);
+    if (_isCoreReference(
+          expression.targetReference,
+          '@methods',
+          'EnumName|get#name',
+        ) &&
+        positionalArgs.length == 1) {
+      return '${positionalArgs.single}.name';
+    }
     if (_isCoreReference(expression.targetReference, '@methods', 'print')) {
       _usedHelpers.add('__dartPrint');
       _usedHelpers.add('__dartStr');
@@ -905,6 +1032,9 @@ final class _EsmEmitter {
       }
       return '${_fieldName(target).value}.get()';
     }
+    if (target is k.Field && target.enclosingClass?.isEnum == true) {
+      return '${_className(target.enclosingClass!)}.${_memberName(target.name.text)}';
+    }
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
       return _procedureName(target);
     }
@@ -945,6 +1075,14 @@ final class _EsmEmitter {
       }
       _usedHelpers.add('__dartTruncDiv');
       return '__dartTruncDiv($left, ${positionalArgs.single})';
+    }
+    if (arguments.named.isEmpty && name == '[]' && positionalArgs.length == 1) {
+      return '$left[${positionalArgs.single}]';
+    }
+    if (arguments.named.isEmpty &&
+        name == '[]=' &&
+        positionalArgs.length == 2) {
+      return '$left[${positionalArgs[0]}] = ${positionalArgs[1]}';
     }
     if (arguments.named.isEmpty &&
         positionalArgs.isEmpty &&

@@ -6116,7 +6116,14 @@ final class _EsmEmitter {
       helper.writeln(
         '    get year() { return read("getUTCFullYear", "getFullYear"); },',
       );
+      helper.writeln(
+        '    get weekday() { const day = read("getUTCDay", "getDay"); return day === 0 ? 7 : day; },',
+      );
       helper.writeln('    get isUtc() { return isUtc; },');
+      helper.writeln('    get timeZoneName() { return isUtc ? "UTC" : ""; },');
+      helper.writeln(
+        '    get timeZoneOffset() { return __dartDuration({ minutes: isUtc ? 0 : -date.getTimezoneOffset() }); },',
+      );
       helper.writeln(
         '    get hashCode() { return this.microsecondsSinceEpoch & 0x1fffffff; },',
       );

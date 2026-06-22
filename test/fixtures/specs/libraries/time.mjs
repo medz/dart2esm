@@ -60,7 +60,10 @@ function __dartDateTime(millis, isUtc = false, microsecond = 0) {
     get day() { return read("getUTCDate", "getDate"); },
     get month() { return read("getUTCMonth", "getMonth") + 1; },
     get year() { return read("getUTCFullYear", "getFullYear"); },
+    get weekday() { const day = read("getUTCDay", "getDay"); return day === 0 ? 7 : day; },
     get isUtc() { return isUtc; },
+    get timeZoneName() { return isUtc ? "UTC" : ""; },
+    get timeZoneOffset() { return __dartDuration({ minutes: isUtc ? 0 : -date.getTimezoneOffset() }); },
     get hashCode() { return this.microsecondsSinceEpoch & 0x1fffffff; },
     "=="(other) { return other != null && typeof other.microsecondsSinceEpoch === "number" && this.microsecondsSinceEpoch === other.microsecondsSinceEpoch; },
     compareTo(other) { const diff = this.microsecondsSinceEpoch - other.microsecondsSinceEpoch; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
@@ -144,6 +147,7 @@ export async function main() {
   __dartPrint("durationEquals " + __dartStr((() => { const $left_1 = short; const $right_1 = __dartDuration({ days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 1, microseconds: 0 }); return $left_1 === null ? $right_1 === null : $left_1["=="]($right_1); })()));
   const utc = __dartDateTimeFromParts(true, 2026, 1, 2, 3, 4, 5, 6, 7);
   __dartPrint("utc " + __dartStr(utc.year) + "-" + __dartStr(utc.month) + "-" + __dartStr(utc.day) + " " + __dartStr(utc.hour) + ":" + __dartStr(utc.minute) + ":" + __dartStr(utc.second) + " " + __dartStr(utc.millisecond) + " " + __dartStr(utc.microsecond) + " " + __dartStr(utc.isUtc));
+  __dartPrint("utcMeta " + __dartStr(utc.weekday) + " " + __dartStr(utc.timeZoneName) + " " + __dartStr(utc.timeZoneOffset.inMinutes));
   const epoch = __dartDateTime(0, true);
   __dartPrint("epoch " + __dartStr(epoch.toIso8601String()) + " " + __dartStr(epoch.millisecondsSinceEpoch));
   const epochMicros = __dartDateTimeFromMicros(1007, true);

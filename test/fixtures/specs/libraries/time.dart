@@ -33,6 +33,10 @@ Future<void> main() async {
   print(
     'utc ${utc.year}-${utc.month}-${utc.day} ${utc.hour}:${utc.minute}:${utc.second} ${utc.millisecond} ${utc.microsecond} ${utc.isUtc}',
   );
+  print(
+    'utcMeta ${utc.weekday} ${utc.timeZoneName} '
+    '${utc.timeZoneOffset.inMinutes}',
+  );
 
   final epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   print('epoch ${epoch.toIso8601String()} ${epoch.millisecondsSinceEpoch}');

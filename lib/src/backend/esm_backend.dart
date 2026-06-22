@@ -3953,6 +3953,48 @@ final class _EsmEmitter {
       return '__dartStreamToList($left)';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'toSet' &&
+        positionalArgs.isEmpty &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartEquals');
+      _usedHelpers.add('__dartIterableContains');
+      _usedHelpers.add('__dartSetAdd');
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamToSet($left)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'fold' &&
+        positionalArgs.length == 2 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamFold($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'reduce' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamReduce($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'forEach' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamForEach($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'cast' &&
+        positionalArgs.isEmpty &&
+        expression.arguments.types.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartAs');
+      _usedHelpers.add('__dartStream');
+      final type = expression.arguments.types.single;
+      final typeTest = _emitTypeTest('value', type, expression);
+      return '__dartStreamCast($left, (value) => $typeTest, ${jsonEncode(type.toString())})';
+    }
+    if (expression.arguments.named.isEmpty &&
         (name == 'any' || name == 'every') &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
@@ -10538,6 +10580,49 @@ final class _EsmEmitter {
       helper.writeln('  for await (const value of stream) values.push(value);');
       helper.writeln('  return values;');
       helper.writeln('}');
+      helper.writeln('async function __dartStreamToSet(stream) {');
+      helper.writeln('  const values = new Set();');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    __dartSetAdd(values, value);');
+      helper.writeln('  }');
+      helper.writeln('  return values;');
+      helper.writeln('}');
+      helper.writeln(
+        'async function __dartStreamFold(stream, initialValue, combine) {',
+      );
+      helper.writeln('  let result = initialValue;');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    result = await combine(result, value);');
+      helper.writeln('  }');
+      helper.writeln('  return result;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamReduce(stream, combine) {');
+      helper.writeln('  let found = false;');
+      helper.writeln('  let result;');
+      helper.writeln('  for await (const value of stream) {');
+      helper.writeln('    if (!found) {');
+      helper.writeln('      found = true;');
+      helper.writeln('      result = value;');
+      helper.writeln('    } else {');
+      helper.writeln('      result = await combine(result, value);');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  if (!found) throw new RangeError("No element");');
+      helper.writeln('  return result;');
+      helper.writeln('}');
+      helper.writeln('async function __dartStreamForEach(stream, action) {');
+      helper.writeln(
+        '  for await (const value of stream) await action(value);',
+      );
+      helper.writeln('  return null;');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamCast(stream, test, typeName) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    for await (const value of stream) {');
+      helper.writeln('      yield __dartAs(value, test, typeName);');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
       helper.writeln('async function __dartStreamFirst(stream) {');
       helper.writeln('  for await (const value of stream) return value;');
       helper.writeln('  throw new RangeError("No element");');
@@ -11300,12 +11385,15 @@ const _generatedGlobalNames = {
   '__dartStreamAny',
   '__dartStreamAsyncExpand',
   '__dartStreamAsyncMap',
+  '__dartStreamCast',
   '__dartStreamContains',
   '__dartStreamDistinct',
   '__dartStreamDrain',
   '__dartStreamEvery',
   '__dartStreamFirst',
   '__dartStreamFirstWhere',
+  '__dartStreamFold',
+  '__dartStreamForEach',
   '__dartStreamError',
   '__dartStreamFromIterable',
   '__dartStreamHandleError',
@@ -11317,6 +11405,7 @@ const _generatedGlobalNames = {
   '__dartStreamListen',
   '__dartStreamMap',
   '__dartStreamPeriodic',
+  '__dartStreamReduce',
   '__dartStreamSkip',
   '__dartStreamSkipWhile',
   '__dartStreamSingle',
@@ -11324,6 +11413,7 @@ const _generatedGlobalNames = {
   '__dartStreamTake',
   '__dartStreamTakeWhile',
   '__dartStreamToList',
+  '__dartStreamToSet',
   '__dartStreamWhere',
   '__dartStreamController',
   '__dartStreamIterator',

@@ -20,6 +20,27 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartAs(value, test, typeName) {
+  if (test(value)) return value;
+  throw new TypeError("Type cast failed: expected " + typeName);
+}
+function __dartSetAdd(set, value) {
+  if (set.__dartIdentitySet) {
+    if (set.has(value)) return false;
+    set.add(value);
+    return true;
+  }
+  if (__dartIterableContains(set, value)) return false;
+  set.add(value);
+  return true;
+}
+function __dartIterableContains(iterable, needle) {
+  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
+  for (const value of iterable) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
@@ -331,6 +352,45 @@ async function __dartStreamToList(stream) {
   for await (const value of stream) values.push(value);
   return values;
 }
+async function __dartStreamToSet(stream) {
+  const values = new Set();
+  for await (const value of stream) {
+    __dartSetAdd(values, value);
+  }
+  return values;
+}
+async function __dartStreamFold(stream, initialValue, combine) {
+  let result = initialValue;
+  for await (const value of stream) {
+    result = await combine(result, value);
+  }
+  return result;
+}
+async function __dartStreamReduce(stream, combine) {
+  let found = false;
+  let result;
+  for await (const value of stream) {
+    if (!found) {
+      found = true;
+      result = value;
+    } else {
+      result = await combine(result, value);
+    }
+  }
+  if (!found) throw new RangeError("No element");
+  return result;
+}
+async function __dartStreamForEach(stream, action) {
+  for await (const value of stream) await action(value);
+  return null;
+}
+function __dartStreamCast(stream, test, typeName) {
+  return (async function*() {
+    for await (const value of stream) {
+      yield __dartAs(value, test, typeName);
+    }
+  })();
+}
 async function __dartStreamFirst(stream) {
   for await (const value of stream) return value;
   throw new RangeError("No element");
@@ -542,6 +602,15 @@ export async function main() {
     }
   }
   __dartPrint("streamMore " + __dartStr(asyncMapped) + " " + __dartStr(asyncExpanded) + " " + __dartStr(distinctValues) + " " + __dartStr(parityDistinct) + " " + __dartStr(await handled) + " " + __dartStr(__dartIterableJoin(handledErrors, ",")) + " " + __dartStr(skippedError));
+  const aggregateSet = await __dartStreamToSet(__dartStreamFromIterable([1, 2, 2]));
+  const folded = await __dartStreamFold(__dartStreamFromIterable([1, 2, 3]), 10, function(previous, value) { return (previous + value); });
+  const reduced = await __dartStreamReduce(__dartStreamFromIterable([2, 3, 4]), function(previous, value) { return (previous * value); });
+  let forEachTotal = 0;
+  await __dartStreamForEach(__dartStreamFromIterable([1, 2, 3]), async function(value) {
+    forEachTotal = (forEachTotal + value);
+});
+  const casted = await __dartStreamJoin(__dartStreamCast(__dartStreamFromIterable([1, 2]), (value) => typeof value === "number", "InterfaceType(int)"), ",");
+  __dartPrint("aggregate " + __dartStr(__dartIterableJoin(aggregateSet, ",")) + " " + __dartStr(folded) + " " + __dartStr(reduced) + " " + __dartStr(forEachTotal) + " " + __dartStr(casted));
   const listened = new Array(0).fill(null);
   const listenDone = __dartCompleter();
   const subscription = __dartStreamListen(__dartStreamFromIterable([6, 7]), function(value) {

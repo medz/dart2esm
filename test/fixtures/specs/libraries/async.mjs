@@ -471,6 +471,45 @@ async function __dartStreamToList(stream) {
   for await (const value of stream) values.push(value);
   return values;
 }
+async function __dartStreamToSet(stream) {
+  const values = new Set();
+  for await (const value of stream) {
+    __dartSetAdd(values, value);
+  }
+  return values;
+}
+async function __dartStreamFold(stream, initialValue, combine) {
+  let result = initialValue;
+  for await (const value of stream) {
+    result = await combine(result, value);
+  }
+  return result;
+}
+async function __dartStreamReduce(stream, combine) {
+  let found = false;
+  let result;
+  for await (const value of stream) {
+    if (!found) {
+      found = true;
+      result = value;
+    } else {
+      result = await combine(result, value);
+    }
+  }
+  if (!found) throw new RangeError("No element");
+  return result;
+}
+async function __dartStreamForEach(stream, action) {
+  for await (const value of stream) await action(value);
+  return null;
+}
+function __dartStreamCast(stream, test, typeName) {
+  return (async function*() {
+    for await (const value of stream) {
+      yield __dartAs(value, test, typeName);
+    }
+  })();
+}
 async function __dartStreamFirst(stream) {
   for await (const value of stream) return value;
   throw new RangeError("No element");

@@ -81,6 +81,29 @@ Future<void> main() async {
     'streamMore $asyncMapped $asyncExpanded $distinctValues $parityDistinct '
     '${await handled} ${handledErrors.join(',')} $skippedError',
   );
+  final aggregateSet = await Stream<int>.fromIterable([1, 2, 2]).toSet();
+  final folded = await Stream<int>.fromIterable([
+    1,
+    2,
+    3,
+  ]).fold<int>(10, (previous, value) => previous + value);
+  final reduced = await Stream<int>.fromIterable([
+    2,
+    3,
+    4,
+  ]).reduce((previous, value) => previous * value);
+  var forEachTotal = 0;
+  await Stream<int>.fromIterable([1, 2, 3]).forEach((value) async {
+    forEachTotal += value;
+  });
+  final casted = await Stream<Object>.fromIterable([
+    1,
+    2,
+  ]).cast<int>().join(',');
+  print(
+    'aggregate ${aggregateSet.join(',')} $folded $reduced $forEachTotal '
+    '$casted',
+  );
   final listened = <int>[];
   final listenDone = Completer<String>();
   final subscription = Stream<int>.fromIterable([6, 7]).listen(

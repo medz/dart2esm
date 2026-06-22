@@ -2289,12 +2289,18 @@ final class _EsmEmitter {
         );
       case k.SetConstant():
         _usedHelpers.add('__dartConstSet');
+        _usedHelpers.add('__dartSetAdd');
+        _usedHelpers.add('__dartIterableContains');
+        _usedHelpers.add('__dartEquals');
         return _emitCanonicalConst(
           constant,
           '__dartConstSet([${constant.entries.map(_emitEsmConst).join(', ')}])',
         );
       case k.MapConstant():
         _usedHelpers.add('__dartConstMap');
+        _usedHelpers.add('__dartMapSet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
         return _emitCanonicalConst(
           constant,
           '__dartConstMap([${constant.entries.map((entry) => '[${_emitEsmConst(entry.key)}, ${_emitEsmConst(entry.value)}]').join(', ')}])',
@@ -5716,6 +5722,9 @@ final class _EsmEmitter {
       }(),
       'unmodifiable' when positionalArgs.length == 1 => () {
         _usedHelpers.add('__dartConstMap');
+        _usedHelpers.add('__dartMapSet');
+        _usedHelpers.add('__dartMapKey');
+        _usedHelpers.add('__dartEquals');
         return '__dartConstMap(${positionalArgs.single})';
       }(),
       _ => null,
@@ -9275,7 +9284,8 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartConstSet')) {
       helper.writeln('function __dartConstSet(values) {');
-      helper.writeln('  const set = new Set(values);');
+      helper.writeln('  const set = new Set();');
+      helper.writeln('  for (const value of values) __dartSetAdd(set, value);');
       helper.writeln(
         '  const throwConst = () => { throw new TypeError("Cannot modify const Set"); };',
       );
@@ -9293,7 +9303,10 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartConstMap')) {
       helper.writeln('function __dartConstMap(entries) {');
-      helper.writeln('  const map = new Map(entries);');
+      helper.writeln('  const map = new Map();');
+      helper.writeln(
+        '  for (const [key, value] of entries) __dartMapSet(map, key, value);',
+      );
       helper.writeln(
         '  const throwConst = () => { throw new TypeError("Cannot modify const Map"); };',
       );

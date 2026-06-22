@@ -59,6 +59,14 @@ void main() {
   final mapOf = Map<String, int>.of(map);
   final mapFixed = Map<String, int>.unmodifiable(mapOf);
   print('map ${mapFixed.length} ${mapFixed['one']} ${mapFixed.keys.join(',')}');
+  final eqMapSource = <EqBox, String>{};
+  eqMapSource[EqBox(1)] = 'one';
+  eqMapSource[EqBox(1)] = 'uno';
+  final eqMapFixed = Map<EqBox, String>.unmodifiable(eqMapSource);
+  print(
+    'mapFixed ${eqMapFixed.length} ${eqMapFixed[EqBox(1)]} '
+    '${eqMapFixed.containsKey(EqBox(1))}',
+  );
 
   final entries = Map<String, int>.fromEntries([
     MapEntry('three', 3),

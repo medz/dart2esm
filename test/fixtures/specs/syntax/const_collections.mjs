@@ -24,6 +24,47 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartSetAdd(set, value) {
+  if (__dartIterableContains(set, value)) return false;
+  set.add(value);
+  return true;
+}
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+function __dartIterableContains(iterable, needle) {
+  for (const value of iterable) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  if (__dartIsRecord(left) && __dartIsRecord(right)) {
+    const leftShape = left[__dartRecordShape];
+    const rightShape = right[__dartRecordShape];
+    if (leftShape.length !== rightShape.length) return false;
+    for (let i = 0; i < leftShape.length; i++) {
+      const name = leftShape[i];
+      if (name !== rightShape[i]) return false;
+      if (!__dartEquals(left[name], right[name])) return false;
+    }
+    return true;
+  }
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
+}
 function __dartRecord(positional, named) {
   const record = {};
   const shape = [];
@@ -55,7 +96,8 @@ function __dartConst(key, create) {
   return __dartConstValues.get(key);
 }
 function __dartConstSet(values) {
-  const set = new Set(values);
+  const set = new Set();
+  for (const value of values) __dartSetAdd(set, value);
   const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
   Object.defineProperty(set, "add", { value: throwConst });
   Object.defineProperty(set, "delete", { value: throwConst });
@@ -63,7 +105,8 @@ function __dartConstSet(values) {
   return Object.freeze(set);
 }
 function __dartConstMap(entries) {
-  const map = new Map(entries);
+  const map = new Map();
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
   const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
   Object.defineProperty(map, "set", { value: throwConst });
   Object.defineProperty(map, "delete", { value: throwConst });

@@ -106,7 +106,8 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 function __dartConstSet(values) {
-  const set = new Set(values);
+  const set = new Set();
+  for (const value of values) __dartSetAdd(set, value);
   const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
   Object.defineProperty(set, "add", { value: throwConst });
   Object.defineProperty(set, "delete", { value: throwConst });
@@ -114,7 +115,8 @@ function __dartConstSet(values) {
   return Object.freeze(set);
 }
 function __dartConstMap(entries) {
-  const map = new Map(entries);
+  const map = new Map();
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
   const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
   Object.defineProperty(map, "set", { value: throwConst });
   Object.defineProperty(map, "delete", { value: throwConst });
@@ -202,6 +204,11 @@ export function main() {
   const mapOf = __dartMapFromEntries(map);
   const mapFixed = __dartConstMap(mapOf);
   __dartPrint("map " + __dartStr(mapFixed.size) + " " + __dartStr(__dartMapGet(mapFixed, "one")) + " " + __dartStr(__dartIterableJoin(mapFixed.keys(), ",")));
+  const eqMapSource = new Map([]);
+  __dartMapSet(eqMapSource, new EqBox(1), "one");
+  __dartMapSet(eqMapSource, new EqBox(1), "uno");
+  const eqMapFixed = __dartConstMap(eqMapSource);
+  __dartPrint("mapFixed " + __dartStr(eqMapFixed.size) + " " + __dartStr(__dartMapGet(eqMapFixed, new EqBox(1))) + " " + __dartStr(__dartMapContainsKey(eqMapFixed, new EqBox(1))));
   const entries = __dartMapFromEntries(Array.from([Object.freeze({ key: "three", value: 3 }), Object.freeze({ key: "four", value: 4 })], (entry) => [entry.key, entry.value]));
   const iterable = __dartMapFromIterable(["aa", "bbb"], function(value) { return __dartAs(__dartGet(value, "length"), value => typeof value === "number", "int"); }, function(value) { return __dartAs(value.toUpperCase(), value => typeof value === "string", "String"); });
   const iterables = __dartMapFromIterables(["x", "y"], [10, 20]);

@@ -1,0 +1,14 @@
+name: dart2esm
+description: A Dart-to-native-ESM compiler backend experiment.
+version: 0.0.0
+repository: https://github.com/medz/dart2esm
+issue_tracker: https://github.com/medz/dart2esm/issues
+
+environment:
+  sdk: ^3.8.0
+
+executables:
+  dart2esm:
+
+dev_dependencies:
+  test: ^1.26.0

@@ -22,4 +22,22 @@ void main() {
   print(
     'remove ${queue.removeFirst()} ${queue.removeLast()} ${queue.join(',')}',
   );
+
+  final linked = DoubleLinkedQueue<String>();
+  linked.addAll(['b', 'c']);
+  linked.addFirst('a');
+  print(
+    'linkedQueue ${linked.length} ${linked.remove('b')} ${linked.join(',')}',
+  );
+
+  final copied = ListQueue<int>.from([1, 2, 3, 4]);
+  copied.removeWhere((value) => value.isOdd);
+  copied.retainWhere((value) => value > 2);
+  copied.addAll(Queue<int>.of([5, 6]));
+  print(
+    'listQueue ${copied.first} ${copied.last} ${copied.isNotEmpty} '
+    '${copied.join(',')}',
+  );
+  copied.clear();
+  print('queueClear ${copied.length} ${copied.isEmpty}');
 }

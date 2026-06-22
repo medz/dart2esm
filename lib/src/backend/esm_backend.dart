@@ -3819,6 +3819,40 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'addAll' &&
         positionalArgs.length == 1 &&
+        _isCollectionQueueMember(target, name)) {
+      return '($left.push(...Array.from(${positionalArgs.single})), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'remove' &&
+        positionalArgs.length == 1 &&
+        _isCollectionQueueMember(target, name)) {
+      _usedHelpers.add('__dartListRemove');
+      _usedHelpers.add('__dartEquals');
+      return '__dartListRemove($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'clear' &&
+        positionalArgs.isEmpty &&
+        _isCollectionQueueMember(target, name)) {
+      return '($left.length = 0, null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeWhere' &&
+        positionalArgs.length == 1 &&
+        _isCollectionQueueMember(target, name)) {
+      _usedHelpers.add('__dartListWhereMutate');
+      return '__dartListRemoveWhere($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'retainWhere' &&
+        positionalArgs.length == 1 &&
+        _isCollectionQueueMember(target, name)) {
+      _usedHelpers.add('__dartListWhereMutate');
+      return '__dartListRetainWhere($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'addAll' &&
+        positionalArgs.length == 1 &&
         _isCoreMember(target, 'List', 'addAll')) {
       return '($left.push(...Array.from(${positionalArgs.single})), null)';
     }
@@ -4468,6 +4502,26 @@ final class _EsmEmitter {
     final receiverCollectionKind = _expressionCollectionKind(
       expression.receiver,
     );
+    if (name == 'length' &&
+        _isCollectionQueueMember(expression.interfaceTargetReference, name)) {
+      return '$receiver.length';
+    }
+    if (name == 'isEmpty' &&
+        _isCollectionQueueMember(expression.interfaceTargetReference, name)) {
+      return '$receiver.length === 0';
+    }
+    if (name == 'isNotEmpty' &&
+        _isCollectionQueueMember(expression.interfaceTargetReference, name)) {
+      return '$receiver.length !== 0';
+    }
+    if (name == 'first' &&
+        _isCollectionQueueMember(expression.interfaceTargetReference, name)) {
+      return '$receiver[0]';
+    }
+    if (name == 'last' &&
+        _isCollectionQueueMember(expression.interfaceTargetReference, name)) {
+      return '$receiver[$receiver.length - 1]';
+    }
     if (name == 'nonNulls' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
       return 'Array.from($receiver).filter((value) => value != null)';
@@ -5451,7 +5505,8 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     if (!path.startsWith('dart:collection::Queue::@factories::') &&
-        !path.startsWith('dart:collection::ListQueue::@factories::')) {
+        !path.startsWith('dart:collection::ListQueue::@factories::') &&
+        !path.startsWith('dart:collection::DoubleLinkedQueue::@factories::')) {
       return null;
     }
     final name = path.split('::').last;
@@ -5830,7 +5885,8 @@ final class _EsmEmitter {
   bool _isCollectionQueueConstructorReference(k.Reference reference) {
     final path = _referencePath(reference);
     return path.startsWith('dart:collection::Queue::@constructors::') ||
-        path.startsWith('dart:collection::ListQueue::@constructors::');
+        path.startsWith('dart:collection::ListQueue::@constructors::') ||
+        path.startsWith('dart:collection::DoubleLinkedQueue::@constructors::');
   }
 
   String? _coreErrorConstructorName(k.Reference reference) {
@@ -5947,12 +6003,16 @@ final class _EsmEmitter {
 
   bool _isCollectionQueueMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
-    return path == 'dart:collection::Queue::@methods::$name' ||
-        path == 'dart:collection::Queue::@getters::$name' ||
-        path == 'dart:collection::Queue::$name' ||
-        path == 'dart:collection::ListQueue::@methods::$name' ||
-        path == 'dart:collection::ListQueue::@getters::$name' ||
-        path == 'dart:collection::ListQueue::$name';
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.endsWith('::$name');
+    if (!hasMember) {
+      return false;
+    }
+    return path.startsWith('dart:collection::Queue::') ||
+        path.startsWith('dart:collection::ListQueue::') ||
+        path.startsWith('dart:collection::DoubleLinkedQueue::');
   }
 
   bool _isTypedDataMember(k.Reference reference, String name) {

@@ -5531,9 +5531,17 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
+    if (path == 'dart:async::Future::@factories::' &&
+        positionalArgs.length == 1) {
+      return 'new Promise((resolve, reject) => setTimeout(() => { try { resolve((${positionalArgs.single})()); } catch (error) { reject(error); } }, 0))';
+    }
     if (path == 'dart:async::Future::@factories::value') {
       final value = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return 'Promise.resolve($value)';
+    }
+    if (path == 'dart:async::Future::@factories::syncValue' &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve(${positionalArgs.single})';
     }
     if (path == 'dart:async::Future::@factories::error' &&
         positionalArgs.isNotEmpty) {

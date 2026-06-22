@@ -57,6 +57,11 @@ Future<void> main() async {
   ]);
   print('more $microtask $any');
 
+  final constructed = await Future<int>(() => 12);
+  // ignore: sdk_version_since
+  final syncValue = await Future<int>.syncValue(13);
+  print('futureConstruct $constructed $syncValue');
+
   var forEachTotal = 0;
   await Future.forEach<int>([1, 2, 3], (value) async {
     forEachTotal += value;

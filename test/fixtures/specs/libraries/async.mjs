@@ -993,6 +993,9 @@ export async function main() {
   const microtask = await Promise.resolve().then(() => (function() { return 4; })());
   const any = await Promise.race(Array.from([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 99; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"5000\"]]]", () => __dartDuration({ microseconds: 5000 })).inMilliseconds))), Promise.resolve(5)]));
   __dartPrint("more " + __dartStr(microtask) + " " + __dartStr(any));
+  const constructed = await new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 12; })()); } catch (error) { reject(error); } }, 0));
+  const syncValue = await Promise.resolve(13);
+  __dartPrint("futureConstruct " + __dartStr(constructed) + " " + __dartStr(syncValue));
   let forEachTotal = 0;
   await __dartFutureForEach([1, 2, 3], async function(value) {
     forEachTotal = (forEachTotal + value);

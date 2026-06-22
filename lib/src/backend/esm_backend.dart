@@ -6247,6 +6247,10 @@ final class _EsmEmitter {
       helper.writeln('  return {');
       helper.writeln('    __dartRegExpMake: make,');
       helper.writeln('    pattern: source,');
+      helper.writeln('    isCaseSensitive: caseSensitive,');
+      helper.writeln('    isMultiLine: multiLine,');
+      helper.writeln('    isUnicode: unicode,');
+      helper.writeln('    isDotAll: dotAll,');
       helper.writeln(
         '    hasMatch(input) { return make(false).test(String(input)); },',
       );
@@ -6259,6 +6263,13 @@ final class _EsmEmitter {
       helper.writeln('    stringMatch(input) {');
       helper.writeln('      const match = this.firstMatch(input);');
       helper.writeln('      return match == null ? null : match.group(0);');
+      helper.writeln('    },');
+      helper.writeln('    matchAsPrefix(input, start = 0) {');
+      helper.writeln('      const text = String(input).slice(start);');
+      helper.writeln('      const match = make(false).exec(text);');
+      helper.writeln(
+        '      return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start);',
+      );
       helper.writeln('    },');
       helper.writeln('    allMatches(input, start = 0) {');
       helper.writeln('      const text = String(input);');
@@ -6275,13 +6286,23 @@ final class _EsmEmitter {
       helper.writeln('    toString() { return source; },');
       helper.writeln('  };');
       helper.writeln('}');
-      helper.writeln('function __dartRegExpMatch(match) {');
+      helper.writeln('function __dartRegExpMatch(match, offset = 0) {');
+      helper.writeln('  const namedGroups = match.groups ?? {};');
       helper.writeln('  const result = {');
-      helper.writeln('    start: match.index,');
-      helper.writeln('    end: match.index + match[0].length,');
+      helper.writeln('    start: offset + match.index,');
+      helper.writeln('    end: offset + match.index + match[0].length,');
       helper.writeln('    get groupCount() { return match.length - 1; },');
       helper.writeln(
         '    group(index) { return index >= 0 && index < match.length ? (match[index] ?? null) : null; },',
+      );
+      helper.writeln(
+        '    groups(indices) { return Array.from(indices, (index) => this.group(index)); },',
+      );
+      helper.writeln(
+        '    namedGroup(name) { return Object.prototype.hasOwnProperty.call(namedGroups, name) ? (namedGroups[name] ?? null) : null; },',
+      );
+      helper.writeln(
+        '    get groupNames() { return new Set(Object.keys(namedGroups)); },',
       );
       helper.writeln('  };');
       helper.writeln('  for (let i = 0; i < match.length; i++) {');

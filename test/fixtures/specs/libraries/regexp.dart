@@ -26,4 +26,19 @@ void main() {
     'stringReplace ${mixed.split(digits).join('|')} '
     '${mixed.replaceAll(digits, '#')} ${mixed.replaceFirst(digits, '#')}',
   );
+
+  final prefix = digits.matchAsPrefix(mixed, 1)!;
+  print(
+    'meta ${pattern.pattern} ${pattern.isCaseSensitive} '
+    '${pattern.isMultiLine} ${pattern.isUnicode} ${pattern.isDotAll}',
+  );
+  print('prefix ${prefix.group(0)} ${prefix.start} ${prefix.end}');
+  print('groups ${first.groups([0, 1, 2]).join('|')}');
+
+  final named = RegExp(r'(?<word>[a-z]+)(?<digits>\d+)');
+  final namedMatch = named.firstMatch('ab12')!;
+  print(
+    'named ${namedMatch.namedGroup('word')} '
+    '${namedMatch.namedGroup('digits')} ${namedMatch.groupNames.join(',')}',
+  );
 }

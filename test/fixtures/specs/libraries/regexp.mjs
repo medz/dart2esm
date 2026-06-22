@@ -101,6 +101,10 @@ function __dartRegExp(pattern, options = {}) {
   return {
     __dartRegExpMake: make,
     pattern: source,
+    isCaseSensitive: caseSensitive,
+    isMultiLine: multiLine,
+    isUnicode: unicode,
+    isDotAll: dotAll,
     hasMatch(input) { return make(false).test(String(input)); },
     firstMatch(input) {
       const match = make(false).exec(String(input));
@@ -109,6 +113,11 @@ function __dartRegExp(pattern, options = {}) {
     stringMatch(input) {
       const match = this.firstMatch(input);
       return match == null ? null : match.group(0);
+    },
+    matchAsPrefix(input, start = 0) {
+      const text = String(input).slice(start);
+      const match = make(false).exec(text);
+      return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start);
     },
     allMatches(input, start = 0) {
       const text = String(input);
@@ -125,12 +134,16 @@ function __dartRegExp(pattern, options = {}) {
     toString() { return source; },
   };
 }
-function __dartRegExpMatch(match) {
+function __dartRegExpMatch(match, offset = 0) {
+  const namedGroups = match.groups ?? {};
   const result = {
-    start: match.index,
-    end: match.index + match[0].length,
+    start: offset + match.index,
+    end: offset + match.index + match[0].length,
     get groupCount() { return match.length - 1; },
     group(index) { return index >= 0 && index < match.length ? (match[index] ?? null) : null; },
+    groups(indices) { return Array.from(indices, (index) => this.group(index)); },
+    namedGroup(name) { return Object.prototype.hasOwnProperty.call(namedGroups, name) ? (namedGroups[name] ?? null) : null; },
+    get groupNames() { return new Set(Object.keys(namedGroups)); },
   };
   for (let i = 0; i < match.length; i++) {
     result[i] = match[i] ?? null;
@@ -190,6 +203,13 @@ export function main() {
   const mixed = "a1 b22";
   __dartPrint("stringPattern " + __dartStr(__dartStringContains(mixed, digits, 0)) + " " + __dartStr(__dartStringContains(mixed, digits, 2)) + " " + __dartStr(__dartStringStartsWith(mixed, __dartRegExp("a\\d", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), 0)) + " " + __dartStr(__dartStringIndexOf(mixed, digits, 2)));
   __dartPrint("stringReplace " + __dartStr(__dartIterableJoin(__dartStringSplit(mixed, digits), "|")) + " " + __dartStr(__dartStringReplaceAll(mixed, digits, "#")) + " " + __dartStr(__dartStringReplaceFirstPattern(mixed, digits, "#", 0)));
+  const prefix = __dartNullCheck(digits.matchAsPrefix(mixed, 1));
+  __dartPrint("meta " + __dartStr(pattern.pattern) + " " + __dartStr(pattern.isCaseSensitive) + " " + __dartStr(pattern.isMultiLine) + " " + __dartStr(pattern.isUnicode) + " " + __dartStr(pattern.isDotAll));
+  __dartPrint("prefix " + __dartStr(prefix.group(0)) + " " + __dartStr(prefix.start) + " " + __dartStr(prefix.end));
+  __dartPrint("groups " + __dartStr(__dartIterableJoin(first.groups([0, 1, 2]), "|")));
+  const named = __dartRegExp("(?<word>[a-z]+)(?<digits>\\d+)", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+  const namedMatch = __dartNullCheck(named.firstMatch("ab12"));
+  __dartPrint("named " + __dartStr(namedMatch.namedGroup("word")) + " " + __dartStr(namedMatch.namedGroup("digits")) + " " + __dartStr(__dartIterableJoin(namedMatch.groupNames, ",")));
 }
 
 main();

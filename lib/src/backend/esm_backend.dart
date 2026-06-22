@@ -3414,6 +3414,12 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartCompleter');
       return '__dartCompleter()';
     }
+    if ((path == 'dart:async::StreamController::@factories::' ||
+            path == 'dart:async::StreamController::@factories::broadcast') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartStreamController');
+      return '__dartStreamController()';
+    }
     if (path == 'dart:async::Stream::@factories::fromIterable' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartStream');
@@ -5048,6 +5054,104 @@ final class _EsmEmitter {
       helper.writeln('      return null;');
       helper.writeln('    },');
       helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartStreamController')) {
+      helper.writeln('function __dartStreamController() {');
+      helper.writeln('  const queue = [];');
+      helper.writeln('  const waiters = [];');
+      helper.writeln('  let closed = false;');
+      helper.writeln('  let hasListener = false;');
+      helper.writeln('  let resolveDone;');
+      helper.writeln(
+        '  const done = new Promise((resolve) => { resolveDone = resolve; });',
+      );
+      helper.writeln('  function completeDoneIfDrained() {');
+      helper.writeln(
+        '    if (closed && queue.length === 0) resolveDone(null);',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function deliver(item) {');
+      helper.writeln(
+        '    if (closed) throw new Error("Cannot add event after closing");',
+      );
+      helper.writeln('    const waiter = waiters.shift();');
+      helper.writeln('    if (waiter) waiter(item);');
+      helper.writeln('    else queue.push(item);');
+      helper.writeln('  }');
+      helper.writeln('  function closeQueue() {');
+      helper.writeln('    if (closed) return;');
+      helper.writeln('    closed = true;');
+      helper.writeln(
+        '    while (waiters.length > 0) waiters.shift()({ done: true });',
+      );
+      helper.writeln('    completeDoneIfDrained();');
+      helper.writeln('  }');
+      helper.writeln('  const controller = {');
+      helper.writeln('    get stream() { return stream; },');
+      helper.writeln('    get sink() { return controller; },');
+      helper.writeln('    get done() { return done; },');
+      helper.writeln('    get isClosed() { return closed; },');
+      helper.writeln('    get isPaused() { return !hasListener && !closed; },');
+      helper.writeln('    get hasListener() { return hasListener; },');
+      helper.writeln('    add(value) { deliver({ value }); return null; },');
+      helper.writeln(
+        '    addError(error, stackTrace = null) { deliver({ error }); return null; },',
+      );
+      helper.writeln('    close() { closeQueue(); return done; },');
+      helper.writeln('    async addStream(source, options = {}) {');
+      helper.writeln('      try {');
+      helper.writeln(
+        '        for await (const value of source) deliver({ value });',
+      );
+      helper.writeln('      } catch (error) {');
+      helper.writeln('        deliver({ error });');
+      helper.writeln(
+        '        if (options.cancelOnError === true) return null;',
+      );
+      helper.writeln('      }');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('  const stream = {');
+      helper.writeln('    [Symbol.asyncIterator]() {');
+      helper.writeln('      hasListener = true;');
+      helper.writeln('      return {');
+      helper.writeln('        next() {');
+      helper.writeln('          const item = queue.shift();');
+      helper.writeln('          if (item) {');
+      helper.writeln('            completeDoneIfDrained();');
+      helper.writeln(
+        '            if ("error" in item) return Promise.reject(item.error);',
+      );
+      helper.writeln(
+        '            return Promise.resolve({ value: item.value, done: false });',
+      );
+      helper.writeln('          }');
+      helper.writeln('          if (closed) {');
+      helper.writeln('            completeDoneIfDrained();');
+      helper.writeln('            return Promise.resolve({ done: true });');
+      helper.writeln('          }');
+      helper.writeln('          return new Promise((resolve, reject) => {');
+      helper.writeln('            waiters.push((nextItem) => {');
+      helper.writeln('              if (nextItem.done === true) {');
+      helper.writeln('                completeDoneIfDrained();');
+      helper.writeln('                resolve({ done: true });');
+      helper.writeln('              } else if ("error" in nextItem) {');
+      helper.writeln('                completeDoneIfDrained();');
+      helper.writeln('                reject(nextItem.error);');
+      helper.writeln('              } else {');
+      helper.writeln(
+        '                resolve({ value: nextItem.value, done: false });',
+      );
+      helper.writeln('              }');
+      helper.writeln('            });');
+      helper.writeln('          });');
+      helper.writeln('        },');
+      helper.writeln('      };');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('  return controller;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStreamIterator')) {

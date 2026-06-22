@@ -23,6 +23,82 @@ function __dartPrint(value) {
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
+function __dartStreamController() {
+  const queue = [];
+  const waiters = [];
+  let closed = false;
+  let hasListener = false;
+  let resolveDone;
+  const done = new Promise((resolve) => { resolveDone = resolve; });
+  function completeDoneIfDrained() {
+    if (closed && queue.length === 0) resolveDone(null);
+  }
+  function deliver(item) {
+    if (closed) throw new Error("Cannot add event after closing");
+    const waiter = waiters.shift();
+    if (waiter) waiter(item);
+    else queue.push(item);
+  }
+  function closeQueue() {
+    if (closed) return;
+    closed = true;
+    while (waiters.length > 0) waiters.shift()({ done: true });
+    completeDoneIfDrained();
+  }
+  const controller = {
+    get stream() { return stream; },
+    get sink() { return controller; },
+    get done() { return done; },
+    get isClosed() { return closed; },
+    get isPaused() { return !hasListener && !closed; },
+    get hasListener() { return hasListener; },
+    add(value) { deliver({ value }); return null; },
+    addError(error, stackTrace = null) { deliver({ error }); return null; },
+    close() { closeQueue(); return done; },
+    async addStream(source, options = {}) {
+      try {
+        for await (const value of source) deliver({ value });
+      } catch (error) {
+        deliver({ error });
+        if (options.cancelOnError === true) return null;
+      }
+      return null;
+    },
+  };
+  const stream = {
+    [Symbol.asyncIterator]() {
+      hasListener = true;
+      return {
+        next() {
+          const item = queue.shift();
+          if (item) {
+            completeDoneIfDrained();
+            if ("error" in item) return Promise.reject(item.error);
+            return Promise.resolve({ value: item.value, done: false });
+          }
+          if (closed) {
+            completeDoneIfDrained();
+            return Promise.resolve({ done: true });
+          }
+          return new Promise((resolve, reject) => {
+            waiters.push((nextItem) => {
+              if (nextItem.done === true) {
+                completeDoneIfDrained();
+                resolve({ done: true });
+              } else if ("error" in nextItem) {
+                completeDoneIfDrained();
+                reject(nextItem.error);
+              } else {
+                resolve({ value: nextItem.value, done: false });
+              }
+            });
+          });
+        },
+      };
+    },
+  };
+  return controller;
+}
 function __dartStreamIterator(stream) {
   const iterator = stream[Symbol.asyncIterator]();
   return {
@@ -101,6 +177,35 @@ export async function main() {
   const single = await __dartStreamFirst(__dartStreamFromIterable(["ok"]));
   const listed = await __dartStreamToList(__dartStreamFromIterable(["a", "b"]));
   __dartPrint("future " + __dartStr(single) + " " + __dartStr(__dartIterableJoin(listed, "|")));
+  const controller = __dartStreamController();
+  const controlledFuture = __dartStreamToList(controller.stream);
+  __dartPrint("state " + __dartStr(controller.isClosed) + " " + __dartStr(controller.hasListener));
+  controller.add(4);
+  controller.add(5);
+  await controller.close();
+  const controlled = await controlledFuture;
+  __dartPrint("controller " + __dartStr(__dartIterableJoin(controlled, ",")) + " " + __dartStr(controller.isClosed));
+  __dartPrint("done " + __dartStr(await controller.done));
+  const errorController = __dartStreamController();
+  const errorFuture = (async function() {
+    try {
+      {
+        await __dartStreamToList(errorController.stream);
+      }
+    } catch ($error) {
+      if ($error != null) {
+        const error = $error;
+        {
+          __dartPrint("streamError " + __dartStr(error));
+        }
+      } else {
+        throw $error;
+      }
+    }
+})();
+  errorController.addError("stream-error");
+  await errorController.close();
+  await errorFuture;
 }
 
 await main();

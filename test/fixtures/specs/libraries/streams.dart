@@ -15,4 +15,26 @@ Future<void> main() async {
   final single = await Stream<String>.value('ok').first;
   final listed = await Stream<String>.fromIterable(['a', 'b']).toList();
   print('future $single ${listed.join('|')}');
+
+  final controller = StreamController<int>();
+  final controlledFuture = controller.stream.toList();
+  print('state ${controller.isClosed} ${controller.hasListener}');
+  controller.add(4);
+  controller.add(5);
+  await controller.close();
+  final controlled = await controlledFuture;
+  print('controller ${controlled.join(',')} ${controller.isClosed}');
+  print('done ${await controller.done}');
+
+  final errorController = StreamController<int>();
+  final errorFuture = () async {
+    try {
+      await errorController.stream.toList();
+    } catch (error) {
+      print('streamError $error');
+    }
+  }();
+  errorController.addError('stream-error');
+  await errorController.close();
+  await errorFuture;
 }

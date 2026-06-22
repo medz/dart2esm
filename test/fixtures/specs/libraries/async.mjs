@@ -485,6 +485,63 @@ function __dartStreamAsyncExpand(stream, convert) {
     }
   })();
 }
+function __dartStreamTransformerFromBind(bind) {
+  return { bind };
+}
+function __dartStreamTransformerFromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {
+  return {
+    bind(stream) {
+      const controller = __dartStreamController(false);
+      const sink = controller.sink;
+      (async () => {
+        let shouldClose = false;
+        try {
+          const iterator = stream[Symbol.asyncIterator]();
+          while (!controller.isClosed) {
+            let next;
+            try {
+              next = await iterator.next();
+            } catch (error) {
+              if (typeof handleError === "function") {
+                await handleError(error, error?.stack ?? "<javascript stack unavailable>", sink);
+                continue;
+              }
+              sink.addError(error);
+              continue;
+            }
+            if (next.done) {
+              if (typeof handleDone === "function") {
+                await handleDone(sink);
+              } else {
+                shouldClose = true;
+              }
+              break;
+            }
+            if (typeof handleData === "function") {
+              await handleData(next.value, sink);
+            } else {
+              sink.add(next.value);
+            }
+          }
+        } catch (error) {
+          if (!controller.isClosed) sink.addError(error);
+          shouldClose = true;
+        } finally {
+          if (shouldClose && !controller.isClosed) await controller.close();
+        }
+      })();
+      return controller.stream;
+    },
+  };
+}
+function __dartStreamTransformerBind(transformer, stream) {
+  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);
+  if (typeof transformer === "function") return transformer(stream);
+  throw new TypeError("StreamTransformer.bind is not available");
+}
+function __dartStreamTransform(stream, transformer) {
+  return __dartStreamTransformerBind(transformer, stream);
+}
 function __dartStreamDistinct(stream, equals = null) {
   return (async function*() {
     let hasPrevious = false;

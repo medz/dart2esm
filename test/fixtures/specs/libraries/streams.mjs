@@ -386,6 +386,63 @@ function __dartStreamAsyncExpand(stream, convert) {
     }
   })();
 }
+function __dartStreamTransformerFromBind(bind) {
+  return { bind };
+}
+function __dartStreamTransformerFromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {
+  return {
+    bind(stream) {
+      const controller = __dartStreamController(false);
+      const sink = controller.sink;
+      (async () => {
+        let shouldClose = false;
+        try {
+          const iterator = stream[Symbol.asyncIterator]();
+          while (!controller.isClosed) {
+            let next;
+            try {
+              next = await iterator.next();
+            } catch (error) {
+              if (typeof handleError === "function") {
+                await handleError(error, error?.stack ?? "<javascript stack unavailable>", sink);
+                continue;
+              }
+              sink.addError(error);
+              continue;
+            }
+            if (next.done) {
+              if (typeof handleDone === "function") {
+                await handleDone(sink);
+              } else {
+                shouldClose = true;
+              }
+              break;
+            }
+            if (typeof handleData === "function") {
+              await handleData(next.value, sink);
+            } else {
+              sink.add(next.value);
+            }
+          }
+        } catch (error) {
+          if (!controller.isClosed) sink.addError(error);
+          shouldClose = true;
+        } finally {
+          if (shouldClose && !controller.isClosed) await controller.close();
+        }
+      })();
+      return controller.stream;
+    },
+  };
+}
+function __dartStreamTransformerBind(transformer, stream) {
+  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);
+  if (typeof transformer === "function") return transformer(stream);
+  throw new TypeError("StreamTransformer.bind is not available");
+}
+function __dartStreamTransform(stream, transformer) {
+  return __dartStreamTransformerBind(transformer, stream);
+}
 function __dartStreamDistinct(stream, equals = null) {
   return (async function*() {
     let hasPrevious = false;
@@ -740,6 +797,27 @@ export async function main() {
   __dartPrint("whereQuery " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (value > 2); }, null)) + " " + __dartStr(await __dartStreamLastWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return (Math.trunc(value) % 2 !== 0); }, null)) + " " + __dartStr(await __dartStreamSingleWhere(__dartStreamFromIterable([1, 2, 3, 4]), function(value) { return __dartEquals(value, 3); }, null)) + " " + __dartStr(await __dartStreamFirstWhere(__dartStreamFromIterable([1, 2]), function(value) { return (value > 9); }, function() { return (-1); })));
   const asyncMapped = await __dartStreamJoin(__dartStreamAsyncMap(__dartStreamFromIterable([1, 2]), async function(value) { return (value * 3); }), ",");
   const asyncExpanded = await __dartStreamJoin(__dartStreamAsyncExpand(__dartStreamFromIterable([1, 2]), function(value) { return __dartStreamFromIterable([value, (value + 10)]); }), ",");
+  const transformed = await __dartStreamJoin(__dartStreamTransform(__dartStreamFromIterable([1, 2]), __dartStreamTransformerFromHandlers({ handleData: function(value, sink) {
+    sink.add("t" + __dartStr((value * 2)));
+}, handleError: null, handleDone: function(sink) {
+    sink.add("done");
+    sink.close();
+} })), "|");
+  const transformErrors = new Array(0).fill(null);
+  const transformController = __dartStreamController(false);
+  const recoveredTransform = __dartStreamJoin(__dartStreamTransform(transformController.stream, __dartStreamTransformerFromHandlers({ handleData: function(value, sink) {
+    sink.add("v" + __dartStr(value));
+}, handleError: function(error, stackTrace, sink) {
+    (transformErrors.push(__dartStr(error)), null);
+    sink.add("recovered");
+}, handleDone: null })), "|");
+  transformController.add(1);
+  transformController.addError("transform-error");
+  transformController.add(2);
+  await transformController.close();
+  const bindTransformer = __dartStreamTransformerFromBind(function(stream) { return __dartStreamMap(stream, function(value) { return (value + 5); }); });
+  const transformBound = await __dartStreamJoin(__dartStreamTransform(__dartStreamFromIterable([1, 2]), bindTransformer), ",");
+  const directBound = await __dartStreamJoin(__dartStreamTransformerBind(bindTransformer, __dartStreamFromIterable([3])), ",");
   const distinctValues = await __dartStreamJoin(__dartStreamDistinct(__dartStreamFromIterable([1, 1, 2, 1]), null), ",");
   const parityDistinct = await __dartStreamJoin(__dartStreamDistinct(__dartStreamFromIterable([1, 3, 4, 6]), function(previous, next) { return __dartEquals((Math.trunc(previous) % 2 !== 0), (Math.trunc(next) % 2 !== 0)); }), ",");
   const handledErrors = new Array(0).fill(null);
@@ -768,7 +846,7 @@ export async function main() {
       throw $error;
     }
   }
-  __dartPrint("streamMore " + __dartStr(asyncMapped) + " " + __dartStr(asyncExpanded) + " " + __dartStr(distinctValues) + " " + __dartStr(parityDistinct) + " " + __dartStr(await handled) + " " + __dartStr(__dartIterableJoin(handledErrors, ",")) + " " + __dartStr(skippedError));
+  __dartPrint("streamMore " + __dartStr(asyncMapped) + " " + __dartStr(asyncExpanded) + " " + __dartStr(transformed) + " " + __dartStr(await recoveredTransform) + " " + __dartStr(__dartIterableJoin(transformErrors, ",")) + " " + __dartStr(transformBound) + " " + __dartStr(directBound) + " " + __dartStr(distinctValues) + " " + __dartStr(parityDistinct) + " " + __dartStr(await handled) + " " + __dartStr(__dartIterableJoin(handledErrors, ",")) + " " + __dartStr(skippedError));
   const aggregateSet = await __dartStreamToSet(__dartStreamFromIterable([1, 2, 2]));
   const folded = await __dartStreamFold(__dartStreamFromIterable([1, 2, 3]), 10, function(previous, value) { return (previous + value); });
   const reduced = await __dartStreamReduce(__dartStreamFromIterable([2, 3, 4]), function(previous, value) { return (previous * value); });

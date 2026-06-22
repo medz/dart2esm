@@ -46,6 +46,48 @@ Future<void> main() async {
   final asyncExpanded = await Stream<int>.fromIterable([1, 2])
       .asyncExpand((value) => Stream<int>.fromIterable([value, value + 10]))
       .join(',');
+  final transformed = await Stream<int>.fromIterable([1, 2])
+      .transform(
+        StreamTransformer<int, String>.fromHandlers(
+          handleData: (value, sink) {
+            sink.add('t${value * 2}');
+          },
+          handleDone: (sink) {
+            sink.add('done');
+            sink.close();
+          },
+        ),
+      )
+      .join('|');
+  final transformErrors = <String>[];
+  final transformController = StreamController<int>();
+  final recoveredTransform = transformController.stream
+      .transform(
+        StreamTransformer<int, String>.fromHandlers(
+          handleData: (value, sink) {
+            sink.add('v$value');
+          },
+          handleError: (error, stackTrace, sink) {
+            transformErrors.add('$error');
+            sink.add('recovered');
+          },
+        ),
+      )
+      .join('|');
+  transformController.add(1);
+  transformController.addError('transform-error');
+  transformController.add(2);
+  await transformController.close();
+  final bindTransformer = StreamTransformer<int, int>.fromBind(
+    (stream) => stream.map((value) => value + 5),
+  );
+  final transformBound = await Stream<int>.fromIterable([
+    1,
+    2,
+  ]).transform(bindTransformer).join(',');
+  final directBound = await bindTransformer
+      .bind(Stream<int>.fromIterable([3]))
+      .join(',');
   final distinctValues = await Stream<int>.fromIterable([
     1,
     1,
@@ -78,7 +120,9 @@ Future<void> main() async {
     skippedError = '$error';
   }
   print(
-    'streamMore $asyncMapped $asyncExpanded $distinctValues $parityDistinct '
+    'streamMore $asyncMapped $asyncExpanded $transformed '
+    '${await recoveredTransform} ${transformErrors.join(',')} '
+    '$transformBound $directBound $distinctValues $parityDistinct '
     '${await handled} ${handledErrors.join(',')} $skippedError',
   );
   final aggregateSet = await Stream<int>.fromIterable([1, 2, 2]).toSet();

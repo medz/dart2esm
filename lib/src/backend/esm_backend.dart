@@ -3896,6 +3896,22 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamAsyncExpand($left, ${positionalArgs.single})';
     }
+    if (expression.arguments.named.isEmpty &&
+        name == 'transform' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      return '__dartStreamTransform($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'bind' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamTransformerMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      return '__dartStreamTransformerBind($left, ${positionalArgs.single})';
+    }
     if (name == 'asBroadcastStream' &&
         positionalArgs.isEmpty &&
         _isAsyncStreamMember(target, name)) {
@@ -5632,6 +5648,21 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamFromIterable([])';
     }
+    if (path == 'dart:async::StreamTransformer::@factories::fromBind' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      return '__dartStreamTransformerFromBind(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::StreamTransformer::@factories::fromHandlers' &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      final handleData = _namedArgument(expression.arguments, 'handleData');
+      final handleError = _namedArgument(expression.arguments, 'handleError');
+      final handleDone = _namedArgument(expression.arguments, 'handleDone');
+      return '__dartStreamTransformerFromHandlers({ handleData: ${handleData ?? 'null'}, handleError: ${handleError ?? 'null'}, handleDone: ${handleDone ?? 'null'} })';
+    }
     return null;
   }
 
@@ -5653,6 +5684,31 @@ final class _EsmEmitter {
         positionalArgs.isEmpty) {
       _usedHelpers.add('__dartStream');
       return '__dartStreamFromIterable([])';
+    }
+    if (path.startsWith(
+          'dart:async::_StreamHandlerTransformer::@constructors::',
+        ) &&
+        positionalArgs.length <= 3) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      final handleData = positionalArgs.isNotEmpty
+          ? positionalArgs[0]
+          : _namedArgument(arguments, 'handleData');
+      final handleError = positionalArgs.length >= 2
+          ? positionalArgs[1]
+          : _namedArgument(arguments, 'handleError');
+      final handleDone = positionalArgs.length >= 3
+          ? positionalArgs[2]
+          : _namedArgument(arguments, 'handleDone');
+      return '__dartStreamTransformerFromHandlers({ handleData: ${handleData ?? 'null'}, handleError: ${handleError ?? 'null'}, handleDone: ${handleDone ?? 'null'} })';
+    }
+    if (path.startsWith(
+          'dart:async::_StreamBindTransformer::@constructors::',
+        ) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      return '__dartStreamTransformerFromBind(${positionalArgs.single})';
     }
     if (path.startsWith('dart:convert::Utf8Codec::@constructors::') &&
         positionalArgs.isEmpty) {
@@ -6973,6 +7029,13 @@ final class _EsmEmitter {
     return path == 'dart:async::Stream::@methods::$name' ||
         path == 'dart:async::Stream::@getters::$name' ||
         path == 'dart:async::Stream::$name';
+  }
+
+  bool _isAsyncStreamTransformerMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return path == 'dart:async::StreamTransformer::@methods::$name' ||
+        path == 'dart:async::StreamTransformer::@getters::$name' ||
+        path == 'dart:async::StreamTransformer::$name';
   }
 
   bool _isAsyncFutureMember(k.Reference reference, String name) {
@@ -10639,6 +10702,83 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
+      helper.writeln('function __dartStreamTransformerFromBind(bind) {');
+      helper.writeln('  return { bind };');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamTransformerFromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {',
+      );
+      helper.writeln('  return {');
+      helper.writeln('    bind(stream) {');
+      helper.writeln('      const controller = __dartStreamController(false);');
+      helper.writeln('      const sink = controller.sink;');
+      helper.writeln('      (async () => {');
+      helper.writeln('        let shouldClose = false;');
+      helper.writeln('        try {');
+      helper.writeln(
+        '          const iterator = stream[Symbol.asyncIterator]();',
+      );
+      helper.writeln('          while (!controller.isClosed) {');
+      helper.writeln('            let next;');
+      helper.writeln('            try {');
+      helper.writeln('              next = await iterator.next();');
+      helper.writeln('            } catch (error) {');
+      helper.writeln('              if (typeof handleError === "function") {');
+      helper.writeln(
+        '                await handleError(error, error?.stack ?? "<javascript stack unavailable>", sink);',
+      );
+      helper.writeln('                continue;');
+      helper.writeln('              }');
+      helper.writeln('              sink.addError(error);');
+      helper.writeln('              continue;');
+      helper.writeln('            }');
+      helper.writeln('            if (next.done) {');
+      helper.writeln('              if (typeof handleDone === "function") {');
+      helper.writeln('                await handleDone(sink);');
+      helper.writeln('              } else {');
+      helper.writeln('                shouldClose = true;');
+      helper.writeln('              }');
+      helper.writeln('              break;');
+      helper.writeln('            }');
+      helper.writeln('            if (typeof handleData === "function") {');
+      helper.writeln('              await handleData(next.value, sink);');
+      helper.writeln('            } else {');
+      helper.writeln('              sink.add(next.value);');
+      helper.writeln('            }');
+      helper.writeln('          }');
+      helper.writeln('        } catch (error) {');
+      helper.writeln(
+        '          if (!controller.isClosed) sink.addError(error);',
+      );
+      helper.writeln('          shouldClose = true;');
+      helper.writeln('        } finally {');
+      helper.writeln(
+        '          if (shouldClose && !controller.isClosed) await controller.close();',
+      );
+      helper.writeln('        }');
+      helper.writeln('      })();');
+      helper.writeln('      return controller.stream;');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamTransformerBind(transformer, stream) {',
+      );
+      helper.writeln(
+        '  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);',
+      );
+      helper.writeln(
+        '  if (typeof transformer === "function") return transformer(stream);',
+      );
+      helper.writeln(
+        '  throw new TypeError("StreamTransformer.bind is not available");',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartStreamTransform(stream, transformer) {');
+      helper.writeln(
+        '  return __dartStreamTransformerBind(transformer, stream);',
+      );
+      helper.writeln('}');
       helper.writeln('function __dartStreamDistinct(stream, equals = null) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    let hasPrevious = false;');
@@ -11629,6 +11769,10 @@ const _generatedGlobalNames = {
   '__dartStreamTimeout',
   '__dartStreamToList',
   '__dartStreamToSet',
+  '__dartStreamTransform',
+  '__dartStreamTransformerBind',
+  '__dartStreamTransformerFromBind',
+  '__dartStreamTransformerFromHandlers',
   '__dartStreamWhere',
   '__dartStreamController',
   '__dartStreamIterator',

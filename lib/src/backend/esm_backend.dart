@@ -3652,11 +3652,15 @@ final class _EsmEmitter {
         _isCoreCollectionMember(target, name)) {
       return '[...Array.from($left), ...Array.from(${positionalArgs.single})]';
     }
-    if (expression.arguments.named.isEmpty &&
+    if (_hasOnlyNamedArguments(expression.arguments, {'growable'}) &&
         name == 'toList' &&
         positionalArgs.isEmpty &&
         _isCoreCollectionMember(target, name)) {
-      return 'Array.from($left)';
+      return _emitMaybeFixedList(
+        'Array.from($left)',
+        _namedArgument(expression.arguments, 'growable'),
+        defaultGrowable: true,
+      );
     }
     if (expression.arguments.named.isEmpty &&
         name == 'toSet' &&
@@ -5402,7 +5406,11 @@ final class _EsmEmitter {
     if (stringFactory != null) {
       return stringFactory;
     }
-    final listFactory = _emitCoreListFactoryInvocation(path, positionalArgs);
+    final listFactory = _emitCoreListFactoryInvocation(
+      path,
+      expression.arguments,
+      positionalArgs,
+    );
     if (listFactory != null) {
       return listFactory;
     }
@@ -5551,24 +5559,75 @@ final class _EsmEmitter {
 
   String? _emitCoreListFactoryInvocation(
     String path,
+    k.Arguments arguments,
     List<String> positionalArgs,
   ) {
     if (!_isCoreListFactoryPath(path)) {
       return null;
     }
     final name = path.split('::').last;
+    final growable = _coreListFactoryGrowable(path, arguments);
     return switch (name) {
-      'filled' when positionalArgs.length >= 2 =>
+      'filled' when positionalArgs.length >= 2 => _emitMaybeFixedList(
         'new Array(${positionalArgs[0]}).fill(${positionalArgs[1]})',
-      'generate' when positionalArgs.length >= 2 =>
+        growable,
+        defaultGrowable: false,
+      ),
+      'generate' when positionalArgs.length >= 2 => _emitMaybeFixedList(
         'Array.from({ length: ${positionalArgs[0]} }, (_, index) => (${positionalArgs[1]})(index))',
-      'of' || 'from' when positionalArgs.length == 1 =>
+        growable,
+        defaultGrowable: true,
+      ),
+      'of' || 'from' when positionalArgs.length == 1 => _emitMaybeFixedList(
         'Array.from(${positionalArgs.single})',
+        growable,
+        defaultGrowable: true,
+      ),
       'unmodifiable' when positionalArgs.length == 1 =>
         'Object.freeze(Array.from(${positionalArgs.single}))',
-      'empty' when positionalArgs.isEmpty => '[]',
+      'empty' when positionalArgs.isEmpty => _emitMaybeFixedList(
+        '[]',
+        growable,
+        defaultGrowable: false,
+      ),
       _ => null,
     };
+  }
+
+  String? _coreListFactoryGrowable(String path, k.Arguments arguments) {
+    final explicit = _namedArgument(arguments, 'growable');
+    if (explicit != null) {
+      return explicit;
+    }
+    if (path.startsWith('dart:core::_GrowableList::@factories::')) {
+      return 'true';
+    }
+    if (path.startsWith('dart:core::_List::@factories::')) {
+      return 'false';
+    }
+    return null;
+  }
+
+  String _emitMaybeFixedList(
+    String listExpression,
+    String? growable, {
+    required bool defaultGrowable,
+  }) {
+    if (growable == null) {
+      if (defaultGrowable) {
+        return listExpression;
+      }
+      _usedHelpers.add('__dartFixedList');
+      return '__dartFixedList($listExpression)';
+    }
+    if (growable == 'true') {
+      return listExpression;
+    }
+    _usedHelpers.add('__dartFixedList');
+    if (growable == 'false') {
+      return '__dartFixedList($listExpression)';
+    }
+    return '($growable ? $listExpression : __dartFixedList($listExpression))';
   }
 
   bool _isCoreListFactoryPath(String path) {
@@ -6001,6 +6060,10 @@ final class _EsmEmitter {
       }
     }
     return null;
+  }
+
+  bool _hasOnlyNamedArguments(k.Arguments arguments, Set<String> names) {
+    return arguments.named.every((argument) => names.contains(argument.name));
   }
 
   bool _isCoreReference(k.Reference reference, String namespace, String name) {
@@ -7975,6 +8038,11 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartFixedList')) {
+      helper.writeln('function __dartFixedList(list) {');
+      helper.writeln('  return Object.seal(list);');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartCoreError')) {
       helper.writeln('function __dartCoreError(typeName, message) {');
       helper.writeln('  const text = message == null ? "" : String(message);');
@@ -9401,6 +9469,7 @@ const _generatedGlobalNames = {
   '__dartDuration',
   '__dartExpando',
   '__dartEquals',
+  '__dartFixedList',
   '__dartFormatException',
   '__dartFromJson',
   '__dartFutureAsStream',

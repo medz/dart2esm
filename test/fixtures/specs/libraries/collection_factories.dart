@@ -4,6 +4,31 @@ void main() {
   final listFixed = List<int>.unmodifiable(listFrom);
   print('list ${listFixed.length} ${listFixed.join(',')}');
 
+  final fixedFilled = List<int>.filled(2, 7);
+  fixedFilled[0] = 8;
+  var fixedAddFailed = false;
+  try {
+    fixedFilled.add(9);
+  } catch (_) {
+    fixedAddFailed = true;
+  }
+  final growableEmpty = List<int>.empty(growable: true);
+  growableEmpty.add(1);
+  final fixedCopy = [1, 2, 3].toList(growable: false);
+  fixedCopy[0] = 4;
+  var fixedCopyAddFailed = false;
+  try {
+    fixedCopy.add(5);
+  } catch (_) {
+    fixedCopyAddFailed = true;
+  }
+  final fixedFrom = List<int>.of([5, 6], growable: false);
+  print(
+    'fixedList ${fixedFilled.join(',')} $fixedAddFailed '
+    '${growableEmpty.join(',')} ${fixedCopy.join(',')} '
+    '$fixedCopyAddFailed ${fixedFrom.length}',
+  );
+
   final set = Set<String>.from(['a', 'b', 'a']);
   final setOf = Set<String>.of(set);
   final setFixed = Set<String>.unmodifiable(setOf);

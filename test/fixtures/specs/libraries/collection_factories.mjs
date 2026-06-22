@@ -24,6 +24,9 @@ function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
+function __dartFixedList(list) {
+  return Object.seal(list);
+}
 function __dartGet(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
@@ -127,6 +130,44 @@ export function main() {
   const listFrom = Array.from(list);
   const listFixed = Object.freeze(Array.from(listFrom));
   __dartPrint("list " + __dartStr(listFixed.length) + " " + __dartStr(__dartIterableJoin(listFixed, ",")));
+  const fixedFilled = __dartFixedList(new Array(2).fill(7));
+  fixedFilled[0] = 8;
+  let fixedAddFailed = false;
+  try {
+    {
+      (fixedFilled.push(9), null);
+    }
+  } catch ($error) {
+    if ($error != null) {
+      const __wc0_formal = $error;
+      {
+        fixedAddFailed = true;
+      }
+    } else {
+      throw $error;
+    }
+  }
+  const growableEmpty = [];
+  (growableEmpty.push(1), null);
+  const fixedCopy = __dartFixedList(Array.from([1, 2, 3]));
+  fixedCopy[0] = 4;
+  let fixedCopyAddFailed = false;
+  try {
+    {
+      (fixedCopy.push(5), null);
+    }
+  } catch ($error_1) {
+    if ($error_1 != null) {
+      const __wc1_formal = $error_1;
+      {
+        fixedCopyAddFailed = true;
+      }
+    } else {
+      throw $error_1;
+    }
+  }
+  const fixedFrom = __dartFixedList(Array.from([5, 6]));
+  __dartPrint("fixedList " + __dartStr(__dartIterableJoin(fixedFilled, ",")) + " " + __dartStr(fixedAddFailed) + " " + __dartStr(__dartIterableJoin(growableEmpty, ",")) + " " + __dartStr(__dartIterableJoin(fixedCopy, ",")) + " " + __dartStr(fixedCopyAddFailed) + " " + __dartStr(fixedFrom.length));
   const set = new Set(["a", "b", "a"]);
   const setOf = new Set(set);
   const setFixed = __dartConstSet(setOf);

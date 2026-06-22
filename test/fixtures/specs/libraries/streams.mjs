@@ -52,6 +52,13 @@ function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
+function __dartBind(receiver, name) {
+  if (Array.isArray(receiver) && name === "add") {
+    return (value) => { receiver.push(value); return null; };
+  }
+  const value = receiver[name];
+  return typeof value === "function" ? value.bind(receiver) : value;
+}
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
     if (set.has(value)) return false;
@@ -225,13 +232,26 @@ function __dartStreamController(broadcast = false, options = {}) {
     addError(error, stackTrace = null) { deliver({ error }); return null; },
     close() { closeQueue(); return done; },
     async addStream(source, options = {}) {
-      try {
-        for await (const value of source) deliver({ value });
-      } catch (error) {
-        deliver({ error });
-        if (options.cancelOnError === true) return null;
+      const iterator = source?.[Symbol.asyncIterator]?.();
+      if (iterator == null) {
+        for (const value of Array.from(source ?? [])) deliver({ value });
+        return null;
       }
-      return null;
+      while (true) {
+        let step;
+        try {
+          step = await iterator.next();
+        } catch (error) {
+          deliver({ error });
+          if (options.cancelOnError === true) {
+            if (typeof iterator.return === "function") await iterator.return();
+            return null;
+          }
+          continue;
+        }
+        if (step.done === true) return null;
+        deliver({ value: step.value });
+      }
     },
   };
   const stream = {
@@ -1057,6 +1077,28 @@ export async function main() {
   errorController.addError("stream-error");
   await errorController.close();
   await errorFuture;
+  async function addStreamCase(cancelOnError) {
+    const output = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
+    const source = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
+    const seen = new Array(0).fill(null);
+    const done = __dartCompleter();
+    __dartStreamListen(output.stream, function(value) {
+      (seen.push(value), null);
+}, function(error) {
+      (seen.push("e:" + __dartStr(error)), null);
+}, __dartAs(__dartBind(done, "complete"), value => typeof value === "function", "void Function([FutureOr<void>?])"), false);
+    const addFuture = output.addStream(source.stream, { cancelOnError: cancelOnError });
+    source.add(1);
+    source.addError("boom");
+    source.add(2);
+    await source.close();
+    const result = await addFuture.then(function(__wc1_formal) { return "ok"; }, function(error) { return "throw:" + __dartStr(error); });
+    output.add(3);
+    await output.close();
+    await done.future;
+    return __dartStr(cancelOnError) + " " + __dartStr(result) + " " + __dartStr(__dartIterableJoin(seen, ","));
+  }
+  __dartPrint("addStream " + __dartStr(await addStreamCase(true)) + " | " + __dartStr(await addStreamCase(false)));
 }
 
 await main();

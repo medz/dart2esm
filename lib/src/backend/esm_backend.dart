@@ -4071,6 +4071,13 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamPipe($left, ${positionalArgs.single})';
     }
+    if (name == 'addStream' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamConsumerMember(target, name)) {
+      final cancelOnError =
+          _namedArgument(expression.arguments, 'cancelOnError') ?? 'false';
+      return '$left.addStream(${positionalArgs.single}, { cancelOnError: $cancelOnError })';
+    }
     if (name == 'listen' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
@@ -7101,6 +7108,23 @@ final class _EsmEmitter {
     return path == 'dart:async::StreamTransformer::@methods::$name' ||
         path == 'dart:async::StreamTransformer::@getters::$name' ||
         path == 'dart:async::StreamTransformer::$name';
+  }
+
+  bool _isAsyncStreamConsumerMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.endsWith('::$name');
+    if (!hasMember) {
+      return false;
+    }
+    return path.startsWith('dart:async::StreamConsumer::') ||
+        path.startsWith('dart:async::StreamSink::') ||
+        path.startsWith('dart:async::StreamController::') ||
+        path.contains('::StreamConsumer') ||
+        path.contains('::StreamSink') ||
+        path.contains('::StreamController');
   }
 
   bool _isAsyncFutureMember(k.Reference reference, String name) {
@@ -10813,17 +10837,32 @@ final class _EsmEmitter {
       );
       helper.writeln('    close() { closeQueue(); return done; },');
       helper.writeln('    async addStream(source, options = {}) {');
-      helper.writeln('      try {');
       helper.writeln(
-        '        for await (const value of source) deliver({ value });',
+        '      const iterator = source?.[Symbol.asyncIterator]?.();',
       );
-      helper.writeln('      } catch (error) {');
-      helper.writeln('        deliver({ error });');
+      helper.writeln('      if (iterator == null) {');
       helper.writeln(
-        '        if (options.cancelOnError === true) return null;',
+        '        for (const value of Array.from(source ?? [])) deliver({ value });',
       );
+      helper.writeln('        return null;');
       helper.writeln('      }');
-      helper.writeln('      return null;');
+      helper.writeln('      while (true) {');
+      helper.writeln('        let step;');
+      helper.writeln('        try {');
+      helper.writeln('          step = await iterator.next();');
+      helper.writeln('        } catch (error) {');
+      helper.writeln('          deliver({ error });');
+      helper.writeln('          if (options.cancelOnError === true) {');
+      helper.writeln(
+        '            if (typeof iterator.return === "function") await iterator.return();',
+      );
+      helper.writeln('            return null;');
+      helper.writeln('          }');
+      helper.writeln('          continue;');
+      helper.writeln('        }');
+      helper.writeln('        if (step.done === true) return null;');
+      helper.writeln('        deliver({ value: step.value });');
+      helper.writeln('      }');
       helper.writeln('    },');
       helper.writeln('  };');
       helper.writeln('  const stream = {');

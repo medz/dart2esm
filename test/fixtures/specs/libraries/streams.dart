@@ -312,4 +312,41 @@ Future<void> main() async {
   errorController.addError('stream-error');
   await errorController.close();
   await errorFuture;
+
+  Future<String> addStreamCase(bool cancelOnError) async {
+    final output = StreamController<int>();
+    final source = StreamController<int>();
+    final seen = <Object>[];
+    final done = Completer<void>();
+    output.stream.listen(
+      (value) {
+        seen.add(value);
+      },
+      onError: (error) {
+        seen.add('e:$error');
+      },
+      onDone: done.complete,
+    );
+    final addFuture = output.addStream(
+      source.stream,
+      cancelOnError: cancelOnError,
+    );
+    source.add(1);
+    source.addError('boom');
+    source.add(2);
+    await source.close();
+    final result = await addFuture.then(
+      (_) => 'ok',
+      onError: (error) => 'throw:$error',
+    );
+    output.add(3);
+    await output.close();
+    await done.future;
+    return '$cancelOnError $result ${seen.join(',')}';
+  }
+
+  print(
+    'addStream ${await addStreamCase(true)} | '
+    '${await addStreamCase(false)}',
+  );
 }

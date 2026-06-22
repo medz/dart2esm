@@ -346,13 +346,26 @@ function __dartStreamController(broadcast = false, options = {}) {
     addError(error, stackTrace = null) { deliver({ error }); return null; },
     close() { closeQueue(); return done; },
     async addStream(source, options = {}) {
-      try {
-        for await (const value of source) deliver({ value });
-      } catch (error) {
-        deliver({ error });
-        if (options.cancelOnError === true) return null;
+      const iterator = source?.[Symbol.asyncIterator]?.();
+      if (iterator == null) {
+        for (const value of Array.from(source ?? [])) deliver({ value });
+        return null;
       }
-      return null;
+      while (true) {
+        let step;
+        try {
+          step = await iterator.next();
+        } catch (error) {
+          deliver({ error });
+          if (options.cancelOnError === true) {
+            if (typeof iterator.return === "function") await iterator.return();
+            return null;
+          }
+          continue;
+        }
+        if (step.done === true) return null;
+        deliver({ value: step.value });
+      }
     },
   };
   const stream = {

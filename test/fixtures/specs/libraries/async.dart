@@ -57,6 +57,17 @@ Future<void> main() async {
   ]);
   print('more $microtask $any');
 
+  var forEachTotal = 0;
+  await Future.forEach<int>([1, 2, 3], (value) async {
+    forEachTotal += value;
+  });
+  var doWhileCount = 0;
+  await Future.doWhile(() async {
+    doWhileCount += 1;
+    return doWhileCount < 3;
+  });
+  print('futureLoop $forEachTotal $doWhileCount');
+
   final completer = Completer<int>();
   Future.microtask(() => completer.complete(6));
   print('complete ${await completer.future} ${completer.isCompleted}');

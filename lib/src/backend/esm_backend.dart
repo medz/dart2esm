@@ -5229,6 +5229,16 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return 'Promise.race(Array.from(${positionalArgs.single}))';
     }
+    if (path == 'dart:async::Future::@methods::forEach' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartFutureForEach');
+      return '__dartFutureForEach(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (path == 'dart:async::Future::@methods::doWhile' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartFutureDoWhile');
+      return '__dartFutureDoWhile(${positionalArgs.single})';
+    }
     if ((path == 'dart:async::Completer::@factories::' ||
             path == 'dart:async::Completer::@factories::sync') &&
         positionalArgs.isEmpty) {
@@ -8844,6 +8854,20 @@ final class _EsmEmitter {
       helper.writeln('  })();');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartFutureForEach')) {
+      helper.writeln('async function __dartFutureForEach(elements, action) {');
+      helper.writeln('  for (const element of elements) {');
+      helper.writeln('    await action(element);');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartFutureDoWhile')) {
+      helper.writeln('async function __dartFutureDoWhile(action) {');
+      helper.writeln('  while (await action()) {}');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartFutureWait')) {
       helper.writeln(
         'function __dartFutureWait(futures, eagerError = false, cleanUp = null) {',
@@ -9617,6 +9641,8 @@ const _generatedGlobalNames = {
   '__dartFormatException',
   '__dartFromJson',
   '__dartFutureAsStream',
+  '__dartFutureDoWhile',
+  '__dartFutureForEach',
   '__dartFutureTimeout',
   '__dartFutureWait',
   '__dartGet',

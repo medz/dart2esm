@@ -98,6 +98,16 @@ function __dartFutureAsStream(future) {
     yield await future;
   })();
 }
+async function __dartFutureForEach(elements, action) {
+  for (const element of elements) {
+    await action(element);
+  }
+  return null;
+}
+async function __dartFutureDoWhile(action) {
+  while (await action()) {}
+  return null;
+}
 function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
   const entries = Array.from(futures);
   if (entries.length === 0) return Promise.resolve([]);
@@ -399,6 +409,16 @@ export async function main() {
   const microtask = await Promise.resolve().then(() => (function() { return 4; })());
   const any = await Promise.race(Array.from([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 99; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"5000\"]]]", () => __dartDuration({ microseconds: 5000 })).inMilliseconds))), Promise.resolve(5)]));
   __dartPrint("more " + __dartStr(microtask) + " " + __dartStr(any));
+  let forEachTotal = 0;
+  await __dartFutureForEach([1, 2, 3], async function(value) {
+    forEachTotal = (forEachTotal + value);
+});
+  let doWhileCount = 0;
+  await __dartFutureDoWhile(async function() {
+    doWhileCount = (doWhileCount + 1);
+    return (doWhileCount < 3);
+});
+  __dartPrint("futureLoop " + __dartStr(forEachTotal) + " " + __dartStr(doWhileCount));
   const completer = __dartCompleter();
   Promise.resolve().then(() => (function() { return completer.complete(6); })());
   __dartPrint("complete " + __dartStr(await completer.future) + " " + __dartStr(completer.isCompleted));

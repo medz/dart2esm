@@ -3279,6 +3279,9 @@ final class _EsmEmitter {
         _ => null,
       };
     }
+    if (path == 'dart:core::StackTrace::@getters::current') {
+      return '(new Error().stack ?? "<javascript stack unavailable>")';
+    }
     return null;
   }
 
@@ -5571,6 +5574,16 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartRegExpEscape');
       return '__dartRegExpEscape(${positionalArgs.single})';
     }
+    if (path == 'dart:core::Error::@methods::safeToString' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartSafeToString');
+      return '__dartSafeToString(${positionalArgs.single})';
+    }
+    if (path == 'dart:core::Error::@methods::throwWithStackTrace' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartThrowWithStackTrace');
+      return '__dartThrowWithStackTrace(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
     if (path == 'dart:core::DateTime::@methods::parse' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartDateTime');
@@ -6983,6 +6996,41 @@ final class _EsmEmitter {
       helper.writeln('    return "Instance of \'" + typeName + "\'";');
       helper.writeln('  }');
       helper.writeln('  return String(value);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSafeToString')) {
+      helper.writeln('function __dartSafeToString(value) {');
+      helper.writeln('  try {');
+      helper.writeln('    if (value == null) return "null";');
+      helper.writeln('    if (typeof value === "object") {');
+      helper.writeln('      const toString = value.toString;');
+      helper.writeln(
+        '      if (typeof toString === "function" && toString !== Object.prototype.toString) return String(toString.call(value));',
+      );
+      helper.writeln(
+        '      const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";',
+      );
+      helper.writeln('      return "Instance of \'" + typeName + "\'";');
+      helper.writeln('    }');
+      helper.writeln('    return String(value);');
+      helper.writeln('  } catch (_) {');
+      helper.writeln(
+        '    const typeName = value != null && value.constructor && value.constructor.name ? value.constructor.name : "Object";',
+      );
+      helper.writeln('    return "Instance of \'" + typeName + "\'";');
+      helper.writeln('  }');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartThrowWithStackTrace')) {
+      helper.writeln('function __dartThrowWithStackTrace(error, stackTrace) {');
+      helper.writeln(
+        '  if (error != null && (typeof error === "object" || typeof error === "function")) {',
+      );
+      helper.writeln(
+        '    try { error.stack = String(stackTrace); } catch (_) {}',
+      );
+      helper.writeln('  }');
+      helper.writeln('  throw error;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartPrint')) {
@@ -10673,6 +10721,7 @@ const _generatedGlobalNames = {
   '__dartRectangleFromPoints',
   '__dartRuntimeType',
   '__dartRoundToInt',
+  '__dartSafeToString',
   '__dartSetAdd',
   '__dartSetAddAll',
   '__dartSetAlgebra',
@@ -10736,6 +10785,7 @@ const _generatedGlobalNames = {
   '__dartStringReplaceRange',
   '__dartStringSplit',
   '__dartStringStartsWith',
+  '__dartThrowWithStackTrace',
   '__dartTruncDiv',
   '__dartStopwatch',
   '__dartStopwatchNowMicros',

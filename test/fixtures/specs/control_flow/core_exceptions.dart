@@ -49,6 +49,25 @@ String classifyConstructed(String kind) {
   }
 }
 
+class BrokenToString {
+  @override
+  String toString() {
+    throw StateError('broken toString');
+  }
+}
+
+String stackAndErrorStatics() {
+  final stack = StackTrace.current;
+  final safe = Error.safeToString(BrokenToString());
+  try {
+    Error.throwWithStackTrace('stack-boom', stack);
+  } catch (error, stackTrace) {
+    return 'stack:${stack.toString().isNotEmpty}:'
+        '${safe.contains('BrokenToString')}:'
+        '$error:${stackTrace.toString().isNotEmpty}';
+  }
+}
+
 void main() {
   print(classify('format'));
   print(classify('plain'));
@@ -59,4 +78,5 @@ void main() {
   print(classifyConstructed('state'));
   print(classifyConstructed('unsupported'));
   print(classifyConstructed('unimplemented'));
+  print(stackAndErrorStatics());
 }

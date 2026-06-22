@@ -10,6 +10,13 @@ class Vec {
 
   bool operator <(Vec other) => x + y < other.x + other.y;
 
+  @override
+  bool operator ==(Object other) =>
+      other is Vec && x == other.x && y == other.y;
+
+  @override
+  int get hashCode => x * 31 + y;
+
   int operator [](int index) => index == 0 ? x : y;
 
   void operator []=(int index, int value) {
@@ -31,4 +38,5 @@ void main() {
   a[1] = 9;
   print('${c.describe()} ${d.describe()}');
   print('${a[0]} ${a[1]} ${a < b}');
+  print('${a == Vec(1, 9)} ${a == b}');
 }

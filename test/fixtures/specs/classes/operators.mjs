@@ -40,6 +40,12 @@ export class Vec {
   "<"(other) {
     return ((this.x + this.y) < (other.x + other.y));
   }
+  "=="(other) {
+    return ((other instanceof Vec && __dartEquals(this.x, other.x)) && __dartEquals(this.y, other.y));
+  }
+  get hashCode() {
+    return ((this.x * 31) + this.y);
+  }
   "[]"(index) {
     return (__dartEquals(index, 0) ? this.x : this.y);
   }
@@ -67,6 +73,7 @@ export function main() {
   a["[]="](1, 9);
   __dartPrint(__dartStr(c.describe()) + " " + __dartStr(d.describe()));
   __dartPrint(__dartStr(a["[]"](0)) + " " + __dartStr(a["[]"](1)) + " " + __dartStr(a["<"](b)));
+  __dartPrint(__dartStr((() => { const $left_2 = a; const $right_2 = new Vec(1, 9); return $left_2 === null ? $right_2 === null : $left_2["=="]($right_2); })()) + " " + __dartStr((() => { const $left_3 = a; const $right_3 = b; return $left_3 === null ? $right_3 === null : $left_3["=="]($right_3); })()));
 }
 
 main();

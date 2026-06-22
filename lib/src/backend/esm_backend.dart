@@ -1952,8 +1952,7 @@ final class _EsmEmitter {
       case k.EqualsNull():
         return '(${emitExpression(expression.expression)} === null)';
       case k.EqualsCall():
-        _usedHelpers.add('__dartEquals');
-        return '__dartEquals(${emitExpression(expression.left)}, ${emitExpression(expression.right)})';
+        return _emitEqualsCall(expression);
       case k.AwaitExpression():
         return 'await ${emitExpression(expression.operand)}';
       case k.Rethrow():
@@ -2136,6 +2135,18 @@ final class _EsmEmitter {
       return '{}';
     }
     return '{ ${fields.map(_emitRecordNamedField).join(', ')} }';
+  }
+
+  String _emitEqualsCall(k.EqualsCall expression) {
+    final left = emitExpression(expression.left);
+    final right = emitExpression(expression.right);
+    if (_isNativeOperatorTarget(expression.interfaceTargetReference)) {
+      _usedHelpers.add('__dartEquals');
+      return '__dartEquals($left, $right)';
+    }
+    final leftName = _freshScopedName('\$left');
+    final rightName = _freshScopedName('\$right');
+    return '(() => { const $leftName = $left; const $rightName = $right; return $leftName === null ? $rightName === null : ${_emitPropertyGet(leftName, '==')}($rightName); })()';
   }
 
   String _emitEsmConst(k.Constant constant) {

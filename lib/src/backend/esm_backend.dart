@@ -106,7 +106,7 @@ final class _EsmEmitter {
     final names = _fieldName(field);
     final initializer = field.initializer;
     _usedHelpers.add('__dartLazyField');
-    writeln('let ${names.value};');
+    writeln('export let ${names.value};');
     final initializerCode = initializer == null
         ? 'null'
         : emitExpression(initializer);
@@ -128,7 +128,7 @@ final class _EsmEmitter {
     }
     final previousClass = _currentClass;
     _currentClass = klass;
-    writeln('class ${_className(klass)} {');
+    writeln('export class ${_className(klass)} {');
     _indent++;
     if (klass.constructors.isEmpty) {
       _emitDefaultConstructor(klass);
@@ -254,7 +254,9 @@ final class _EsmEmitter {
         'function ${procedure.name.text}',
       ),
     };
-    writeln('${asyncPrefix}function $name(${_emitParameterList(function)}) {');
+    writeln(
+      'export ${asyncPrefix}function $name(${_emitParameterList(function)}) {',
+    );
     _indent++;
     final body = function.body;
     if (body == null) {

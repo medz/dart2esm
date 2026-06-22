@@ -38,4 +38,26 @@ void main() {
     '${point == math.Point<num>(3, 4)} ${hide(point) is math.Point} '
     '${constPoint.x + constPoint.y}',
   );
+
+  final rectangle = math.Rectangle<num>(1, 2, 3, 4);
+  final otherRectangle = math.Rectangle<num>(2, 3, 5, 1);
+  final intersection = rectangle.intersection(otherRectangle)!;
+  final bounds = rectangle.boundingBox(otherRectangle);
+  final fromPoints = math.Rectangle<num>.fromPoints(
+    math.Point<num>(5, 6),
+    math.Point<num>(2, 1),
+  );
+  const constRectangle = math.Rectangle<int>(0, 1, 2, 3);
+  print(
+    'rect ${rectangle.left}:${rectangle.top}:${rectangle.right}:${rectangle.bottom} '
+    '${rectangle.topLeft.x}:${rectangle.bottomRight.y} '
+    '${rectangle.containsPoint(math.Point<num>(2, 3))} '
+    '${rectangle.containsRectangle(math.Rectangle<num>(1, 2, 1, 1))} '
+    '${rectangle.intersects(otherRectangle)} '
+    '${intersection.left}:${intersection.top}:${intersection.width}:${intersection.height} '
+    '${bounds.left}:${bounds.top}:${bounds.width}:${bounds.height} '
+    '${fromPoints.left}:${fromPoints.top}:${fromPoints.width}:${fromPoints.height} '
+    '${rectangle == math.Rectangle<num>(1, 2, 3, 4)} '
+    '${hide(rectangle) is math.Rectangle} ${constRectangle.bottom}',
+  );
 }

@@ -2378,6 +2378,16 @@ final class _EsmEmitter {
         final x = _emitConstantFieldValue(constant, 'x') ?? 'null';
         final y = _emitConstantFieldValue(constant, 'y') ?? 'null';
         return _emitCanonicalConst(constant, '__dartPoint($x, $y)');
+      case 'dart:math::Rectangle':
+        _usedHelpers.add('__dartRectangle');
+        final left = _emitConstantFieldValue(constant, 'left') ?? 'null';
+        final top = _emitConstantFieldValue(constant, 'top') ?? 'null';
+        final width = _emitConstantFieldValue(constant, 'width') ?? 'null';
+        final height = _emitConstantFieldValue(constant, 'height') ?? 'null';
+        return _emitCanonicalConst(
+          constant,
+          '__dartRectangle($left, $top, $width, $height)',
+        );
       case 'dart:typed_data::Endian':
         for (final value in constant.fieldValues.values) {
           if (value is k.BoolConstant) {
@@ -2715,6 +2725,13 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartPoint');
       return '__dartPoint(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    final rectangleConstructor = _emitMathRectangleConstructorInvocation(
+      expression.targetReference,
+      positionalArgs,
+    );
+    if (rectangleConstructor != null) {
+      return rectangleConstructor;
     }
     final coreErrorName = _coreErrorConstructorName(expression.targetReference);
     if (coreErrorName != null) {
@@ -4852,6 +4869,8 @@ final class _EsmEmitter {
         'TypedData' => 'ArrayBuffer.isView($operand)',
         'Point' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Point"',
+        'Rectangle' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "Rectangle"',
         'List' =>
           '(Array.isArray($operand) || (ArrayBuffer.isView($operand) && !($operand instanceof DataView)))',
         'Set' => '$operand instanceof Set',
@@ -5655,6 +5674,11 @@ final class _EsmEmitter {
       final secure = path.endsWith('::secure');
       return '__dartRandom($seed, ${secure ? 'true' : 'false'})';
     }
+    if (path == 'dart:math::Rectangle::@factories::fromPoints' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartRectangle');
+      return '__dartRectangleFromPoints(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
     if (!path.startsWith('dart:math::@methods::')) {
       return null;
     }
@@ -5911,6 +5935,25 @@ final class _EsmEmitter {
     return _referencePath(
       reference,
     ).startsWith('dart:math::Point::@constructors::');
+  }
+
+  String? _emitMathRectangleConstructorInvocation(
+    k.Reference reference,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(reference);
+    if (!path.startsWith('dart:math::Rectangle::@constructors::')) {
+      return null;
+    }
+    if (path.endsWith('::fromPoints') && positionalArgs.length == 2) {
+      _usedHelpers.add('__dartRectangle');
+      return '__dartRectangleFromPoints(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (positionalArgs.length == 4) {
+      _usedHelpers.add('__dartRectangle');
+      return '__dartRectangle(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, ${positionalArgs[3]})';
+    }
+    return null;
   }
 
   bool _isCollectionQueueConstructorReference(k.Reference reference) {
@@ -7251,6 +7294,119 @@ final class _EsmEmitter {
         '  Object.defineProperty(point, "__dartType", { value: "Point" });',
       );
       helper.writeln('  return Object.freeze(point);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartRectangle')) {
+      if (!_usedHelpers.contains('__dartPoint')) {
+        helper.writeln('function __dartPoint(x, y) {');
+        helper.writeln('  const point = {');
+        helper.writeln('    x,');
+        helper.writeln('    y,');
+        helper.writeln('    get magnitude() { return Math.hypot(x, y); },');
+        helper.writeln('    distanceTo(other) {');
+        helper.writeln('      return Math.hypot(x - other.x, y - other.y);');
+        helper.writeln('    },');
+        helper.writeln('    squaredDistanceTo(other) {');
+        helper.writeln('      const dx = x - other.x;');
+        helper.writeln('      const dy = y - other.y;');
+        helper.writeln('      return dx * dx + dy * dy;');
+        helper.writeln('    },');
+        helper.writeln(
+          '    ["+"](other) { return __dartPoint(x + other.x, y + other.y); },',
+        );
+        helper.writeln(
+          '    ["-"](other) { return __dartPoint(x - other.x, y - other.y); },',
+        );
+        helper.writeln(
+          '    ["*"](factor) { return __dartPoint(x * factor, y * factor); },',
+        );
+        helper.writeln(
+          '    ["=="](other) { return other != null && other.__dartType === "Point" && other.x === x && other.y === y; },',
+        );
+        helper.writeln(
+          '    toString() { return "Point(" + x + ", " + y + ")"; },',
+        );
+        helper.writeln('  };');
+        helper.writeln(
+          '  Object.defineProperty(point, "__dartType", { value: "Point" });',
+        );
+        helper.writeln('  return Object.freeze(point);');
+        helper.writeln('}');
+      }
+      helper.writeln('function __dartRectangle(left, top, width, height) {');
+      helper.writeln('  const rectangle = {');
+      helper.writeln('    left,');
+      helper.writeln('    top,');
+      helper.writeln('    width,');
+      helper.writeln('    height,');
+      helper.writeln('    get right() { return left + width; },');
+      helper.writeln('    get bottom() { return top + height; },');
+      helper.writeln('    get topLeft() { return __dartPoint(left, top); },');
+      helper.writeln(
+        '    get topRight() { return __dartPoint(left + width, top); },',
+      );
+      helper.writeln(
+        '    get bottomLeft() { return __dartPoint(left, top + height); },',
+      );
+      helper.writeln(
+        '    get bottomRight() { return __dartPoint(left + width, top + height); },',
+      );
+      helper.writeln(
+        '    containsPoint(point) { return point.x >= left && point.x <= this.right && point.y >= top && point.y <= this.bottom; },',
+      );
+      helper.writeln(
+        '    containsRectangle(other) { return other.left >= left && other.right <= this.right && other.top >= top && other.bottom <= this.bottom; },',
+      );
+      helper.writeln(
+        '    intersects(other) { return left <= other.right && other.left <= this.right && top <= other.bottom && other.top <= this.bottom; },',
+      );
+      helper.writeln('    intersection(other) {');
+      helper.writeln('      const nextLeft = Math.max(left, other.left);');
+      helper.writeln('      const nextTop = Math.max(top, other.top);');
+      helper.writeln(
+        '      const nextRight = Math.min(this.right, other.right);',
+      );
+      helper.writeln(
+        '      const nextBottom = Math.min(this.bottom, other.bottom);',
+      );
+      helper.writeln(
+        '      if (nextLeft > nextRight || nextTop > nextBottom) return null;',
+      );
+      helper.writeln(
+        '      return __dartRectangle(nextLeft, nextTop, nextRight - nextLeft, nextBottom - nextTop);',
+      );
+      helper.writeln('    },');
+      helper.writeln('    boundingBox(other) {');
+      helper.writeln('      const nextLeft = Math.min(left, other.left);');
+      helper.writeln('      const nextTop = Math.min(top, other.top);');
+      helper.writeln(
+        '      const nextRight = Math.max(this.right, other.right);',
+      );
+      helper.writeln(
+        '      const nextBottom = Math.max(this.bottom, other.bottom);',
+      );
+      helper.writeln(
+        '      return __dartRectangle(nextLeft, nextTop, nextRight - nextLeft, nextBottom - nextTop);',
+      );
+      helper.writeln('    },');
+      helper.writeln(
+        '    ["=="](other) { return other != null && other.__dartType === "Rectangle" && other.left === left && other.top === top && other.width === width && other.height === height; },',
+      );
+      helper.writeln(
+        '    toString() { return "Rectangle (" + left + ", " + top + ") " + width + " x " + height; },',
+      );
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(rectangle, "__dartType", { value: "Rectangle" });',
+      );
+      helper.writeln('  return Object.freeze(rectangle);');
+      helper.writeln('}');
+      helper.writeln('function __dartRectangleFromPoints(a, b) {');
+      helper.writeln('  const left = Math.min(a.x, b.x);');
+      helper.writeln('  const top = Math.min(a.y, b.y);');
+      helper.writeln(
+        '  return __dartRectangle(left, top, Math.abs(a.x - b.x), Math.abs(a.y - b.y));',
+      );
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartRegExp')) {
@@ -8969,6 +9125,8 @@ const _generatedGlobalNames = {
   '__dartRecordShape',
   '__dartRegExp',
   '__dartRegExpMatch',
+  '__dartRectangle',
+  '__dartRectangleFromPoints',
   '__dartRuntimeType',
   '__dartRoundToInt',
   '__dartSetAdd',

@@ -33,6 +33,29 @@ function __dartSetAdd(set, value) {
   set.add(value);
   return !hadValue;
 }
+function __dartSetDifference(set, other) {
+  const otherSet = new Set(other);
+  return new Set(Array.from(set).filter((value) => !otherSet.has(value)));
+}
+function __dartSetIntersection(set, other) {
+  const otherSet = new Set(other);
+  return new Set(Array.from(set).filter((value) => otherSet.has(value)));
+}
+function __dartSetUnion(set, other) {
+  return new Set([...set, ...other]);
+}
+function __dartMapAddEntries(map, entries) {
+  for (const entry of entries) map.set(entry.key, entry.value);
+  return null;
+}
+function __dartMapMap(map, convert) {
+  const result = new Map();
+  for (const [key, value] of map) {
+    const entry = convert(key, value);
+    result.set(entry.key, entry.value);
+  }
+  return result;
+}
 function __dartMapRemove(map, key) {
   const value = map.has(key) ? map.get(key) : null;
   map.delete(key);
@@ -354,6 +377,25 @@ export function main() {
   __dartSetRemoveAll(setBulk, ["b", "x"]);
   __dartSetRetainAll(setBulk, ["a", "z"]);
   __dartPrint("set bulk " + __dartStr(hasAll) + " " + __dartStr(__dartIterableJoin(setBulk, ",")));
+  const setUnion = __dartSetUnion(names, (() => {
+    const v = new Set();
+    __dartSetAdd(v, "ada");
+    __dartSetAdd(v, "zoe");
+    return v;
+  })());
+  const setIntersection = __dartSetIntersection(setUnion, (() => {
+    const v = new Set();
+    __dartSetAdd(v, "ada");
+    __dartSetAdd(v, "missing");
+    return v;
+  })());
+  const setDifference = __dartSetDifference(setUnion, (() => {
+    const v = new Set();
+    __dartSetAdd(v, "cy");
+    return v;
+  })());
+  const castNames = new Set(Array.from(names, (value) => __dartAs(value, (value) => value != null, "InterfaceType(Object)")));
+  __dartPrint("set algebra " + __dartStr(__dartIterableJoin(setUnion, ",")) + " " + __dartStr(__dartIterableJoin(setIntersection, ",")) + " " + __dartStr(__dartIterableJoin(setDifference, ",")) + " " + __dartStr(castNames.has("ada")));
   const counts = new Map([["one", 1]]);
   counts.set("two", 2);
   __dartPrint("map " + __dartStr(counts.size) + " " + __dartStr(counts.has("two")) + " " + __dartStr(counts.get("one")));
@@ -366,6 +408,11 @@ export function main() {
     (mapPairs.push(__dartStr(key) + "=" + __dartStr(value)), null);
 })(key, value)), null);
   __dartPrint("map ops " + __dartStr(three) + " " + __dartStr(counts.get("two")) + " " + __dartStr(counts.get("missing")) + " " + __dartStr(__dartIterableJoin(mapPairs, "|")));
+  const transformSource = new Map([["a", 1], ["b", 2]]);
+  __dartMapAddEntries(transformSource, [Object.freeze({ key: "c", value: 3 })]);
+  const transformed = __dartMapMap(transformSource, function(key, value) { return Object.freeze({ key: __dartStr(key) + __dartStr(value), value: (value + 10) }); });
+  const transformedCast = new Map(Array.from(transformSource, ([key, value]) => [__dartAs(key, (key) => typeof key === "string", "InterfaceType(String)"), __dartAs(value, (value) => typeof value === "number", "InterfaceType(num)")]));
+  __dartPrint("map transforms " + __dartStr(transformSource.get("c")) + " " + __dartStr(transformed.get("b2")) + " " + __dartStr(((() => { let v = transformedCast.get("a"); return ((v === null) ? 0 : v); })() + 1)));
   __dartMapRemove(counts, "one");
   __dartPrint("map removed " + __dartStr(counts.size) + " " + __dartStr(counts.get("one")));
   __dartMapUpdateAll(counts, function(key, value) { return (value + key.length); });

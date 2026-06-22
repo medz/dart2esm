@@ -3482,12 +3482,16 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartAs');
       final type = expression.arguments.types.single;
       final typeTest = _emitTypeTest('value', type, expression);
+      if (_isCoreSetMember(target, name)) {
+        return 'new Set(Array.from($left, (value) => __dartAs(value, (value) => $typeTest, ${jsonEncode(type.toString())})))';
+      }
       return 'Array.from($left, (value) => __dartAs(value, (value) => $typeTest, ${jsonEncode(type.toString())}))';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'map' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        _isCoreCollectionMember(target, name) &&
+        !_isCoreMapMember(target, name)) {
       return 'Array.from($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -3839,11 +3843,50 @@ final class _EsmEmitter {
       return '__dartSetAddAll($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        (name == 'difference' || name == 'intersection' || name == 'union') &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', name)) {
+      final helper = switch (name) {
+        'difference' => '__dartSetDifference',
+        'intersection' => '__dartSetIntersection',
+        'union' => '__dartSetUnion',
+        _ => throw StateError('unreachable'),
+      };
+      _usedHelpers.add('__dartSetAlgebra');
+      return '$helper($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'addAll' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', 'addAll')) {
       _usedHelpers.add('__dartMapAddAll');
       return '__dartMapAddAll($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'cast' &&
+        positionalArgs.isEmpty &&
+        expression.arguments.types.length == 2 &&
+        _isCoreMapMember(target, name)) {
+      _usedHelpers.add('__dartAs');
+      final keyType = expression.arguments.types[0];
+      final valueType = expression.arguments.types[1];
+      final keyTest = _emitTypeTest('key', keyType, expression);
+      final valueTest = _emitTypeTest('value', valueType, expression);
+      return 'new Map(Array.from($left, ([key, value]) => [__dartAs(key, (key) => $keyTest, ${jsonEncode(keyType.toString())}), __dartAs(value, (value) => $valueTest, ${jsonEncode(valueType.toString())})]))';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'addEntries' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', name)) {
+      _usedHelpers.add('__dartMapAddEntries');
+      return '__dartMapAddEntries($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'map' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', name)) {
+      _usedHelpers.add('__dartMapMap');
+      return '__dartMapMap($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
@@ -7088,12 +7131,47 @@ final class _EsmEmitter {
       helper.writeln('  return null;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartSetAlgebra')) {
+      helper.writeln('function __dartSetDifference(set, other) {');
+      helper.writeln('  const otherSet = new Set(other);');
+      helper.writeln(
+        '  return new Set(Array.from(set).filter((value) => !otherSet.has(value)));',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartSetIntersection(set, other) {');
+      helper.writeln('  const otherSet = new Set(other);');
+      helper.writeln(
+        '  return new Set(Array.from(set).filter((value) => otherSet.has(value)));',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartSetUnion(set, other) {');
+      helper.writeln('  return new Set([...set, ...other]);');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartMapAddAll')) {
       helper.writeln('function __dartMapAddAll(map, entries) {');
       helper.writeln(
         '  for (const [key, value] of entries) map.set(key, value);',
       );
       helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapAddEntries')) {
+      helper.writeln('function __dartMapAddEntries(map, entries) {');
+      helper.writeln(
+        '  for (const entry of entries) map.set(entry.key, entry.value);',
+      );
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapMap')) {
+      helper.writeln('function __dartMapMap(map, convert) {');
+      helper.writeln('  const result = new Map();');
+      helper.writeln('  for (const [key, value] of map) {');
+      helper.writeln('    const entry = convert(key, value);');
+      helper.writeln('    result.set(entry.key, entry.value);');
+      helper.writeln('  }');
+      helper.writeln('  return result;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartMapRemove')) {
@@ -8158,9 +8236,12 @@ const _generatedGlobalNames = {
   '__dartListRetainWhere',
   '__dartListSetAll',
   '__dartListWhereMutate',
+  '__dartMapAddAll',
+  '__dartMapAddEntries',
   '__dartMapContainsValue',
   '__dartMapFromIterable',
   '__dartMapFromIterables',
+  '__dartMapMap',
   '__dartMapRemove',
   '__dartMapUpdateAll',
   '__dartNumClamp',
@@ -8180,10 +8261,16 @@ const _generatedGlobalNames = {
   '__dartRegExpMatch',
   '__dartRuntimeType',
   '__dartRoundToInt',
+  '__dartSetAdd',
+  '__dartSetAddAll',
+  '__dartSetAlgebra',
   '__dartSetContainsAll',
+  '__dartSetDifference',
+  '__dartSetIntersection',
   '__dartSetLookup',
   '__dartSetRemoveAll',
   '__dartSetRetainAll',
+  '__dartSetUnion',
   '__dartStr',
   '__dartStream',
   '__dartStreamFirst',

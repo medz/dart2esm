@@ -102,6 +102,14 @@ void main() {
   setBulk.removeAll(['b', 'x']);
   setBulk.retainAll(['a', 'z']);
   print('set bulk $hasAll ${setBulk.join(',')}');
+  final setUnion = names.union({'ada', 'zoe'});
+  final setIntersection = setUnion.intersection({'ada', 'missing'});
+  final setDifference = setUnion.difference({'cy'});
+  final castNames = names.cast<Object>();
+  print(
+    'set algebra ${setUnion.join(',')} ${setIntersection.join(',')} '
+    '${setDifference.join(',')} ${castNames.contains('ada')}',
+  );
 
   final counts = <String, int>{'one': 1};
   counts['two'] = 2;
@@ -116,6 +124,16 @@ void main() {
   });
   print(
     'map ops $three ${counts['two']} ${counts['missing']} ${mapPairs.join('|')}',
+  );
+  final transformSource = <String, int>{'a': 1, 'b': 2};
+  transformSource.addEntries([MapEntry('c', 3)]);
+  final transformed = transformSource.map(
+    (key, value) => MapEntry('$key$value', value + 10),
+  );
+  final transformedCast = transformSource.cast<String, num>();
+  print(
+    'map transforms ${transformSource['c']} ${transformed['b2']} '
+    '${(transformedCast['a'] ?? 0) + 1}',
   );
   counts.remove('one');
   print('map removed ${counts.length} ${counts['one']}');

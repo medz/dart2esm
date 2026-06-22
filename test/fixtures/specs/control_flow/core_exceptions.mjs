@@ -17,6 +17,18 @@ function __dartStr(value) {
   }
   return String(value);
 }
+function __dartObjectToString(value) {
+  if (value == null) return "null";
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+    const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+  return String(value);
+}
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
@@ -80,7 +92,7 @@ export function classify(kind) {
     } else if (__dartIsCoreError($error, "Exception")) {
       const error_1 = $error;
       {
-        return "exception:" + __dartStr(__dartStr(error_1));
+        return "exception:" + __dartStr(__dartObjectToString(error_1));
       }
     } else if (__dartIsCoreError($error, "Error")) {
       const __wc0_formal = $error;

@@ -3861,6 +3861,10 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         positionalArgs.isEmpty &&
         name == 'toString') {
+      if (_isCoreMember(target, 'Object', name)) {
+        _usedHelpers.add('__dartObjectToString');
+        return '__dartObjectToString($left)';
+      }
       _usedHelpers.add('__dartStr');
       return '__dartStr($left)';
     }
@@ -4032,6 +4036,23 @@ final class _EsmEmitter {
     );
     if (numberGet != null) {
       return numberGet;
+    }
+    if (_isCoreMember(expression.interfaceTargetReference, 'Object', name)) {
+      final objectGet = switch (name) {
+        'hashCode' => () {
+          _usedHelpers.add('__dartObjectHash');
+          return '__dartHashValue($receiver)';
+        }(),
+        'runtimeType' => () {
+          _usedHelpers.add('__dartRuntimeType');
+          _usedHelpers.add('__dartType');
+          return '__dartRuntimeType($receiver)';
+        }(),
+        _ => null,
+      };
+      if (objectGet != null) {
+        return objectGet;
+      }
     }
     if (_isCoreMember(expression.interfaceTargetReference, 'BigInt', name)) {
       final bigIntGet = switch (name) {
@@ -4613,6 +4634,10 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(reference);
+    if (path.startsWith('dart:core::Object::@constructors::') &&
+        positionalArgs.isEmpty) {
+      return '({})';
+    }
     if (path.startsWith('dart:core::MapEntry::@constructors::') &&
         positionalArgs.length == 2) {
       return 'Object.freeze({ key: ${positionalArgs[0]}, value: ${positionalArgs[1]} })';
@@ -5747,6 +5772,24 @@ final class _EsmEmitter {
       helper.writeln('  return String(value);');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartObjectToString')) {
+      helper.writeln('function __dartObjectToString(value) {');
+      helper.writeln('  if (value == null) return "null";');
+      helper.writeln('  if (typeof value === "object") {');
+      helper.writeln('    const toString = value.toString;');
+      helper.writeln(
+        '    if (typeof toString === "function" && toString !== Object.prototype.toString) {',
+      );
+      helper.writeln('      return String(toString.call(value));');
+      helper.writeln('    }');
+      helper.writeln(
+        '    const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";',
+      );
+      helper.writeln('    return "Instance of \'" + typeName + "\'";');
+      helper.writeln('  }');
+      helper.writeln('  return String(value);');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartPrint')) {
       helper.writeln('function __dartPrint(value) {');
       helper.writeln('  console.log(__dartStr(value));');
@@ -6652,6 +6695,36 @@ final class _EsmEmitter {
       helper.writeln('  });');
       helper.writeln('  __dartTypeCache.set(name, value);');
       helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartRuntimeType')) {
+      helper.writeln('function __dartRuntimeType(value) {');
+      helper.writeln('  if (value == null) return __dartType("Null");');
+      helper.writeln(
+        '  if (typeof value === "string") return __dartType("String");',
+      );
+      helper.writeln(
+        '  if (typeof value === "boolean") return __dartType("bool");',
+      );
+      helper.writeln(
+        '  if (typeof value === "bigint") return __dartType("BigInt");',
+      );
+      helper.writeln(
+        '  if (typeof value === "number") return __dartType(Number.isInteger(value) ? "int" : "double");',
+      );
+      helper.writeln(
+        '  if (Array.isArray(value)) return __dartType("List<dynamic>");',
+      );
+      helper.writeln(
+        '  if (value instanceof Set) return __dartType("Set<dynamic>");',
+      );
+      helper.writeln(
+        '  if (value instanceof Map) return __dartType("Map<dynamic, dynamic>");',
+      );
+      helper.writeln(
+        '  const name = value.constructor && value.constructor.name ? value.constructor.name : "Object";',
+      );
+      helper.writeln('  return __dartType(name);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSymbol')) {
@@ -7772,6 +7845,7 @@ const _generatedGlobalNames = {
   '__dartNextIdentityHash',
   '__dartObjectHash',
   '__dartObjectHashUnordered',
+  '__dartObjectToString',
   '__dartPatternRegExp',
   '__dartPrint',
   '__dartRandom',
@@ -7779,6 +7853,7 @@ const _generatedGlobalNames = {
   '__dartRecordShape',
   '__dartRegExp',
   '__dartRegExpMatch',
+  '__dartRuntimeType',
   '__dartRoundToInt',
   '__dartSetContainsAll',
   '__dartSetLookup',

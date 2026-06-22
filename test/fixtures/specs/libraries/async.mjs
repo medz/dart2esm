@@ -492,6 +492,47 @@ function __dartStreamSkip(stream, count) {
     }
   })();
 }
+function __dartStreamTimeout(stream, duration, onTimeout = null) {
+  const controller = __dartStreamController(false);
+  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
+  const iterator = stream[Symbol.asyncIterator]();
+  let pendingNext = null;
+  function nextEvent() {
+    pendingNext ??= Promise.resolve(iterator.next()).then((next) => ({ next }), (error) => ({ error }));
+    return pendingNext;
+  }
+  function timeoutEvent() {
+    return new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), delay));
+  }
+  (async () => {
+    try {
+      while (!controller.isClosed) {
+        const result = await Promise.race([nextEvent(), timeoutEvent()]);
+        if (result.timeout) {
+          if (typeof onTimeout === "function") {
+            onTimeout(controller.sink);
+          } else {
+            controller.addError(new Error("TimeoutException: Stream timeout"));
+          }
+          continue;
+        }
+        pendingNext = null;
+        if ("error" in result) {
+          controller.addError(result.error);
+          continue;
+        }
+        if (result.next.done) break;
+        controller.add(result.next.value);
+      }
+    } finally {
+      if (typeof iterator.return === "function") {
+        try { await iterator.return(); } catch (_) {}
+      }
+      await controller.close();
+    }
+  })();
+  return controller.stream;
+}
 function __dartStreamTakeWhile(stream, test) {
   return (async function*() {
     for await (const value of stream) {

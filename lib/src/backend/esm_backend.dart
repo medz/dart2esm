@@ -3931,6 +3931,14 @@ final class _EsmEmitter {
       final helper = name == 'take' ? '__dartStreamTake' : '__dartStreamSkip';
       return '$helper($left, ${positionalArgs.single})';
     }
+    if (name == 'timeout' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamController');
+      final onTimeout = _namedArgument(expression.arguments, 'onTimeout');
+      return '__dartStreamTimeout($left, ${positionalArgs.single}, ${onTimeout ?? 'null'})';
+    }
     if (expression.arguments.named.isEmpty &&
         (name == 'takeWhile' || name == 'skipWhile') &&
         positionalArgs.length == 1 &&
@@ -10624,6 +10632,59 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamTimeout(stream, duration, onTimeout = null) {',
+      );
+      helper.writeln('  const controller = __dartStreamController(false);');
+      helper.writeln(
+        '  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);',
+      );
+      helper.writeln('  const iterator = stream[Symbol.asyncIterator]();');
+      helper.writeln('  let pendingNext = null;');
+      helper.writeln('  function nextEvent() {');
+      helper.writeln(
+        '    pendingNext ??= Promise.resolve(iterator.next()).then((next) => ({ next }), (error) => ({ error }));',
+      );
+      helper.writeln('    return pendingNext;');
+      helper.writeln('  }');
+      helper.writeln('  function timeoutEvent() {');
+      helper.writeln(
+        '    return new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), delay));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  (async () => {');
+      helper.writeln('    try {');
+      helper.writeln('      while (!controller.isClosed) {');
+      helper.writeln(
+        '        const result = await Promise.race([nextEvent(), timeoutEvent()]);',
+      );
+      helper.writeln('        if (result.timeout) {');
+      helper.writeln('          if (typeof onTimeout === "function") {');
+      helper.writeln('            onTimeout(controller.sink);');
+      helper.writeln('          } else {');
+      helper.writeln(
+        '            controller.addError(new Error("TimeoutException: Stream timeout"));',
+      );
+      helper.writeln('          }');
+      helper.writeln('          continue;');
+      helper.writeln('        }');
+      helper.writeln('        pendingNext = null;');
+      helper.writeln('        if ("error" in result) {');
+      helper.writeln('          controller.addError(result.error);');
+      helper.writeln('          continue;');
+      helper.writeln('        }');
+      helper.writeln('        if (result.next.done) break;');
+      helper.writeln('        controller.add(result.next.value);');
+      helper.writeln('      }');
+      helper.writeln('    } finally {');
+      helper.writeln('      if (typeof iterator.return === "function") {');
+      helper.writeln('        try { await iterator.return(); } catch (_) {}');
+      helper.writeln('      }');
+      helper.writeln('      await controller.close();');
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('  return controller.stream;');
+      helper.writeln('}');
       helper.writeln('function __dartStreamTakeWhile(stream, test) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    for await (const value of stream) {');
@@ -11480,6 +11541,7 @@ const _generatedGlobalNames = {
   '__dartStreamSingleWhere',
   '__dartStreamTake',
   '__dartStreamTakeWhile',
+  '__dartStreamTimeout',
   '__dartStreamToList',
   '__dartStreamToSet',
   '__dartStreamWhere',

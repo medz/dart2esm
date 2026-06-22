@@ -122,6 +122,18 @@ Future<void> main() async {
     '${(await broadcastDoubled).join(',')} $broadcastListenCount '
     '${broadcastedFromSingle.isBroadcast}',
   );
+  final timeoutController = StreamController<int>();
+  final timeoutValues = timeoutController.stream
+      .timeout(
+        const Duration(milliseconds: 1),
+        onTimeout: (sink) {
+          sink.add(9);
+          sink.close();
+        },
+      )
+      .toList();
+  await Future<void>.delayed(const Duration(milliseconds: 5));
+  print('streamTimeout ${(await timeoutValues).join(',')}');
   final listened = <int>[];
   final listenDone = Completer<String>();
   final subscription = Stream<int>.fromIterable([6, 7]).listen(

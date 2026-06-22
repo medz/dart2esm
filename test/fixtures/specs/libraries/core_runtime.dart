@@ -13,9 +13,17 @@ void main() {
   );
   buffer.writeAll(['x', 'y'], '-');
   buffer.writeCharCode(33);
+  buffer.writeCharCode(0x1f600);
   print('writeAll ${buffer.toString().split('\n').last}');
   buffer.clear();
   print('cleared ${buffer.isEmpty} ${buffer.toString()}');
+
+  final textRunes = 'A😀B'.runes.toList();
+  final constructedRunes = Runes('Hi 😀');
+  print(
+    'runes ${textRunes.length} ${textRunes[1].toRadixString(16)} '
+    '${String.fromCharCodes(constructedRunes)} ${String.fromCharCode(0x1f600)}',
+  );
 
   final expando = Expando<int>('count');
   final expandoKey = PlainObject();

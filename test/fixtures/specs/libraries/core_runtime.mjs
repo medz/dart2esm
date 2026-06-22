@@ -37,7 +37,7 @@ function __dartStringBuffer(initial = "") {
   return {
     write(next) { value += String(next); },
     writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },
-    writeCharCode(charCode) { value += String.fromCharCode(charCode); },
+    writeCharCode(charCode) { value += String.fromCodePoint(charCode); },
     writeln(next = "") { value += String(next) + "\n"; },
     clear() { value = ""; },
     toString() { return value; },
@@ -79,6 +79,27 @@ function __dartRuntimeType(value) {
   const name = value.constructor && value.constructor.name ? value.constructor.name : "Object";
   return __dartType(name);
 }
+function __dartCoreError(typeName, message) {
+  const text = message == null ? "" : String(message);
+  const display = text === "" ? typeName : typeName + ": " + text;
+  const error = new Error(text);
+  error.name = typeName;
+  Object.defineProperty(error, "__dartCoreErrorType", { value: typeName });
+  Object.defineProperty(error, "toString", { value() { return display; } });
+  return error;
+}
+function __dartIsCoreError(value, typeName) {
+  const actual = value == null ? null : value.__dartCoreErrorType;
+  if (actual != null) {
+    if (actual === typeName) return true;
+    if (typeName === "Exception" && actual === "FormatException") return true;
+    if (typeName === "RangeError" && actual === "IndexError") return true;
+    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
+    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
+  }
+  if (typeName === "TypeError" && value instanceof TypeError) return true;
+  return typeName === "Error" && value instanceof Error;
+}
 function __dartIterableLast(iterable) {
   let found = false;
   let last;
@@ -95,6 +116,11 @@ function __dartEquals(left, right) {
   if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
   const equals = left["=="];
   return typeof equals === "function" ? equals.call(left, right) : false;
+}
+function __dartIntToRadixString(value, radix) {
+  const base = Math.trunc(radix);
+  if (base < 2 || base > 36) throw __dartCoreError("RangeError", "Invalid value");
+  return Math.trunc(value).toString(base);
 }
 const __dartIdentityHashes = new WeakMap();
 let __dartNextIdentityHash = 1;
@@ -165,9 +191,13 @@ export function main() {
   __dartPrint("buffer " + __dartStr(buffer.length) + " " + __dartStr(buffer.isNotEmpty) + " " + __dartStr(__dartStr(buffer).includes("\n")));
   buffer.writeAll(["x", "y"], "-");
   buffer.writeCharCode(33);
+  buffer.writeCharCode(128512);
   __dartPrint("writeAll " + __dartStr(__dartIterableLast(__dartStr(buffer).split("\n"))));
   buffer.clear();
   __dartPrint("cleared " + __dartStr(buffer.isEmpty) + " " + __dartStr(__dartStr(buffer)));
+  const textRunes = Array.from(Array.from("A😀B", (char) => char.codePointAt(0)));
+  const constructedRunes = Array.from(String("Hi 😀"), (char) => char.codePointAt(0));
+  __dartPrint("runes " + __dartStr(textRunes.length) + " " + __dartStr(__dartIntToRadixString(textRunes[1], 16)) + " " + __dartStr(String.fromCodePoint(...Array.from(constructedRunes))) + " " + __dartStr(String.fromCodePoint(128512)));
   const expando = __dartExpando("count");
   const expandoKey = new PlainObject();
   expando.set(expandoKey, 7);

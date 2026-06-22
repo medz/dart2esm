@@ -472,8 +472,8 @@ export function main() {
   const maybeDouble = (() => { let v_1 = __dartDoubleTryParse("bad"); return ((v_1 === null) ? 1.25 : v_1); })();
   const parsedNum = __dartNumParse("7.25");
   __dartPrint("nums " + __dartStr(parsedDouble) + " " + __dartStr(maybeDouble) + " " + __dartStr(parsedNum));
-  const char = String.fromCharCode(65);
-  const chars = String.fromCharCode(...Array.from([68, 97, 114, 116]));
+  const char = String.fromCodePoint(65);
+  const chars = String.fromCodePoint(...Array.from([68, 97, 114, 116]));
   const text = "  hello,dart  ";
   const trimmed = text.trim();
   __dartPrint("strings " + __dartStr(char) + " " + __dartStr(chars) + " " + __dartStr(trimmed.charCodeAt(0)) + " " + __dartStr(trimmed.substring(1, 4)));

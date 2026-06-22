@@ -5496,6 +5496,10 @@ final class _EsmEmitter {
       final initial = positionalArgs.isEmpty ? '""' : positionalArgs.single;
       return '__dartStringBuffer($initial)';
     }
+    if (path.startsWith('dart:core::Runes::@constructors::') &&
+        positionalArgs.length == 1) {
+      return 'Array.from(String(${positionalArgs.single}), (char) => char.codePointAt(0))';
+    }
     if (path.startsWith('dart:core::Duration::@constructors::')) {
       if (positionalArgs.isNotEmpty) {
         return null;
@@ -5866,10 +5870,10 @@ final class _EsmEmitter {
     return switch (path) {
       'dart:core::String::@factories::fromCharCode'
           when positionalArgs.length == 1 =>
-        'String.fromCharCode(${positionalArgs.single})',
+        'String.fromCodePoint(${positionalArgs.single})',
       'dart:core::String::@factories::fromCharCodes'
           when positionalArgs.length == 1 =>
-        'String.fromCharCode(...Array.from(${positionalArgs.single}))',
+        'String.fromCodePoint(...Array.from(${positionalArgs.single}))',
       _ => null,
     };
   }
@@ -6995,7 +6999,7 @@ final class _EsmEmitter {
         '    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },',
       );
       helper.writeln(
-        '    writeCharCode(charCode) { value += String.fromCharCode(charCode); },',
+        '    writeCharCode(charCode) { value += String.fromCodePoint(charCode); },',
       );
       helper.writeln(
         '    writeln(next = "") { value += String(next) + "\\n"; },',

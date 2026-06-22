@@ -59,4 +59,15 @@ void main() {
   print(
     'typedOps ${opsCopy.join(',')} ${ops.join(',')} ${ops.buffer.lengthInBytes}',
   );
+
+  final queries = Uint8List.fromList([4, 5, 4, 6]);
+  final queryRange = queries.getRange(1, 3).join(',');
+  final queryMap = queries.asMap();
+  queries.fillRange(1, 3, 9);
+  print(
+    'typedQueries $queryRange ${queryMap.length}:${queryMap[2]} '
+    '${queries.indexOf(4)} ${queries.indexOf(4, 1)} '
+    '${queries.lastIndexOf(4)} ${queries.lastIndexOf(4, 2)} '
+    '${queries.join(',')}',
+  );
 }

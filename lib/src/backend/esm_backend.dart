@@ -3933,6 +3933,47 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'getRange' &&
         positionalArgs.length == 2 &&
+        _isTypedDataMember(target, name)) {
+      return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'fillRange' &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3 &&
+        _isTypedDataMember(target, name)) {
+      final fillValue = positionalArgs.length == 3 ? positionalArgs[2] : '0';
+      return '($left.fill($fillValue, ${positionalArgs[0]}, ${positionalArgs[1]}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'asMap' &&
+        positionalArgs.isEmpty &&
+        _isTypedDataMember(target, name)) {
+      _usedHelpers.add('__dartListAsMap');
+      return '__dartListAsMap($left)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'indexOf' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isTypedDataMember(target, name)) {
+      if (positionalArgs.length == 1) {
+        return '$left.indexOf(${positionalArgs.single})';
+      }
+      return '$left.indexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'lastIndexOf' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2 &&
+        _isTypedDataMember(target, name)) {
+      if (positionalArgs.length == 1) {
+        return '$left.lastIndexOf(${positionalArgs.single})';
+      }
+      return '$left.lastIndexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'getRange' &&
+        positionalArgs.length == 2 &&
         _isCoreListMember(target, name)) {
       return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
@@ -7685,9 +7726,43 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartListAsMap')) {
       helper.writeln('function __dartListAsMap(list) {');
+      helper.writeln('  return new (class extends Map {');
+      helper.writeln('    get size() { return list.length; }');
       helper.writeln(
-        '  return new Map(Array.from(list, (value, index) => [index, value]));',
+        '    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? list[key] : undefined; }',
       );
+      helper.writeln(
+        '    has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }',
+      );
+      helper.writeln(
+        '    entries() { return Array.from(list, (value, index) => [index, value])[Symbol.iterator](); }',
+      );
+      helper.writeln(
+        '    keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }',
+      );
+      helper.writeln(
+        '    values() { return Array.from(list)[Symbol.iterator](); }',
+      );
+      helper.writeln('    [Symbol.iterator]() { return this.entries(); }');
+      helper.writeln('    forEach(callback, thisArg = undefined) {');
+      helper.writeln(
+        '      for (let index = 0; index < list.length; index++) {',
+      );
+      helper.writeln(
+        '        callback.call(thisArg, list[index], index, this);',
+      );
+      helper.writeln('      }');
+      helper.writeln('    }');
+      helper.writeln(
+        '    set() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }',
+      );
+      helper.writeln(
+        '    delete() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }',
+      );
+      helper.writeln(
+        '    clear() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }',
+      );
+      helper.writeln('  })();');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartIterableContains')) {

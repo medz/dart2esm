@@ -129,7 +129,23 @@ function __dartListRetainWhere(list, test) {
   return null;
 }
 function __dartListAsMap(list) {
-  return new Map(Array.from(list, (value, index) => [index, value]));
+  return new (class extends Map {
+    get size() { return list.length; }
+    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? list[key] : undefined; }
+    has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }
+    entries() { return Array.from(list, (value, index) => [index, value])[Symbol.iterator](); }
+    keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }
+    values() { return Array.from(list)[Symbol.iterator](); }
+    [Symbol.iterator]() { return this.entries(); }
+    forEach(callback, thisArg = undefined) {
+      for (let index = 0; index < list.length; index++) {
+        callback.call(thisArg, list[index], index, this);
+      }
+    }
+    set() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    delete() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    clear() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+  })();
 }
 function __dartIterableContains(iterable, needle) {
   for (const value of iterable) {

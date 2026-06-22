@@ -28,6 +28,25 @@ function __dartListSetAll(list, index, values) {
   }
   return null;
 }
+function __dartListAsMap(list) {
+  return new (class extends Map {
+    get size() { return list.length; }
+    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? list[key] : undefined; }
+    has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }
+    entries() { return Array.from(list, (value, index) => [index, value])[Symbol.iterator](); }
+    keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }
+    values() { return Array.from(list)[Symbol.iterator](); }
+    [Symbol.iterator]() { return this.entries(); }
+    forEach(callback, thisArg = undefined) {
+      for (let index = 0; index < list.length; index++) {
+        callback.call(thisArg, list[index], index, this);
+      }
+    }
+    set() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    delete() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    clear() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+  })();
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
@@ -90,6 +109,11 @@ export function main() {
   __dartListSetAll(ops, 1, [9, 8]);
   __dartListSetRange(ops, 0, 2, [5, 6, 7], 1);
   __dartPrint("typedOps " + __dartStr(__dartIterableJoin(opsCopy, ",")) + " " + __dartStr(__dartIterableJoin(ops, ",")) + " " + __dartStr(ops.buffer.byteLength));
+  const queries = Uint8Array.from([4, 5, 4, 6]);
+  const queryRange = __dartIterableJoin(queries.slice(1, 3), ",");
+  const queryMap = __dartListAsMap(queries);
+  (queries.fill(9, 1, 3), null);
+  __dartPrint("typedQueries " + __dartStr(queryRange) + " " + __dartStr(queryMap.size) + ":" + __dartStr(queryMap.get(2)) + " " + __dartStr(queries.indexOf(4)) + " " + __dartStr(queries.indexOf(4, 1)) + " " + __dartStr(queries.lastIndexOf(4)) + " " + __dartStr(queries.lastIndexOf(4, 2)) + " " + __dartStr(__dartIterableJoin(queries, ",")));
 }
 
 main();

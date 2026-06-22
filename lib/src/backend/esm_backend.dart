@@ -2818,6 +2818,29 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStream');
       return '__dartStreamToList($left)';
     }
+    if (name == 'then' &&
+        positionalArgs.length == 1 &&
+        _isAsyncFutureMember(target, name)) {
+      final onError = _namedArgument(expression.arguments, 'onError');
+      if (onError == null) {
+        return '$left.then(${positionalArgs.single})';
+      }
+      return '$left.then(${positionalArgs.single}, $onError)';
+    }
+    if (name == 'catchError' &&
+        positionalArgs.length == 1 &&
+        _isAsyncFutureMember(target, name)) {
+      final test = _namedArgument(expression.arguments, 'test');
+      if (test == null) {
+        return '$left.catch(${positionalArgs.single})';
+      }
+      return '$left.catch((error) => ($test)(error) ? (${positionalArgs.single})(error) : Promise.reject(error))';
+    }
+    if (name == 'whenComplete' &&
+        positionalArgs.length == 1 &&
+        _isAsyncFutureMember(target, name)) {
+      return '$left.finally(${positionalArgs.single})';
+    }
     if (expression.arguments.named.isEmpty &&
         name == 'add' &&
         positionalArgs.length == 1 &&
@@ -4142,6 +4165,13 @@ final class _EsmEmitter {
     return path == 'dart:async::Stream::@methods::$name' ||
         path == 'dart:async::Stream::@getters::$name' ||
         path == 'dart:async::Stream::$name';
+  }
+
+  bool _isAsyncFutureMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return path == 'dart:async::Future::@methods::$name' ||
+        path == 'dart:async::Future::@getters::$name' ||
+        path == 'dart:async::Future::$name';
   }
 
   bool _isCollectionQueueMember(k.Reference reference, String name) {

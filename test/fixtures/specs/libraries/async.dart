@@ -67,6 +67,22 @@ Future<void> main() async {
   });
   print('periodic ${await periodicDone.future}');
 
+  var finalized = false;
+  final chained = await Future<int>.value(7).then((value) => value + 1);
+  final recovered = await Future<int>.error('recover').catchError((error) => 8);
+  final completed = await Future<int>.value(9).whenComplete(() {
+    finalized = true;
+  });
+  final handledThen = await Future<int>.error(
+    'then-error',
+  ).then((_) => 0, onError: (error) => 10);
+  final filtered = await Future<int>.error(
+    'filtered',
+  ).catchError((error) => 11, test: (error) => error == 'filtered');
+  print(
+    'chain $chained $recovered $completed $finalized $handledThen $filtered',
+  );
+
   try {
     await Future.error('boom');
   } catch (error) {

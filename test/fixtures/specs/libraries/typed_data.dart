@@ -51,4 +51,12 @@ void main() {
 
   final byteSlice = ByteData.sublistView(bytes, 0, 2);
   print('byteslice ${byteSlice.lengthInBytes} ${byteSlice.getUint8(1)}');
+
+  final ops = Uint8List.fromList([1, 2, 3, 4]);
+  final opsCopy = ops.sublist(1, 3);
+  ops.setAll(1, [9, 8]);
+  ops.setRange(0, 2, [5, 6, 7], 1);
+  print(
+    'typedOps ${opsCopy.join(',')} ${ops.join(',')} ${ops.buffer.lengthInBytes}',
+  );
 }

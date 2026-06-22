@@ -49,6 +49,15 @@ void main() {
   print(
     'indexed ${values.indexed.map((entry) => '${entry.$1}:${entry.$2}').take(3).join('|')}',
   );
+  final singleValue = [42];
+  final emptyValues = <int>[];
+  print(
+    'nullableQuery ${singleValue.single} ${singleValue.singleOrNull} '
+    '${values.singleOrNull} ${emptyValues.firstOrNull} '
+    '${values.firstOrNull} ${emptyValues.lastOrNull} ${values.lastOrNull} '
+    '${emptyValues.singleOrNull} ${values.elementAtOrNull(2)} '
+    '${values.elementAtOrNull(99)}',
+  );
   var visited = 0;
   values.forEach((value) {
     visited += value;

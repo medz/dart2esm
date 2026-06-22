@@ -172,6 +172,49 @@ function __dartSetRetainAll(set, values) {
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
+function __dartIterableSingle(iterable) {
+  let found = false;
+  let single;
+  for (const value of iterable) {
+    if (found) throw new Error("Bad state: Too many elements");
+    found = true;
+    single = value;
+  }
+  if (!found) throw new RangeError("No element");
+  return single;
+}
+function __dartIterableFirstOrNull(iterable) {
+  for (const value of iterable) return value;
+  return null;
+}
+function __dartIterableLastOrNull(iterable) {
+  let found = false;
+  let last;
+  for (const value of iterable) {
+    found = true;
+    last = value;
+  }
+  return found ? last : null;
+}
+function __dartIterableSingleOrNull(iterable) {
+  let found = false;
+  let single;
+  for (const value of iterable) {
+    if (found) return null;
+    found = true;
+    single = value;
+  }
+  return found ? single : null;
+}
+function __dartIterableElementAtOrNull(iterable, index) {
+  if (!Number.isInteger(index) || index < 0) throw new RangeError("index must be non-negative");
+  let currentIndex = 0;
+  for (const value of iterable) {
+    if (currentIndex === index) return value;
+    currentIndex++;
+  }
+  return null;
+}
 function __dartIterableNoElement(orElse) {
   if (typeof orElse === "function") return orElse();
   throw new Error("Bad state: No element");
@@ -262,6 +305,9 @@ export function main() {
   const mixedValues = [1, "two", null, 3, "four"];
   __dartPrint("typed " + __dartStr(__dartIterableJoin(Array.from(mixedValues).filter((value) => typeof value === "number"), ",")) + " " + __dartStr(__dartIterableJoin(Array.from(mixedValues).filter((value) => value != null), "|")) + " " + __dartStr(__dartIterableJoin(Array.from(Array.from(values, (value) => __dartAs(value, (value) => typeof value === "number", "InterfaceType(num)")), function(value) { return (value + 1); }), ",")));
   __dartPrint("indexed " + __dartStr(__dartIterableJoin(Array.from(Array.from(Array.from(values, (value, index) => __dartRecord([index, value], {})), function(entry) { return __dartStr(entry.$1) + ":" + __dartStr(entry.$2); })).slice(0, 3), "|")));
+  const singleValue = [42];
+  const emptyValues = new Array(0).fill(null);
+  __dartPrint("nullableQuery " + __dartStr(__dartIterableSingle(singleValue)) + " " + __dartStr(__dartIterableSingleOrNull(singleValue)) + " " + __dartStr(__dartIterableSingleOrNull(values)) + " " + __dartStr(__dartIterableFirstOrNull(emptyValues)) + " " + __dartStr(__dartIterableFirstOrNull(values)) + " " + __dartStr(__dartIterableLastOrNull(emptyValues)) + " " + __dartStr(__dartIterableLastOrNull(values)) + " " + __dartStr(__dartIterableSingleOrNull(emptyValues)) + " " + __dartStr(__dartIterableElementAtOrNull(values, 2)) + " " + __dartStr(__dartIterableElementAtOrNull(values, 99)));
   let visited = 0;
   (Array.from(values).forEach(function(value) {
     visited = (visited + value);

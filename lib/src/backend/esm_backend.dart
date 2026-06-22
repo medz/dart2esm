@@ -2791,6 +2791,30 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartRecord');
       return 'Array.from(${positionalArgs.single}, (value, index) => __dartRecord([index, value], {}))';
     }
+    if (_referencePath(expression.targetReference) ==
+            'dart:collection::@methods::IterableExtensions|get#firstOrNull' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIterableFirstOrNull');
+      return '__dartIterableFirstOrNull(${positionalArgs.single})';
+    }
+    if (_referencePath(expression.targetReference) ==
+            'dart:collection::@methods::IterableExtensions|get#lastOrNull' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIterableLastOrNull');
+      return '__dartIterableLastOrNull(${positionalArgs.single})';
+    }
+    if (_referencePath(expression.targetReference) ==
+            'dart:collection::@methods::IterableExtensions|get#singleOrNull' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIterableSingleOrNull');
+      return '__dartIterableSingleOrNull(${positionalArgs.single})';
+    }
+    if (_referencePath(expression.targetReference) ==
+            'dart:collection::@methods::IterableExtensions|elementAtOrNull' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartIterableElementAtOrNull');
+      return '__dartIterableElementAtOrNull(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
     final coreInvocation = _emitCoreStaticInvocation(
       expression,
       positionalArgs,
@@ -4189,6 +4213,23 @@ final class _EsmEmitter {
       }
       _usedHelpers.add('__dartIterableLast');
       return '__dartIterableLast($receiver)';
+    }
+    if (name == 'single' &&
+        _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartIterableSingle');
+      return '__dartIterableSingle($receiver)';
+    }
+    if (name == 'firstOrNull') {
+      _usedHelpers.add('__dartIterableFirstOrNull');
+      return '__dartIterableFirstOrNull($receiver)';
+    }
+    if (name == 'lastOrNull') {
+      _usedHelpers.add('__dartIterableLastOrNull');
+      return '__dartIterableLastOrNull($receiver)';
+    }
+    if (name == 'singleOrNull') {
+      _usedHelpers.add('__dartIterableSingleOrNull');
+      return '__dartIterableSingleOrNull($receiver)';
     }
     if (name == 'reversed' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
@@ -7299,6 +7340,65 @@ final class _EsmEmitter {
       helper.writeln('  return last;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartIterableSingle')) {
+      helper.writeln('function __dartIterableSingle(iterable) {');
+      helper.writeln('  let found = false;');
+      helper.writeln('  let single;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln(
+        '    if (found) throw new Error("Bad state: Too many elements");',
+      );
+      helper.writeln('    found = true;');
+      helper.writeln('    single = value;');
+      helper.writeln('  }');
+      helper.writeln('  if (!found) throw new RangeError("No element");');
+      helper.writeln('  return single;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableFirstOrNull')) {
+      helper.writeln('function __dartIterableFirstOrNull(iterable) {');
+      helper.writeln('  for (const value of iterable) return value;');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableLastOrNull')) {
+      helper.writeln('function __dartIterableLastOrNull(iterable) {');
+      helper.writeln('  let found = false;');
+      helper.writeln('  let last;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    found = true;');
+      helper.writeln('    last = value;');
+      helper.writeln('  }');
+      helper.writeln('  return found ? last : null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableSingleOrNull')) {
+      helper.writeln('function __dartIterableSingleOrNull(iterable) {');
+      helper.writeln('  let found = false;');
+      helper.writeln('  let single;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    if (found) return null;');
+      helper.writeln('    found = true;');
+      helper.writeln('    single = value;');
+      helper.writeln('  }');
+      helper.writeln('  return found ? single : null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableElementAtOrNull')) {
+      helper.writeln(
+        'function __dartIterableElementAtOrNull(iterable, index) {',
+      );
+      helper.writeln(
+        '  if (!Number.isInteger(index) || index < 0) throw new RangeError("index must be non-negative");',
+      );
+      helper.writeln('  let currentIndex = 0;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    if (currentIndex === index) return value;');
+      helper.writeln('    currentIndex++;');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartIterableWhereElement')) {
       helper.writeln('function __dartIterableNoElement(orElse) {');
       helper.writeln('  if (typeof orElse === "function") return orElse();');
@@ -8025,10 +8125,15 @@ const _generatedGlobalNames = {
   '__dartIntParse',
   '__dartIntTryParse',
   '__dartIterableContains',
+  '__dartIterableElementAtOrNull',
   '__dartIterableFirst',
+  '__dartIterableFirstOrNull',
   '__dartIterableJoin',
   '__dartIterableLast',
+  '__dartIterableLastOrNull',
   '__dartIterableSkipWhile',
+  '__dartIterableSingle',
+  '__dartIterableSingleOrNull',
   '__dartIterableTakeWhile',
   '__dartCombineHash',
   '__dartFinishHash',

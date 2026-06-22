@@ -98,6 +98,50 @@ function __dartFutureAsStream(future) {
     yield await future;
   })();
 }
+function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
+  const entries = Array.from(futures);
+  if (entries.length === 0) return Promise.resolve([]);
+  const values = new Array(entries.length);
+  const completed = new Array(entries.length).fill(false);
+  let remaining = entries.length;
+  let hasError = false;
+  let firstError;
+  let rejected = false;
+  function runCleanUp(value) {
+    if (value == null || typeof cleanUp !== "function") return;
+    Promise.resolve().then(() => cleanUp(value));
+  }
+  return new Promise((resolve, reject) => {
+    entries.forEach((future, index) => {
+      Promise.resolve(future).then(
+        (value) => {
+          values[index] = value;
+          completed[index] = true;
+          if (hasError) runCleanUp(value);
+          remaining--;
+          if (remaining === 0 && !rejected) {
+            rejected = hasError;
+            hasError ? reject(firstError) : resolve(values);
+          }
+        },
+        (error) => {
+          if (!hasError) {
+            hasError = true;
+            firstError = error;
+            for (let i = 0; i < values.length; i++) {
+              if (completed[i]) runCleanUp(values[i]);
+            }
+          }
+          remaining--;
+          if ((eagerError || remaining === 0) && !rejected) {
+            rejected = true;
+            reject(firstError);
+          }
+        },
+      );
+    });
+  });
+}
 function __dartFutureTimeout(future, duration, onTimeout = null) {
   const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
   return new Promise((resolve, reject) => {
@@ -233,8 +277,43 @@ export async function main() {
   const first = await Promise.resolve(1);
   const second = await Promise.resolve().then(() => (function() { return 2; })());
   const delayed = await new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 3; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1000\"]]]", () => __dartDuration({ microseconds: 1000 })).inMilliseconds)));
-  const values = await Promise.all(Array.from([Promise.resolve(first), Promise.resolve(second), Promise.resolve(delayed)]));
+  const values = await __dartFutureWait([Promise.resolve(first), Promise.resolve(second), Promise.resolve(delayed)], false, null);
   __dartPrint("future " + __dartStr(__dartIterableJoin(values, ",")));
+  const waitCleaned = new Array(0).fill(null);
+  try {
+    {
+      await __dartFutureWait([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 12; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"2000\"]]]", () => __dartDuration({ microseconds: 2000 })).inMilliseconds))), Promise.reject("wait-error")], false, function(value) {
+        (waitCleaned.push(value), null);
+});
+    }
+  } catch ($error) {
+    if ($error != null) {
+      const error = $error;
+      {
+        __dartPrint("waitError " + __dartStr(error) + " " + __dartStr(__dartIterableJoin(waitCleaned, ",")));
+      }
+    } else {
+      throw $error;
+    }
+  }
+  const eagerCleaned = new Array(0).fill(null);
+  try {
+    {
+      await __dartFutureWait([Promise.reject("eager-error"), new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 13; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"2000\"]]]", () => __dartDuration({ microseconds: 2000 })).inMilliseconds)))], true, function(value) {
+        (eagerCleaned.push(value), null);
+});
+    }
+  } catch ($error_1) {
+    if ($error_1 != null) {
+      const error_1 = $error_1;
+      {
+        await new Promise((resolve, reject) => setTimeout(() => { try { resolve(null); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"5000\"]]]", () => __dartDuration({ microseconds: 5000 })).inMilliseconds)));
+        __dartPrint("waitEager " + __dartStr(error_1) + " " + __dartStr(__dartIterableJoin(eagerCleaned, ",")));
+      }
+    } else {
+      throw $error_1;
+    }
+  }
   const microtask = await Promise.resolve().then(() => (function() { return 4; })());
   const any = await Promise.race(Array.from([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 99; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"5000\"]]]", () => __dartDuration({ microseconds: 5000 })).inMilliseconds))), Promise.resolve(5)]));
   __dartPrint("more " + __dartStr(microtask) + " " + __dartStr(any));
@@ -250,14 +329,14 @@ export async function main() {
     {
       await failed.future;
     }
-  } catch ($error) {
-    if ($error != null) {
-      const error = $error;
+  } catch ($error_2) {
+    if ($error_2 != null) {
+      const error_2 = $error_2;
       {
-        __dartPrint("completeError " + __dartStr(error));
+        __dartPrint("completeError " + __dartStr(error_2));
       }
     } else {
-      throw $error;
+      throw $error_2;
     }
   }
   const timerDone = __dartCompleter();
@@ -305,14 +384,14 @@ export async function main() {
     {
       await Promise.reject("boom");
     }
-  } catch ($error_1) {
-    if ($error_1 != null) {
-      const error_1 = $error_1;
+  } catch ($error_3) {
+    if ($error_3 != null) {
+      const error_3 = $error_3;
       {
-        __dartPrint("caught " + __dartStr(error_1));
+        __dartPrint("caught " + __dartStr(error_3));
       }
     } else {
-      throw $error_1;
+      throw $error_3;
     }
   }
 }

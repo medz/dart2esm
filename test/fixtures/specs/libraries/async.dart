@@ -14,6 +14,38 @@ Future<void> main() async {
   ]);
   print('future ${values.join(',')}');
 
+  final waitCleaned = <int>[];
+  try {
+    await Future.wait<int>(
+      [
+        Future<int>.delayed(const Duration(milliseconds: 2), () => 12),
+        Future<int>.error('wait-error'),
+      ],
+      cleanUp: (value) {
+        waitCleaned.add(value);
+      },
+    );
+  } catch (error) {
+    print('waitError $error ${waitCleaned.join(',')}');
+  }
+
+  final eagerCleaned = <int>[];
+  try {
+    await Future.wait<int>(
+      [
+        Future<int>.error('eager-error'),
+        Future<int>.delayed(const Duration(milliseconds: 2), () => 13),
+      ],
+      eagerError: true,
+      cleanUp: (value) {
+        eagerCleaned.add(value);
+      },
+    );
+  } catch (error) {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    print('waitEager $error ${eagerCleaned.join(',')}');
+  }
+
   final microtask = await Future<int>.microtask(() => 4);
   final any = await Future.any<int>([
     Future<int>.delayed(const Duration(milliseconds: 5), () => 99),

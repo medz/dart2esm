@@ -5120,7 +5120,11 @@ final class _EsmEmitter {
     }
     if (path == 'dart:async::Future::@methods::wait' &&
         positionalArgs.length == 1) {
-      return 'Promise.all(Array.from(${positionalArgs.single}))';
+      _usedHelpers.add('__dartFutureWait');
+      final eagerError =
+          _namedArgument(expression.arguments, 'eagerError') ?? 'false';
+      final cleanUp = _namedArgument(expression.arguments, 'cleanUp') ?? 'null';
+      return '__dartFutureWait(${positionalArgs.single}, $eagerError, $cleanUp)';
     }
     if (path == 'dart:async::Future::@methods::any' &&
         positionalArgs.length == 1) {
@@ -8521,6 +8525,62 @@ final class _EsmEmitter {
       helper.writeln('  })();');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartFutureWait')) {
+      helper.writeln(
+        'function __dartFutureWait(futures, eagerError = false, cleanUp = null) {',
+      );
+      helper.writeln('  const entries = Array.from(futures);');
+      helper.writeln('  if (entries.length === 0) return Promise.resolve([]);');
+      helper.writeln('  const values = new Array(entries.length);');
+      helper.writeln(
+        '  const completed = new Array(entries.length).fill(false);',
+      );
+      helper.writeln('  let remaining = entries.length;');
+      helper.writeln('  let hasError = false;');
+      helper.writeln('  let firstError;');
+      helper.writeln('  let rejected = false;');
+      helper.writeln('  function runCleanUp(value) {');
+      helper.writeln(
+        '    if (value == null || typeof cleanUp !== "function") return;',
+      );
+      helper.writeln('    Promise.resolve().then(() => cleanUp(value));');
+      helper.writeln('  }');
+      helper.writeln('  return new Promise((resolve, reject) => {');
+      helper.writeln('    entries.forEach((future, index) => {');
+      helper.writeln('      Promise.resolve(future).then(');
+      helper.writeln('        (value) => {');
+      helper.writeln('          values[index] = value;');
+      helper.writeln('          completed[index] = true;');
+      helper.writeln('          if (hasError) runCleanUp(value);');
+      helper.writeln('          remaining--;');
+      helper.writeln('          if (remaining === 0 && !rejected) {');
+      helper.writeln('            rejected = hasError;');
+      helper.writeln(
+        '            hasError ? reject(firstError) : resolve(values);',
+      );
+      helper.writeln('          }');
+      helper.writeln('        },');
+      helper.writeln('        (error) => {');
+      helper.writeln('          if (!hasError) {');
+      helper.writeln('            hasError = true;');
+      helper.writeln('            firstError = error;');
+      helper.writeln('            for (let i = 0; i < values.length; i++) {');
+      helper.writeln('              if (completed[i]) runCleanUp(values[i]);');
+      helper.writeln('            }');
+      helper.writeln('          }');
+      helper.writeln('          remaining--;');
+      helper.writeln(
+        '          if ((eagerError || remaining === 0) && !rejected) {',
+      );
+      helper.writeln('            rejected = true;');
+      helper.writeln('            reject(firstError);');
+      helper.writeln('          }');
+      helper.writeln('        },');
+      helper.writeln('      );');
+      helper.writeln('    });');
+      helper.writeln('  });');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartFutureTimeout')) {
       helper.writeln(
         'function __dartFutureTimeout(future, duration, onTimeout = null) {',
@@ -9144,6 +9204,7 @@ const _generatedGlobalNames = {
   '__dartEquals',
   '__dartFormatException',
   '__dartFromJson',
+  '__dartFutureWait',
   '__dartIntParse',
   '__dartIntTryParse',
   '__dartIterableContains',

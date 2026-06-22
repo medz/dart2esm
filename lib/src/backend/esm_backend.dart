@@ -2333,6 +2333,8 @@ final class _EsmEmitter {
       return '${_className(classNode)}.${_memberName(name)}';
     }
     switch (_referencePath(constant.classReference)) {
+      case 'dart:core::Object':
+        return _emitCanonicalConst(constant, 'Object.freeze({})');
       case 'dart:convert::JsonCodec':
         _usedHelpers.add('__dartJsonCodec');
         return _emitCanonicalConst(constant, '__dartJsonCodec()');
@@ -5688,6 +5690,14 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartUriParse');
       return '__dartUriParse(${positionalArgs.single}, true)';
     }
+    if ((path == 'dart:core::_Uri::@factories::' ||
+            path == 'dart:core::Uri::@factories::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartCoreError');
+      _usedHelpers.add('__dartUri');
+      _usedHelpers.add('__dartUriParse');
+      return '__dartUri(${_emitUriReplaceOptions(expression.arguments)})';
+    }
     if ((path == 'dart:core::_Uri::@factories::http' ||
             path == 'dart:core::Uri::@factories::http') &&
         positionalArgs.length >= 2 &&
@@ -7628,8 +7638,14 @@ final class _EsmEmitter {
       helper.writeln('  const text = String(source);');
       helper.writeln('  let url;');
       helper.writeln('  let isRelative = false;');
+      helper.writeln('  let isProtocolRelative = false;');
       helper.writeln('  try {');
-      helper.writeln('    url = new URL(text);');
+      helper.writeln('    if (text.startsWith("//")) {');
+      helper.writeln('      url = new URL("dart:" + text);');
+      helper.writeln('      isProtocolRelative = true;');
+      helper.writeln('    } else {');
+      helper.writeln('      url = new URL(text);');
+      helper.writeln('    }');
       helper.writeln('  } catch (_) {');
       helper.writeln('    try {');
       helper.writeln('      url = new URL(text, "dart://relative");');
@@ -7665,7 +7681,7 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  return Object.freeze({');
       helper.writeln(
-        '    get scheme() { return isRelative ? "" : url.protocol.slice(0, -1); },',
+        '    get scheme() { return isRelative || isProtocolRelative ? "" : url.protocol.slice(0, -1); },',
       );
       helper.writeln(
         '    get host() { return isRelative ? "" : url.hostname; },',
@@ -7705,15 +7721,94 @@ final class _EsmEmitter {
       helper.writeln('    get hasQuery() { return url.search !== ""; },');
       helper.writeln('    get hasFragment() { return url.hash !== ""; },');
       helper.writeln(
-        '    get isAbsolute() { return !isRelative && url.protocol !== "" && url.hash === ""; },',
+        '    get isAbsolute() { return !isRelative && !isProtocolRelative && url.protocol !== "" && url.hash === ""; },',
       );
       helper.writeln('    toString() { return text; },');
       helper.writeln('  });');
       helper.writeln('}');
-      if (_usedHelpers.contains('__dartUriFile')) {
+      if (_usedHelpers.contains('__dartUriFile') ||
+          _usedHelpers.contains('__dartUri')) {
         helper.writeln(
           'function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }',
         );
+      }
+      if (_usedHelpers.contains('__dartUri')) {
+        helper.writeln(
+          'function __dartUriEncodeQueryComponent(value) { return encodeURIComponent(String(value)).replace(/%20/g, "+"); }',
+        );
+        helper.writeln('function __dartUriBuildQuery(queryParameters) {');
+        helper.writeln('  const parts = [];');
+        helper.writeln('  for (const [key, value] of queryParameters) {');
+        helper.writeln(
+          '    const encodedKey = __dartUriEncodeQueryComponent(key);',
+        );
+        helper.writeln('    if (value == null) {');
+        helper.writeln('      parts.push(encodedKey);');
+        helper.writeln(
+          '    } else if (typeof value !== "string" && typeof value[Symbol.iterator] === "function") {',
+        );
+        helper.writeln(
+          '      for (const item of value) parts.push(encodedKey + "=" + __dartUriEncodeQueryComponent(item));',
+        );
+        helper.writeln('    } else {');
+        helper.writeln(
+          '      parts.push(encodedKey + "=" + __dartUriEncodeQueryComponent(value));',
+        );
+        helper.writeln('    }');
+        helper.writeln('  }');
+        helper.writeln('  return parts.join("&");');
+        helper.writeln('}');
+        helper.writeln('function __dartUri(options = {}) {');
+        helper.writeln(
+          '  const scheme = options.scheme == null ? "" : String(options.scheme);',
+        );
+        helper.writeln(
+          '  const userInfo = options.userInfo == null ? "" : String(options.userInfo);',
+        );
+        helper.writeln(
+          '  const host = options.host == null ? "" : String(options.host);',
+        );
+        helper.writeln(
+          '  const port = options.port == null ? null : Number(options.port);',
+        );
+        helper.writeln('  let path = "";');
+        helper.writeln('  if (options.pathSegments != null) {');
+        helper.writeln(
+          '    path = Array.from(options.pathSegments, (segment) => encodeURIComponent(String(segment))).join("/");',
+        );
+        helper.writeln('  } else if (options.path != null) {');
+        helper.writeln('    path = __dartUriEncodePath(options.path);');
+        helper.writeln('  }');
+        helper.writeln('  const authority = host === ""');
+        helper.writeln('    ? ""');
+        helper.writeln(
+          '    : (userInfo === "" ? "" : userInfo + "@") + host + (port == null ? "" : ":" + port);',
+        );
+        helper.writeln('  let text = scheme === "" ? "" : scheme + ":";');
+        helper.writeln('  if (authority !== "") text += "//" + authority;');
+        helper.writeln('  if (path !== "") {');
+        helper.writeln(
+          '    if (authority !== "" && !path.startsWith("/")) text += "/";',
+        );
+        helper.writeln('    text += path;');
+        helper.writeln('  }');
+        helper.writeln('  if (options.queryParameters != null) {');
+        helper.writeln(
+          '    const query = __dartUriBuildQuery(options.queryParameters);',
+        );
+        helper.writeln('    if (query !== "") text += "?" + query;');
+        helper.writeln('  } else if (options.query != null) {');
+        helper.writeln('    text += "?" + String(options.query);');
+        helper.writeln('  }');
+        helper.writeln('  if (options.fragment != null) {');
+        helper.writeln(
+          '    text += "#" + encodeURIComponent(String(options.fragment));',
+        );
+        helper.writeln('  }');
+        helper.writeln('  return __dartUriParse(text, false);');
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUriFile')) {
         helper.writeln(
           'function __dartUriFile(path, windows = false, directory = false) {',
         );
@@ -7801,7 +7896,8 @@ final class _EsmEmitter {
         helper.writeln('}');
       }
       if (_usedHelpers.contains('__dartUriBuild') ||
-          _usedHelpers.contains('__dartUriReplace')) {
+          _usedHelpers.contains('__dartUriReplace') ||
+          _usedHelpers.contains('__dartUri')) {
         helper.writeln(
           'function __dartUriAssignQueryParameters(url, queryParameters) {',
         );
@@ -8111,6 +8207,11 @@ final class _EsmEmitter {
       helper.writeln('    if (dotAll) flags += "s";');
       helper.writeln('    return new RegExp(source, flags);');
       helper.writeln('  }');
+      helper.writeln('  function displayFlags() {');
+      helper.writeln(
+        '    return (caseSensitive ? "" : "i") + (multiLine ? "m" : "") + (dotAll ? "s" : "") + (unicode ? "u" : "");',
+      );
+      helper.writeln('  }');
       helper.writeln('  return {');
       helper.writeln('    __dartRegExpMake: make,');
       helper.writeln('    pattern: source,');
@@ -8122,9 +8223,10 @@ final class _EsmEmitter {
         '    hasMatch(input) { return make(false).test(String(input)); },',
       );
       helper.writeln('    firstMatch(input) {');
-      helper.writeln('      const match = make(false).exec(String(input));');
+      helper.writeln('      const text = String(input);');
+      helper.writeln('      const match = make(false).exec(text);');
       helper.writeln(
-        '      return match == null ? null : __dartRegExpMatch(match);',
+        '      return match == null ? null : __dartRegExpMatch(match, 0, text, this);',
       );
       helper.writeln('    },');
       helper.writeln('    stringMatch(input) {');
@@ -8132,10 +8234,11 @@ final class _EsmEmitter {
       helper.writeln('      return match == null ? null : match.group(0);');
       helper.writeln('    },');
       helper.writeln('    matchAsPrefix(input, start = 0) {');
-      helper.writeln('      const text = String(input).slice(start);');
+      helper.writeln('      const sourceText = String(input);');
+      helper.writeln('      const text = sourceText.slice(start);');
       helper.writeln('      const match = make(false).exec(text);');
       helper.writeln(
-        '      return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start);',
+        '      return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start, sourceText, this);',
       );
       helper.writeln('    },');
       helper.writeln('    allMatches(input, start = 0) {');
@@ -8145,19 +8248,27 @@ final class _EsmEmitter {
       helper.writeln('      const matches = [];');
       helper.writeln('      let match;');
       helper.writeln('      while ((match = regexp.exec(text)) !== null) {');
-      helper.writeln('        matches.push(__dartRegExpMatch(match));');
+      helper.writeln(
+        '        matches.push(__dartRegExpMatch(match, 0, text, this));',
+      );
       helper.writeln('        if (match[0] === "") regexp.lastIndex++;');
       helper.writeln('      }');
       helper.writeln('      return matches;');
       helper.writeln('    },');
-      helper.writeln('    toString() { return source; },');
+      helper.writeln(
+        '    toString() { return "RegExp: pattern=" + source + " flags=" + displayFlags(); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
-      helper.writeln('function __dartRegExpMatch(match, offset = 0) {');
+      helper.writeln(
+        'function __dartRegExpMatch(match, offset = 0, input = null, pattern = null) {',
+      );
       helper.writeln('  const namedGroups = match.groups ?? {};');
       helper.writeln('  const result = {');
       helper.writeln('    start: offset + match.index,');
       helper.writeln('    end: offset + match.index + match[0].length,');
+      helper.writeln('    get input() { return input; },');
+      helper.writeln('    get pattern() { return pattern; },');
       helper.writeln('    get groupCount() { return match.length - 1; },');
       helper.writeln(
         '    group(index) { return index >= 0 && index < match.length ? (match[index] ?? null) : null; },',
@@ -10494,13 +10605,16 @@ const _generatedGlobalNames = {
   '__dartType',
   '__dartTypeCache',
   '__dartTypedDataSublistView',
+  '__dartUri',
   '__dartUriAssignQueryParameters',
   '__dartUriBuild',
+  '__dartUriBuildQuery',
   '__dartUriData',
   '__dartUriDataFromBytes',
   '__dartUriDataFromString',
   '__dartUriDataMediaType',
   '__dartUriDataParameters',
+  '__dartUriEncodeQueryComponent',
   '__dartUriEncodePath',
   '__dartUriFile',
   '__dartUriNormalizePath',

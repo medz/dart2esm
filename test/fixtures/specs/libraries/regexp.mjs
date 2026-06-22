@@ -17,6 +17,18 @@ function __dartStr(value) {
   }
   return String(value);
 }
+function __dartObjectToString(value) {
+  if (value == null) return "null";
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+    const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+  return String(value);
+}
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
@@ -228,6 +240,9 @@ function __dartRegExp(pattern, options = {}) {
     if (dotAll) flags += "s";
     return new RegExp(source, flags);
   }
+  function displayFlags() {
+    return (caseSensitive ? "" : "i") + (multiLine ? "m" : "") + (dotAll ? "s" : "") + (unicode ? "u" : "");
+  }
   return {
     __dartRegExpMake: make,
     pattern: source,
@@ -237,17 +252,19 @@ function __dartRegExp(pattern, options = {}) {
     isDotAll: dotAll,
     hasMatch(input) { return make(false).test(String(input)); },
     firstMatch(input) {
-      const match = make(false).exec(String(input));
-      return match == null ? null : __dartRegExpMatch(match);
+      const text = String(input);
+      const match = make(false).exec(text);
+      return match == null ? null : __dartRegExpMatch(match, 0, text, this);
     },
     stringMatch(input) {
       const match = this.firstMatch(input);
       return match == null ? null : match.group(0);
     },
     matchAsPrefix(input, start = 0) {
-      const text = String(input).slice(start);
+      const sourceText = String(input);
+      const text = sourceText.slice(start);
       const match = make(false).exec(text);
-      return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start);
+      return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start, sourceText, this);
     },
     allMatches(input, start = 0) {
       const text = String(input);
@@ -256,19 +273,21 @@ function __dartRegExp(pattern, options = {}) {
       const matches = [];
       let match;
       while ((match = regexp.exec(text)) !== null) {
-        matches.push(__dartRegExpMatch(match));
+        matches.push(__dartRegExpMatch(match, 0, text, this));
         if (match[0] === "") regexp.lastIndex++;
       }
       return matches;
     },
-    toString() { return source; },
+    toString() { return "RegExp: pattern=" + source + " flags=" + displayFlags(); },
   };
 }
-function __dartRegExpMatch(match, offset = 0) {
+function __dartRegExpMatch(match, offset = 0, input = null, pattern = null) {
   const namedGroups = match.groups ?? {};
   const result = {
     start: offset + match.index,
     end: offset + match.index + match[0].length,
+    get input() { return input; },
+    get pattern() { return pattern; },
     get groupCount() { return match.length - 1; },
     group(index) { return index >= 0 && index < match.length ? (match[index] ?? null) : null; },
     groups(indices) { return Array.from(indices, (index) => this.group(index)); },
@@ -344,6 +363,7 @@ export function main() {
   __dartPrint("stringPatternDirect " + __dartStr(__dartIterableJoin(Array.from(stringPatternMatches, function(match) { return match.start; }), ",")) + " " + __dartStr(stringPrefix.group(0)) + " " + __dartStr(stringPrefix.start) + " " + __dartStr(stringPrefix.end));
   const prefix = __dartNullCheck(digits.matchAsPrefix(mixed, 1));
   __dartPrint("meta " + __dartStr(pattern.pattern) + " " + __dartStr(pattern.isCaseSensitive) + " " + __dartStr(pattern.isMultiLine) + " " + __dartStr(pattern.isUnicode) + " " + __dartStr(pattern.isDotAll));
+  __dartPrint("matchMeta " + __dartStr(first.input) + " " + __dartStr(first.pattern) + " " + __dartStr(__dartObjectToString(pattern)));
   __dartPrint("prefix " + __dartStr(prefix.group(0)) + " " + __dartStr(prefix.start) + " " + __dartStr(prefix.end));
   __dartPrint("groups " + __dartStr(__dartIterableJoin(first.groups([0, 1, 2]), "|")));
   const named = __dartRegExp("(?<word>[a-z]+)(?<digits>\\d+)", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });

@@ -44,4 +44,10 @@ void main() {
     'objectString ${plain.toString().contains('PlainObject')} '
     '${object.toString().contains('Object')}',
   );
+
+  const constObject = Object();
+  print(
+    'constObject ${identical(constObject, const Object())} '
+    '${constObject.runtimeType} ${constObject.toString().contains('Object')}',
+  );
 }

@@ -50,6 +50,7 @@ void main() {
     'meta ${pattern.pattern} ${pattern.isCaseSensitive} '
     '${pattern.isMultiLine} ${pattern.isUnicode} ${pattern.isDotAll}',
   );
+  print('matchMeta ${first.input} ${first.pattern} ${pattern.toString()}');
   print('prefix ${prefix.group(0)} ${prefix.start} ${prefix.end}');
   print('groups ${first.groups([0, 1, 2]).join('|')}');
 

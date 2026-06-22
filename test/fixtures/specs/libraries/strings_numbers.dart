@@ -119,6 +119,31 @@ void main() {
     '${file.scheme} ${file.path} ${directory.path.endsWith('/')} '
     '${relativeFile.scheme} ${relativeFile.path}',
   );
+  final constructedUri = Uri(
+    scheme: 'https',
+    host: 'example.test',
+    pathSegments: ['a b', 'c'],
+    queryParameters: {'q': 'x y'},
+  );
+  final authorityUri = Uri(
+    userInfo: 'u:p',
+    host: 'example.test',
+    port: 8080,
+    path: '/p',
+    fragment: 'f',
+  );
+  final relativeCtor = Uri(
+    path: '/a b',
+    queryParameters: {
+      'x': ['1', '2'],
+      'empty': null,
+    },
+  );
+  print(
+    'uri ctor ${constructedUri.toString()} ${constructedUri.path} '
+    '${constructedUri.queryParameters['q']} ${authorityUri.toString()} '
+    '${authorityUri.host} ${relativeCtor.toString()}',
+  );
   final dataText = Uri.dataFromString('hello world');
   final dataJson = Uri.dataFromString(
     'hello world',

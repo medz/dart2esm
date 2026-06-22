@@ -20,6 +20,17 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartDurationToString(micros) {
+  const sign = micros < 0 ? "-" : "";
+  let rest = Math.abs(micros);
+  const microseconds = rest % 1000000;
+  const totalSeconds = Math.trunc(rest / 1000000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.trunc(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.trunc(totalMinutes / 60);
+  return sign + hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(microseconds).padStart(6, "0");
+}
 function __dartDuration(options = {}) {
   const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));
   return {
@@ -34,7 +45,7 @@ function __dartDuration(options = {}) {
     "=="(other) { return other != null && other.inMicroseconds === micros; },
     compareTo(other) { const diff = micros - other.inMicroseconds; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
     abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },
-    toString() { return String(micros) + "us"; },
+    toString() { return __dartDurationToString(micros); },
   };
 }
 function __dartDateTimeFromParts(isUtc, year, month = 1, day = 1, hour = 0, minute = 0, second = 0, millisecond = 0, microsecond = 0) {
@@ -180,6 +191,7 @@ export async function main() {
   __dartPrint("durationOps " + __dartStr(sum.inMicroseconds) + " " + __dartStr(difference.inMicroseconds) + " " + __dartStr(scaled.inMicroseconds) + " " + __dartStr(divided.inMicroseconds) + " " + __dartStr(negated.abs().inMicroseconds) + " " + __dartStr(negated.isNegative));
   __dartPrint("durationCompare " + __dartStr((short.inMicroseconds < longer.inMicroseconds)) + " " + __dartStr((short.inMicroseconds <= longer.inMicroseconds)) + " " + __dartStr((longer.inMicroseconds > short.inMicroseconds)) + " " + __dartStr((longer.inMicroseconds >= short.inMicroseconds)) + " " + __dartStr(short.compareTo(longer)));
   __dartPrint("durationEquals " + __dartStr((() => { const $left_1 = short; const $right_1 = __dartDuration({ days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 1, microseconds: 0 }); return $left_1 === null ? $right_1 === null : $left_1["=="]($right_1); })()));
+  __dartPrint("durationString " + __dartStr(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"3723000000\"]]]", () => __dartDuration({ microseconds: 3723000000 }))) + " " + __dartStr(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"-1\"]]]", () => __dartDuration({ microseconds: -1 }))) + " " + __dartStr(duration));
   const utc = __dartDateTimeFromParts(true, 2026, 1, 2, 3, 4, 5, 6, 7);
   __dartPrint("utc " + __dartStr(utc.year) + "-" + __dartStr(utc.month) + "-" + __dartStr(utc.day) + " " + __dartStr(utc.hour) + ":" + __dartStr(utc.minute) + ":" + __dartStr(utc.second) + " " + __dartStr(utc.millisecond) + " " + __dartStr(utc.microsecond) + " " + __dartStr(utc.isUtc));
   __dartPrint("utcMeta " + __dartStr(utc.weekday) + " " + __dartStr(utc.timeZoneName) + " " + __dartStr(utc.timeZoneOffset.inMinutes));

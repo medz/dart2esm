@@ -28,6 +28,10 @@ Future<void> main() async {
     '${longer > short} ${longer >= short} ${short.compareTo(longer)}',
   );
   print('durationEquals ${short == Duration(milliseconds: 1)}');
+  print(
+    'durationString ${const Duration(hours: 1, minutes: 2, seconds: 3)} '
+    '${const Duration(microseconds: -1)} $duration',
+  );
 
   final utc = DateTime.utc(2026, 1, 2, 3, 4, 5, 6, 7);
   print(

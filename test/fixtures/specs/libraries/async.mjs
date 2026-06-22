@@ -20,6 +20,17 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartDurationToString(micros) {
+  const sign = micros < 0 ? "-" : "";
+  let rest = Math.abs(micros);
+  const microseconds = rest % 1000000;
+  const totalSeconds = Math.trunc(rest / 1000000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.trunc(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.trunc(totalMinutes / 60);
+  return sign + hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(microseconds).padStart(6, "0");
+}
 function __dartDuration(options = {}) {
   const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));
   return {
@@ -34,7 +45,7 @@ function __dartDuration(options = {}) {
     "=="(other) { return other != null && other.inMicroseconds === micros; },
     compareTo(other) { const diff = micros - other.inMicroseconds; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
     abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },
-    toString() { return String(micros) + "us"; },
+    toString() { return __dartDurationToString(micros); },
   };
 }
 function __dartIterableJoin(iterable, separator = "") {

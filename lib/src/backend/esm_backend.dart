@@ -7333,6 +7333,19 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartDuration') ||
         _usedHelpers.contains('__dartDateTime')) {
+      helper.writeln('function __dartDurationToString(micros) {');
+      helper.writeln('  const sign = micros < 0 ? "-" : "";');
+      helper.writeln('  let rest = Math.abs(micros);');
+      helper.writeln('  const microseconds = rest % 1000000;');
+      helper.writeln('  const totalSeconds = Math.trunc(rest / 1000000);');
+      helper.writeln('  const seconds = totalSeconds % 60;');
+      helper.writeln('  const totalMinutes = Math.trunc(totalSeconds / 60);');
+      helper.writeln('  const minutes = totalMinutes % 60;');
+      helper.writeln('  const hours = Math.trunc(totalMinutes / 60);');
+      helper.writeln(
+        '  return sign + hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(microseconds).padStart(6, "0");',
+      );
+      helper.writeln('}');
       helper.writeln('function __dartDuration(options = {}) {');
       helper.writeln(
         '  const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));',
@@ -7365,7 +7378,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },',
       );
-      helper.writeln('    toString() { return String(micros) + "us"; },');
+      helper.writeln(
+        '    toString() { return __dartDurationToString(micros); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
@@ -10154,6 +10169,7 @@ const _generatedGlobalNames = {
   '__dartDoubleParse',
   '__dartDoubleTryParse',
   '__dartDuration',
+  '__dartDurationToString',
   '__dartEnumAsNameMap',
   '__dartEnumByName',
   '__dartExpando',

@@ -360,6 +360,17 @@ final class _EsmEmitter {
     }
     writeln('constructor(${_emitParameterList(function)}) {');
     _indent++;
+    final redirectingInitializer = _redirectingInitializer(constructor);
+    if (redirectingInitializer != null) {
+      _emitRedirectingConstructorBody(
+        constructor,
+        redirectingInitializer,
+        'new.target',
+      );
+      _indent--;
+      writeln('}');
+      return;
+    }
     if (_hasNonObjectSuperclass(klass)) {
       _emitDerivedConstructorInitializers(constructor, klass);
     } else {
@@ -425,7 +436,7 @@ final class _EsmEmitter {
     _indent++;
     final redirectingInitializer = _redirectingInitializer(constructor);
     if (redirectingInitializer != null) {
-      _emitRedirectingNamedConstructorBody(
+      _emitRedirectingConstructorBody(
         constructor,
         redirectingInitializer,
         newTarget,
@@ -487,7 +498,7 @@ final class _EsmEmitter {
     return redirectingInitializer;
   }
 
-  void _emitRedirectingNamedConstructorBody(
+  void _emitRedirectingConstructorBody(
     k.Constructor constructor,
     k.RedirectingInitializer redirectingInitializer,
     String newTarget,

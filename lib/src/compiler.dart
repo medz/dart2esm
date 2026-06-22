@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dart2esm/src/kernel/kernel_header.dart';
+import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 
 Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
@@ -13,7 +14,8 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
   final tempDir = await Directory.systemTemp.createTemp('dart2esm-');
   try {
     final kernelFile = await _loadOrBuildKernel(input, options, tempDir);
-    final header = readKernelHeader(kernelFile.readAsBytesSync());
+    final kernelBytes = kernelFile.readAsBytesSync();
+    final header = readKernelHeader(kernelBytes);
     if (header.problemsAsJson.isNotEmpty) {
       return Dart2EsmResult(
         success: false,
@@ -23,6 +25,7 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
         ],
       );
     }
+    final component = kernel.loadComponentFromBytes(kernelBytes);
 
     output.parent.createSync(recursive: true);
     output.writeAsStringSync(_unsupportedBackendModule(input, header));
@@ -30,6 +33,7 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
       success: false,
       diagnostics: [
         'Kernel input accepted: format ${header.formatVersion}, SDK hash ${header.sdkHash}.',
+        'Kernel libraries: ${component.libraries.length}; main: ${component.mainMethod?.name.text ?? 'none'}.',
         'Backend lowering is not implemented for this Kernel component yet.',
       ],
     );

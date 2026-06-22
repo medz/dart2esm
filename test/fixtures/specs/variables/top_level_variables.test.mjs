@@ -16,15 +16,11 @@ describe('variables/top_level_variables.mjs', () => {
         'const 40',
         'count 2',
       ]);
-      expect(module.assignFirst.value).toBe(99);
-      expect(module.assignFirst.set(101)).toBe(101);
-      expect(module.assignFirst.value).toBe(101);
-      expect(Number(module.readFirst)).toBe(10);
-      expect(module.finalValue.value).toBe(30);
-      expect(String(module.finalValue)).toBe('30');
-      expect(() => module.finalValue.set(31)).toThrow(TypeError);
+      expect(module.assignFirst).toBe(99);
+      expect(module.readFirst).toBe(10);
+      expect(module.finalValue).toBe(30);
       expect(module.constValue).toBe(40);
-      expect(module.initCount.value).toBe(2);
+      expect(module.initCount).toBe(2);
 
       await expect(
         import('./top_level_variables_reassign_final.mjs'),

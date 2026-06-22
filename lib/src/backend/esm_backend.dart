@@ -35,6 +35,7 @@ final class _EsmEmitter {
   final _procedureNames = <k.Procedure, String>{};
   final _classNames = <k.Class, String>{};
   final _fieldNames = <k.Field, _TopLevelFieldNames>{};
+  final _staticFieldCellNames = <k.Field, String>{};
   final _variableNames = <k.VariableDeclaration, String>{};
   final _labelNames = <k.LabeledStatement, String>{};
   final _usedHelpers = <String>{};
@@ -125,7 +126,12 @@ final class _EsmEmitter {
 
   _TopLevelFieldNames _freshTopLevelFieldNames(String name) {
     final base = _sanitizeIdentifier(name);
-    return _TopLevelFieldNames(value: _freshName(base));
+    return _TopLevelFieldNames(
+      value: _freshName(base),
+      getter: _freshName('\$get_$base'),
+      setter: _freshName('\$set_$base'),
+      state: _freshName('\$${base}State'),
+    );
   }
 
   void _emitTopLevelField(k.Field field, {required bool export}) {
@@ -143,13 +149,78 @@ final class _EsmEmitter {
       );
       return;
     }
-    _usedHelpers.add('__dartLazyField');
-    final initializerCode = initializer == null
-        ? 'null'
-        : emitExpression(initializer);
+    if (!_usesLazyTopLevelInitializer(field)) {
+      final keyword = field.hasSetter ? 'let' : 'const';
+      writeln(
+        '${export ? 'export ' : ''}$keyword ${names.value} = ${_emitDirectFieldInitializer(field)};',
+      );
+      return;
+    }
+    final initializerCode = emitExpression(initializer!);
+    writeln('${export ? 'export ' : ''}let ${names.value};');
+    writeln('let ${names.state} = 0;');
+    writeln('function ${names.getter}() {');
+    _indent++;
+    writeln('if (${names.state} === 2) return ${names.value};');
     writeln(
-      '${export ? 'export ' : ''}const ${names.value} = __dartLazyField(${jsonEncode(field.name.text)}, () => $initializerCode, ${field.hasSetter});',
+      'if (${names.state} === 1) throw new Error("Cyclic initialization of top-level field ${field.name.text}");',
     );
+    writeln('${names.state} = 1;');
+    writeln('try {');
+    _indent++;
+    writeln('${names.value} = $initializerCode;');
+    writeln('${names.state} = 2;');
+    writeln('return ${names.value};');
+    _indent--;
+    writeln('} catch (error) {');
+    _indent++;
+    writeln('${names.state} = 0;');
+    writeln('throw error;');
+    _indent--;
+    writeln('}');
+    _indent--;
+    writeln('}');
+    if (field.hasSetter) {
+      writeln('function ${names.setter}(value) {');
+      _indent++;
+      writeln('${names.value} = value;');
+      writeln('${names.state} = 2;');
+      writeln('return value;');
+      _indent--;
+      writeln('}');
+    }
+  }
+
+  bool _usesLazyTopLevelInitializer(k.Field field) {
+    if (field.isConst) {
+      return false;
+    }
+    return !_canEmitEagerTopLevelInitializer(field.initializer);
+  }
+
+  bool _canEmitEagerTopLevelInitializer(k.Expression? initializer) {
+    return switch (initializer) {
+      null ||
+      k.NullLiteral() ||
+      k.BoolLiteral() ||
+      k.IntLiteral() ||
+      k.DoubleLiteral() ||
+      k.StringLiteral() ||
+      k.ConstantExpression() ||
+      k.StaticTearOff() => true,
+      _ => false,
+    };
+  }
+
+  String _emitDirectFieldInitializer(k.Field field) {
+    final initializer = field.initializer;
+    if (initializer == null) {
+      return 'null';
+    }
+    if (initializer is k.ConstantExpression) {
+      return _emitEsmConst(initializer.constant);
+    }
+    return emitExpression(initializer);
   }
 
   String _emitTopLevelConstInitializer(k.Field field) {
@@ -205,6 +276,7 @@ final class _EsmEmitter {
     }
     _indent--;
     writeln('}');
+    _emitClassStaticFields(klass);
     _currentClass = previousClass;
   }
 
@@ -381,10 +453,12 @@ final class _EsmEmitter {
         throw UnsupportedKernelNode(function, 'method ${procedure.name.text}'),
     };
     final name = _memberName(procedure.name.text);
+    final staticPrefix = procedure.isStatic ? 'static ' : '';
     final prefix = switch (procedure.kind) {
-      k.ProcedureKind.Method || k.ProcedureKind.Operator => '$asyncPrefix$name',
-      k.ProcedureKind.Getter => 'get $name',
-      k.ProcedureKind.Setter => 'set $name',
+      k.ProcedureKind.Method ||
+      k.ProcedureKind.Operator => '$staticPrefix$asyncPrefix$name',
+      k.ProcedureKind.Getter => '${staticPrefix}get $name',
+      k.ProcedureKind.Setter => '${staticPrefix}set $name',
       k.ProcedureKind.Factory => throw UnsupportedKernelNode(
         procedure,
         'factory procedure',
@@ -399,6 +473,48 @@ final class _EsmEmitter {
     _emitFunctionBody(body);
     _indent--;
     writeln('}');
+  }
+
+  void _emitClassStaticFields(k.Class klass) {
+    final fields = klass.fields.where((field) => field.isStatic).toList();
+    if (fields.isEmpty) {
+      return;
+    }
+    for (final field in fields) {
+      writeln();
+      _emitClassStaticField(klass, field);
+    }
+  }
+
+  void _emitClassStaticField(k.Class klass, k.Field field) {
+    if (field.isLate) {
+      throw UnsupportedKernelNode(field, 'late static field');
+    }
+    final className = _className(klass);
+    final memberName = _memberName(field.name.text);
+    if (field.isConst) {
+      writeln(
+        'Object.defineProperty($className, ${jsonEncode(memberName)}, { value: ${_emitTopLevelConstInitializer(field)}, enumerable: true });',
+      );
+      return;
+    }
+
+    _usedHelpers.add('__dartLazyField');
+    final cellName = _staticFieldCellName(field);
+    final initializer = field.initializer;
+    final initializerCode = initializer == null
+        ? 'null'
+        : emitExpression(initializer);
+    writeln(
+      'const $cellName = __dartLazyField(${jsonEncode('${klass.name}.${field.name.text}')}, () => $initializerCode, ${field.hasSetter});',
+    );
+    writeln('Object.defineProperty($className, ${jsonEncode(memberName)}, {');
+    _indent++;
+    writeln('get() { return $cellName.get(); },');
+    writeln('set(value) { $cellName.set(value); },');
+    writeln('enumerable: true,');
+    _indent--;
+    writeln('});');
   }
 
   void _emitProcedure(k.Procedure procedure, {required bool export}) {
@@ -1035,6 +1151,9 @@ final class _EsmEmitter {
     if (_procedureNames.containsKey(target)) {
       return '${_procedureName(target)}($args)';
     }
+    if (target.isStatic && target.enclosingClass != null) {
+      return '${_emitClassStaticMemberGet(target.enclosingClass!, target.name.text)}($args)';
+    }
     throw UnsupportedKernelNode(
       expression,
       'static invocation ${target.name.text}',
@@ -1050,6 +1169,14 @@ final class _EsmEmitter {
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
       return _procedureName(target);
     }
+    if (target is k.Procedure &&
+        target.isStatic &&
+        target.enclosingClass != null) {
+      return _emitClassStaticMemberGet(
+        target.enclosingClass!,
+        target.name.text,
+      );
+    }
     throw UnsupportedKernelNode(
       node,
       'static tear-off ${_referencePath(reference)}',
@@ -1059,16 +1186,30 @@ final class _EsmEmitter {
   String _emitStaticGet(k.StaticGet expression) {
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
-      if (target.isConst) {
+      if (!_usesLazyTopLevelInitializer(target)) {
         return _fieldName(target).value;
       }
-      return '${_fieldName(target).value}.get()';
+      return '${_fieldName(target).getter}()';
+    }
+    if (target is k.Field && target.isStatic && target.enclosingClass != null) {
+      return _emitClassStaticMemberGet(
+        target.enclosingClass!,
+        target.name.text,
+      );
     }
     if (target is k.Field && target.enclosingClass?.isEnum == true) {
       return '${_className(target.enclosingClass!)}.${_memberName(target.name.text)}';
     }
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
       return _procedureName(target);
+    }
+    if (target is k.Procedure &&
+        target.isStatic &&
+        target.enclosingClass != null) {
+      return _emitClassStaticMemberGet(
+        target.enclosingClass!,
+        target.name.text,
+      );
     }
     throw UnsupportedKernelNode(
       expression,
@@ -1082,7 +1223,22 @@ final class _EsmEmitter {
       if (!target.hasSetter) {
         throw UnsupportedKernelNode(expression, 'write to final field');
       }
-      return '${_fieldName(target).value}.set(${emitExpression(expression.value)})';
+      if (!_usesLazyTopLevelInitializer(target)) {
+        return '${_fieldName(target).value} = ${emitExpression(expression.value)}';
+      }
+      return '${_fieldName(target).setter}(${emitExpression(expression.value)})';
+    }
+    if (target is k.Field && target.isStatic && target.enclosingClass != null) {
+      if (!target.hasSetter) {
+        throw UnsupportedKernelNode(expression, 'write to final field');
+      }
+      return '${_emitClassStaticMemberGet(target.enclosingClass!, target.name.text)} = ${emitExpression(expression.value)}';
+    }
+    if (target is k.Procedure &&
+        target.kind == k.ProcedureKind.Setter &&
+        target.isStatic &&
+        target.enclosingClass != null) {
+      return '${_emitClassStaticMemberGet(target.enclosingClass!, target.name.text)} = ${emitExpression(expression.value)}';
     }
     throw UnsupportedKernelNode(
       expression,
@@ -1143,6 +1299,10 @@ final class _EsmEmitter {
     final name = expression.name.text;
     final args = _emitArguments(expression.arguments);
     return '$receiver.$name($args)';
+  }
+
+  String _emitClassStaticMemberGet(k.Class klass, String name) {
+    return _emitPropertyGet(_className(klass), _memberName(name));
   }
 
   String _emitArguments(k.Arguments arguments) {
@@ -1232,6 +1392,14 @@ final class _EsmEmitter {
 
   _TopLevelFieldNames _fieldName(k.Field field) {
     return _fieldNames[field] ??= _freshTopLevelFieldNames(field.name.text);
+  }
+
+  String _staticFieldCellName(k.Field field) {
+    return _staticFieldCellNames.putIfAbsent(field, () {
+      final klass = field.enclosingClass;
+      final className = klass == null ? 'static' : klass.name;
+      return _freshName('\$${className}_${field.name.text}');
+    });
   }
 
   String _memberName(String name) {
@@ -1389,19 +1557,22 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartLazyField')) {
-      helper.writeln('function __dartLazyField(name, initialize, writable) {');
+      helper.writeln(
+        'function __dartLazyField(name, initialize, writable, publish) {',
+      );
       helper.writeln('  let state = 0;');
       helper.writeln('  let value;');
       helper.writeln('  function get() {');
       helper.writeln('    if (state === 2) return value;');
       helper.writeln('    if (state === 1) {');
       helper.writeln(
-        '      throw new Error("Cyclic initialization of top-level field " + name);',
+        '      throw new Error("Cyclic initialization of field " + name);',
       );
       helper.writeln('    }');
       helper.writeln('    state = 1;');
       helper.writeln('    try {');
       helper.writeln('      value = initialize();');
+      helper.writeln('      if (publish) publish(value);');
       helper.writeln('      state = 2;');
       helper.writeln('      return value;');
       helper.writeln('    } catch (error) {');
@@ -1412,31 +1583,15 @@ final class _EsmEmitter {
       helper.writeln('  function set(next) {');
       helper.writeln('    if (!writable) {');
       helper.writeln(
-        '      throw new TypeError("Cannot assign to final top-level field " + name);',
+        '      throw new TypeError("Cannot assign to final field " + name);',
       );
       helper.writeln('    }');
       helper.writeln('    value = next;');
+      helper.writeln('    if (publish) publish(value);');
       helper.writeln('    state = 2;');
       helper.writeln('    return next;');
       helper.writeln('  }');
-      helper.writeln('  return new Proxy({ get, set }, {');
-      helper.writeln('    get(target, property, receiver) {');
-      helper.writeln('      if (property === Symbol.toPrimitive) return get;');
-      helper.writeln('      if (property === "valueOf") return get;');
-      helper.writeln(
-        '      if (property === "toString") return () => String(get());',
-      );
-      helper.writeln('      if (property === "value") return get();');
-      helper.writeln('      return Reflect.get(target, property, receiver);');
-      helper.writeln('    },');
-      helper.writeln('    set(_target, property, next) {');
-      helper.writeln('      if (property === "value") {');
-      helper.writeln('        set(next);');
-      helper.writeln('        return true;');
-      helper.writeln('      }');
-      helper.writeln('      return false;');
-      helper.writeln('    },');
-      helper.writeln('  });');
+      helper.writeln('  return { get, set };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartIterator')) {
@@ -1473,9 +1628,17 @@ final class _EsmEmitter {
 }
 
 final class _TopLevelFieldNames {
-  const _TopLevelFieldNames({required this.value});
+  const _TopLevelFieldNames({
+    required this.value,
+    required this.getter,
+    required this.setter,
+    required this.state,
+  });
 
   final String value;
+  final String getter;
+  final String setter;
+  final String state;
 }
 
 const _binaryOperators = {

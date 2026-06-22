@@ -128,6 +128,89 @@ void main() {
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
   });
 
+  test(
+    'no-run-main import does not materialize lazy top-level variables',
+    () async {
+      final fixture = _GoldenFixture(
+        root: fixtureDir,
+        source: File(
+          p.join(fixtureDir.path, 'variables', 'top_level_variables.dart'),
+        ),
+        expectedEsm: File(
+          p.join(fixtureDir.path, 'variables', 'top_level_variables.mjs'),
+        ),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-lazy-var-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'lazy.mjs'));
+      final consumer = File(p.join(tempDir.path, 'consumer.mjs'))
+        ..writeAsStringSync("import './lazy.mjs';\nconsole.log('ready');\n");
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: fixture.source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+          runMain: false,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+
+      final nodeRun = await Process.run('node', [
+        consumer.path,
+      ], workingDirectory: tempDir.path);
+      expect(
+        nodeRun.exitCode,
+        0,
+        reason: '${nodeRun.stdout}\n${nodeRun.stderr}',
+      );
+      expect(nodeRun.stdout, 'ready\n');
+      expect(nodeRun.stderr, isEmpty);
+    },
+  );
+
+  test('direct named ESM import reads primitive top-level variables', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(
+        p.join(fixtureDir.path, 'variables', 'primitive_exports.dart'),
+      ),
+      expectedEsm: File(
+        p.join(fixtureDir.path, 'variables', 'primitive_exports.mjs'),
+      ),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-import-var-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'a.mjs'));
+    final consumer = File(p.join(tempDir.path, 'b.mjs'))
+      ..writeAsStringSync("import { c } from './a.mjs';\nconsole.log(c);\n");
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: fixture.source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        runMain: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+
+    final nodeRun = await Process.run('node', [
+      consumer.path,
+    ], workingDirectory: tempDir.path);
+    expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
+    expect(nodeRun.stdout, '1\n');
+    expect(nodeRun.stderr, isEmpty);
+  });
+
   for (final fixture in _goldenFixtures(fixtureDir)) {
     test('matches ${fixture.id} ESM golden and runtime behavior', () async {
       await _expectGoldenFixture(fixture);

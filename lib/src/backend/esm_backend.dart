@@ -5648,11 +5648,20 @@ final class _EsmEmitter {
     final name = path.split('::').last;
     return switch (name) {
       '' when positionalArgs.isEmpty => 'new Set()',
-      'of' || 'from' when positionalArgs.length == 1 =>
-        'new Set(${positionalArgs.single})',
+      'of' || 'from' when positionalArgs.length == 1 => () {
+        _usedHelpers.add('__dartSetFrom');
+        _usedHelpers.add('__dartSetAdd');
+        _usedHelpers.add('__dartIterableContains');
+        _usedHelpers.add('__dartEquals');
+        return '__dartSetFrom(${positionalArgs.single})';
+      }(),
       'unmodifiable' when positionalArgs.length == 1 => () {
+        _usedHelpers.add('__dartSetFrom');
+        _usedHelpers.add('__dartSetAdd');
+        _usedHelpers.add('__dartIterableContains');
+        _usedHelpers.add('__dartEquals');
         _usedHelpers.add('__dartConstSet');
-        return '__dartConstSet(${positionalArgs.single})';
+        return '__dartConstSet(__dartSetFrom(${positionalArgs.single}))';
       }(),
       _ => null,
     };
@@ -8109,6 +8118,13 @@ final class _EsmEmitter {
       helper.writeln('  return null;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartSetFrom')) {
+      helper.writeln('function __dartSetFrom(values) {');
+      helper.writeln('  const set = new Set();');
+      helper.writeln('  for (const value of values) __dartSetAdd(set, value);');
+      helper.writeln('  return set;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartSetAlgebra')) {
       helper.writeln('function __dartSetDifference(set, other) {');
       helper.writeln('  const result = new Set();');
@@ -9565,6 +9581,7 @@ const _generatedGlobalNames = {
   '__dartSetAlgebra',
   '__dartSetContainsAll',
   '__dartSetDifference',
+  '__dartSetFrom',
   '__dartSetIntersection',
   '__dartSetLookup',
   '__dartSetRemoveAll',

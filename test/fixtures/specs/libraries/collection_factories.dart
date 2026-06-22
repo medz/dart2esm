@@ -1,3 +1,15 @@
+class EqBox {
+  EqBox(this.value);
+
+  final int value;
+
+  @override
+  bool operator ==(Object other) => other is EqBox && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
+}
+
 void main() {
   final list = List<int>.of({1, 2, 3});
   final listFrom = List<int>.from(list);
@@ -34,6 +46,13 @@ void main() {
   final setFixed = Set<String>.unmodifiable(setOf);
   print(
     'set ${setFixed.length} ${setFixed.contains('a')} ${setFixed.join('|')}',
+  );
+  final eqSetFrom = Set<EqBox>.from([EqBox(1), EqBox(1), EqBox(2)]);
+  final eqSetOf = Set<EqBox>.of([...eqSetFrom, EqBox(2), EqBox(3)]);
+  final eqSetFixed = Set<EqBox>.unmodifiable([EqBox(1), EqBox(1)]);
+  print(
+    'setFactories ${eqSetFrom.length} ${eqSetFrom.contains(EqBox(1))} '
+    '${eqSetOf.length} ${eqSetFixed.length} ${eqSetFixed.contains(EqBox(1))}',
   );
 
   final map = Map<String, int>.from({'one': 1, 'two': 2});

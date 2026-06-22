@@ -383,11 +383,6 @@ final class _EsmEmitter {
     if (constructor.isExternal) {
       throw UnsupportedKernelNode(constructor, 'external named constructor');
     }
-    if (constructor.initializers.any(
-      (initializer) => initializer is k.RedirectingInitializer,
-    )) {
-      throw UnsupportedKernelNode(constructor, 'redirecting named constructor');
-    }
     final function = constructor.function;
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw UnsupportedKernelNode(constructor, 'async named constructor');
@@ -428,6 +423,17 @@ final class _EsmEmitter {
       'function ${_namedConstructorBodyName(constructor)}($newTarget${parameters.isEmpty ? '' : ', $parameters'}) {',
     );
     _indent++;
+    final redirectingInitializer = _redirectingInitializer(constructor);
+    if (redirectingInitializer != null) {
+      _emitRedirectingNamedConstructorBody(
+        constructor,
+        redirectingInitializer,
+        newTarget,
+      );
+      _indent--;
+      writeln('}');
+      return;
+    }
     final fieldInitializers = _hasNonObjectSuperclass(klass)
         ? _emitDerivedNamedConstructorAllocation(
             constructor,
@@ -465,6 +471,55 @@ final class _EsmEmitter {
     writeln('return $self;');
     _indent--;
     writeln('}');
+  }
+
+  k.RedirectingInitializer? _redirectingInitializer(k.Constructor constructor) {
+    k.RedirectingInitializer? redirectingInitializer;
+    for (final initializer in constructor.initializers) {
+      if (initializer is! k.RedirectingInitializer) {
+        continue;
+      }
+      if (redirectingInitializer != null) {
+        throw UnsupportedKernelNode(initializer, 'multiple redirecting calls');
+      }
+      redirectingInitializer = initializer;
+    }
+    return redirectingInitializer;
+  }
+
+  void _emitRedirectingNamedConstructorBody(
+    k.Constructor constructor,
+    k.RedirectingInitializer redirectingInitializer,
+    String newTarget,
+  ) {
+    for (final initializer in constructor.initializers) {
+      switch (initializer) {
+        case k.LocalInitializer():
+          emitStatement(initializer.variable);
+        case k.RedirectingInitializer():
+          break;
+        case k.AssertInitializer():
+          _diagnostics.add(
+            'AssertInitializer is currently emitted as a no-op.',
+          );
+        default:
+          throw UnsupportedKernelNode(initializer, 'redirecting initializer');
+      }
+    }
+    if (!_isEmptyBody(constructor.function.body)) {
+      throw UnsupportedKernelNode(constructor, 'redirecting constructor body');
+    }
+
+    final target = redirectingInitializer.target;
+    final args = _emitArguments(redirectingInitializer.arguments);
+    if (target.name.text.isEmpty) {
+      writeln(
+        'return Reflect.construct(${_className(target.enclosingClass)}, [$args], $newTarget);',
+      );
+      return;
+    }
+    final suffix = args.isEmpty ? '' : ', $args';
+    writeln('return ${_namedConstructorBodyName(target)}($newTarget$suffix);');
   }
 
   List<k.FieldInitializer> _emitDerivedNamedConstructorAllocation(

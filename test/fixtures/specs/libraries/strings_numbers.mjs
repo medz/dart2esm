@@ -161,7 +161,51 @@ function __dartUriParse(source, tryParse = false) {
   });
 }
 function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }
-function __dartUriEncodeQueryComponent(value) { return encodeURIComponent(String(value)).replace(/%20/g, "+"); }
+function __dartUriEncodeQueryComponent(value, encoding = null) {
+  const text = String(value);
+  if (encoding == null || typeof encoding.encode !== "function") return encodeURIComponent(text).replace(/%20/g, "+");
+  let result = "";
+  for (const byte of encoding.encode(text)) {
+    const value = Number(byte) & 255;
+    if (value === 0x20) { result += "+"; continue; }
+    const char = String.fromCharCode(value);
+    result += /[A-Za-z0-9\-._~]/.test(char) ? char : "%" + value.toString(16).toUpperCase().padStart(2, "0");
+  }
+  return result;
+}
+function __dartUriDecodeQueryComponent(value, encoding = null) {
+  const text = String(value).replace(/\+/g, " ");
+  if (encoding == null || typeof encoding.decode !== "function") return decodeURIComponent(text);
+  const bytes = [];
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === "%" && i + 2 < text.length) {
+      const hex = text.slice(i + 1, i + 3);
+      if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+        bytes.push(parseInt(hex, 16));
+        i += 2;
+        continue;
+      }
+    }
+    bytes.push(char.charCodeAt(0));
+  }
+  return encoding.decode(bytes);
+}
+function __dartUriSplitQueryString(query, encoding = null) {
+  const map = new Map();
+  for (const element of String(query).split("&")) {
+    const index = element.indexOf("=");
+    if (index === -1) {
+      if (element !== "") map.set(__dartUriDecodeQueryComponent(element, encoding), "");
+      continue;
+    }
+    if (index === 0) continue;
+    const key = element.slice(0, index);
+    const value = element.slice(index + 1);
+    map.set(__dartUriDecodeQueryComponent(key, encoding), __dartUriDecodeQueryComponent(value, encoding));
+  }
+  return map;
+}
 function __dartUriBuildQuery(queryParameters) {
   const parts = [];
   for (const [key, value] of queryParameters) {
@@ -338,6 +382,51 @@ function __dartUtf8Codec(allowMalformed = false) {
     decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },
     get encoder() { return __dartUtf8Encoder(); },
     get decoder() { return __dartUtf8Decoder(allowMalformed); },
+    fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
+  };
+}
+function __dartLatin1Encode(source, start = 0, end = null) {
+  const text = String(source);
+  const bytes = [];
+  const stop = end ?? text.length;
+  for (let i = start; i < stop; i++) {
+    const code = text.charCodeAt(i);
+    if (code > 0xff) throw new RangeError("Invalid Latin-1 character");
+    bytes.push(code);
+  }
+  return bytes;
+}
+function __dartLatin1Decode(bytes, allowInvalid = false, start = 0, end = null) {
+  const values = Array.from(bytes).slice(start, end ?? undefined);
+  const chars = [];
+  for (const byte of values) {
+    if (byte < 0 || byte > 0xff) { if (!allowInvalid) throw new RangeError("Invalid Latin-1 byte"); chars.push("\uFFFD"); continue; }
+    chars.push(String.fromCharCode(byte));
+  }
+  return chars.join("");
+}
+function __dartLatin1Encoder() {
+  return {
+    convert(source, start = 0, end = null) { return __dartLatin1Encode(source, start, end); },
+    fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
+  };
+}
+function __dartLatin1Decoder(allowInvalid = false) {
+  return {
+    convert(bytes, start = 0, end = null) { return __dartLatin1Decode(bytes, allowInvalid, start, end); },
+    fuse(next) { return __dartConverterFuse(this, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
+  };
+}
+function __dartLatin1Codec(allowInvalid = false) {
+  return {
+    encode(source) { return __dartLatin1Encode(source); },
+    convert(source) { return __dartLatin1Encode(source); },
+    decode(bytes, options = {}) { return __dartLatin1Decode(bytes, options.allowInvalid ?? allowInvalid); },
+    get encoder() { return __dartLatin1Encoder(); },
+    get decoder() { return __dartLatin1Decoder(allowInvalid); },
     fuse(next) { return __dartConverterFuse(this, next); },
     startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
   };
@@ -712,6 +801,12 @@ export function main() {
   __dartPrint("uri " + __dartStr(uri.scheme) + " " + __dartStr(uri.host) + " " + __dartStr(uri.path) + " " + __dartStr(uri.query) + " " + __dartStr(uri.fragment));
   __dartPrint("uri meta " + __dartStr(uri.authority) + " " + __dartStr(uri.userInfo) + " " + __dartStr(uri.port) + " " + __dartStr(__dartIterableJoin(uri.pathSegments, "|")) + " " + __dartStr(uri.hasScheme) + " " + __dartStr(uri.hasAuthority) + " " + __dartStr(uri.hasPort) + " " + __dartStr(uri.hasQuery) + " " + __dartStr(uri.hasFragment) + " " + __dartStr(uri.isAbsolute));
   __dartPrint("uri query " + __dartStr(__dartMapGet(uri.queryParameters, "x")) + " " + __dartStr(__dartMapGet(uri.queryParameters, "empty")) + " " + __dartStr(__dartIterableJoin(__dartNullCheck(__dartMapGet(uri.queryParametersAll, "x")), "|")));
+  const queryEncoded = __dartUriEncodeQueryComponent("a b/é", null);
+  const queryDecoded = __dartUriDecodeQueryComponent("a+b%2F%C3%A9", null);
+  const latinEncoded = __dartUriEncodeQueryComponent("é", __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec(false)));
+  const latinDecoded = __dartUriDecodeQueryComponent("caf%E9", __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec(false)));
+  const splitQuery = __dartUriSplitQueryString("a=1&empty&space=a+b&latin=caf%E9", __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec(false)));
+  __dartPrint("uri queryOps " + __dartStr(queryEncoded) + " " + __dartStr(queryDecoded) + " " + __dartStr(latinEncoded) + " " + __dartStr(latinDecoded) + " " + __dartStr(__dartMapGet(splitQuery, "empty")) + " " + __dartStr(__dartMapGet(splitQuery, "space")) + " " + __dartStr(__dartMapGet(splitQuery, "latin")));
   __dartPrint("uri string " + __dartStr(__dartStr(uri)));
   const https = __dartUriBuild("https", "example.test", "/a/b", new Map([["q", "dart esm"], ["page", "1"]]));
   const http = __dartUriBuild("http", "example.test:8080", "plain path", new Map([["x", "a/b"]]));

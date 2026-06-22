@@ -83,6 +83,18 @@ void main() {
     'uri query ${uri.queryParameters['x']} ${uri.queryParameters['empty']} '
     '${uri.queryParametersAll['x']!.join('|')}',
   );
+  final queryEncoded = Uri.encodeQueryComponent('a b/é');
+  final queryDecoded = Uri.decodeQueryComponent('a+b%2F%C3%A9');
+  final latinEncoded = Uri.encodeQueryComponent('é', encoding: latin1);
+  final latinDecoded = Uri.decodeQueryComponent('caf%E9', encoding: latin1);
+  final splitQuery = Uri.splitQueryString(
+    'a=1&empty&space=a+b&latin=caf%E9',
+    encoding: latin1,
+  );
+  print(
+    'uri queryOps $queryEncoded $queryDecoded $latinEncoded $latinDecoded '
+    '${splitQuery['empty']} ${splitQuery['space']} ${splitQuery['latin']}',
+  );
   print('uri string ${uri.toString()}');
 
   final https = Uri.https('example.test', '/a/b', {

@@ -6281,6 +6281,21 @@ final class _EsmEmitter {
       return null;
     }
     final name = path.split('::').last;
+    if (name == 'encodeQueryComponent' && positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriEncodeQueryComponent');
+      final encoding = _namedArgument(expression.arguments, 'encoding');
+      return '__dartUriEncodeQueryComponent(${positionalArgs.single}, ${encoding ?? 'null'})';
+    }
+    if (name == 'decodeQueryComponent' && positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriDecodeQueryComponent');
+      final encoding = _namedArgument(expression.arguments, 'encoding');
+      return '__dartUriDecodeQueryComponent(${positionalArgs.single}, ${encoding ?? 'null'})';
+    }
+    if (name == 'splitQueryString' && positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUriSplitQueryString');
+      final encoding = _namedArgument(expression.arguments, 'encoding');
+      return '__dartUriSplitQueryString(${positionalArgs.single}, ${encoding ?? 'null'})';
+    }
     return switch (name) {
       'encodeComponent' when positionalArgs.length == 1 =>
         'encodeURIComponent(${positionalArgs.single})',
@@ -6290,10 +6305,6 @@ final class _EsmEmitter {
         'encodeURI(${positionalArgs.single})',
       'decodeFull' when positionalArgs.length == 1 =>
         'decodeURI(${positionalArgs.single})',
-      'encodeQueryComponent' when positionalArgs.length == 1 =>
-        'encodeURIComponent(${positionalArgs.single})',
-      'decodeQueryComponent' when positionalArgs.length == 1 =>
-        'decodeURIComponent(String(${positionalArgs.single}).replace(/\\+/g, " "))',
       _ => null,
     };
   }
@@ -8341,7 +8352,10 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartUriParse') ||
-        _usedHelpers.contains('__dartUriBuild')) {
+        _usedHelpers.contains('__dartUriBuild') ||
+        _usedHelpers.contains('__dartUriEncodeQueryComponent') ||
+        _usedHelpers.contains('__dartUriDecodeQueryComponent') ||
+        _usedHelpers.contains('__dartUriSplitQueryString')) {
       helper.writeln('function __dartUriParse(source, tryParse = false) {');
       helper.writeln('  const text = String(source);');
       helper.writeln('  let url;');
@@ -8440,10 +8454,75 @@ final class _EsmEmitter {
           'function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }',
         );
       }
-      if (_usedHelpers.contains('__dartUri')) {
+      if (_usedHelpers.contains('__dartUri') ||
+          _usedHelpers.contains('__dartUriEncodeQueryComponent') ||
+          _usedHelpers.contains('__dartUriSplitQueryString')) {
         helper.writeln(
-          'function __dartUriEncodeQueryComponent(value) { return encodeURIComponent(String(value)).replace(/%20/g, "+"); }',
+          'function __dartUriEncodeQueryComponent(value, encoding = null) {',
         );
+        helper.writeln('  const text = String(value);');
+        helper.writeln(
+          '  if (encoding == null || typeof encoding.encode !== "function") return encodeURIComponent(text).replace(/%20/g, "+");',
+        );
+        helper.writeln('  let result = "";');
+        helper.writeln('  for (const byte of encoding.encode(text)) {');
+        helper.writeln('    const value = Number(byte) & 255;');
+        helper.writeln('    if (value === 0x20) { result += "+"; continue; }');
+        helper.writeln('    const char = String.fromCharCode(value);');
+        helper.writeln(
+          '    result += /[A-Za-z0-9\\-._~]/.test(char) ? char : "%" + value.toString(16).toUpperCase().padStart(2, "0");',
+        );
+        helper.writeln('  }');
+        helper.writeln('  return result;');
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUriDecodeQueryComponent') ||
+          _usedHelpers.contains('__dartUriSplitQueryString')) {
+        helper.writeln(
+          'function __dartUriDecodeQueryComponent(value, encoding = null) {',
+        );
+        helper.writeln('  const text = String(value).replace(/\\+/g, " ");');
+        helper.writeln(
+          '  if (encoding == null || typeof encoding.decode !== "function") return decodeURIComponent(text);',
+        );
+        helper.writeln('  const bytes = [];');
+        helper.writeln('  for (let i = 0; i < text.length; i++) {');
+        helper.writeln('    const char = text[i];');
+        helper.writeln('    if (char === "%" && i + 2 < text.length) {');
+        helper.writeln('      const hex = text.slice(i + 1, i + 3);');
+        helper.writeln(r'      if (/^[0-9a-fA-F]{2}$/.test(hex)) {');
+        helper.writeln('        bytes.push(parseInt(hex, 16));');
+        helper.writeln('        i += 2;');
+        helper.writeln('        continue;');
+        helper.writeln('      }');
+        helper.writeln('    }');
+        helper.writeln('    bytes.push(char.charCodeAt(0));');
+        helper.writeln('  }');
+        helper.writeln('  return encoding.decode(bytes);');
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUriSplitQueryString')) {
+        helper.writeln(
+          'function __dartUriSplitQueryString(query, encoding = null) {',
+        );
+        helper.writeln('  const map = new Map();');
+        helper.writeln('  for (const element of String(query).split("&")) {');
+        helper.writeln('    const index = element.indexOf("=");');
+        helper.writeln('    if (index === -1) {');
+        helper.writeln('      if (element !== "") map.set(__dartUriDecodeQueryComponent(element, encoding), "");');
+        helper.writeln('      continue;');
+        helper.writeln('    }');
+        helper.writeln('    if (index === 0) continue;');
+        helper.writeln('    const key = element.slice(0, index);');
+        helper.writeln('    const value = element.slice(index + 1);');
+        helper.writeln(
+          '    map.set(__dartUriDecodeQueryComponent(key, encoding), __dartUriDecodeQueryComponent(value, encoding));',
+        );
+        helper.writeln('  }');
+        helper.writeln('  return map;');
+        helper.writeln('}');
+      }
+      if (_usedHelpers.contains('__dartUri')) {
         helper.writeln('function __dartUriBuildQuery(queryParameters) {');
         helper.writeln('  const parts = [];');
         helper.writeln('  for (const [key, value] of queryParameters) {');
@@ -12587,6 +12666,7 @@ const _generatedGlobalNames = {
   '__dartUriDataFromString',
   '__dartUriDataMediaType',
   '__dartUriDataParameters',
+  '__dartUriDecodeQueryComponent',
   '__dartUriEncodeQueryComponent',
   '__dartUriEncodePath',
   '__dartUriFile',
@@ -12595,6 +12675,7 @@ const _generatedGlobalNames = {
   '__dartUriPercentEncodeBytes',
   '__dartUriReplace',
   '__dartUriResolve',
+  '__dartUriSplitQueryString',
   '__dartUtf8Codec',
   '__dartUtf8Decode',
   '__dartUtf8Decoder',

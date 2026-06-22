@@ -21,6 +21,9 @@ function __dartPrint(value) {
   console.log(__dartStr(value));
 }
 function __dartBind(receiver, name) {
+  if (Array.isArray(receiver) && name === "add") {
+    return (value) => { receiver.push(value); return null; };
+  }
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }

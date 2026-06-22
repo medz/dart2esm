@@ -140,6 +140,32 @@ Future<void> main() async {
   ).timeout(const Duration(milliseconds: 1), onTimeout: () => 'fallback');
   print('futureStream $streamed $fast $fallback');
 
+  final streamValue = await Stream<int>.value(7).single;
+  try {
+    await Stream<int>.error('stream-boom').first;
+  } catch (error) {
+    final periodicValues = await Stream<int>.periodic(
+      const Duration(milliseconds: 1),
+      (tick) => tick + 1,
+    ).take(3).toList();
+    print('streamFactories $streamValue $error ${periodicValues.join(',')}');
+  }
+
+  final controller = StreamController<int>.broadcast();
+  final seenA = <int>[];
+  final seenB = <int>[];
+  final subA = controller.stream.listen(seenA.add);
+  final subB = controller.stream.listen(seenB.add);
+  controller.add(1);
+  controller.add(2);
+  await Future<void>.delayed(const Duration(milliseconds: 1));
+  await subA.cancel();
+  await subB.cancel();
+  await controller.close();
+  print(
+    'broadcast ${seenA.join(',')} ${seenB.join(',')} ${controller.isClosed}',
+  );
+
   try {
     await Future.error('boom');
   } catch (error) {

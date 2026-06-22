@@ -48,6 +48,17 @@ function __dartDuration(options = {}) {
     toString() { return __dartDurationToString(micros); },
   };
 }
+function __dartAs(value, test, typeName) {
+  if (test(value)) return value;
+  throw new TypeError("Type cast failed: expected " + typeName);
+}
+function __dartBind(receiver, name) {
+  if (Array.isArray(receiver) && name === "add") {
+    return (value) => { receiver.push(value); return null; };
+  }
+  const value = receiver[name];
+  return typeof value === "function" ? value.bind(receiver) : value;
+}
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
@@ -196,9 +207,158 @@ function __dartFutureTimeout(future, duration, onTimeout = null) {
     );
   });
 }
+function __dartStreamController(broadcast = false) {
+  const listeners = new Set();
+  let closed = false;
+  let singleListened = false;
+  let resolveDone;
+  const done = new Promise((resolve) => { resolveDone = resolve; });
+  function makeState(bufferBeforeListen = false) {
+    return { queue: [], waiters: [], active: false, bufferBeforeListen };
+  }
+  const singleState = makeState(true);
+  function stateHasPending(state) {
+    return state.queue.length > 0 || state.waiters.length > 0;
+  }
+  function hasActiveListener() {
+    if (broadcast) return listeners.size > 0;
+    return singleState.active;
+  }
+  function maybeResolveDone() {
+    if (!closed) return;
+    if (broadcast) {
+      for (const listener of listeners) if (stateHasPending(listener)) return;
+      resolveDone(null);
+      return;
+    }
+    if (!stateHasPending(singleState)) resolveDone(null);
+  }
+  function settle(waiter, item) {
+    if (item.done === true) waiter.resolve({ done: true });
+    else if ("error" in item) waiter.reject(item.error);
+    else waiter.resolve({ value: item.value, done: false });
+  }
+  function nextResult(item) {
+    if (item.done === true) return Promise.resolve({ done: true });
+    if ("error" in item) return Promise.reject(item.error);
+    return Promise.resolve({ value: item.value, done: false });
+  }
+  function enqueue(state, item) {
+    if (!state.active && !state.bufferBeforeListen) return;
+    const waiter = state.waiters.shift();
+    if (waiter) settle(waiter, item);
+    else state.queue.push(item);
+  }
+  function clearWaiters(state) {
+    while (state.waiters.length > 0) settle(state.waiters.shift(), { done: true });
+  }
+  function cancelState(state) {
+    state.active = false;
+    state.bufferBeforeListen = false;
+    state.queue.length = 0;
+    clearWaiters(state);
+    maybeResolveDone();
+  }
+  function deliver(item) {
+    if (closed) throw new Error("Cannot add event after closing");
+    if (broadcast) {
+      for (const listener of listeners) enqueue(listener, item);
+      return;
+    }
+    enqueue(singleState, item);
+  }
+  function closeQueue() {
+    if (closed) return;
+    closed = true;
+    if (broadcast) {
+      for (const listener of listeners) {
+        if (listener.queue.length === 0) clearWaiters(listener);
+      }
+    } else if (singleState.queue.length === 0) {
+      clearWaiters(singleState);
+    }
+    maybeResolveDone();
+  }
+  function iteratorForState(state, remove) {
+    return {
+      next() {
+        const item = state.queue.shift();
+        if (item) {
+          const result = nextResult(item);
+          maybeResolveDone();
+          return result;
+        }
+        if (closed || !state.active) {
+          if (remove) remove();
+          maybeResolveDone();
+          return Promise.resolve({ done: true });
+        }
+        return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));
+      },
+      return() {
+        cancelState(state);
+        if (remove) remove();
+        return Promise.resolve({ done: true });
+      },
+    };
+  }
+  const controller = {
+    get stream() { return stream; },
+    get sink() { return controller; },
+    get done() { return done; },
+    get isClosed() { return closed; },
+    get isPaused() { return !hasActiveListener() && !closed; },
+    get hasListener() { return hasActiveListener(); },
+    add(value) { deliver({ value }); return null; },
+    addError(error, stackTrace = null) { deliver({ error }); return null; },
+    close() { closeQueue(); return done; },
+    async addStream(source, options = {}) {
+      try {
+        for await (const value of source) deliver({ value });
+      } catch (error) {
+        deliver({ error });
+        if (options.cancelOnError === true) return null;
+      }
+      return null;
+    },
+  };
+  const stream = {
+    [Symbol.asyncIterator]() {
+      if (broadcast) {
+        const state = makeState();
+        state.active = true;
+        listeners.add(state);
+        return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });
+      }
+      if (singleListened) {
+        throw new Error("Bad state: Stream has already been listened to.");
+      }
+      singleListened = true;
+      singleState.active = true;
+      singleState.bufferBeforeListen = false;
+      return iteratorForState(singleState, null);
+    },
+  };
+  return controller;
+}
 function __dartStreamFromIterable(values) {
   return (async function*() {
     for (const value of values) yield value;
+  })();
+}
+function __dartStreamError(error) {
+  return (async function*() {
+    throw error;
+  })();
+}
+function __dartStreamPeriodic(period, computation = null) {
+  return (async function*() {
+    let tick = 0;
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, period.inMilliseconds)));
+      yield typeof computation === "function" ? computation(tick) : null;
+      tick++;
+    }
   })();
 }
 function __dartStreamMap(stream, convert) {
@@ -356,6 +516,7 @@ async function __dartStreamDrain(stream, futureValue = null) {
   return futureValue;
 }
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
+  const iterator = stream[Symbol.asyncIterator]();
   let canceled = false;
   let paused = false;
   let resumeWaiter = null;
@@ -365,10 +526,12 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
   }
   const done = (async () => {
     try {
-      for await (const value of stream) {
+      while (!canceled) {
         await waitWhilePaused();
         if (canceled) break;
-        if (typeof onData === "function") onData(value);
+        const next = await iterator.next();
+        if (next.done) break;
+        if (typeof onData === "function") onData(next.value);
       }
       if (!canceled && typeof onDone === "function") onDone();
     } catch (error) {
@@ -390,7 +553,7 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       }
       return null;
     },
-    cancel() { canceled = true; this.resume(); return done; },
+    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },
     asFuture(value = null) { return done.then(() => value); },
   };
 }
@@ -533,18 +696,46 @@ export async function main() {
   const fast = await __dartFutureTimeout(Promise.resolve("fast"), __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"10000\"]]]", () => __dartDuration({ microseconds: 10000 })), null);
   const fallback = await __dartFutureTimeout(new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return "slow"; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"10000\"]]]", () => __dartDuration({ microseconds: 10000 })).inMilliseconds))), __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1000\"]]]", () => __dartDuration({ microseconds: 1000 })), function() { return "fallback"; });
   __dartPrint("futureStream " + __dartStr(streamed) + " " + __dartStr(fast) + " " + __dartStr(fallback));
+  const streamValue = await __dartStreamSingle(__dartStreamFromIterable([7]));
   try {
     {
-      await Promise.reject("boom");
+      await __dartStreamFirst(__dartStreamError("stream-boom"));
     }
   } catch ($error_3) {
     if ($error_3 != null) {
       const error_3 = $error_3;
       {
-        __dartPrint("caught " + __dartStr(error_3));
+        const periodicValues = await __dartStreamToList(__dartStreamTake(__dartStreamPeriodic(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1000\"]]]", () => __dartDuration({ microseconds: 1000 })), function(tick) { return (tick + 1); }), 3));
+        __dartPrint("streamFactories " + __dartStr(streamValue) + " " + __dartStr(error_3) + " " + __dartStr(__dartIterableJoin(periodicValues, ",")));
       }
     } else {
       throw $error_3;
+    }
+  }
+  const controller = __dartStreamController(true);
+  const seenA = new Array(0).fill(null);
+  const seenB = new Array(0).fill(null);
+  const subA = __dartStreamListen(controller.stream, __dartAs(__dartBind(seenA, "add"), value => typeof value === "function", "void Function(int)"), null, null, false);
+  const subB = __dartStreamListen(controller.stream, __dartAs(__dartBind(seenB, "add"), value => typeof value === "function", "void Function(int)"), null, null, false);
+  controller.add(1);
+  controller.add(2);
+  await new Promise((resolve, reject) => setTimeout(() => { try { resolve(null); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1000\"]]]", () => __dartDuration({ microseconds: 1000 })).inMilliseconds)));
+  await subA.cancel();
+  await subB.cancel();
+  await controller.close();
+  __dartPrint("broadcast " + __dartStr(__dartIterableJoin(seenA, ",")) + " " + __dartStr(__dartIterableJoin(seenB, ",")) + " " + __dartStr(controller.isClosed));
+  try {
+    {
+      await Promise.reject("boom");
+    }
+  } catch ($error_4) {
+    if ($error_4 != null) {
+      const error_4 = $error_4;
+      {
+        __dartPrint("caught " + __dartStr(error_4));
+      }
+    } else {
+      throw $error_4;
     }
   }
 }

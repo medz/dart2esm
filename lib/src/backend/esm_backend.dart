@@ -5392,7 +5392,8 @@ final class _EsmEmitter {
             path == 'dart:async::StreamController::@factories::broadcast') &&
         positionalArgs.isEmpty) {
       _usedHelpers.add('__dartStreamController');
-      return '__dartStreamController()';
+      final isBroadcast = path.endsWith('::broadcast');
+      return '__dartStreamController(${isBroadcast ? 'true' : 'false'})';
     }
     if (path == 'dart:async::Timer::@factories::' &&
         positionalArgs.length == 2) {
@@ -5418,6 +5419,21 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartStream');
       return '__dartStreamFromIterable([${positionalArgs.single}])';
+    }
+    if (path == 'dart:async::Stream::@factories::error' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamError(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Stream::@factories::periodic' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartStream');
+      final computation = positionalArgs.length == 2
+          ? positionalArgs[1]
+          : 'null';
+      return '__dartStreamPeriodic(${positionalArgs[0]}, $computation)';
     }
     if (path == 'dart:async::Stream::@factories::empty') {
       _usedHelpers.add('__dartStream');
@@ -8698,6 +8714,11 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartBind')) {
       helper.writeln('function __dartBind(receiver, name) {');
+      helper.writeln('  if (Array.isArray(receiver) && name === "add") {');
+      helper.writeln(
+        '    return (value) => { receiver.push(value); return null; };',
+      );
+      helper.writeln('  }');
       helper.writeln('  const value = receiver[name];');
       helper.writeln(
         '  return typeof value === "function" ? value.bind(receiver) : value;',
@@ -9636,43 +9657,144 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStreamController')) {
-      helper.writeln('function __dartStreamController() {');
-      helper.writeln('  const queue = [];');
-      helper.writeln('  const waiters = [];');
+      helper.writeln('function __dartStreamController(broadcast = false) {');
+      helper.writeln('  const listeners = new Set();');
       helper.writeln('  let closed = false;');
-      helper.writeln('  let hasListener = false;');
+      helper.writeln('  let singleListened = false;');
       helper.writeln('  let resolveDone;');
       helper.writeln(
         '  const done = new Promise((resolve) => { resolveDone = resolve; });',
       );
-      helper.writeln('  function completeDoneIfDrained() {');
+      helper.writeln('  function makeState(bufferBeforeListen = false) {');
       helper.writeln(
-        '    if (closed && queue.length === 0) resolveDone(null);',
+        '    return { queue: [], waiters: [], active: false, bufferBeforeListen };',
       );
+      helper.writeln('  }');
+      helper.writeln('  const singleState = makeState(true);');
+      helper.writeln('  function stateHasPending(state) {');
+      helper.writeln(
+        '    return state.queue.length > 0 || state.waiters.length > 0;',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function hasActiveListener() {');
+      helper.writeln('    if (broadcast) return listeners.size > 0;');
+      helper.writeln('    return singleState.active;');
+      helper.writeln('  }');
+      helper.writeln('  function maybeResolveDone() {');
+      helper.writeln('    if (!closed) return;');
+      helper.writeln('    if (broadcast) {');
+      helper.writeln(
+        '      for (const listener of listeners) if (stateHasPending(listener)) return;',
+      );
+      helper.writeln('      resolveDone(null);');
+      helper.writeln('      return;');
+      helper.writeln('    }');
+      helper.writeln(
+        '    if (!stateHasPending(singleState)) resolveDone(null);',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function settle(waiter, item) {');
+      helper.writeln(
+        '    if (item.done === true) waiter.resolve({ done: true });',
+      );
+      helper.writeln(
+        '    else if ("error" in item) waiter.reject(item.error);',
+      );
+      helper.writeln(
+        '    else waiter.resolve({ value: item.value, done: false });',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function nextResult(item) {');
+      helper.writeln(
+        '    if (item.done === true) return Promise.resolve({ done: true });',
+      );
+      helper.writeln(
+        '    if ("error" in item) return Promise.reject(item.error);',
+      );
+      helper.writeln(
+        '    return Promise.resolve({ value: item.value, done: false });',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function enqueue(state, item) {');
+      helper.writeln(
+        '    if (!state.active && !state.bufferBeforeListen) return;',
+      );
+      helper.writeln('    const waiter = state.waiters.shift();');
+      helper.writeln('    if (waiter) settle(waiter, item);');
+      helper.writeln('    else state.queue.push(item);');
+      helper.writeln('  }');
+      helper.writeln('  function clearWaiters(state) {');
+      helper.writeln(
+        '    while (state.waiters.length > 0) settle(state.waiters.shift(), { done: true });',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function cancelState(state) {');
+      helper.writeln('    state.active = false;');
+      helper.writeln('    state.bufferBeforeListen = false;');
+      helper.writeln('    state.queue.length = 0;');
+      helper.writeln('    clearWaiters(state);');
+      helper.writeln('    maybeResolveDone();');
       helper.writeln('  }');
       helper.writeln('  function deliver(item) {');
       helper.writeln(
         '    if (closed) throw new Error("Cannot add event after closing");',
       );
-      helper.writeln('    const waiter = waiters.shift();');
-      helper.writeln('    if (waiter) waiter(item);');
-      helper.writeln('    else queue.push(item);');
+      helper.writeln('    if (broadcast) {');
+      helper.writeln(
+        '      for (const listener of listeners) enqueue(listener, item);',
+      );
+      helper.writeln('      return;');
+      helper.writeln('    }');
+      helper.writeln('    enqueue(singleState, item);');
       helper.writeln('  }');
       helper.writeln('  function closeQueue() {');
       helper.writeln('    if (closed) return;');
       helper.writeln('    closed = true;');
+      helper.writeln('    if (broadcast) {');
+      helper.writeln('      for (const listener of listeners) {');
       helper.writeln(
-        '    while (waiters.length > 0) waiters.shift()({ done: true });',
+        '        if (listener.queue.length === 0) clearWaiters(listener);',
       );
-      helper.writeln('    completeDoneIfDrained();');
+      helper.writeln('      }');
+      helper.writeln('    } else if (singleState.queue.length === 0) {');
+      helper.writeln('      clearWaiters(singleState);');
+      helper.writeln('    }');
+      helper.writeln('    maybeResolveDone();');
+      helper.writeln('  }');
+      helper.writeln('  function iteratorForState(state, remove) {');
+      helper.writeln('    return {');
+      helper.writeln('      next() {');
+      helper.writeln('        const item = state.queue.shift();');
+      helper.writeln('        if (item) {');
+      helper.writeln('          const result = nextResult(item);');
+      helper.writeln('          maybeResolveDone();');
+      helper.writeln('          return result;');
+      helper.writeln('        }');
+      helper.writeln('        if (closed || !state.active) {');
+      helper.writeln('          if (remove) remove();');
+      helper.writeln('          maybeResolveDone();');
+      helper.writeln('          return Promise.resolve({ done: true });');
+      helper.writeln('        }');
+      helper.writeln(
+        '        return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));',
+      );
+      helper.writeln('      },');
+      helper.writeln('      return() {');
+      helper.writeln('        cancelState(state);');
+      helper.writeln('        if (remove) remove();');
+      helper.writeln('        return Promise.resolve({ done: true });');
+      helper.writeln('      },');
+      helper.writeln('    };');
       helper.writeln('  }');
       helper.writeln('  const controller = {');
       helper.writeln('    get stream() { return stream; },');
       helper.writeln('    get sink() { return controller; },');
       helper.writeln('    get done() { return done; },');
       helper.writeln('    get isClosed() { return closed; },');
-      helper.writeln('    get isPaused() { return !hasListener && !closed; },');
-      helper.writeln('    get hasListener() { return hasListener; },');
+      helper.writeln(
+        '    get isPaused() { return !hasActiveListener() && !closed; },',
+      );
+      helper.writeln('    get hasListener() { return hasActiveListener(); },');
       helper.writeln('    add(value) { deliver({ value }); return null; },');
       helper.writeln(
         '    addError(error, stackTrace = null) { deliver({ error }); return null; },',
@@ -9694,40 +9816,23 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('  const stream = {');
       helper.writeln('    [Symbol.asyncIterator]() {');
-      helper.writeln('      hasListener = true;');
-      helper.writeln('      return {');
-      helper.writeln('        next() {');
-      helper.writeln('          const item = queue.shift();');
-      helper.writeln('          if (item) {');
-      helper.writeln('            completeDoneIfDrained();');
+      helper.writeln('      if (broadcast) {');
+      helper.writeln('        const state = makeState();');
+      helper.writeln('        state.active = true;');
+      helper.writeln('        listeners.add(state);');
       helper.writeln(
-        '            if ("error" in item) return Promise.reject(item.error);',
+        '        return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });',
       );
+      helper.writeln('      }');
+      helper.writeln('      if (singleListened) {');
       helper.writeln(
-        '            return Promise.resolve({ value: item.value, done: false });',
+        '        throw new Error("Bad state: Stream has already been listened to.");',
       );
-      helper.writeln('          }');
-      helper.writeln('          if (closed) {');
-      helper.writeln('            completeDoneIfDrained();');
-      helper.writeln('            return Promise.resolve({ done: true });');
-      helper.writeln('          }');
-      helper.writeln('          return new Promise((resolve, reject) => {');
-      helper.writeln('            waiters.push((nextItem) => {');
-      helper.writeln('              if (nextItem.done === true) {');
-      helper.writeln('                completeDoneIfDrained();');
-      helper.writeln('                resolve({ done: true });');
-      helper.writeln('              } else if ("error" in nextItem) {');
-      helper.writeln('                completeDoneIfDrained();');
-      helper.writeln('                reject(nextItem.error);');
-      helper.writeln('              } else {');
-      helper.writeln(
-        '                resolve({ value: nextItem.value, done: false });',
-      );
-      helper.writeln('              }');
-      helper.writeln('            });');
-      helper.writeln('          });');
-      helper.writeln('        },');
-      helper.writeln('      };');
+      helper.writeln('      }');
+      helper.writeln('      singleListened = true;');
+      helper.writeln('      singleState.active = true;');
+      helper.writeln('      singleState.bufferBeforeListen = false;');
+      helper.writeln('      return iteratorForState(singleState, null);');
       helper.writeln('    },');
       helper.writeln('  };');
       helper.writeln('  return controller;');
@@ -9763,6 +9868,27 @@ final class _EsmEmitter {
       helper.writeln('function __dartStreamFromIterable(values) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    for (const value of values) yield value;');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamError(error) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    throw error;');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartStreamPeriodic(period, computation = null) {',
+      );
+      helper.writeln('  return (async function*() {');
+      helper.writeln('    let tick = 0;');
+      helper.writeln('    while (true) {');
+      helper.writeln(
+        '      await new Promise((resolve) => setTimeout(resolve, Math.max(0, period.inMilliseconds)));',
+      );
+      helper.writeln(
+        '      yield typeof computation === "function" ? computation(tick) : null;',
+      );
+      helper.writeln('      tick++;');
+      helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
       helper.writeln('function __dartStreamMap(stream, convert) {');
@@ -9938,6 +10064,7 @@ final class _EsmEmitter {
       helper.writeln(
         'function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {',
       );
+      helper.writeln('  const iterator = stream[Symbol.asyncIterator]();');
       helper.writeln('  let canceled = false;');
       helper.writeln('  let paused = false;');
       helper.writeln('  let resumeWaiter = null;');
@@ -9949,11 +10076,13 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  const done = (async () => {');
       helper.writeln('    try {');
-      helper.writeln('      for await (const value of stream) {');
+      helper.writeln('      while (!canceled) {');
       helper.writeln('        await waitWhilePaused();');
       helper.writeln('        if (canceled) break;');
+      helper.writeln('        const next = await iterator.next();');
+      helper.writeln('        if (next.done) break;');
       helper.writeln(
-        '        if (typeof onData === "function") onData(value);',
+        '        if (typeof onData === "function") onData(next.value);',
       );
       helper.writeln('      }');
       helper.writeln(
@@ -9981,7 +10110,7 @@ final class _EsmEmitter {
       helper.writeln('      return null;');
       helper.writeln('    },');
       helper.writeln(
-        '    cancel() { canceled = true; this.resume(); return done; },',
+        '    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },',
       );
       helper.writeln(
         '    asFuture(value = null) { return done.then(() => value); },',
@@ -10563,6 +10692,7 @@ const _generatedGlobalNames = {
   '__dartStreamEvery',
   '__dartStreamFirst',
   '__dartStreamFirstWhere',
+  '__dartStreamError',
   '__dartStreamFromIterable',
   '__dartStreamIsEmpty',
   '__dartStreamJoin',
@@ -10571,6 +10701,7 @@ const _generatedGlobalNames = {
   '__dartStreamLength',
   '__dartStreamListen',
   '__dartStreamMap',
+  '__dartStreamPeriodic',
   '__dartStreamSkip',
   '__dartStreamSkipWhile',
   '__dartStreamSingle',

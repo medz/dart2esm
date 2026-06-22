@@ -45,35 +45,108 @@ function __dartCompleter() {
     },
   };
 }
-function __dartStreamController() {
-  const queue = [];
-  const waiters = [];
+function __dartStreamController(broadcast = false) {
+  const listeners = new Set();
   let closed = false;
-  let hasListener = false;
+  let singleListened = false;
   let resolveDone;
   const done = new Promise((resolve) => { resolveDone = resolve; });
-  function completeDoneIfDrained() {
-    if (closed && queue.length === 0) resolveDone(null);
+  function makeState(bufferBeforeListen = false) {
+    return { queue: [], waiters: [], active: false, bufferBeforeListen };
+  }
+  const singleState = makeState(true);
+  function stateHasPending(state) {
+    return state.queue.length > 0 || state.waiters.length > 0;
+  }
+  function hasActiveListener() {
+    if (broadcast) return listeners.size > 0;
+    return singleState.active;
+  }
+  function maybeResolveDone() {
+    if (!closed) return;
+    if (broadcast) {
+      for (const listener of listeners) if (stateHasPending(listener)) return;
+      resolveDone(null);
+      return;
+    }
+    if (!stateHasPending(singleState)) resolveDone(null);
+  }
+  function settle(waiter, item) {
+    if (item.done === true) waiter.resolve({ done: true });
+    else if ("error" in item) waiter.reject(item.error);
+    else waiter.resolve({ value: item.value, done: false });
+  }
+  function nextResult(item) {
+    if (item.done === true) return Promise.resolve({ done: true });
+    if ("error" in item) return Promise.reject(item.error);
+    return Promise.resolve({ value: item.value, done: false });
+  }
+  function enqueue(state, item) {
+    if (!state.active && !state.bufferBeforeListen) return;
+    const waiter = state.waiters.shift();
+    if (waiter) settle(waiter, item);
+    else state.queue.push(item);
+  }
+  function clearWaiters(state) {
+    while (state.waiters.length > 0) settle(state.waiters.shift(), { done: true });
+  }
+  function cancelState(state) {
+    state.active = false;
+    state.bufferBeforeListen = false;
+    state.queue.length = 0;
+    clearWaiters(state);
+    maybeResolveDone();
   }
   function deliver(item) {
     if (closed) throw new Error("Cannot add event after closing");
-    const waiter = waiters.shift();
-    if (waiter) waiter(item);
-    else queue.push(item);
+    if (broadcast) {
+      for (const listener of listeners) enqueue(listener, item);
+      return;
+    }
+    enqueue(singleState, item);
   }
   function closeQueue() {
     if (closed) return;
     closed = true;
-    while (waiters.length > 0) waiters.shift()({ done: true });
-    completeDoneIfDrained();
+    if (broadcast) {
+      for (const listener of listeners) {
+        if (listener.queue.length === 0) clearWaiters(listener);
+      }
+    } else if (singleState.queue.length === 0) {
+      clearWaiters(singleState);
+    }
+    maybeResolveDone();
+  }
+  function iteratorForState(state, remove) {
+    return {
+      next() {
+        const item = state.queue.shift();
+        if (item) {
+          const result = nextResult(item);
+          maybeResolveDone();
+          return result;
+        }
+        if (closed || !state.active) {
+          if (remove) remove();
+          maybeResolveDone();
+          return Promise.resolve({ done: true });
+        }
+        return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));
+      },
+      return() {
+        cancelState(state);
+        if (remove) remove();
+        return Promise.resolve({ done: true });
+      },
+    };
   }
   const controller = {
     get stream() { return stream; },
     get sink() { return controller; },
     get done() { return done; },
     get isClosed() { return closed; },
-    get isPaused() { return !hasListener && !closed; },
-    get hasListener() { return hasListener; },
+    get isPaused() { return !hasActiveListener() && !closed; },
+    get hasListener() { return hasActiveListener(); },
     add(value) { deliver({ value }); return null; },
     addError(error, stackTrace = null) { deliver({ error }); return null; },
     close() { closeQueue(); return done; },
@@ -89,34 +162,19 @@ function __dartStreamController() {
   };
   const stream = {
     [Symbol.asyncIterator]() {
-      hasListener = true;
-      return {
-        next() {
-          const item = queue.shift();
-          if (item) {
-            completeDoneIfDrained();
-            if ("error" in item) return Promise.reject(item.error);
-            return Promise.resolve({ value: item.value, done: false });
-          }
-          if (closed) {
-            completeDoneIfDrained();
-            return Promise.resolve({ done: true });
-          }
-          return new Promise((resolve, reject) => {
-            waiters.push((nextItem) => {
-              if (nextItem.done === true) {
-                completeDoneIfDrained();
-                resolve({ done: true });
-              } else if ("error" in nextItem) {
-                completeDoneIfDrained();
-                reject(nextItem.error);
-              } else {
-                resolve({ value: nextItem.value, done: false });
-              }
-            });
-          });
-        },
-      };
+      if (broadcast) {
+        const state = makeState();
+        state.active = true;
+        listeners.add(state);
+        return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });
+      }
+      if (singleListened) {
+        throw new Error("Bad state: Stream has already been listened to.");
+      }
+      singleListened = true;
+      singleState.active = true;
+      singleState.bufferBeforeListen = false;
+      return iteratorForState(singleState, null);
     },
   };
   return controller;
@@ -146,6 +204,21 @@ function __dartStreamIterator(stream) {
 function __dartStreamFromIterable(values) {
   return (async function*() {
     for (const value of values) yield value;
+  })();
+}
+function __dartStreamError(error) {
+  return (async function*() {
+    throw error;
+  })();
+}
+function __dartStreamPeriodic(period, computation = null) {
+  return (async function*() {
+    let tick = 0;
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, period.inMilliseconds)));
+      yield typeof computation === "function" ? computation(tick) : null;
+      tick++;
+    }
   })();
 }
 function __dartStreamMap(stream, convert) {
@@ -303,6 +376,7 @@ async function __dartStreamDrain(stream, futureValue = null) {
   return futureValue;
 }
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
+  const iterator = stream[Symbol.asyncIterator]();
   let canceled = false;
   let paused = false;
   let resumeWaiter = null;
@@ -312,10 +386,12 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
   }
   const done = (async () => {
     try {
-      for await (const value of stream) {
+      while (!canceled) {
         await waitWhilePaused();
         if (canceled) break;
-        if (typeof onData === "function") onData(value);
+        const next = await iterator.next();
+        if (next.done) break;
+        if (typeof onData === "function") onData(next.value);
       }
       if (!canceled && typeof onDone === "function") onDone();
     } catch (error) {
@@ -337,7 +413,7 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       }
       return null;
     },
-    cancel() { canceled = true; this.resume(); return done; },
+    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },
     asFuture(value = null) { return done.then(() => value); },
   };
 }
@@ -395,7 +471,7 @@ export async function main() {
     (listened.push(value), null);
 }, null, null, false).asFuture("future");
   __dartPrint("listen " + __dartStr(listenState) + " " + __dartStr(__dartIterableJoin(listened, ",")) + " " + __dartStr(paused) + " " + __dartStr(await listenFuture) + " " + __dartStr(__dartIterableJoin(listened, ",")));
-  const controller = __dartStreamController();
+  const controller = __dartStreamController(false);
   const controlledFuture = __dartStreamToList(controller.stream);
   __dartPrint("state " + __dartStr(controller.isClosed) + " " + __dartStr(controller.hasListener));
   controller.add(4);
@@ -404,7 +480,7 @@ export async function main() {
   const controlled = await controlledFuture;
   __dartPrint("controller " + __dartStr(__dartIterableJoin(controlled, ",")) + " " + __dartStr(controller.isClosed));
   __dartPrint("done " + __dartStr(await controller.done));
-  const errorController = __dartStreamController();
+  const errorController = __dartStreamController(false);
   const errorFuture = (async function() {
     try {
       {

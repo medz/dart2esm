@@ -6,10 +6,12 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  final fixtureDir = Directory('test/fixtures/goldens');
+  final fixtureDir = Directory('test/fixtures/specs');
 
   test('compiles Dart input through Kernel to runnable ESM', () async {
-    final fixture = File(p.join(fixtureDir.path, 'basic_functions.dart'));
+    final fixture = File(
+      p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
+    );
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-test-');
     addTearDown(() => tempDir.deleteSync(recursive: true));
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -32,7 +34,9 @@ void main() {
     );
     expect(
       output.readAsStringSync(),
-      File(p.join(fixtureDir.path, 'basic_functions.mjs')).readAsStringSync(),
+      File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.mjs'),
+      ).readAsStringSync(),
     );
     await _expectSameDartAndNodeOutput(fixture, output);
   });
@@ -44,7 +48,7 @@ void main() {
     final input = File(p.join(tempDir.path, 'main.dart'))
       ..writeAsStringSync(
         File(
-          p.join(fixtureDir.path, 'basic_functions.dart'),
+          p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
         ).readAsStringSync(),
       );
     final dill = File(p.join(tempDir.path, 'main.dill'));
@@ -69,7 +73,7 @@ void main() {
   });
 
   for (final fixture in _goldenFixtures(fixtureDir)) {
-    test('matches ${fixture.name} ESM golden and runtime behavior', () async {
+    test('matches ${fixture.id} ESM golden and runtime behavior', () async {
       await _expectGoldenFixture(fixture);
     });
   }
@@ -78,7 +82,7 @@ void main() {
 List<_GoldenFixture> _goldenFixtures(Directory fixtureDir) {
   final sources =
       fixtureDir
-          .listSync()
+          .listSync(recursive: true)
           .whereType<File>()
           .where((file) => file.path.endsWith('.dart'))
           .toList()
@@ -86,6 +90,7 @@ List<_GoldenFixture> _goldenFixtures(Directory fixtureDir) {
   return [
     for (final source in sources)
       _GoldenFixture(
+        root: fixtureDir,
         source: source,
         expectedEsm: File(p.setExtension(source.path, '.mjs')),
       ),
@@ -122,10 +127,17 @@ Future<void> _expectSameDartAndNodeOutput(File input, File output) async {
 }
 
 final class _GoldenFixture {
-  const _GoldenFixture({required this.source, required this.expectedEsm});
+  const _GoldenFixture({
+    required this.root,
+    required this.source,
+    required this.expectedEsm,
+  });
 
+  final Directory root;
   final File source;
   final File expectedEsm;
+
+  String get id => p.withoutExtension(p.relative(source.path, from: root.path));
 
   String get name => p.basenameWithoutExtension(source.path);
 }

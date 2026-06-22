@@ -2861,6 +2861,15 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartEnumAsNameMap');
       return '__dartEnumAsNameMap(${positionalArgs.single})';
     }
+    if (_referencePath(expression.targetReference) ==
+            'dart:core::@methods::DateTimeCopyWith|copyWith' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartDateTime');
+      final options = expression.arguments.named.isEmpty
+          ? '{}'
+          : '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }';
+      return '__dartDateTimeCopyWith(${positionalArgs.single}, $options)';
+    }
     if (_isCoreReference(expression.targetReference, '@methods', 'print')) {
       _usedHelpers.add('__dartPrint');
       _usedHelpers.add('__dartStr');
@@ -7475,6 +7484,12 @@ final class _EsmEmitter {
       );
       helper.writeln('  return __dartDateTime(millis, isUtc, microsecond);');
       helper.writeln('}');
+      helper.writeln('function __dartDateTimeCopyWith(value, options = {}) {');
+      helper.writeln('  const isUtc = options.isUtc ?? value.isUtc;');
+      helper.writeln(
+        '  return __dartDateTimeFromParts(isUtc, options.year ?? value.year, options.month ?? value.month, options.day ?? value.day, options.hour ?? value.hour, options.minute ?? value.minute, options.second ?? value.second, options.millisecond ?? value.millisecond, options.microsecond ?? value.microsecond);',
+      );
+      helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStopwatch')) {
       helper.writeln('function __dartStopwatchNowMicros() {');
@@ -10130,6 +10145,7 @@ const _generatedGlobalNames = {
   '__dartConstValues',
   '__dartCoreError',
   '__dartDateTime',
+  '__dartDateTimeCopyWith',
   '__dartDateTimeFromMicros',
   '__dartDateTimeFromParts',
   '__dartDateTimeParse',

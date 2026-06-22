@@ -91,6 +91,10 @@ function __dartDateTimeParse(source, tryParse = false) {
   const microsecond = fraction == null ? 0 : Number((fraction[1] + "000000").slice(0, 6).slice(3));
   return __dartDateTime(millis, isUtc, microsecond);
 }
+function __dartDateTimeCopyWith(value, options = {}) {
+  const isUtc = options.isUtc ?? value.isUtc;
+  return __dartDateTimeFromParts(isUtc, options.year ?? value.year, options.month ?? value.month, options.day ?? value.day, options.hour ?? value.hour, options.minute ?? value.minute, options.second ?? value.second, options.millisecond ?? value.millisecond, options.microsecond ?? value.microsecond);
+}
 function __dartStopwatchNowMicros() {
   const now = globalThis.performance && typeof globalThis.performance.now === "function" ? globalThis.performance.now() : Date.now();
   return Math.trunc(now * 1000);
@@ -195,6 +199,8 @@ export async function main() {
   __dartPrint("dateOps " + __dartStr(shifted.toIso8601String()) + " " + __dartStr(shiftedBack.microsecondsSinceEpoch) + " " + __dartStr(delta.inMicroseconds));
   __dartPrint("dateCompare " + __dartStr(epoch.isBefore(shifted)) + " " + __dartStr(shifted.isAfter(epoch)) + " " + __dartStr(epoch.isAtSameMomentAs(__dartDateTime(0, true))) + " " + __dartStr(shifted.compareTo(epoch)) + " " + __dartStr(epoch.compareTo(shifted)));
   __dartPrint("dateEquals " + __dartStr((() => { const $left_3 = epoch; const $right_3 = __dartDateTimeFromMicros(0, true); return $left_3 === null ? $right_3 === null : $left_3["=="]($right_3); })()));
+  const copied = __dartDateTimeCopyWith(utc, { year: 2027, minute: 9 });
+  __dartPrint("dateCopy " + __dartStr(copied.toUtc().toIso8601String()) + " " + __dartStr(copied.isUtc));
   const parsed = __dartDateTimeParse("2026-01-02T03:04:05.006Z", false);
   __dartPrint("parsed " + __dartStr(parsed.toUtc().toIso8601String()));
   const parsedMicros = __dartDateTimeParse("2026-01-02T03:04:05.006007Z", false);

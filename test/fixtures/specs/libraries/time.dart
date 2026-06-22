@@ -80,6 +80,9 @@ Future<void> main() async {
     'dateEquals ${epoch == DateTime.fromMicrosecondsSinceEpoch(0, isUtc: true)}',
   );
 
+  final copied = utc.copyWith(year: 2027, minute: 9);
+  print('dateCopy ${copied.toUtc().toIso8601String()} ${copied.isUtc}');
+
   final parsed = DateTime.parse('2026-01-02T03:04:05.006Z');
   print('parsed ${parsed.toUtc().toIso8601String()}');
 

@@ -147,6 +147,7 @@ List<_GoldenFixture> _goldenFixtures(Directory fixtureDir) {
           .listSync(recursive: true)
           .whereType<File>()
           .where((file) => file.path.endsWith('.dart'))
+          .where((file) => File(p.setExtension(file.path, '.mjs')).existsSync())
           .toList()
         ..sort((left, right) => left.path.compareTo(right.path));
   return [

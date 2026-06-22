@@ -2332,13 +2332,22 @@ final class _EsmEmitter {
         return _emitCanonicalConst(constant, '__dartJsonCodec()');
       case 'dart:convert::Utf8Codec':
         _usedHelpers.add('__dartUtf8Codec');
-        return _emitCanonicalConst(constant, '__dartUtf8Codec()');
+        return _emitCanonicalConst(
+          constant,
+          '__dartUtf8Codec(${_firstBoolConstantField(constant)})',
+        );
       case 'dart:convert::AsciiCodec':
         _usedHelpers.add('__dartAsciiCodec');
-        return _emitCanonicalConst(constant, '__dartAsciiCodec()');
+        return _emitCanonicalConst(
+          constant,
+          '__dartAsciiCodec(${_firstBoolConstantField(constant)})',
+        );
       case 'dart:convert::Latin1Codec':
         _usedHelpers.add('__dartLatin1Codec');
-        return _emitCanonicalConst(constant, '__dartLatin1Codec()');
+        return _emitCanonicalConst(
+          constant,
+          '__dartLatin1Codec(${_firstBoolConstantField(constant)})',
+        );
       case 'dart:convert::Base64Codec':
         _usedHelpers.add('__dartBase64Codec');
         return _emitCanonicalConst(
@@ -2555,6 +2564,15 @@ final class _EsmEmitter {
             }
           }
         }
+      }
+    }
+    return false;
+  }
+
+  bool _firstBoolConstantField(k.InstanceConstant constant) {
+    for (final value in constant.fieldValues.values) {
+      if (value is k.BoolConstant) {
+        return value.value;
       }
     }
     return false;
@@ -4214,6 +4232,10 @@ final class _EsmEmitter {
         _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
       return 'Array.from({ length: $receiver.length }, (_, index) => $receiver.charCodeAt(index))';
     }
+    if (name == 'runes' &&
+        _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
+      return 'Array.from($receiver, (char) => char.codePointAt(0))';
+    }
     if (name == 'isOdd' &&
         _isCoreMember(expression.interfaceTargetReference, 'int', name)) {
       return '(Math.trunc($receiver) % 2 !== 0)';
@@ -4881,6 +4903,33 @@ final class _EsmEmitter {
     if (path.startsWith('dart:core::MapEntry::@constructors::') &&
         positionalArgs.length == 2) {
       return 'Object.freeze({ key: ${positionalArgs[0]}, value: ${positionalArgs[1]} })';
+    }
+    if (path.startsWith('dart:convert::Utf8Codec::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartUtf8Codec');
+      final allowMalformed =
+          _namedArgument(arguments, 'allowMalformed') ??
+          _namedArgument(arguments, '_allowMalformed') ??
+          'false';
+      return '__dartUtf8Codec($allowMalformed)';
+    }
+    if (path.startsWith('dart:convert::AsciiCodec::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartAsciiCodec');
+      final allowInvalid =
+          _namedArgument(arguments, 'allowInvalid') ??
+          _namedArgument(arguments, '_allowInvalid') ??
+          'false';
+      return '__dartAsciiCodec($allowInvalid)';
+    }
+    if (path.startsWith('dart:convert::Latin1Codec::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartLatin1Codec');
+      final allowInvalid =
+          _namedArgument(arguments, 'allowInvalid') ??
+          _namedArgument(arguments, '_allowInvalid') ??
+          'false';
+      return '__dartLatin1Codec($allowInvalid)';
     }
     if (path.startsWith('dart:core::StringBuffer::@constructors::')) {
       if (positionalArgs.length > 1) {
@@ -5670,6 +5719,7 @@ final class _EsmEmitter {
         path.contains('::List::') ||
         path.contains('::_List::') ||
         path.contains('::_GrowableList::') ||
+        path.contains('::Runes::') ||
         path.contains('::Set::') ||
         path.contains('::_Set::') ||
         path.contains('::Map::') ||
@@ -5764,6 +5814,9 @@ final class _EsmEmitter {
       k.InstanceGet(:final name)
           when name.text == 'keys' || name.text == 'values' =>
         'Iterable',
+      k.InstanceGet(:final name)
+          when name.text == 'codeUnits' || name.text == 'runes' =>
+        'List',
       _ => null,
     };
   }
@@ -7044,17 +7097,21 @@ final class _EsmEmitter {
         '  return Array.from(new TextEncoder().encode(String(source)));',
       );
       helper.writeln('}');
-      helper.writeln('function __dartUtf8Decode(bytes) {');
       helper.writeln(
-        '  return new TextDecoder("utf-8").decode(Uint8Array.from(bytes));',
+        'function __dartUtf8Decode(bytes, allowMalformed = false) {',
+      );
+      helper.writeln(
+        '  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(bytes));',
       );
       helper.writeln('}');
-      helper.writeln('function __dartUtf8Codec() {');
+      helper.writeln('function __dartUtf8Codec(allowMalformed = false) {');
       helper.writeln('  return {');
       helper.writeln(
         '    encode(source) { return __dartUtf8Encode(source); },',
       );
-      helper.writeln('    decode(bytes) { return __dartUtf8Decode(bytes); },');
+      helper.writeln(
+        '    decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
@@ -7071,22 +7128,26 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  return bytes;');
       helper.writeln('}');
-      helper.writeln('function __dartAsciiDecode(bytes) {');
+      helper.writeln(
+        'function __dartAsciiDecode(bytes, allowInvalid = false) {',
+      );
       helper.writeln('  const chars = [];');
       helper.writeln('  for (const byte of bytes) {');
       helper.writeln(
-        '    if (byte < 0 || byte > 0x7f) throw new RangeError("Invalid ASCII byte");',
+        '    if (byte < 0 || byte > 0x7f) { if (!allowInvalid) throw new RangeError("Invalid ASCII byte"); chars.push("\\uFFFD"); continue; }',
       );
       helper.writeln('    chars.push(String.fromCharCode(byte));');
       helper.writeln('  }');
       helper.writeln('  return chars.join("");');
       helper.writeln('}');
-      helper.writeln('function __dartAsciiCodec() {');
+      helper.writeln('function __dartAsciiCodec(allowInvalid = false) {');
       helper.writeln('  return {');
       helper.writeln(
         '    encode(source) { return __dartAsciiEncode(source); },',
       );
-      helper.writeln('    decode(bytes) { return __dartAsciiDecode(bytes); },');
+      helper.writeln(
+        '    decode(bytes, options = {}) { return __dartAsciiDecode(bytes, options.allowInvalid ?? allowInvalid); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
@@ -7103,23 +7164,25 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  return bytes;');
       helper.writeln('}');
-      helper.writeln('function __dartLatin1Decode(bytes) {');
+      helper.writeln(
+        'function __dartLatin1Decode(bytes, allowInvalid = false) {',
+      );
       helper.writeln('  const chars = [];');
       helper.writeln('  for (const byte of bytes) {');
       helper.writeln(
-        '    if (byte < 0 || byte > 0xff) throw new RangeError("Invalid Latin-1 byte");',
+        '    if (byte < 0 || byte > 0xff) { if (!allowInvalid) throw new RangeError("Invalid Latin-1 byte"); chars.push("\\uFFFD"); continue; }',
       );
       helper.writeln('    chars.push(String.fromCharCode(byte));');
       helper.writeln('  }');
       helper.writeln('  return chars.join("");');
       helper.writeln('}');
-      helper.writeln('function __dartLatin1Codec() {');
+      helper.writeln('function __dartLatin1Codec(allowInvalid = false) {');
       helper.writeln('  return {');
       helper.writeln(
         '    encode(source) { return __dartLatin1Encode(source); },',
       );
       helper.writeln(
-        '    decode(bytes) { return __dartLatin1Decode(bytes); },',
+        '    decode(bytes, options = {}) { return __dartLatin1Decode(bytes, options.allowInvalid ?? allowInvalid); },',
       );
       helper.writeln('  };');
       helper.writeln('}');

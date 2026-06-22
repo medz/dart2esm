@@ -67,13 +67,13 @@ function __dartJsonCodec() {
 function __dartUtf8Encode(source) {
   return Array.from(new TextEncoder().encode(String(source)));
 }
-function __dartUtf8Decode(bytes) {
-  return new TextDecoder("utf-8").decode(Uint8Array.from(bytes));
+function __dartUtf8Decode(bytes, allowMalformed = false) {
+  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(bytes));
 }
-function __dartUtf8Codec() {
+function __dartUtf8Codec(allowMalformed = false) {
   return {
     encode(source) { return __dartUtf8Encode(source); },
-    decode(bytes) { return __dartUtf8Decode(bytes); },
+    decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },
   };
 }
 function __dartAsciiEncode(source) {
@@ -86,18 +86,18 @@ function __dartAsciiEncode(source) {
   }
   return bytes;
 }
-function __dartAsciiDecode(bytes) {
+function __dartAsciiDecode(bytes, allowInvalid = false) {
   const chars = [];
   for (const byte of bytes) {
-    if (byte < 0 || byte > 0x7f) throw new RangeError("Invalid ASCII byte");
+    if (byte < 0 || byte > 0x7f) { if (!allowInvalid) throw new RangeError("Invalid ASCII byte"); chars.push("\uFFFD"); continue; }
     chars.push(String.fromCharCode(byte));
   }
   return chars.join("");
 }
-function __dartAsciiCodec() {
+function __dartAsciiCodec(allowInvalid = false) {
   return {
     encode(source) { return __dartAsciiEncode(source); },
-    decode(bytes) { return __dartAsciiDecode(bytes); },
+    decode(bytes, options = {}) { return __dartAsciiDecode(bytes, options.allowInvalid ?? allowInvalid); },
   };
 }
 function __dartLatin1Encode(source) {
@@ -110,18 +110,18 @@ function __dartLatin1Encode(source) {
   }
   return bytes;
 }
-function __dartLatin1Decode(bytes) {
+function __dartLatin1Decode(bytes, allowInvalid = false) {
   const chars = [];
   for (const byte of bytes) {
-    if (byte < 0 || byte > 0xff) throw new RangeError("Invalid Latin-1 byte");
+    if (byte < 0 || byte > 0xff) { if (!allowInvalid) throw new RangeError("Invalid Latin-1 byte"); chars.push("\uFFFD"); continue; }
     chars.push(String.fromCharCode(byte));
   }
   return chars.join("");
 }
-function __dartLatin1Codec() {
+function __dartLatin1Codec(allowInvalid = false) {
   return {
     encode(source) { return __dartLatin1Encode(source); },
-    decode(bytes) { return __dartLatin1Decode(bytes); },
+    decode(bytes, options = {}) { return __dartLatin1Decode(bytes, options.allowInvalid ?? allowInvalid); },
   };
 }
 function __dartBase64Encode(bytes, urlSafe = false) {
@@ -203,17 +203,22 @@ export function main() {
   const codecEncoded = __dartConst("[\"instance\",\"dart:convert::JsonCodec\",[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_reviver\",[\"null\"]],[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_toEncodable\",[\"null\"]]]", () => __dartJsonCodec()).encode(new Map([["answer", 42]]));
   const codecDecoded = __dartAs(__dartConst("[\"instance\",\"dart:convert::JsonCodec\",[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_reviver\",[\"null\"]],[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_toEncodable\",[\"null\"]]]", () => __dartJsonCodec()).decode(codecEncoded), value => value instanceof Map, "Map<dynamic, dynamic>");
   __dartPrint("codec " + __dartStr(codecDecoded.get("answer")));
-  const bytes = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).encode("hello");
-  __dartPrint("utf8 " + __dartStr(bytes.length) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).decode(bytes)));
-  const asciiBytes = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec()).encode("AZ");
-  const latinBytes = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec()).encode("Aÿ");
-  const constAscii = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec()).decode([79, 75]);
-  const constLatin = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec()).decode([65, 255]);
-  __dartPrint("singleByte " + __dartStr(__dartIterableJoin(asciiBytes, ",")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec()).decode([65, 90])) + " " + __dartStr(__dartIterableJoin(latinBytes, ",")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec()).decode([65, 255])) + " " + __dartStr(constAscii) + " " + __dartStr(constLatin));
+  const bytes = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).encode("hello");
+  __dartPrint("utf8 " + __dartStr(bytes.length) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(bytes)));
+  const asciiBytes = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec(false)).encode("AZ");
+  const latinBytes = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec(false)).encode("Aÿ");
+  const constAscii = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec(false)).decode([79, 75]);
+  const constLatin = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec(false)).decode([65, 255]);
+  __dartPrint("singleByte " + __dartStr(__dartIterableJoin(asciiBytes, ",")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec(false)).decode([65, 90])) + " " + __dartStr(__dartIterableJoin(latinBytes, ",")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartLatin1Codec(false)).decode([65, 255])) + " " + __dartStr(constAscii) + " " + __dartStr(constLatin));
+  const malformedUtf8 = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",true]]]", () => __dartUtf8Codec(true)).decode([255]);
+  const malformedUtf8Override = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode([255], { allowMalformed: true });
+  const invalidAscii = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",true]]]", () => __dartAsciiCodec(true)).decode([65, 200]);
+  const invalidLatin = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",true]]]", () => __dartLatin1Codec(true)).decode([65, 300]);
+  __dartPrint("malformed " + __dartStr(Array.from(malformedUtf8, (char) => char.codePointAt(0))[0]) + " " + __dartStr(Array.from(malformedUtf8Override, (char) => char.codePointAt(0))[0]) + " " + __dartStr(Array.from(invalidAscii, (char) => char.codePointAt(0))[Array.from(invalidAscii, (char) => char.codePointAt(0)).length - 1]) + " " + __dartStr(Array.from(invalidLatin, (char) => char.codePointAt(0))[Array.from(invalidLatin, (char) => char.codePointAt(0)).length - 1]));
   const token = __dartBase64Encode(bytes);
-  __dartPrint("base64 " + __dartStr(token) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).decode(__dartBase64Decode(token))));
+  __dartPrint("base64 " + __dartStr(token) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(__dartBase64Decode(token))));
   const urlToken = __dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).encode(bytes);
-  __dartPrint("base64Url " + __dartStr(urlToken) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).decode(__dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).decode(urlToken))));
+  __dartPrint("base64Url " + __dartStr(urlToken) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(__dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).decode(urlToken))));
   const lines = __dartConst("[\"instance\",\"dart:convert::LineSplitter\"]", () => __dartLineSplitter()).convert("a\nb\r\nc");
   const staticLines = __dartIterableJoin(__dartLineSplit("x\ry"), "/");
   __dartPrint("lines " + __dartStr(__dartIterableJoin(lines, "|")) + " " + __dartStr(staticLines));

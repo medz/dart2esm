@@ -26,6 +26,15 @@ void main() {
     '${latinBytes.join(',')} ${latin1.decode([65, 255])} '
     '$constAscii $constLatin',
   );
+  final malformedUtf8 = const Utf8Codec(allowMalformed: true).decode([255]);
+  final malformedUtf8Override = utf8.decode([255], allowMalformed: true);
+  final invalidAscii = const AsciiCodec(allowInvalid: true).decode([65, 200]);
+  final invalidLatin = const Latin1Codec(allowInvalid: true).decode([65, 300]);
+  print(
+    'malformed ${malformedUtf8.runes.first} '
+    '${malformedUtf8Override.runes.first} ${invalidAscii.runes.last} '
+    '${invalidLatin.runes.last}',
+  );
 
   final token = base64Encode(bytes);
   print('base64 $token ${utf8.decode(base64Decode(token))}');

@@ -46,6 +46,18 @@ void main() {
   final staticLines = LineSplitter.split('x\ry').join('/');
   print('lines ${lines.join('|')} $staticLines');
 
+  final fusedCodec = utf8.fuse(base64);
+  final fusedEncoded = fusedCodec.encode('fuse');
+  final fusedDecoded = fusedCodec.decode(fusedEncoded);
+  final fusedConverter = const Utf8Encoder()
+      .fuse(const Base64Encoder())
+      .convert('hi');
+  final fusedJsonUtf8 = const JsonEncoder()
+      .fuse(const Utf8Encoder())
+      .convert({'x': 1})
+      .join(',');
+  print('fuse $fusedEncoded $fusedDecoded $fusedConverter $fusedJsonUtf8');
+
   final escaped = const HtmlEscape().convert('<a&b>"\'/');
   print('html $escaped');
 

@@ -320,19 +320,23 @@ function __dartUtf8Decode(bytes, allowMalformed = false, start = 0, end = null) 
 function __dartUtf8Encoder() {
   return {
     convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },
+    fuse(next) { return __dartConverterFuse(this, next); },
   };
 }
 function __dartUtf8Decoder(allowMalformed = false) {
   return {
     convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },
+    fuse(next) { return __dartConverterFuse(this, next); },
   };
 }
 function __dartUtf8Codec(allowMalformed = false) {
   return {
     encode(source) { return __dartUtf8Encode(source); },
+    convert(source) { return __dartUtf8Encode(source); },
     decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },
     get encoder() { return __dartUtf8Encoder(); },
     get decoder() { return __dartUtf8Decoder(allowMalformed); },
+    fuse(next) { return __dartConverterFuse(this, next); },
   };
 }
 function __dartBase64Encode(bytes, urlSafe = false) {
@@ -375,21 +379,43 @@ function __dartBase64Normalize(source, start = 0, end = null) {
 function __dartBase64Encoder(urlSafe = false) {
   return {
     convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },
+    fuse(next) { return __dartConverterFuse(this, next); },
   };
 }
 function __dartBase64Decoder() {
   return {
     convert(source, start = 0, end = null) { return __dartBase64Decode(String(source).slice(start, end ?? undefined)); },
+    fuse(next) { return __dartConverterFuse(this, next); },
   };
 }
 function __dartBase64Codec(urlSafe = false) {
   return {
     encode(bytes) { return __dartBase64Encode(bytes, urlSafe); },
+    convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },
     decode(source) { return __dartBase64Decode(source); },
     normalize(source, start = 0, end = null) { return __dartBase64Normalize(source, start, end); },
     get encoder() { return __dartBase64Encoder(urlSafe); },
     get decoder() { return __dartBase64Decoder(); },
+    fuse(next) { return __dartConverterFuse(this, next); },
   };
+}
+function __dartConverterConvert(converter, value) {
+  if (converter != null && typeof converter.convert === "function") return converter.convert(value);
+  if (converter != null && typeof converter.encode === "function") return converter.encode(value);
+  throw new TypeError("Converter.convert is not available");
+}
+function __dartConverterFuse(first, second) {
+  const fused = {
+    convert(value) { return __dartConverterConvert(second, __dartConverterConvert(first, value)); },
+    fuse(next) { return __dartConverterFuse(fused, next); },
+  };
+  if (typeof first?.encode === "function" && typeof first?.decode === "function" && typeof second?.encode === "function" && typeof second?.decode === "function") {
+    fused.encode = (value) => second.encode(first.encode(value));
+    fused.decode = (value) => first.decode(second.decode(value));
+    Object.defineProperty(fused, "encoder", { get() { return __dartConverterFuse(first.encoder, second.encoder); } });
+    Object.defineProperty(fused, "decoder", { get() { return __dartConverterFuse(second.decoder, first.decoder); } });
+  }
+  return fused;
 }
 function __dartNullCheck(value) {
   if (value == null) {

@@ -7388,6 +7388,14 @@ final class _EsmEmitter {
         _usedHelpers.contains('__dartBase64Encode') ||
         _usedHelpers.contains('__dartBase64Decode') ||
         _usedHelpers.contains('__dartBase64Normalize');
+    final usesConvert =
+        usesJson ||
+        usesUtf8 ||
+        usesAscii ||
+        usesLatin1 ||
+        usesBase64 ||
+        _usedHelpers.contains('__dartLineSplitter') ||
+        _usedHelpers.contains('__dartHtmlEscape');
     if (usesRecord) {
       helper.writeln('const __dartRecordShape = Symbol("dart.recordShape");');
       helper.writeln('function __dartIsRecord(value) {');
@@ -8921,6 +8929,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    encode(value) { return __dartJsonEncode(value, toEncodable, indent); },',
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartJsonDecoder(reviver = null) {');
@@ -8930,6 +8941,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    decode(source) { return __dartJsonDecode(source, reviver); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -8942,6 +8956,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    convert(value) { return __dartUtf8Encode(__dartJsonEncode(value, toEncodable, indent)); },',
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln(
@@ -8952,6 +8969,9 @@ final class _EsmEmitter {
         '    encode(value, options = {}) { return __dartJsonEncode(value, options.toEncodable ?? toEncodable); },',
       );
       helper.writeln(
+        '    convert(value) { return __dartJsonEncode(value, toEncodable); },',
+      );
+      helper.writeln(
         '    decode(source, options = {}) { return __dartJsonDecode(source, options.reviver ?? reviver); },',
       );
       helper.writeln(
@@ -8959,6 +8979,9 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    get decoder() { return __dartJsonDecoder(reviver); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -8987,12 +9010,18 @@ final class _EsmEmitter {
       helper.writeln(
         '    convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },',
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartUtf8Decoder(allowMalformed = false) {');
       helper.writeln('  return {');
       helper.writeln(
         '    convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9002,11 +9031,17 @@ final class _EsmEmitter {
         '    encode(source) { return __dartUtf8Encode(source); },',
       );
       helper.writeln(
+        '    convert(source) { return __dartUtf8Encode(source); },',
+      );
+      helper.writeln(
         '    decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },',
       );
       helper.writeln('    get encoder() { return __dartUtf8Encoder(); },');
       helper.writeln(
         '    get decoder() { return __dartUtf8Decoder(allowMalformed); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9047,12 +9082,18 @@ final class _EsmEmitter {
       helper.writeln(
         '    convert(source, start = 0, end = null) { return __dartAsciiEncode(source, start, end); },',
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartAsciiDecoder(allowInvalid = false) {');
       helper.writeln('  return {');
       helper.writeln(
         '    convert(bytes, start = 0, end = null) { return __dartAsciiDecode(bytes, allowInvalid, start, end); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9062,11 +9103,17 @@ final class _EsmEmitter {
         '    encode(source) { return __dartAsciiEncode(source); },',
       );
       helper.writeln(
+        '    convert(source) { return __dartAsciiEncode(source); },',
+      );
+      helper.writeln(
         '    decode(bytes, options = {}) { return __dartAsciiDecode(bytes, options.allowInvalid ?? allowInvalid); },',
       );
       helper.writeln('    get encoder() { return __dartAsciiEncoder(); },');
       helper.writeln(
         '    get decoder() { return __dartAsciiDecoder(allowInvalid); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9107,12 +9154,18 @@ final class _EsmEmitter {
       helper.writeln(
         '    convert(source, start = 0, end = null) { return __dartLatin1Encode(source, start, end); },',
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartLatin1Decoder(allowInvalid = false) {');
       helper.writeln('  return {');
       helper.writeln(
         '    convert(bytes, start = 0, end = null) { return __dartLatin1Decode(bytes, allowInvalid, start, end); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9122,11 +9175,17 @@ final class _EsmEmitter {
         '    encode(source) { return __dartLatin1Encode(source); },',
       );
       helper.writeln(
+        '    convert(source) { return __dartLatin1Encode(source); },',
+      );
+      helper.writeln(
         '    decode(bytes, options = {}) { return __dartLatin1Decode(bytes, options.allowInvalid ?? allowInvalid); },',
       );
       helper.writeln('    get encoder() { return __dartLatin1Encoder(); },');
       helper.writeln(
         '    get decoder() { return __dartLatin1Decoder(allowInvalid); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -9206,6 +9265,9 @@ final class _EsmEmitter {
       helper.writeln(
         '    convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },',
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartBase64Decoder() {');
@@ -9213,12 +9275,18 @@ final class _EsmEmitter {
       helper.writeln(
         '    convert(source, start = 0, end = null) { return __dartBase64Decode(String(source).slice(start, end ?? undefined)); },',
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartBase64Codec(urlSafe = false) {');
       helper.writeln('  return {');
       helper.writeln(
         '    encode(bytes) { return __dartBase64Encode(bytes, urlSafe); },',
+      );
+      helper.writeln(
+        '    convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },',
       );
       helper.writeln(
         '    decode(source) { return __dartBase64Decode(source); },',
@@ -9230,6 +9298,9 @@ final class _EsmEmitter {
         '    get encoder() { return __dartBase64Encoder(urlSafe); },',
       );
       helper.writeln('    get decoder() { return __dartBase64Decoder(); },');
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
@@ -9284,6 +9355,9 @@ final class _EsmEmitter {
       helper.writeln(
         "    convert(source) { return String(source).replace(/[&<>\"'/]/g, (char) => __dartHtmlEscapeChar(char, activeMode)); },",
       );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(this, next); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
@@ -9332,6 +9406,46 @@ final class _EsmEmitter {
         '  const name = value.constructor && value.constructor.name ? value.constructor.name : "Object";',
       );
       helper.writeln('  return __dartType(name);');
+      helper.writeln('}');
+    }
+    if (usesConvert) {
+      helper.writeln('function __dartConverterConvert(converter, value) {');
+      helper.writeln(
+        '  if (converter != null && typeof converter.convert === "function") return converter.convert(value);',
+      );
+      helper.writeln(
+        '  if (converter != null && typeof converter.encode === "function") return converter.encode(value);',
+      );
+      helper.writeln(
+        '  throw new TypeError("Converter.convert is not available");',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartConverterFuse(first, second) {');
+      helper.writeln('  const fused = {');
+      helper.writeln(
+        '    convert(value) { return __dartConverterConvert(second, __dartConverterConvert(first, value)); },',
+      );
+      helper.writeln(
+        '    fuse(next) { return __dartConverterFuse(fused, next); },',
+      );
+      helper.writeln('  };');
+      helper.writeln(
+        '  if (typeof first?.encode === "function" && typeof first?.decode === "function" && typeof second?.encode === "function" && typeof second?.decode === "function") {',
+      );
+      helper.writeln(
+        '    fused.encode = (value) => second.encode(first.encode(value));',
+      );
+      helper.writeln(
+        '    fused.decode = (value) => first.decode(second.decode(value));',
+      );
+      helper.writeln(
+        '    Object.defineProperty(fused, "encoder", { get() { return __dartConverterFuse(first.encoder, second.encoder); } });',
+      );
+      helper.writeln(
+        '    Object.defineProperty(fused, "decoder", { get() { return __dartConverterFuse(second.decoder, first.decoder); } });',
+      );
+      helper.writeln('  }');
+      helper.writeln('  return fused;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSymbol')) {
@@ -11747,6 +11861,8 @@ const _generatedGlobalNames = {
   '__dartConstMap',
   '__dartConstSet',
   '__dartConstValues',
+  '__dartConverterConvert',
+  '__dartConverterFuse',
   '__dartCoreError',
   '__dartDateTime',
   '__dartDateTimeCopyWith',

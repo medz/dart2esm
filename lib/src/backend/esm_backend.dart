@@ -2339,6 +2339,12 @@ final class _EsmEmitter {
           constant,
           '__dartBase64Codec(${_isBase64ConstantUrlSafe(constant)})',
         );
+      case 'dart:convert::LineSplitter':
+        _usedHelpers.add('__dartLineSplitter');
+        return _emitCanonicalConst(constant, '__dartLineSplitter()');
+      case 'dart:convert::HtmlEscape':
+        _usedHelpers.add('__dartHtmlEscape');
+        return _emitCanonicalConst(constant, '__dartHtmlEscape()');
       case 'dart:core::Duration':
         _usedHelpers.add('__dartDuration');
         var micros = 0;
@@ -4815,6 +4821,11 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
+    if (path == 'dart:convert::LineSplitter::@methods::split' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartLineSplitter');
+      return '__dartLineSplit(${positionalArgs.single})';
+    }
     if (!path.startsWith('dart:convert::@methods::')) {
       return null;
     }
@@ -6163,6 +6174,44 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartLineSplitter')) {
+      helper.writeln('function __dartLineSplit(source) {');
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  if (text.length === 0) return [];');
+      helper.writeln('  const lines = text.split(/\\r\\n|\\n|\\r/);');
+      helper.writeln(
+        '  if (text.endsWith("\\n") || text.endsWith("\\r")) lines.pop();',
+      );
+      helper.writeln('  return lines;');
+      helper.writeln('}');
+      helper.writeln('function __dartLineSplitter() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(source) { return __dartLineSplit(source); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartHtmlEscape')) {
+      helper.writeln('function __dartHtmlEscapeChar(char) {');
+      helper.writeln('  switch (char) {');
+      helper.writeln('    case "&": return "&amp;";');
+      helper.writeln('    case "<": return "&lt;";');
+      helper.writeln('    case ">": return "&gt;";');
+      helper.writeln("    case '\"': return \"&quot;\";");
+      helper.writeln("    case \"'\": return \"&#39;\";");
+      helper.writeln('    case "/": return "&#47;";');
+      helper.writeln('    default: return char;');
+      helper.writeln('  }');
+      helper.writeln('}');
+      helper.writeln('function __dartHtmlEscape() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        "    convert(source) { return String(source).replace(/[&<>\"'/]/g, __dartHtmlEscapeChar); },",
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartType')) {
       helper.writeln('const __dartTypeCache = new Map();');
       helper.writeln('function __dartType(name) {');
@@ -7228,6 +7277,8 @@ const _generatedGlobalNames = {
   '__dartCombineHash',
   '__dartFinishHash',
   '__dartHashValue',
+  '__dartHtmlEscape',
+  '__dartHtmlEscapeChar',
   '__dartIdentityHashes',
   '__dartIsRecord',
   '__dartIterator',
@@ -7235,6 +7286,8 @@ const _generatedGlobalNames = {
   '__dartJsonDecode',
   '__dartJsonEncode',
   '__dartLazyField',
+  '__dartLineSplit',
+  '__dartLineSplitter',
   '__dartListRemove',
   '__dartListLastIndexWhere',
   '__dartListRemoveWhere',

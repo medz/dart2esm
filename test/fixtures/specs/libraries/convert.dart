@@ -22,4 +22,11 @@ void main() {
 
   final urlToken = base64Url.encode(bytes);
   print('base64Url $urlToken ${utf8.decode(base64Url.decode(urlToken))}');
+
+  final lines = const LineSplitter().convert('a\nb\r\nc');
+  final staticLines = LineSplitter.split('x\ry').join('/');
+  print('lines ${lines.join('|')} $staticLines');
+
+  final escaped = const HtmlEscape().convert('<a&b>"\'/');
+  print('html $escaped');
 }

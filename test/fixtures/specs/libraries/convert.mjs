@@ -102,9 +102,40 @@ function __dartBase64Codec(urlSafe = false) {
     decode(source) { return __dartBase64Decode(source); },
   };
 }
+function __dartLineSplit(source) {
+  const text = String(source);
+  if (text.length === 0) return [];
+  const lines = text.split(/\r\n|\n|\r/);
+  if (text.endsWith("\n") || text.endsWith("\r")) lines.pop();
+  return lines;
+}
+function __dartLineSplitter() {
+  return {
+    convert(source) { return __dartLineSplit(source); },
+  };
+}
+function __dartHtmlEscapeChar(char) {
+  switch (char) {
+    case "&": return "&amp;";
+    case "<": return "&lt;";
+    case ">": return "&gt;";
+    case '"': return "&quot;";
+    case "'": return "&#39;";
+    case "/": return "&#47;";
+    default: return char;
+  }
+}
+function __dartHtmlEscape() {
+  return {
+    convert(source) { return String(source).replace(/[&<>"'/]/g, __dartHtmlEscapeChar); },
+  };
+}
 function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
+}
+function __dartIterableJoin(iterable, separator = "") {
+  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
@@ -130,6 +161,11 @@ export function main() {
   __dartPrint("base64 " + __dartStr(token) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).decode(__dartBase64Decode(token))));
   const urlToken = __dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).encode(bytes);
   __dartPrint("base64Url " + __dartStr(urlToken) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec()).decode(__dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).decode(urlToken))));
+  const lines = __dartConst("[\"instance\",\"dart:convert::LineSplitter\"]", () => __dartLineSplitter()).convert("a\nb\r\nc");
+  const staticLines = __dartIterableJoin(__dartLineSplit("x\ry"), "/");
+  __dartPrint("lines " + __dartStr(__dartIterableJoin(lines, "|")) + " " + __dartStr(staticLines));
+  const escaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]]]", () => __dartHtmlEscape()).convert("<a&b>\"'/");
+  __dartPrint("html " + __dartStr(escaped));
 }
 
 main();

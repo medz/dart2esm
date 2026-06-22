@@ -2337,12 +2337,36 @@ final class _EsmEmitter {
         return _emitCanonicalConst(constant, 'Object.freeze({})');
       case 'dart:convert::JsonCodec':
         _usedHelpers.add('__dartJsonCodec');
-        return _emitCanonicalConst(constant, '__dartJsonCodec()');
+        return _emitCanonicalConst(
+          constant,
+          '__dartJsonCodec(${_emitConstantFieldValue(constant, '_reviver') ?? 'null'}, ${_emitConstantFieldValue(constant, '_toEncodable') ?? 'null'})',
+        );
+      case 'dart:convert::JsonEncoder':
+        _usedHelpers.add('__dartJsonEncoder');
+        return _emitCanonicalConst(
+          constant,
+          '__dartJsonEncoder(${_emitConstantFieldValue(constant, '_toEncodable') ?? 'null'}, ${_emitConstantFieldValue(constant, 'indent') ?? 'null'})',
+        );
+      case 'dart:convert::JsonDecoder':
+        _usedHelpers.add('__dartJsonDecoder');
+        return _emitCanonicalConst(
+          constant,
+          '__dartJsonDecoder(${_emitConstantFieldValue(constant, '_reviver') ?? 'null'})',
+        );
       case 'dart:convert::Utf8Codec':
         _usedHelpers.add('__dartUtf8Codec');
         return _emitCanonicalConst(
           constant,
           '__dartUtf8Codec(${_firstBoolConstantField(constant)})',
+        );
+      case 'dart:convert::Utf8Encoder':
+        _usedHelpers.add('__dartUtf8Encoder');
+        return _emitCanonicalConst(constant, '__dartUtf8Encoder()');
+      case 'dart:convert::Utf8Decoder':
+        _usedHelpers.add('__dartUtf8Decoder');
+        return _emitCanonicalConst(
+          constant,
+          '__dartUtf8Decoder(${_firstBoolConstantField(constant)})',
         );
       case 'dart:convert::AsciiCodec':
         _usedHelpers.add('__dartAsciiCodec');
@@ -2350,11 +2374,29 @@ final class _EsmEmitter {
           constant,
           '__dartAsciiCodec(${_firstBoolConstantField(constant)})',
         );
+      case 'dart:convert::AsciiEncoder':
+        _usedHelpers.add('__dartAsciiEncoder');
+        return _emitCanonicalConst(constant, '__dartAsciiEncoder()');
+      case 'dart:convert::AsciiDecoder':
+        _usedHelpers.add('__dartAsciiDecoder');
+        return _emitCanonicalConst(
+          constant,
+          '__dartAsciiDecoder(${_firstBoolConstantField(constant)})',
+        );
       case 'dart:convert::Latin1Codec':
         _usedHelpers.add('__dartLatin1Codec');
         return _emitCanonicalConst(
           constant,
           '__dartLatin1Codec(${_firstBoolConstantField(constant)})',
+        );
+      case 'dart:convert::Latin1Encoder':
+        _usedHelpers.add('__dartLatin1Encoder');
+        return _emitCanonicalConst(constant, '__dartLatin1Encoder()');
+      case 'dart:convert::Latin1Decoder':
+        _usedHelpers.add('__dartLatin1Decoder');
+        return _emitCanonicalConst(
+          constant,
+          '__dartLatin1Decoder(${_firstBoolConstantField(constant)})',
         );
       case 'dart:convert::Base64Codec':
         _usedHelpers.add('__dartBase64Codec');
@@ -2362,12 +2404,30 @@ final class _EsmEmitter {
           constant,
           '__dartBase64Codec(${_isBase64ConstantUrlSafe(constant)})',
         );
+      case 'dart:convert::Base64Encoder':
+        _usedHelpers.add('__dartBase64Encoder');
+        return _emitCanonicalConst(
+          constant,
+          '__dartBase64Encoder(${_firstBoolConstantField(constant)})',
+        );
+      case 'dart:convert::Base64Decoder':
+        _usedHelpers.add('__dartBase64Decoder');
+        return _emitCanonicalConst(constant, '__dartBase64Decoder()');
       case 'dart:convert::LineSplitter':
         _usedHelpers.add('__dartLineSplitter');
         return _emitCanonicalConst(constant, '__dartLineSplitter()');
+      case 'dart:convert::HtmlEscapeMode':
+        _usedHelpers.add('__dartHtmlEscapeMode');
+        return _emitCanonicalConst(
+          constant,
+          _emitHtmlEscapeModeConstant(constant),
+        );
       case 'dart:convert::HtmlEscape':
         _usedHelpers.add('__dartHtmlEscape');
-        return _emitCanonicalConst(constant, '__dartHtmlEscape()');
+        return _emitCanonicalConst(
+          constant,
+          '__dartHtmlEscape(${_emitConstantFieldValue(constant, 'mode') ?? 'null'})',
+        );
       case 'dart:core::Duration':
         _usedHelpers.add('__dartDuration');
         var micros = 0;
@@ -2431,6 +2491,19 @@ final class _EsmEmitter {
       }
     }
     return null;
+  }
+
+  String _emitHtmlEscapeModeConstant(k.InstanceConstant constant) {
+    final name = _emitConstantFieldValue(constant, '_name') ?? '"custom"';
+    final escapeLtGt =
+        _emitConstantFieldValue(constant, 'escapeLtGt') ?? 'false';
+    final escapeQuot =
+        _emitConstantFieldValue(constant, 'escapeQuot') ?? 'false';
+    final escapeApos =
+        _emitConstantFieldValue(constant, 'escapeApos') ?? 'false';
+    final escapeSlash =
+        _emitConstantFieldValue(constant, 'escapeSlash') ?? 'false';
+    return '__dartHtmlEscapeMode($name, $escapeLtGt, $escapeQuot, $escapeApos, $escapeSlash)';
   }
 
   String _constantKey(k.Constant constant) =>
@@ -5521,6 +5594,137 @@ final class _EsmEmitter {
           'false';
       return '__dartLatin1Codec($allowInvalid)';
     }
+    if (path.startsWith('dart:convert::JsonCodec::@constructors::')) {
+      _usedHelpers.add('__dartJsonCodec');
+      final name = path.split('::').last;
+      if (name == 'withReviver' && positionalArgs.length == 1) {
+        return '__dartJsonCodec(${positionalArgs.single}, null)';
+      }
+      if (positionalArgs.isEmpty) {
+        final reviver =
+            _namedArgument(arguments, 'reviver') ??
+            _namedArgument(arguments, '_reviver') ??
+            'null';
+        final toEncodable =
+            _namedArgument(arguments, 'toEncodable') ??
+            _namedArgument(arguments, '_toEncodable') ??
+            'null';
+        return '__dartJsonCodec($reviver, $toEncodable)';
+      }
+      return null;
+    }
+    if (path.startsWith('dart:convert::JsonEncoder::@constructors::')) {
+      _usedHelpers.add('__dartJsonEncoder');
+      final name = path.split('::').last;
+      if (name == 'withIndent' &&
+          positionalArgs.isNotEmpty &&
+          positionalArgs.length <= 2) {
+        final toEncodable = positionalArgs.length == 2
+            ? positionalArgs[1]
+            : 'null';
+        return '__dartJsonEncoder($toEncodable, ${positionalArgs[0]})';
+      }
+      if (positionalArgs.length <= 1) {
+        final toEncodable = positionalArgs.isEmpty
+            ? 'null'
+            : positionalArgs.single;
+        return '__dartJsonEncoder($toEncodable, null)';
+      }
+      return null;
+    }
+    if (path.startsWith('dart:convert::JsonUtf8Encoder::@constructors::') &&
+        positionalArgs.length <= 3) {
+      _usedHelpers.add('__dartJsonUtf8Encoder');
+      final indent = positionalArgs.isNotEmpty ? positionalArgs[0] : 'null';
+      final toEncodable = positionalArgs.length >= 2
+          ? positionalArgs[1]
+          : 'null';
+      final bufferSize = positionalArgs.length >= 3
+          ? positionalArgs[2]
+          : 'null';
+      return '__dartJsonUtf8Encoder($indent, $toEncodable, $bufferSize)';
+    }
+    if (path.startsWith('dart:convert::JsonDecoder::@constructors::') &&
+        positionalArgs.length <= 1) {
+      _usedHelpers.add('__dartJsonDecoder');
+      final reviver = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return '__dartJsonDecoder($reviver)';
+    }
+    if (path.startsWith('dart:convert::Utf8Encoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartUtf8Encoder');
+      return '__dartUtf8Encoder()';
+    }
+    if (path.startsWith('dart:convert::Utf8Decoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartUtf8Decoder');
+      final allowMalformed =
+          _namedArgument(arguments, 'allowMalformed') ??
+          _namedArgument(arguments, '_allowMalformed') ??
+          'false';
+      return '__dartUtf8Decoder($allowMalformed)';
+    }
+    if (path.startsWith('dart:convert::AsciiEncoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartAsciiEncoder');
+      return '__dartAsciiEncoder()';
+    }
+    if (path.startsWith('dart:convert::AsciiDecoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartAsciiDecoder');
+      final allowInvalid =
+          _namedArgument(arguments, 'allowInvalid') ??
+          _namedArgument(arguments, '_allowInvalid') ??
+          'false';
+      return '__dartAsciiDecoder($allowInvalid)';
+    }
+    if (path.startsWith('dart:convert::Latin1Encoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartLatin1Encoder');
+      return '__dartLatin1Encoder()';
+    }
+    if (path.startsWith('dart:convert::Latin1Decoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartLatin1Decoder');
+      final allowInvalid =
+          _namedArgument(arguments, 'allowInvalid') ??
+          _namedArgument(arguments, '_allowInvalid') ??
+          'false';
+      return '__dartLatin1Decoder($allowInvalid)';
+    }
+    if (path.startsWith('dart:convert::Base64Codec::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartBase64Codec');
+      final name = path.split('::').last;
+      return '__dartBase64Codec(${name == 'urlSafe' ? 'true' : 'false'})';
+    }
+    if (path.startsWith('dart:convert::Base64Encoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartBase64Encoder');
+      final name = path.split('::').last;
+      return '__dartBase64Encoder(${name == 'urlSafe' ? 'true' : 'false'})';
+    }
+    if (path.startsWith('dart:convert::Base64Decoder::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartBase64Decoder');
+      return '__dartBase64Decoder()';
+    }
+    if (path.startsWith('dart:convert::HtmlEscapeMode::@constructors::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartHtmlEscapeMode');
+      final name = _namedArgument(arguments, 'name') ?? '"custom"';
+      final escapeLtGt = _namedArgument(arguments, 'escapeLtGt') ?? 'false';
+      final escapeQuot = _namedArgument(arguments, 'escapeQuot') ?? 'false';
+      final escapeApos = _namedArgument(arguments, 'escapeApos') ?? 'false';
+      final escapeSlash = _namedArgument(arguments, 'escapeSlash') ?? 'false';
+      return '__dartHtmlEscapeMode($name, $escapeLtGt, $escapeQuot, $escapeApos, $escapeSlash)';
+    }
+    if (path.startsWith('dart:convert::HtmlEscape::@constructors::') &&
+        positionalArgs.length <= 1) {
+      _usedHelpers.add('__dartHtmlEscape');
+      final mode = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return '__dartHtmlEscape($mode)';
+    }
     if (path.startsWith('dart:core::StringBuffer::@constructors::')) {
       if (positionalArgs.length > 1) {
         return null;
@@ -6187,6 +6391,12 @@ final class _EsmEmitter {
         }
         _usedHelpers.add('__dartBase64Encode');
         return '__dartBase64Encode(${positionalArgs.single})';
+      case 'base64UrlEncode':
+        if (positionalArgs.length != 1) {
+          return null;
+        }
+        _usedHelpers.add('__dartBase64Encode');
+        return '__dartBase64Encode(${positionalArgs.single}, true)';
       case 'base64Decode':
         if (positionalArgs.length != 1) {
           return null;
@@ -6223,6 +6433,21 @@ final class _EsmEmitter {
       case 'base64Url':
         _usedHelpers.add('__dartBase64Codec');
         return '__dartBase64Codec(true)';
+      case 'htmlEscape':
+        _usedHelpers.add('__dartHtmlEscape');
+        return '__dartHtmlEscape()';
+      case 'unknown':
+        _usedHelpers.add('__dartHtmlEscapeMode');
+        return '__dartHtmlEscapeMode("unknown", true, true, true, true)';
+      case 'attribute':
+        _usedHelpers.add('__dartHtmlEscapeMode');
+        return '__dartHtmlEscapeMode("attribute", true, true, false, false)';
+      case 'sqAttribute':
+        _usedHelpers.add('__dartHtmlEscapeMode');
+        return '__dartHtmlEscapeMode("attribute", true, false, true, false)';
+      case 'element':
+        _usedHelpers.add('__dartHtmlEscapeMode');
+        return '__dartHtmlEscapeMode("element", true, false, false, false)';
       default:
         return null;
     }
@@ -6938,24 +7163,37 @@ final class _EsmEmitter {
     final usesRecord = _usedHelpers.contains('__dartRecord');
     final usesJson =
         _usedHelpers.contains('__dartJsonCodec') ||
+        _usedHelpers.contains('__dartJsonEncoder') ||
+        _usedHelpers.contains('__dartJsonUtf8Encoder') ||
+        _usedHelpers.contains('__dartJsonDecoder') ||
         _usedHelpers.contains('__dartJsonEncode') ||
         _usedHelpers.contains('__dartJsonDecode');
     final usesUtf8 =
         _usedHelpers.contains('__dartUtf8Codec') ||
+        _usedHelpers.contains('__dartUtf8Encoder') ||
+        _usedHelpers.contains('__dartUtf8Decoder') ||
         _usedHelpers.contains('__dartUtf8Encode') ||
-        _usedHelpers.contains('__dartUtf8Decode');
+        _usedHelpers.contains('__dartUtf8Decode') ||
+        _usedHelpers.contains('__dartJsonUtf8Encoder');
     final usesAscii =
         _usedHelpers.contains('__dartAsciiCodec') ||
+        _usedHelpers.contains('__dartAsciiEncoder') ||
+        _usedHelpers.contains('__dartAsciiDecoder') ||
         _usedHelpers.contains('__dartAsciiEncode') ||
         _usedHelpers.contains('__dartAsciiDecode');
     final usesLatin1 =
         _usedHelpers.contains('__dartLatin1Codec') ||
+        _usedHelpers.contains('__dartLatin1Encoder') ||
+        _usedHelpers.contains('__dartLatin1Decoder') ||
         _usedHelpers.contains('__dartLatin1Encode') ||
         _usedHelpers.contains('__dartLatin1Decode');
     final usesBase64 =
         _usedHelpers.contains('__dartBase64Codec') ||
+        _usedHelpers.contains('__dartBase64Encoder') ||
+        _usedHelpers.contains('__dartBase64Decoder') ||
         _usedHelpers.contains('__dartBase64Encode') ||
-        _usedHelpers.contains('__dartBase64Decode');
+        _usedHelpers.contains('__dartBase64Decode') ||
+        _usedHelpers.contains('__dartBase64Normalize');
     if (usesRecord) {
       helper.writeln('const __dartRecordShape = Symbol("dart.recordShape");');
       helper.writeln('function __dartIsRecord(value) {');
@@ -8424,13 +8662,13 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('    return object;');
       helper.writeln('  }');
-      helper.writeln('  if (typeof value.toJson === "function") {');
-      helper.writeln('    return __dartToJson(value.toJson(), toEncodable);');
-      helper.writeln('  }');
       helper.writeln('  if (typeof toEncodable === "function") {');
       helper.writeln(
         '    return __dartToJson(toEncodable(value), toEncodable);',
       );
+      helper.writeln('  }');
+      helper.writeln('  if (typeof value.toJson === "function") {');
+      helper.writeln('    return __dartToJson(value.toJson(), toEncodable);');
       helper.writeln('  }');
       helper.writeln(
         '  throw new TypeError("Converting object to an encodable object failed");',
@@ -8449,35 +8687,120 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  return value;');
       helper.writeln('}');
-      helper.writeln('function __dartJsonEncode(value, toEncodable = null) {');
+      helper.writeln('function __dartJsonRevive(key, value, reviver) {');
+      helper.writeln('  if (Array.isArray(value)) {');
       helper.writeln(
-        '  return JSON.stringify(__dartToJson(value, toEncodable));',
+        '    for (let i = 0; i < value.length; i++) value[i] = __dartJsonRevive(i, value[i], reviver);',
+      );
+      helper.writeln('  } else if (value instanceof Map) {');
+      helper.writeln(
+        '    for (const [entryKey, entryValue] of Array.from(value.entries())) {',
+      );
+      helper.writeln(
+        '      value.set(entryKey, __dartJsonRevive(entryKey, entryValue, reviver));',
+      );
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  return reviver(key, value);');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartJsonEncode(value, toEncodable = null, indent = null) {',
+      );
+      helper.writeln(
+        '  return JSON.stringify(__dartToJson(value, toEncodable), null, indent ?? undefined);',
       );
       helper.writeln('}');
-      helper.writeln('function __dartJsonDecode(source) {');
-      helper.writeln('  return __dartFromJson(JSON.parse(source));');
-      helper.writeln('}');
-      helper.writeln('function __dartJsonCodec() {');
-      helper.writeln('  return {');
-      helper.writeln('    encode(value) { return __dartJsonEncode(value); },');
+      helper.writeln('function __dartJsonDecode(source, reviver = null) {');
+      helper.writeln('  const value = __dartFromJson(JSON.parse(source));');
       helper.writeln(
-        '    decode(source) { return __dartJsonDecode(source); },',
+        '  return typeof reviver === "function" ? __dartJsonRevive(null, value, reviver) : value;',
+      );
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartJsonEncoder(toEncodable = null, indent = null) {',
+      );
+      helper.writeln('  return {');
+      helper.writeln('    indent,');
+      helper.writeln(
+        '    convert(value) { return __dartJsonEncode(value, toEncodable, indent); },',
+      );
+      helper.writeln(
+        '    encode(value) { return __dartJsonEncode(value, toEncodable, indent); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartJsonDecoder(reviver = null) {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(source) { return __dartJsonDecode(source, reviver); },',
+      );
+      helper.writeln(
+        '    decode(source) { return __dartJsonDecode(source, reviver); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartJsonUtf8Encoder(indent = null, toEncodable = null, bufferSize = null) {',
+      );
+      helper.writeln('  return {');
+      helper.writeln('    indent,');
+      helper.writeln('    bufferSize,');
+      helper.writeln(
+        '    convert(value) { return __dartUtf8Encode(__dartJsonEncode(value, toEncodable, indent)); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartJsonCodec(reviver = null, toEncodable = null) {',
+      );
+      helper.writeln('  return {');
+      helper.writeln(
+        '    encode(value, options = {}) { return __dartJsonEncode(value, options.toEncodable ?? toEncodable); },',
+      );
+      helper.writeln(
+        '    decode(source, options = {}) { return __dartJsonDecode(source, options.reviver ?? reviver); },',
+      );
+      helper.writeln(
+        '    get encoder() { return __dartJsonEncoder(toEncodable, null); },',
+      );
+      helper.writeln(
+        '    get decoder() { return __dartJsonDecoder(reviver); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
     }
     if (usesUtf8) {
-      helper.writeln('function __dartUtf8Encode(source) {');
       helper.writeln(
-        '  return Array.from(new TextEncoder().encode(String(source)));',
+        'function __dartUtf8Encode(source, start = 0, end = null) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln(
+        '  return Array.from(new TextEncoder().encode(text.slice(start, end ?? undefined)));',
       );
       helper.writeln('}');
       helper.writeln(
-        'function __dartUtf8Decode(bytes, allowMalformed = false) {',
+        'function __dartUtf8Decode(bytes, allowMalformed = false, start = 0, end = null) {',
       );
       helper.writeln(
-        '  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(bytes));',
+        '  const slice = Array.from(bytes).slice(start, end ?? undefined);',
       );
+      helper.writeln(
+        '  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(slice));',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartUtf8Encoder() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartUtf8Decoder(allowMalformed = false) {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },',
+      );
+      helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartUtf8Codec(allowMalformed = false) {');
       helper.writeln('  return {');
@@ -8487,14 +8810,21 @@ final class _EsmEmitter {
       helper.writeln(
         '    decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },',
       );
+      helper.writeln('    get encoder() { return __dartUtf8Encoder(); },');
+      helper.writeln(
+        '    get decoder() { return __dartUtf8Decoder(allowMalformed); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
     if (usesAscii) {
-      helper.writeln('function __dartAsciiEncode(source) {');
+      helper.writeln(
+        'function __dartAsciiEncode(source, start = 0, end = null) {',
+      );
       helper.writeln('  const text = String(source);');
       helper.writeln('  const bytes = [];');
-      helper.writeln('  for (let i = 0; i < text.length; i++) {');
+      helper.writeln('  const stop = end ?? text.length;');
+      helper.writeln('  for (let i = start; i < stop; i++) {');
       helper.writeln('    const code = text.charCodeAt(i);');
       helper.writeln(
         '    if (code > 0x7f) throw new RangeError("Invalid ASCII character");',
@@ -8504,16 +8834,33 @@ final class _EsmEmitter {
       helper.writeln('  return bytes;');
       helper.writeln('}');
       helper.writeln(
-        'function __dartAsciiDecode(bytes, allowInvalid = false) {',
+        'function __dartAsciiDecode(bytes, allowInvalid = false, start = 0, end = null) {',
+      );
+      helper.writeln(
+        '  const values = Array.from(bytes).slice(start, end ?? undefined);',
       );
       helper.writeln('  const chars = [];');
-      helper.writeln('  for (const byte of bytes) {');
+      helper.writeln('  for (const byte of values) {');
       helper.writeln(
         '    if (byte < 0 || byte > 0x7f) { if (!allowInvalid) throw new RangeError("Invalid ASCII byte"); chars.push("\\uFFFD"); continue; }',
       );
       helper.writeln('    chars.push(String.fromCharCode(byte));');
       helper.writeln('  }');
       helper.writeln('  return chars.join("");');
+      helper.writeln('}');
+      helper.writeln('function __dartAsciiEncoder() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(source, start = 0, end = null) { return __dartAsciiEncode(source, start, end); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartAsciiDecoder(allowInvalid = false) {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(bytes, start = 0, end = null) { return __dartAsciiDecode(bytes, allowInvalid, start, end); },',
+      );
+      helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartAsciiCodec(allowInvalid = false) {');
       helper.writeln('  return {');
@@ -8523,14 +8870,21 @@ final class _EsmEmitter {
       helper.writeln(
         '    decode(bytes, options = {}) { return __dartAsciiDecode(bytes, options.allowInvalid ?? allowInvalid); },',
       );
+      helper.writeln('    get encoder() { return __dartAsciiEncoder(); },');
+      helper.writeln(
+        '    get decoder() { return __dartAsciiDecoder(allowInvalid); },',
+      );
       helper.writeln('  };');
       helper.writeln('}');
     }
     if (usesLatin1) {
-      helper.writeln('function __dartLatin1Encode(source) {');
+      helper.writeln(
+        'function __dartLatin1Encode(source, start = 0, end = null) {',
+      );
       helper.writeln('  const text = String(source);');
       helper.writeln('  const bytes = [];');
-      helper.writeln('  for (let i = 0; i < text.length; i++) {');
+      helper.writeln('  const stop = end ?? text.length;');
+      helper.writeln('  for (let i = start; i < stop; i++) {');
       helper.writeln('    const code = text.charCodeAt(i);');
       helper.writeln(
         '    if (code > 0xff) throw new RangeError("Invalid Latin-1 character");',
@@ -8540,16 +8894,33 @@ final class _EsmEmitter {
       helper.writeln('  return bytes;');
       helper.writeln('}');
       helper.writeln(
-        'function __dartLatin1Decode(bytes, allowInvalid = false) {',
+        'function __dartLatin1Decode(bytes, allowInvalid = false, start = 0, end = null) {',
+      );
+      helper.writeln(
+        '  const values = Array.from(bytes).slice(start, end ?? undefined);',
       );
       helper.writeln('  const chars = [];');
-      helper.writeln('  for (const byte of bytes) {');
+      helper.writeln('  for (const byte of values) {');
       helper.writeln(
         '    if (byte < 0 || byte > 0xff) { if (!allowInvalid) throw new RangeError("Invalid Latin-1 byte"); chars.push("\\uFFFD"); continue; }',
       );
       helper.writeln('    chars.push(String.fromCharCode(byte));');
       helper.writeln('  }');
       helper.writeln('  return chars.join("");');
+      helper.writeln('}');
+      helper.writeln('function __dartLatin1Encoder() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(source, start = 0, end = null) { return __dartLatin1Encode(source, start, end); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartLatin1Decoder(allowInvalid = false) {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(bytes, start = 0, end = null) { return __dartLatin1Decode(bytes, allowInvalid, start, end); },',
+      );
+      helper.writeln('  };');
       helper.writeln('}');
       helper.writeln('function __dartLatin1Codec(allowInvalid = false) {');
       helper.writeln('  return {');
@@ -8558,6 +8929,10 @@ final class _EsmEmitter {
       );
       helper.writeln(
         '    decode(bytes, options = {}) { return __dartLatin1Decode(bytes, options.allowInvalid ?? allowInvalid); },',
+      );
+      helper.writeln('    get encoder() { return __dartLatin1Encoder(); },');
+      helper.writeln(
+        '    get decoder() { return __dartLatin1Decoder(allowInvalid); },',
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -8597,6 +8972,55 @@ final class _EsmEmitter {
       );
       helper.writeln('  return bytes;');
       helper.writeln('}');
+      helper.writeln(
+        'function __dartBase64Normalize(source, start = 0, end = null) {',
+      );
+      helper.writeln('  const text = String(source);');
+      helper.writeln('  const stop = end ?? text.length;');
+      helper.writeln('  let segment = text.slice(start, stop);');
+      helper.writeln(
+        '  segment = segment.replace(/%[0-9a-fA-F]{2}/g, (escape) => String.fromCharCode(parseInt(escape.slice(1), 16)));',
+      );
+      helper.writeln(
+        '  segment = segment.replace(/-/g, "+").replace(/_/g, "/");',
+      );
+      helper.writeln('  const firstPadding = segment.indexOf("=");');
+      helper.writeln(
+        r'  if (firstPadding !== -1 && !/^=*$/.test(segment.slice(firstPadding))) throw new Error("FormatException: Invalid base64 padding");',
+      );
+      helper.writeln(
+        r'  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(segment)) throw new Error("FormatException: Invalid base64 data");',
+      );
+      helper.writeln(
+        '  if (firstPadding !== -1 && segment.length % 4 !== 0) throw new Error("FormatException: Invalid base64 padding");',
+      );
+      helper.writeln('  if (firstPadding === -1) {');
+      helper.writeln('    const remainder = segment.length % 4;');
+      helper.writeln(
+        '    if (remainder === 1) throw new Error("FormatException: Invalid base64 encoding length");',
+      );
+      helper.writeln(
+        '    if (remainder > 1) segment += "=".repeat(4 - remainder);',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  return text.slice(0, start) + segment + text.slice(stop);',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartBase64Encoder(urlSafe = false) {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+      helper.writeln('function __dartBase64Decoder() {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    convert(source, start = 0, end = null) { return __dartBase64Decode(String(source).slice(start, end ?? undefined)); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
       helper.writeln('function __dartBase64Codec(urlSafe = false) {');
       helper.writeln('  return {');
       helper.writeln(
@@ -8605,6 +9029,13 @@ final class _EsmEmitter {
       helper.writeln(
         '    decode(source) { return __dartBase64Decode(source); },',
       );
+      helper.writeln(
+        '    normalize(source, start = 0, end = null) { return __dartBase64Normalize(source, start, end); },',
+      );
+      helper.writeln(
+        '    get encoder() { return __dartBase64Encoder(urlSafe); },',
+      );
+      helper.writeln('    get decoder() { return __dartBase64Decoder(); },');
       helper.writeln('  };');
       helper.writeln('}');
     }
@@ -8626,22 +9057,38 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartHtmlEscape')) {
-      helper.writeln('function __dartHtmlEscapeChar(char) {');
+    if (_usedHelpers.contains('__dartHtmlEscape') ||
+        _usedHelpers.contains('__dartHtmlEscapeMode')) {
+      helper.writeln(
+        'function __dartHtmlEscapeMode(name = "custom", escapeLtGt = false, escapeQuot = false, escapeApos = false, escapeSlash = false) {',
+      );
+      helper.writeln(
+        '  return Object.freeze({ name, escapeLtGt, escapeQuot, escapeApos, escapeSlash, toString() { return name; } });',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartHtmlEscapeChar(char, mode) {');
       helper.writeln('  switch (char) {');
       helper.writeln('    case "&": return "&amp;";');
-      helper.writeln('    case "<": return "&lt;";');
-      helper.writeln('    case ">": return "&gt;";');
-      helper.writeln("    case '\"': return \"&quot;\";");
-      helper.writeln("    case \"'\": return \"&#39;\";");
-      helper.writeln('    case "/": return "&#47;";');
+      helper.writeln('    case "<": return mode.escapeLtGt ? "&lt;" : char;');
+      helper.writeln('    case ">": return mode.escapeLtGt ? "&gt;" : char;');
+      helper.writeln(
+        "    case '\"': return mode.escapeQuot ? \"&quot;\" : char;",
+      );
+      helper.writeln(
+        "    case \"'\": return mode.escapeApos ? \"&#39;\" : char;",
+      );
+      helper.writeln('    case "/": return mode.escapeSlash ? "&#47;" : char;');
       helper.writeln('    default: return char;');
       helper.writeln('  }');
       helper.writeln('}');
-      helper.writeln('function __dartHtmlEscape() {');
-      helper.writeln('  return {');
+      helper.writeln('function __dartHtmlEscape(mode = null) {');
       helper.writeln(
-        "    convert(source) { return String(source).replace(/[&<>\"'/]/g, __dartHtmlEscapeChar); },",
+        '  const activeMode = mode ?? __dartHtmlEscapeMode("unknown", true, true, true, true);',
+      );
+      helper.writeln('  return {');
+      helper.writeln('    mode: activeMode,');
+      helper.writeln(
+        "    convert(source) { return String(source).replace(/[&<>\"'/]/g, (char) => __dartHtmlEscapeChar(char, activeMode)); },",
       );
       helper.writeln('  };');
       helper.writeln('}');
@@ -10686,10 +11133,15 @@ const _generatedGlobalNames = {
   '__dartAs',
   '__dartAsciiCodec',
   '__dartAsciiDecode',
+  '__dartAsciiDecoder',
   '__dartAsciiEncode',
+  '__dartAsciiEncoder',
   '__dartBase64Codec',
   '__dartBase64Decode',
+  '__dartBase64Decoder',
   '__dartBase64Encode',
+  '__dartBase64Encoder',
+  '__dartBase64Normalize',
   '__dartBind',
   '__dartBigIntBitLength',
   '__dartBigIntParse',
@@ -10752,6 +11204,7 @@ const _generatedGlobalNames = {
   '__dartHashValue',
   '__dartHtmlEscape',
   '__dartHtmlEscapeChar',
+  '__dartHtmlEscapeMode',
   '__dartIdentityHashes',
   '__dartIdentityMap',
   '__dartIdentitySet',
@@ -10760,11 +11213,17 @@ const _generatedGlobalNames = {
   '__dartIterator',
   '__dartJsonCodec',
   '__dartJsonDecode',
+  '__dartJsonDecoder',
   '__dartJsonEncode',
+  '__dartJsonEncoder',
+  '__dartJsonRevive',
+  '__dartJsonUtf8Encoder',
   '__dartLazyField',
   '__dartLatin1Codec',
   '__dartLatin1Decode',
+  '__dartLatin1Decoder',
   '__dartLatin1Encode',
+  '__dartLatin1Encoder',
   '__dartLineSplit',
   '__dartLineSplitter',
   '__dartListAsMap',
@@ -10918,7 +11377,9 @@ const _generatedGlobalNames = {
   '__dartUriResolve',
   '__dartUtf8Codec',
   '__dartUtf8Decode',
+  '__dartUtf8Decoder',
   '__dartUtf8Encode',
+  '__dartUtf8Encoder',
 };
 
 const _coreErrorTypeNames = {

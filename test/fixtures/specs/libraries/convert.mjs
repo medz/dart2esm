@@ -35,11 +35,11 @@ function __dartToJson(value, toEncodable) {
     }
     return object;
   }
-  if (typeof value.toJson === "function") {
-    return __dartToJson(value.toJson(), toEncodable);
-  }
   if (typeof toEncodable === "function") {
     return __dartToJson(toEncodable(value), toEncodable);
+  }
+  if (typeof value.toJson === "function") {
+    return __dartToJson(value.toJson(), toEncodable);
   }
   throw new TypeError("Converting object to an encodable object failed");
 }
@@ -52,76 +52,151 @@ function __dartFromJson(value) {
   }
   return value;
 }
-function __dartJsonEncode(value, toEncodable = null) {
-  return JSON.stringify(__dartToJson(value, toEncodable));
+function __dartJsonRevive(key, value, reviver) {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) value[i] = __dartJsonRevive(i, value[i], reviver);
+  } else if (value instanceof Map) {
+    for (const [entryKey, entryValue] of Array.from(value.entries())) {
+      value.set(entryKey, __dartJsonRevive(entryKey, entryValue, reviver));
+    }
+  }
+  return reviver(key, value);
 }
-function __dartJsonDecode(source) {
-  return __dartFromJson(JSON.parse(source));
+function __dartJsonEncode(value, toEncodable = null, indent = null) {
+  return JSON.stringify(__dartToJson(value, toEncodable), null, indent ?? undefined);
 }
-function __dartJsonCodec() {
+function __dartJsonDecode(source, reviver = null) {
+  const value = __dartFromJson(JSON.parse(source));
+  return typeof reviver === "function" ? __dartJsonRevive(null, value, reviver) : value;
+}
+function __dartJsonEncoder(toEncodable = null, indent = null) {
   return {
-    encode(value) { return __dartJsonEncode(value); },
-    decode(source) { return __dartJsonDecode(source); },
+    indent,
+    convert(value) { return __dartJsonEncode(value, toEncodable, indent); },
+    encode(value) { return __dartJsonEncode(value, toEncodable, indent); },
   };
 }
-function __dartUtf8Encode(source) {
-  return Array.from(new TextEncoder().encode(String(source)));
+function __dartJsonDecoder(reviver = null) {
+  return {
+    convert(source) { return __dartJsonDecode(source, reviver); },
+    decode(source) { return __dartJsonDecode(source, reviver); },
+  };
 }
-function __dartUtf8Decode(bytes, allowMalformed = false) {
-  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(bytes));
+function __dartJsonUtf8Encoder(indent = null, toEncodable = null, bufferSize = null) {
+  return {
+    indent,
+    bufferSize,
+    convert(value) { return __dartUtf8Encode(__dartJsonEncode(value, toEncodable, indent)); },
+  };
+}
+function __dartJsonCodec(reviver = null, toEncodable = null) {
+  return {
+    encode(value, options = {}) { return __dartJsonEncode(value, options.toEncodable ?? toEncodable); },
+    decode(source, options = {}) { return __dartJsonDecode(source, options.reviver ?? reviver); },
+    get encoder() { return __dartJsonEncoder(toEncodable, null); },
+    get decoder() { return __dartJsonDecoder(reviver); },
+  };
+}
+function __dartUtf8Encode(source, start = 0, end = null) {
+  const text = String(source);
+  return Array.from(new TextEncoder().encode(text.slice(start, end ?? undefined)));
+}
+function __dartUtf8Decode(bytes, allowMalformed = false, start = 0, end = null) {
+  const slice = Array.from(bytes).slice(start, end ?? undefined);
+  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(slice));
+}
+function __dartUtf8Encoder() {
+  return {
+    convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },
+  };
+}
+function __dartUtf8Decoder(allowMalformed = false) {
+  return {
+    convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },
+  };
 }
 function __dartUtf8Codec(allowMalformed = false) {
   return {
     encode(source) { return __dartUtf8Encode(source); },
     decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },
+    get encoder() { return __dartUtf8Encoder(); },
+    get decoder() { return __dartUtf8Decoder(allowMalformed); },
   };
 }
-function __dartAsciiEncode(source) {
+function __dartAsciiEncode(source, start = 0, end = null) {
   const text = String(source);
   const bytes = [];
-  for (let i = 0; i < text.length; i++) {
+  const stop = end ?? text.length;
+  for (let i = start; i < stop; i++) {
     const code = text.charCodeAt(i);
     if (code > 0x7f) throw new RangeError("Invalid ASCII character");
     bytes.push(code);
   }
   return bytes;
 }
-function __dartAsciiDecode(bytes, allowInvalid = false) {
+function __dartAsciiDecode(bytes, allowInvalid = false, start = 0, end = null) {
+  const values = Array.from(bytes).slice(start, end ?? undefined);
   const chars = [];
-  for (const byte of bytes) {
+  for (const byte of values) {
     if (byte < 0 || byte > 0x7f) { if (!allowInvalid) throw new RangeError("Invalid ASCII byte"); chars.push("\uFFFD"); continue; }
     chars.push(String.fromCharCode(byte));
   }
   return chars.join("");
 }
+function __dartAsciiEncoder() {
+  return {
+    convert(source, start = 0, end = null) { return __dartAsciiEncode(source, start, end); },
+  };
+}
+function __dartAsciiDecoder(allowInvalid = false) {
+  return {
+    convert(bytes, start = 0, end = null) { return __dartAsciiDecode(bytes, allowInvalid, start, end); },
+  };
+}
 function __dartAsciiCodec(allowInvalid = false) {
   return {
     encode(source) { return __dartAsciiEncode(source); },
     decode(bytes, options = {}) { return __dartAsciiDecode(bytes, options.allowInvalid ?? allowInvalid); },
+    get encoder() { return __dartAsciiEncoder(); },
+    get decoder() { return __dartAsciiDecoder(allowInvalid); },
   };
 }
-function __dartLatin1Encode(source) {
+function __dartLatin1Encode(source, start = 0, end = null) {
   const text = String(source);
   const bytes = [];
-  for (let i = 0; i < text.length; i++) {
+  const stop = end ?? text.length;
+  for (let i = start; i < stop; i++) {
     const code = text.charCodeAt(i);
     if (code > 0xff) throw new RangeError("Invalid Latin-1 character");
     bytes.push(code);
   }
   return bytes;
 }
-function __dartLatin1Decode(bytes, allowInvalid = false) {
+function __dartLatin1Decode(bytes, allowInvalid = false, start = 0, end = null) {
+  const values = Array.from(bytes).slice(start, end ?? undefined);
   const chars = [];
-  for (const byte of bytes) {
+  for (const byte of values) {
     if (byte < 0 || byte > 0xff) { if (!allowInvalid) throw new RangeError("Invalid Latin-1 byte"); chars.push("\uFFFD"); continue; }
     chars.push(String.fromCharCode(byte));
   }
   return chars.join("");
 }
+function __dartLatin1Encoder() {
+  return {
+    convert(source, start = 0, end = null) { return __dartLatin1Encode(source, start, end); },
+  };
+}
+function __dartLatin1Decoder(allowInvalid = false) {
+  return {
+    convert(bytes, start = 0, end = null) { return __dartLatin1Decode(bytes, allowInvalid, start, end); },
+  };
+}
 function __dartLatin1Codec(allowInvalid = false) {
   return {
     encode(source) { return __dartLatin1Encode(source); },
     decode(bytes, options = {}) { return __dartLatin1Decode(bytes, options.allowInvalid ?? allowInvalid); },
+    get encoder() { return __dartLatin1Encoder(); },
+    get decoder() { return __dartLatin1Decoder(allowInvalid); },
   };
 }
 function __dartBase64Encode(bytes, urlSafe = false) {
@@ -144,10 +219,40 @@ function __dartBase64Decode(source) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
+function __dartBase64Normalize(source, start = 0, end = null) {
+  const text = String(source);
+  const stop = end ?? text.length;
+  let segment = text.slice(start, stop);
+  segment = segment.replace(/%[0-9a-fA-F]{2}/g, (escape) => String.fromCharCode(parseInt(escape.slice(1), 16)));
+  segment = segment.replace(/-/g, "+").replace(/_/g, "/");
+  const firstPadding = segment.indexOf("=");
+  if (firstPadding !== -1 && !/^=*$/.test(segment.slice(firstPadding))) throw new Error("FormatException: Invalid base64 padding");
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(segment)) throw new Error("FormatException: Invalid base64 data");
+  if (firstPadding !== -1 && segment.length % 4 !== 0) throw new Error("FormatException: Invalid base64 padding");
+  if (firstPadding === -1) {
+    const remainder = segment.length % 4;
+    if (remainder === 1) throw new Error("FormatException: Invalid base64 encoding length");
+    if (remainder > 1) segment += "=".repeat(4 - remainder);
+  }
+  return text.slice(0, start) + segment + text.slice(stop);
+}
+function __dartBase64Encoder(urlSafe = false) {
+  return {
+    convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },
+  };
+}
+function __dartBase64Decoder() {
+  return {
+    convert(source, start = 0, end = null) { return __dartBase64Decode(String(source).slice(start, end ?? undefined)); },
+  };
+}
 function __dartBase64Codec(urlSafe = false) {
   return {
     encode(bytes) { return __dartBase64Encode(bytes, urlSafe); },
     decode(source) { return __dartBase64Decode(source); },
+    normalize(source, start = 0, end = null) { return __dartBase64Normalize(source, start, end); },
+    get encoder() { return __dartBase64Encoder(urlSafe); },
+    get decoder() { return __dartBase64Decoder(); },
   };
 }
 function __dartLineSplit(source) {
@@ -162,20 +267,25 @@ function __dartLineSplitter() {
     convert(source) { return __dartLineSplit(source); },
   };
 }
-function __dartHtmlEscapeChar(char) {
+function __dartHtmlEscapeMode(name = "custom", escapeLtGt = false, escapeQuot = false, escapeApos = false, escapeSlash = false) {
+  return Object.freeze({ name, escapeLtGt, escapeQuot, escapeApos, escapeSlash, toString() { return name; } });
+}
+function __dartHtmlEscapeChar(char, mode) {
   switch (char) {
     case "&": return "&amp;";
-    case "<": return "&lt;";
-    case ">": return "&gt;";
-    case '"': return "&quot;";
-    case "'": return "&#39;";
-    case "/": return "&#47;";
+    case "<": return mode.escapeLtGt ? "&lt;" : char;
+    case ">": return mode.escapeLtGt ? "&gt;" : char;
+    case '"': return mode.escapeQuot ? "&quot;" : char;
+    case "'": return mode.escapeApos ? "&#39;" : char;
+    case "/": return mode.escapeSlash ? "&#47;" : char;
     default: return char;
   }
 }
-function __dartHtmlEscape() {
+function __dartHtmlEscape(mode = null) {
+  const activeMode = mode ?? __dartHtmlEscapeMode("unknown", true, true, true, true);
   return {
-    convert(source) { return String(source).replace(/[&<>"'/]/g, __dartHtmlEscapeChar); },
+    mode: activeMode,
+    convert(source) { return String(source).replace(/[&<>"'/]/g, (char) => __dartHtmlEscapeChar(char, activeMode)); },
   };
 }
 function __dartAs(value, test, typeName) {
@@ -219,8 +329,8 @@ export function main() {
   const encoded = __dartJsonEncode(payload, null);
   const decoded = __dartAs(__dartJsonDecode(encoded), value => value instanceof Map, "Map<dynamic, dynamic>");
   __dartPrint("json " + __dartStr(__dartMapGet(decoded, "name")) + " " + __dartStr(__dartAs(__dartMapGet(decoded, "values"), value => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List<dynamic>").length));
-  const codecEncoded = __dartConst("[\"instance\",\"dart:convert::JsonCodec\",[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_reviver\",[\"null\"]],[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_toEncodable\",[\"null\"]]]", () => __dartJsonCodec()).encode(new Map([["answer", 42]]));
-  const codecDecoded = __dartAs(__dartConst("[\"instance\",\"dart:convert::JsonCodec\",[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_reviver\",[\"null\"]],[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_toEncodable\",[\"null\"]]]", () => __dartJsonCodec()).decode(codecEncoded), value => value instanceof Map, "Map<dynamic, dynamic>");
+  const codecEncoded = __dartConst("[\"instance\",\"dart:convert::JsonCodec\",[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_reviver\",[\"null\"]],[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_toEncodable\",[\"null\"]]]", () => __dartJsonCodec(null, null)).encode(new Map([["answer", 42]]));
+  const codecDecoded = __dartAs(__dartConst("[\"instance\",\"dart:convert::JsonCodec\",[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_reviver\",[\"null\"]],[\"field\",\"dart:convert::JsonCodec::@fields::dart:convert::_toEncodable\",[\"null\"]]]", () => __dartJsonCodec(null, null)).decode(codecEncoded), value => value instanceof Map, "Map<dynamic, dynamic>");
   __dartPrint("codec " + __dartStr(__dartMapGet(codecDecoded, "answer")));
   const bytes = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).encode("hello");
   __dartPrint("utf8 " + __dartStr(bytes.length) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(bytes)));
@@ -241,8 +351,32 @@ export function main() {
   const lines = __dartConst("[\"instance\",\"dart:convert::LineSplitter\"]", () => __dartLineSplitter()).convert("a\nb\r\nc");
   const staticLines = __dartIterableJoin(__dartLineSplit("x\ry"), "/");
   __dartPrint("lines " + __dartStr(__dartIterableJoin(lines, "|")) + " " + __dartStr(staticLines));
-  const escaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]]]", () => __dartHtmlEscape()).convert("<a&b>\"'/");
+  const escaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]]]", () => __dartHtmlEscape(__dartConst("[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]", () => __dartHtmlEscapeMode("custom", true, true, true, true)))).convert("<a&b>\"'/");
   __dartPrint("html " + __dartStr(escaped));
+  const indented = __dartConst("[\"instance\",\"dart:convert::JsonEncoder\",[\"field\",\"dart:convert::JsonEncoder::@fields::dart:convert::_toEncodable\",[\"null\"]],[\"field\",\"dart:convert::JsonEncoder::@fields::indent\",[\"string\",\"  \"]]]", () => __dartJsonEncoder(null, "  ")).convert(new Map([["a", [1, true]]]));
+  const jsonUtf8Bytes = __dartJsonUtf8Encoder(" ", null, null).convert(new Map([["b", 2]]));
+  const decodedObject = __dartAs(__dartConst("[\"instance\",\"dart:convert::JsonDecoder\",[\"field\",\"dart:convert::JsonDecoder::@fields::dart:convert::_reviver\",[\"null\"]]]", () => __dartJsonDecoder(null)).convert("{\"c\":3}"), value => value instanceof Map, "Map<dynamic, dynamic>");
+  const revivedObject = __dartAs(__dartJsonDecoder(function(key, value) { return (__dartEquals(key, "n") ? 7 : value); }).convert("{\"n\":1}"), value => value instanceof Map, "Map<dynamic, dynamic>");
+  __dartPrint("jsonObjects " + __dartStr(indented.includes("\n  \"a\"")) + " " + __dartStr(indented.includes("\n    1")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(jsonUtf8Bytes).includes("\n \"b\"")) + " " + __dartStr(__dartMapGet(decodedObject, "c")) + " " + __dartStr(__dartMapGet(revivedObject, "n")));
+  const utf8Partial = __dartIterableJoin(__dartConst("[\"instance\",\"dart:convert::Utf8Encoder\"]", () => __dartUtf8Encoder()).convert("hé", 1), ",");
+  const utf8Decoded = __dartConst("[\"instance\",\"dart:convert::Utf8Decoder\",[\"field\",\"dart:convert::Utf8Decoder::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Decoder(false)).convert([120, 195, 169, 121], 1, 3);
+  const malformedDecoded = Array.from(__dartConst("[\"instance\",\"dart:convert::Utf8Decoder\",[\"field\",\"dart:convert::Utf8Decoder::@fields::dart:convert::_allowMalformed\",[\"bool\",true]]]", () => __dartUtf8Decoder(true)).convert([255]), (char) => char.codePointAt(0))[0];
+  const asciiPartial = __dartIterableJoin(__dartConst("[\"instance\",\"dart:convert::AsciiEncoder\",[\"field\",\"dart:convert::_UnicodeSubsetEncoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiEncoder()).convert("AZ", 1), ",");
+  const asciiDecoded = __dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",false]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(false)).convert([88, 89, 90], 1, 3);
+  const asciiInvalid = Array.from(__dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(true)).convert([65, 200]), (char) => char.codePointAt(0))[Array.from(__dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(true)).convert([65, 200]), (char) => char.codePointAt(0)).length - 1];
+  const latinPartial = __dartIterableJoin(__dartConst("[\"instance\",\"dart:convert::Latin1Encoder\",[\"field\",\"dart:convert::_UnicodeSubsetEncoder::@fields::dart:convert::_subsetMask\",[\"int\",\"255\"]]]", () => __dartLatin1Encoder()).convert("Aÿ", 1), ",");
+  const latinDecoded = __dartConst("[\"instance\",\"dart:convert::Latin1Decoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",false]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"255\"]]]", () => __dartLatin1Decoder(false)).convert([65, 255], 1);
+  const latinInvalid = Array.from(__dartConst("[\"instance\",\"dart:convert::Latin1Decoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"255\"]]]", () => __dartLatin1Decoder(true)).convert([300]), (char) => char.codePointAt(0))[0];
+  __dartPrint("converterObjects " + __dartStr(utf8Partial) + " " + __dartStr(utf8Decoded) + " " + __dartStr(malformedDecoded) + " " + __dartStr(asciiPartial) + " " + __dartStr(asciiDecoded) + " " + __dartStr(asciiInvalid) + " " + __dartStr(latinPartial) + " " + __dartStr(latinDecoded) + " " + __dartStr(latinInvalid));
+  const urlObjectToken = __dartConst("[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]", () => __dartBase64Encoder(true)).convert([251, 255]);
+  const decodedUrlObject = __dartConst("[\"instance\",\"dart:convert::Base64Decoder\"]", () => __dartBase64Decoder()).convert(urlObjectToken);
+  const normalizedUrlToken = __dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).normalize("-_8");
+  __dartPrint("base64Objects " + __dartStr(urlObjectToken) + " " + __dartStr(__dartIterableJoin(decodedUrlObject, ",")) + " " + __dartStr(normalizedUrlToken) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",false]]]", () => __dartBase64Encoder(false)).convert([251, 255])));
+  const attrEscaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"attribute\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",false]]]]]", () => __dartHtmlEscape(__dartConst("[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"attribute\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",false]]]", () => __dartHtmlEscapeMode("custom", true, true, false, false)))).convert("<a&>\"'/");
+  const elementEscaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"element\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",false]]]]]", () => __dartHtmlEscape(__dartConst("[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"element\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",false]]]", () => __dartHtmlEscapeMode("custom", true, false, false, false)))).convert("<a&>\"'/");
+  const customEscaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"custom\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",false]]]]]", () => __dartHtmlEscape(__dartConst("[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"custom\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",false]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",false]]]", () => __dartHtmlEscapeMode("custom", false, false, true, false)))).convert("<a&>\"'/");
+  const globalEscaped = __dartConst("[\"instance\",\"dart:convert::HtmlEscape\",[\"field\",\"dart:convert::HtmlEscape::@fields::mode\",[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]]]", () => __dartHtmlEscape(__dartConst("[\"instance\",\"dart:convert::HtmlEscapeMode\",[\"field\",\"dart:convert::HtmlEscapeMode::@fields::dart:convert::_name\",[\"string\",\"unknown\"]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeApos\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeLtGt\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeQuot\",[\"bool\",true]],[\"field\",\"dart:convert::HtmlEscapeMode::@fields::escapeSlash\",[\"bool\",true]]]", () => __dartHtmlEscapeMode("custom", true, true, true, true)))).convert("&");
+  __dartPrint("htmlModes " + __dartStr(attrEscaped.includes("&quot;")) + " " + __dartStr(attrEscaped.includes("&#39;")) + " " + __dartStr(attrEscaped.includes("&#47;")) + " " + __dartStr(elementEscaped.includes("&lt;")) + " " + __dartStr(elementEscaped.includes("&quot;")) + " " + __dartStr(customEscaped.includes("&#39;")) + " " + __dartStr(customEscaped.includes("&lt;")) + " " + __dartStr(globalEscaped));
 }
 
 main();

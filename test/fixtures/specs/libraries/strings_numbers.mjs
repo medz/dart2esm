@@ -309,16 +309,30 @@ function __dartUriBuild(scheme, authority, path, queryParameters = null) {
   }
   return __dartUriParse(url.toString());
 }
-function __dartUtf8Encode(source) {
-  return Array.from(new TextEncoder().encode(String(source)));
+function __dartUtf8Encode(source, start = 0, end = null) {
+  const text = String(source);
+  return Array.from(new TextEncoder().encode(text.slice(start, end ?? undefined)));
 }
-function __dartUtf8Decode(bytes, allowMalformed = false) {
-  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(bytes));
+function __dartUtf8Decode(bytes, allowMalformed = false, start = 0, end = null) {
+  const slice = Array.from(bytes).slice(start, end ?? undefined);
+  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(slice));
+}
+function __dartUtf8Encoder() {
+  return {
+    convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },
+  };
+}
+function __dartUtf8Decoder(allowMalformed = false) {
+  return {
+    convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },
+  };
 }
 function __dartUtf8Codec(allowMalformed = false) {
   return {
     encode(source) { return __dartUtf8Encode(source); },
     decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },
+    get encoder() { return __dartUtf8Encoder(); },
+    get decoder() { return __dartUtf8Decoder(allowMalformed); },
   };
 }
 function __dartBase64Encode(bytes, urlSafe = false) {
@@ -341,10 +355,40 @@ function __dartBase64Decode(source) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
+function __dartBase64Normalize(source, start = 0, end = null) {
+  const text = String(source);
+  const stop = end ?? text.length;
+  let segment = text.slice(start, stop);
+  segment = segment.replace(/%[0-9a-fA-F]{2}/g, (escape) => String.fromCharCode(parseInt(escape.slice(1), 16)));
+  segment = segment.replace(/-/g, "+").replace(/_/g, "/");
+  const firstPadding = segment.indexOf("=");
+  if (firstPadding !== -1 && !/^=*$/.test(segment.slice(firstPadding))) throw new Error("FormatException: Invalid base64 padding");
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(segment)) throw new Error("FormatException: Invalid base64 data");
+  if (firstPadding !== -1 && segment.length % 4 !== 0) throw new Error("FormatException: Invalid base64 padding");
+  if (firstPadding === -1) {
+    const remainder = segment.length % 4;
+    if (remainder === 1) throw new Error("FormatException: Invalid base64 encoding length");
+    if (remainder > 1) segment += "=".repeat(4 - remainder);
+  }
+  return text.slice(0, start) + segment + text.slice(stop);
+}
+function __dartBase64Encoder(urlSafe = false) {
+  return {
+    convert(bytes) { return __dartBase64Encode(bytes, urlSafe); },
+  };
+}
+function __dartBase64Decoder() {
+  return {
+    convert(source, start = 0, end = null) { return __dartBase64Decode(String(source).slice(start, end ?? undefined)); },
+  };
+}
 function __dartBase64Codec(urlSafe = false) {
   return {
     encode(bytes) { return __dartBase64Encode(bytes, urlSafe); },
     decode(source) { return __dartBase64Decode(source); },
+    normalize(source, start = 0, end = null) { return __dartBase64Normalize(source, start, end); },
+    get encoder() { return __dartBase64Encoder(urlSafe); },
+    get decoder() { return __dartBase64Decoder(); },
   };
 }
 function __dartNullCheck(value) {

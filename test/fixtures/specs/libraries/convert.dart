@@ -48,4 +48,67 @@ void main() {
 
   final escaped = const HtmlEscape().convert('<a&b>"\'/');
   print('html $escaped');
+
+  final indented = const JsonEncoder.withIndent('  ').convert({
+    'a': [1, true],
+  });
+  final jsonUtf8Bytes = JsonUtf8Encoder(' ').convert({'b': 2});
+  final decodedObject = const JsonDecoder().convert('{"c":3}') as Map;
+  final revivedObject =
+      JsonDecoder((key, value) => key == 'n' ? 7 : value).convert('{"n":1}')
+          as Map;
+  print(
+    'jsonObjects ${indented.contains('\n  "a"')} '
+    '${indented.contains('\n    1')} '
+    '${utf8.decode(jsonUtf8Bytes).contains('\n "b"')} '
+    '${decodedObject['c']} ${revivedObject['n']}',
+  );
+
+  final utf8Partial = const Utf8Encoder().convert('hé', 1).join(',');
+  final utf8Decoded = const Utf8Decoder().convert([120, 195, 169, 121], 1, 3);
+  final malformedDecoded = const Utf8Decoder(
+    allowMalformed: true,
+  ).convert([255]).runes.first;
+  final asciiPartial = const AsciiEncoder().convert('AZ', 1).join(',');
+  final asciiDecoded = const AsciiDecoder().convert([88, 89, 90], 1, 3);
+  final asciiInvalid = const AsciiDecoder(
+    allowInvalid: true,
+  ).convert([65, 200]).runes.last;
+  final latinPartial = const Latin1Encoder().convert('Aÿ', 1).join(',');
+  final latinDecoded = const Latin1Decoder().convert([65, 255], 1);
+  final latinInvalid = const Latin1Decoder(
+    allowInvalid: true,
+  ).convert([300]).runes.first;
+  print(
+    'converterObjects $utf8Partial $utf8Decoded $malformedDecoded '
+    '$asciiPartial $asciiDecoded $asciiInvalid '
+    '$latinPartial $latinDecoded $latinInvalid',
+  );
+
+  final urlObjectToken = const Base64Encoder.urlSafe().convert([251, 255]);
+  final decodedUrlObject = const Base64Decoder().convert(urlObjectToken);
+  final normalizedUrlToken = const Base64Codec.urlSafe().normalize('-_8');
+  print(
+    'base64Objects $urlObjectToken ${decodedUrlObject.join(',')} '
+    '$normalizedUrlToken ${const Base64Encoder().convert([251, 255])}',
+  );
+
+  final attrEscaped = const HtmlEscape(
+    HtmlEscapeMode.attribute,
+  ).convert('<a&>"\'/');
+  final elementEscaped = const HtmlEscape(
+    HtmlEscapeMode.element,
+  ).convert('<a&>"\'/');
+  final customEscaped = const HtmlEscape(
+    HtmlEscapeMode(escapeApos: true),
+  ).convert('<a&>"\'/');
+  final globalEscaped = htmlEscape.convert('&');
+  print(
+    'htmlModes ${attrEscaped.contains('&quot;')} '
+    '${attrEscaped.contains('&#39;')} ${attrEscaped.contains('&#47;')} '
+    '${elementEscaped.contains('&lt;')} '
+    '${elementEscaped.contains('&quot;')} '
+    '${customEscaped.contains('&#39;')} ${customEscaped.contains('&lt;')} '
+    '$globalEscaped',
+  );
 }

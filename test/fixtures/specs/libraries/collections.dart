@@ -51,6 +51,14 @@ void main() {
   print(
     'list remove $removedValue $removedMissing $removedLast ${mutable.join(',')}',
   );
+  mutable.insertAll(1, [8, 7]);
+  mutable.setAll(0, [4, 5]);
+  mutable.fillRange(1, 2, 6);
+  mutable.replaceRange(2, 3, [10, 11]);
+  mutable.removeRange(0, 1);
+  mutable.removeWhere((value) => value > 10);
+  mutable.retainWhere((value) => value >= 6);
+  print('list bulk ${mutable.join(',')}');
 
   final names = <String>{'ada', 'bob'};
   names.add('cy');
@@ -58,6 +66,7 @@ void main() {
   print(
     'set ${names.length} ${names.contains('ada')} ${names.contains('bob')}',
   );
+  print('set lookup ${names.lookup('ada')} ${names.lookup('missing')}');
   print('set join ${names.join('/')}');
 
   final counts = <String, int>{'one': 1};
@@ -76,4 +85,9 @@ void main() {
   );
   counts.remove('one');
   print('map removed ${counts.length} ${counts['one']}');
+  counts.updateAll((key, value) => value + key.length);
+  final entries = counts.entries.map((entry) => '${entry.key}:${entry.value}');
+  print('map more ${counts.containsValue(27)} ${entries.join('|')}');
+  counts.clear();
+  print('map cleared ${counts.isEmpty}');
 }

@@ -3531,6 +3531,19 @@ final class _EsmEmitter {
       return '($left.splice(${positionalArgs[0]}, 0, ${positionalArgs[1]}), null)';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'insertAll' &&
+        positionalArgs.length == 2 &&
+        _isCoreListMember(target, name)) {
+      return '($left.splice(${positionalArgs[0]}, 0, ...Array.from(${positionalArgs[1]})), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'setAll' &&
+        positionalArgs.length == 2 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListSetAll');
+      return '__dartListSetAll($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'sublist' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2 &&
@@ -3545,6 +3558,40 @@ final class _EsmEmitter {
         positionalArgs.isEmpty &&
         _isCoreListMember(target, name)) {
       return '($left.length = 0, null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'fillRange' &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3 &&
+        _isCoreListMember(target, name)) {
+      final fillValue = positionalArgs.length == 3 ? positionalArgs[2] : 'null';
+      return '($left.fill($fillValue, ${positionalArgs[0]}, ${positionalArgs[1]}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'replaceRange' &&
+        positionalArgs.length == 3 &&
+        _isCoreListMember(target, name)) {
+      return '($left.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}, ...Array.from(${positionalArgs[2]})), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeRange' &&
+        positionalArgs.length == 2 &&
+        _isCoreListMember(target, name)) {
+      return '($left.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeWhere' &&
+        positionalArgs.length == 1 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListWhereMutate');
+      return '__dartListRemoveWhere($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'retainWhere' &&
+        positionalArgs.length == 1 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListWhereMutate');
+      return '__dartListRetainWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'asMap' &&
@@ -3581,6 +3628,14 @@ final class _EsmEmitter {
       return '$left.delete(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'lookup' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', 'lookup')) {
+      _usedHelpers.add('__dartSetLookup');
+      _usedHelpers.add('__dartEquals');
+      return '__dartSetLookup($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', 'remove')) {
@@ -3588,10 +3643,24 @@ final class _EsmEmitter {
       return '__dartMapRemove($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'clear' &&
+        positionalArgs.isEmpty &&
+        _isCoreMember(target, 'Map', 'clear')) {
+      return '($left.clear(), null)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'containsKey' &&
         positionalArgs.length == 1 &&
         _isCoreMember(target, 'Map', 'containsKey')) {
       return '$left.has(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'containsValue' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', 'containsValue')) {
+      _usedHelpers.add('__dartMapContainsValue');
+      _usedHelpers.add('__dartEquals');
+      return '__dartMapContainsValue($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'putIfAbsent' &&
@@ -3606,6 +3675,13 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartMapUpdate');
       final ifAbsent = _namedArgument(expression.arguments, 'ifAbsent');
       return '__dartMapUpdate($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${ifAbsent ?? 'null'})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'updateAll' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Map', name)) {
+      _usedHelpers.add('__dartMapUpdateAll');
+      return '__dartMapUpdateAll($left, ${positionalArgs.single})';
     }
     final byteBufferView = _emitTypedDataByteBufferViewInvocation(
       target,
@@ -3830,6 +3906,10 @@ final class _EsmEmitter {
     if (name == 'values' &&
         _isCoreMember(expression.interfaceTargetReference, 'Map', 'values')) {
       return '$receiver.values()';
+    }
+    if (name == 'entries' &&
+        _isCoreMember(expression.interfaceTargetReference, 'Map', 'entries')) {
+      return 'Array.from($receiver, ([key, value]) => ({ key, value }))';
     }
     return _emitPropertyGet(receiver, _memberName(name));
   }
@@ -6091,6 +6171,14 @@ final class _EsmEmitter {
       helper.writeln('  return value;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartMapContainsValue')) {
+      helper.writeln('function __dartMapContainsValue(map, needle) {');
+      helper.writeln('  for (const value of map.values()) {');
+      helper.writeln('    if (__dartEquals(value, needle)) return true;');
+      helper.writeln('  }');
+      helper.writeln('  return false;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartMapPutIfAbsent')) {
       helper.writeln('function __dartMapPutIfAbsent(map, key, ifAbsent) {');
       helper.writeln('  if (map.has(key)) return map.get(key);');
@@ -6116,6 +6204,14 @@ final class _EsmEmitter {
       helper.writeln('  throw new Error("Key not in map");');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartMapUpdateAll')) {
+      helper.writeln('function __dartMapUpdateAll(map, update) {');
+      helper.writeln('  for (const [key, value] of Array.from(map)) {');
+      helper.writeln('    map.set(key, update(key, value));');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListSort')) {
       helper.writeln('function __dartListSort(list, compare = null) {');
       helper.writeln('  if (typeof compare === "function") {');
@@ -6138,6 +6234,30 @@ final class _EsmEmitter {
       helper.writeln('  return true;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartListSetAll')) {
+      helper.writeln('function __dartListSetAll(list, index, values) {');
+      helper.writeln('  let offset = 0;');
+      helper.writeln('  for (const value of values) {');
+      helper.writeln('    list[index + offset] = value;');
+      helper.writeln('    offset++;');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartListWhereMutate')) {
+      helper.writeln('function __dartListRemoveWhere(list, test) {');
+      helper.writeln(
+        '  list.splice(0, list.length, ...list.filter((value) => !test(value)));',
+      );
+      helper.writeln('  return null;');
+      helper.writeln('}');
+      helper.writeln('function __dartListRetainWhere(list, test) {');
+      helper.writeln(
+        '  list.splice(0, list.length, ...list.filter((value) => test(value)));',
+      );
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListAsMap')) {
       helper.writeln('function __dartListAsMap(list) {');
       helper.writeln(
@@ -6155,6 +6275,14 @@ final class _EsmEmitter {
       }
       helper.writeln('  }');
       helper.writeln('  return false;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetLookup')) {
+      helper.writeln('function __dartSetLookup(set, needle) {');
+      helper.writeln('  for (const value of set) {');
+      helper.writeln('    if (__dartEquals(value, needle)) return value;');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartIterableJoin')) {
@@ -6912,7 +7040,13 @@ const _generatedGlobalNames = {
   '__dartJsonEncode',
   '__dartLazyField',
   '__dartListRemove',
+  '__dartListRemoveWhere',
+  '__dartListRetainWhere',
+  '__dartListSetAll',
+  '__dartListWhereMutate',
+  '__dartMapContainsValue',
   '__dartMapRemove',
+  '__dartMapUpdateAll',
   '__dartNumParse',
   '__dartNumberParse',
   '__dartNumTryParse',
@@ -6925,6 +7059,7 @@ const _generatedGlobalNames = {
   '__dartRegExp',
   '__dartRegExpMatch',
   '__dartRoundToInt',
+  '__dartSetLookup',
   '__dartStr',
   '__dartStream',
   '__dartStreamFirst',

@@ -30,6 +30,12 @@ function __dartMapRemove(map, key) {
   map.delete(key);
   return value;
 }
+function __dartMapContainsValue(map, needle) {
+  for (const value of map.values()) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
 function __dartMapPutIfAbsent(map, key, ifAbsent) {
   if (map.has(key)) return map.get(key);
   const value = ifAbsent();
@@ -49,6 +55,12 @@ function __dartMapUpdate(map, key, update, ifAbsent = null) {
   }
   throw new Error("Key not in map");
 }
+function __dartMapUpdateAll(map, update) {
+  for (const [key, value] of Array.from(map)) {
+    map.set(key, update(key, value));
+  }
+  return null;
+}
 function __dartListSort(list, compare = null) {
   if (typeof compare === "function") {
     list.sort((left, right) => compare(left, right));
@@ -63,6 +75,22 @@ function __dartListRemove(list, needle) {
   list.splice(index, 1);
   return true;
 }
+function __dartListSetAll(list, index, values) {
+  let offset = 0;
+  for (const value of values) {
+    list[index + offset] = value;
+    offset++;
+  }
+  return null;
+}
+function __dartListRemoveWhere(list, test) {
+  list.splice(0, list.length, ...list.filter((value) => !test(value)));
+  return null;
+}
+function __dartListRetainWhere(list, test) {
+  list.splice(0, list.length, ...list.filter((value) => test(value)));
+  return null;
+}
 function __dartListAsMap(list) {
   return new Map(Array.from(list, (value, index) => [index, value]));
 }
@@ -71,6 +99,12 @@ function __dartIterableContains(iterable, needle) {
     if (__dartEquals(value, needle)) return true;
   }
   return false;
+}
+function __dartSetLookup(set, needle) {
+  for (const value of set) {
+    if (__dartEquals(value, needle)) return value;
+  }
+  return null;
 }
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
@@ -141,6 +175,14 @@ export function main() {
   const removedMissing = __dartListRemove(mutable, 99);
   const removedLast = mutable.pop();
   __dartPrint("list remove " + __dartStr(removedValue) + " " + __dartStr(removedMissing) + " " + __dartStr(removedLast) + " " + __dartStr(__dartIterableJoin(mutable, ",")));
+  (mutable.splice(1, 0, ...Array.from([8, 7])), null);
+  __dartListSetAll(mutable, 0, [4, 5]);
+  (mutable.fill(6, 1, 2), null);
+  (mutable.splice(2, 3 - 2, ...Array.from([10, 11])), null);
+  (mutable.splice(0, 1 - 0), null);
+  __dartListRemoveWhere(mutable, function(value) { return (value > 10); });
+  __dartListRetainWhere(mutable, function(value) { return (value >= 6); });
+  __dartPrint("list bulk " + __dartStr(__dartIterableJoin(mutable, ",")));
   const names = (() => {
     const v = new Set();
     __dartSetAdd(v, "ada");
@@ -150,6 +192,7 @@ export function main() {
   __dartSetAdd(names, "cy");
   names.delete("bob");
   __dartPrint("set " + __dartStr(names.size) + " " + __dartStr(names.has("ada")) + " " + __dartStr(names.has("bob")));
+  __dartPrint("set lookup " + __dartStr(__dartSetLookup(names, "ada")) + " " + __dartStr(__dartSetLookup(names, "missing")));
   __dartPrint("set join " + __dartStr(__dartIterableJoin(names, "/")));
   const counts = new Map([["one", 1]]);
   counts.set("two", 2);
@@ -165,6 +208,11 @@ export function main() {
   __dartPrint("map ops " + __dartStr(three) + " " + __dartStr(counts.get("two")) + " " + __dartStr(counts.get("missing")) + " " + __dartStr(__dartIterableJoin(mapPairs, "|")));
   __dartMapRemove(counts, "one");
   __dartPrint("map removed " + __dartStr(counts.size) + " " + __dartStr(counts.get("one")));
+  __dartMapUpdateAll(counts, function(key, value) { return (value + key.length); });
+  const entries = Array.from(Array.from(counts, ([key, value]) => ({ key, value })), function(entry) { return __dartStr(entry.key) + ":" + __dartStr(entry.value); });
+  __dartPrint("map more " + __dartStr(__dartMapContainsValue(counts, 27)) + " " + __dartStr(__dartIterableJoin(entries, "|")));
+  (counts.clear(), null);
+  __dartPrint("map cleared " + __dartStr(counts.size === 0));
 }
 
 main();

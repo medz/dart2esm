@@ -1,5 +1,26 @@
 import 'dart:async';
 
+final class _ScaleSink implements EventSink<int> {
+  _ScaleSink(this._inner);
+
+  final EventSink<int> _inner;
+
+  @override
+  void add(int event) {
+    _inner.add(event * 10);
+  }
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) {
+    _inner.addError(error, stackTrace);
+  }
+
+  @override
+  void close() {
+    _inner.close();
+  }
+}
+
 Future<void> main() async {
   final doubled = Stream<int>.fromIterable([
     1,
@@ -165,6 +186,16 @@ Future<void> main() async {
     'asBroadcast ${(await broadcastOdds).join(',')} '
     '${(await broadcastDoubled).join(',')} $broadcastListenCount '
     '${broadcastedFromSingle.isBroadcast}',
+  );
+  final eventTransformed = await Stream<int>.eventTransformed(
+    Stream<int>.fromIterable([2, 3]),
+    (sink) => _ScaleSink(sink),
+  ).join(',');
+  final emptySingle = Stream<int>.empty();
+  final emptyBroadcast = Stream<int>.empty(broadcast: true);
+  print(
+    'streamShape $eventTransformed ${emptySingle.isBroadcast} '
+    '${emptyBroadcast.isBroadcast}',
   );
   final timeoutController = StreamController<int>();
   final timeoutValues = timeoutController.stream

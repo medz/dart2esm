@@ -334,6 +334,7 @@ function __dartStreamController(broadcast = false) {
     },
   };
   const stream = {
+    isBroadcast: broadcast,
     [Symbol.asyncIterator]() {
       if (broadcast) {
         const state = makeState();
@@ -352,10 +353,20 @@ function __dartStreamController(broadcast = false) {
   };
   return controller;
 }
-function __dartStreamFromIterable(values) {
-  return (async function*() {
-    for (const value of values) yield value;
-  })();
+function __dartStreamFromIterable(values, isBroadcast = false) {
+  let listened = false;
+  return {
+    isBroadcast,
+    [Symbol.asyncIterator]() {
+      if (!isBroadcast) {
+        if (listened) throw new Error("Bad state: Stream has already been listened to.");
+        listened = true;
+      }
+      return (async function*() {
+        for (const value of values) yield value;
+      })();
+    },
+  };
 }
 function __dartStreamFromFuture(future) {
   return (async function*() {
@@ -541,6 +552,39 @@ function __dartStreamTransformerBind(transformer, stream) {
 }
 function __dartStreamTransform(stream, transformer) {
   return __dartStreamTransformerBind(transformer, stream);
+}
+function __dartStreamEventTransformed(stream, mapSink) {
+  const controller = __dartStreamController(stream?.isBroadcast === true);
+  const sink = mapSink(controller.sink);
+  (async () => {
+    try {
+      const iterator = stream[Symbol.asyncIterator]();
+      while (!controller.isClosed) {
+        let next;
+        try {
+          next = await iterator.next();
+        } catch (error) {
+          if (typeof sink.addError === "function") {
+            sink.addError(error, error?.stack ?? "<javascript stack unavailable>");
+          } else {
+            controller.addError(error);
+          }
+          continue;
+        }
+        if (next.done) break;
+        sink.add(next.value);
+      }
+      if (typeof sink.close === "function") {
+        await sink.close();
+      } else if (!controller.isClosed) {
+        await controller.close();
+      }
+    } catch (error) {
+      if (!controller.isClosed) controller.addError(error);
+      if (!controller.isClosed) await controller.close();
+    }
+  })();
+  return controller.stream;
 }
 function __dartStreamDistinct(stream, equals = null) {
   return (async function*() {
@@ -1000,7 +1044,7 @@ export async function main() {
     controller.add(5);
     controller.close();
 }, true);
-  __dartPrint("streamMulti " + __dartStr(streamMultiValues) + " " + __dartStr(await __dartStreamSingle(streamMultiBroadcast)) + " " + __dartStr(streamMultiBroadcast.isBroadcast));
+  __dartPrint("streamMulti " + __dartStr(streamMultiValues) + " " + __dartStr(await __dartStreamSingle(streamMultiBroadcast)) + " " + __dartStr((streamMultiBroadcast.isBroadcast === true)));
   const streamValue = await __dartStreamSingle(__dartStreamFromIterable([7]));
   try {
     {

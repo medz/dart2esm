@@ -399,26 +399,30 @@ final class _EsmEmitter {
   }
 
   void _emitEnumClass(k.Class klass, {required bool export}) {
+    final previousClass = _currentClass;
+    _currentClass = klass;
     final valuesFields = klass.fields
         .where((field) => field.isStatic && field.name.text == 'values')
         .toList();
-    final entries = klass.fields
-        .where((field) => field.isStatic && field.name.text != 'values')
+    final entries = klass.fields.where((field) => field.isEnumElement).toList();
+    final instanceFields = klass.fields
+        .where((field) => !field.isStatic)
         .toList();
     if (valuesFields.length != 1 ||
         entries.isEmpty ||
-        klass.fields.any((field) => !field.isStatic) ||
-        klass.constructors.length != 1 ||
-        klass.procedures.any(
-          (procedure) => procedure.name.text != '_enumToString',
-        )) {
+        klass.constructors.length != 1) {
       throw UnsupportedKernelNode(klass, 'enhanced enum');
     }
 
     final className = _className(klass);
     writeln('${export ? 'export ' : ''}class $className {');
     _indent++;
-    writeln('constructor(index, name) {');
+    final constructorParameters = [
+      'index',
+      'name',
+      ...instanceFields.map((field) => _memberName(field.name.text)),
+    ];
+    writeln('constructor(${constructorParameters.join(', ')}) {');
     _indent++;
     writeln(
       'Object.defineProperty(this, "index", { value: index, enumerable: true });',
@@ -426,9 +430,23 @@ final class _EsmEmitter {
     writeln(
       'Object.defineProperty(this, "name", { value: name, enumerable: true });',
     );
+    for (final field in instanceFields) {
+      final memberName = _memberName(field.name.text);
+      writeln(
+        'Object.defineProperty(this, ${jsonEncode(memberName)}, { value: $memberName, enumerable: true });',
+      );
+    }
     writeln('Object.freeze(this);');
     _indent--;
     writeln('}');
+    for (final procedure in klass.procedures) {
+      if (procedure.isExternal ||
+          procedure.isAbstract ||
+          procedure.name.text == '_enumToString') {
+        continue;
+      }
+      _emitMethod(procedure);
+    }
     writeln('toString() {');
     _indent++;
     writeln('return ${jsonEncode('${klass.name}.')} + this.name;');
@@ -440,9 +458,22 @@ final class _EsmEmitter {
     _indent++;
     for (var i = 0; i < entries.length; i++) {
       final entry = entries[i];
+      final constant = _enumFieldConstant(entry);
+      final name = constant == null
+          ? entry.name.text
+          : _enumConstantName(constant) ?? entry.name.text;
+      final index = constant == null
+          ? i.toString()
+          : _enumConstantIndex(constant) ?? i.toString();
+      final args = [
+        index,
+        jsonEncode(name),
+        for (final field in instanceFields)
+          constant == null ? 'null' : _enumConstantFieldValue(constant, field),
+      ];
       final comma = i == entries.length - 1 ? '' : ',';
       writeln(
-        '${_propertyKey(entry.name.text)}: { value: new $className($i, ${jsonEncode(entry.name.text)}), enumerable: true }$comma',
+        '${_propertyKey(entry.name.text)}: { value: new $className(${args.join(', ')}), enumerable: true }$comma',
       );
     }
     _indent--;
@@ -450,6 +481,14 @@ final class _EsmEmitter {
     writeln(
       'Object.defineProperty($className, "values", { value: Object.freeze([${entries.map((entry) => '$className.${_memberName(entry.name.text)}').join(', ')}]), enumerable: true });',
     );
+    for (final field in klass.fields.where(
+      (field) =>
+          field.isStatic && !field.isEnumElement && field.name.text != 'values',
+    )) {
+      writeln();
+      _emitClassStaticField(klass, field);
+    }
+    _currentClass = previousClass;
   }
 
   void _emitExtensionTypeDeclaration(
@@ -2090,10 +2129,10 @@ final class _EsmEmitter {
   String _emitInstanceConstant(k.InstanceConstant constant) {
     final classNode = constant.classReference.node;
     if (classNode is k.Class && classNode.isEnum) {
-      final name = constant.fieldValues.values
-          .whereType<k.StringConstant>()
-          .single
-          .value;
+      final name = _enumConstantName(constant);
+      if (name == null) {
+        throw UnsupportedKernelNode(constant, 'enum constant name');
+      }
       return '${_className(classNode)}.${_memberName(name)}';
     }
     switch (_referencePath(constant.classReference)) {
@@ -2159,9 +2198,11 @@ final class _EsmEmitter {
       if (enumClass != classNode) {
         return null;
       }
-      names.add(
-        entry.fieldValues.values.whereType<k.StringConstant>().single.value,
-      );
+      final name = _enumConstantName(entry);
+      if (name == null) {
+        return null;
+      }
+      names.add(name);
     }
     final klass = enumClass;
     if (klass == null) {
@@ -2180,6 +2221,52 @@ final class _EsmEmitter {
       }
     }
     return '${_className(klass)}.values';
+  }
+
+  k.InstanceConstant? _enumFieldConstant(k.Field field) {
+    final initializer = field.initializer;
+    if (initializer is k.ConstantExpression &&
+        initializer.constant is k.InstanceConstant) {
+      return initializer.constant as k.InstanceConstant;
+    }
+    return null;
+  }
+
+  String? _enumConstantName(k.InstanceConstant constant) {
+    for (final entry in constant.fieldValues.entries) {
+      final value = entry.value;
+      final path = _referencePath(entry.key);
+      if ((path.endsWith('::_name') || path.endsWith('::_Enum::_name')) &&
+          value is k.StringConstant) {
+        return value.value;
+      }
+    }
+    return null;
+  }
+
+  String? _enumConstantIndex(k.InstanceConstant constant) {
+    for (final entry in constant.fieldValues.entries) {
+      final value = entry.value;
+      final path = _referencePath(entry.key);
+      if ((path.endsWith('::index') || path.endsWith('::_Enum::index')) &&
+          value is k.IntConstant) {
+        return value.value.toString();
+      }
+    }
+    return null;
+  }
+
+  String _enumConstantFieldValue(k.InstanceConstant constant, k.Field field) {
+    for (final entry in constant.fieldValues.entries) {
+      if (identical(entry.key.node, field)) {
+        return _emitEsmConst(entry.value);
+      }
+    }
+    final initializer = field.initializer;
+    if (initializer is k.ConstantExpression) {
+      return _emitEsmConst(initializer.constant);
+    }
+    return 'null';
   }
 
   String _emitRecordConstantNamedFields(Map<String, k.Constant> fields) {

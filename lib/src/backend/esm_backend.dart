@@ -5290,6 +5290,11 @@ final class _EsmEmitter {
       final dotAll = _namedArgument(expression.arguments, 'dotAll') ?? 'false';
       return '__dartRegExp(${positionalArgs.single}, { caseSensitive: $caseSensitive, multiLine: $multiLine, unicode: $unicode, dotAll: $dotAll })';
     }
+    if (path == 'dart:core::RegExp::@methods::escape' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartRegExpEscape');
+      return '__dartRegExpEscape(${positionalArgs.single})';
+    }
     if (path == 'dart:core::DateTime::@methods::parse' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartDateTime');
@@ -7560,6 +7565,13 @@ final class _EsmEmitter {
       helper.writeln('  return result;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartRegExpEscape')) {
+      helper.writeln('function __dartRegExpEscape(source) {');
+      helper.writeln(
+        r'  return String(source).replace(/[\\^$*+?.()|[\]{}]/g, "\\$&");',
+      );
+      helper.writeln('}');
+    }
     if (usesJson) {
       helper.writeln('function __dartToJson(value, toEncodable) {');
       helper.writeln(
@@ -9192,6 +9204,7 @@ const _generatedGlobalNames = {
   '__dartRecord',
   '__dartRecordShape',
   '__dartRegExp',
+  '__dartRegExpEscape',
   '__dartRegExpMatch',
   '__dartRectangle',
   '__dartRectangleFromPoints',

@@ -280,6 +280,9 @@ function __dartRegExpMatch(match, offset = 0) {
   }
   return result;
 }
+function __dartRegExpEscape(source) {
+  return String(source).replace(/[\\^$*+?.()|[\]{}]/g, "\\$&");
+}
 function __dartNullCheck(value) {
   if (value == null) {
     throw new TypeError("Null check operator used on a null value");
@@ -346,6 +349,8 @@ export function main() {
   const named = __dartRegExp("(?<word>[a-z]+)(?<digits>\\d+)", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
   const namedMatch = __dartNullCheck(named.firstMatch("ab12"));
   __dartPrint("named " + __dartStr(namedMatch.namedGroup("word")) + " " + __dartStr(namedMatch.namedGroup("digits")) + " " + __dartStr(__dartIterableJoin(namedMatch.groupNames, ",")));
+  const escaped = __dartRegExpEscape("[a-z]+");
+  __dartPrint("escape " + __dartStr(__dartRegExp(escaped, { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }).hasMatch("[a-z]+")) + " " + __dartStr(__dartRegExp(escaped, { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }).hasMatch("abc")));
 }
 
 main();

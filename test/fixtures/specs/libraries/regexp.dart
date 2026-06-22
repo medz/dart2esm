@@ -59,4 +59,10 @@ void main() {
     'named ${namedMatch.namedGroup('word')} '
     '${namedMatch.namedGroup('digits')} ${namedMatch.groupNames.join(',')}',
   );
+
+  final escaped = RegExp.escape('[a-z]+');
+  print(
+    'escape ${RegExp(escaped).hasMatch('[a-z]+')} '
+    '${RegExp(escaped).hasMatch('abc')}',
+  );
 }

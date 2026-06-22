@@ -1429,12 +1429,20 @@ final class _EsmEmitter {
         return '(() => { throw $exception; })()';
       case k.Throw():
         return '(() => { throw ${emitExpression(expression.expression)}; })()';
+      case k.InvalidExpression():
+        return '(() => { throw new Error(${jsonEncode(expression.message)}); })()';
       case k.ListLiteral():
         return '[${expression.expressions.map(emitExpression).join(', ')}]';
       case k.SetLiteral():
         return 'new Set([${expression.expressions.map(emitExpression).join(', ')}])';
       case k.MapLiteral():
         return 'new Map([${expression.entries.map((entry) => '[${emitExpression(entry.key)}, ${emitExpression(entry.value)}]').join(', ')}])';
+      case k.ListConcatenation():
+        return '[${expression.lists.map((list) => '...${emitExpression(list)}').join(', ')}]';
+      case k.SetConcatenation():
+        return 'new Set([${expression.sets.map((set) => '...${emitExpression(set)}').join(', ')}])';
+      case k.MapConcatenation():
+        return 'new Map([${expression.maps.map((map) => '...${emitExpression(map)}').join(', ')}])';
       case k.RecordLiteral():
         return _emitRecordLiteral(expression);
       case k.RecordIndexGet():
@@ -1455,6 +1463,8 @@ final class _EsmEmitter {
         return _emitLetExpression(expression);
       case k.BlockExpression():
         return _emitBlockExpression(expression);
+      case k.FileUriExpression():
+        return emitExpression(expression.expression);
       case k.StaticGet():
         return _emitStaticGet(expression);
       case k.StaticSet():
@@ -1477,6 +1487,12 @@ final class _EsmEmitter {
         return _emitInstanceGetterInvocation(expression);
       case k.InstanceSet():
         return _emitInstanceSet(expression);
+      case k.AbstractSuperMethodInvocation():
+        return _emitAbstractSuperMethodInvocation(expression);
+      case k.AbstractSuperPropertyGet():
+        return _emitAbstractSuperPropertyGet(expression);
+      case k.AbstractSuperPropertySet():
+        return _emitAbstractSuperPropertySet(expression);
       case k.SuperPropertyGet():
         return _emitSuperPropertyGet(expression);
       case k.SuperPropertySet():
@@ -1487,6 +1503,14 @@ final class _EsmEmitter {
         return _emitEsmConst(expression.constant);
       case k.FunctionExpression():
         return _emitFunctionExpression(expression);
+      case k.SymbolLiteral():
+        return _emitSymbol(expression.value);
+      case k.TypeLiteral():
+        return _emitTypeLiteral(expression.type);
+      case k.LoadLibrary():
+        return 'Promise.resolve(null)';
+      case k.CheckLibraryIsLoaded():
+        return 'null';
       default:
         throw UnsupportedKernelNode(expression, 'expression');
     }
@@ -1591,6 +1615,15 @@ final class _EsmEmitter {
         return _emitDouble(constant.value);
       case k.StringConstant():
         return jsonEncode(constant.value);
+      case k.SymbolConstant():
+        return _emitSymbol(
+          constant.name,
+          libraryReference: constant.libraryReference,
+        );
+      case k.TypeLiteralConstant():
+        return _emitTypeLiteral(constant.type);
+      case k.UnevaluatedConstant():
+        return emitExpression(constant.expression);
       case k.InstanceConstant():
         return _emitInstanceConstant(constant);
       case k.RecordConstant():
@@ -1745,6 +1778,13 @@ final class _EsmEmitter {
         .map(emitExpression)
         .toList();
     final args = _emitArguments(expression.arguments);
+    final developerInvocation = _emitDeveloperStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (developerInvocation != null) {
+      return developerInvocation;
+    }
     if (_isCoreReference(
           expression.targetReference,
           '@methods',
@@ -1757,6 +1797,10 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartPrint');
       _usedHelpers.add('__dartStr');
       return '__dartPrint($args)';
+    }
+    if (_isCoreReference(expression.targetReference, '@methods', 'identical') &&
+        positionalArgs.length == 2) {
+      return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (_isCoreGrowableListLiteral(expression.targetReference)) {
       return '[${positionalArgs.join(', ')}]';
@@ -1878,6 +1922,10 @@ final class _EsmEmitter {
   }
 
   String _emitStaticGet(k.StaticGet expression) {
+    final developerGet = _emitDeveloperStaticGet(expression);
+    if (developerGet != null) {
+      return developerGet;
+    }
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
       return _fieldName(target).value;
@@ -2076,6 +2124,20 @@ final class _EsmEmitter {
     return 'super.${_memberName(expression.name.text)}(${_emitArguments(expression.arguments)})';
   }
 
+  String _emitAbstractSuperMethodInvocation(
+    k.AbstractSuperMethodInvocation expression,
+  ) {
+    return 'super.${_memberName(expression.name.text)}(${_emitArguments(expression.arguments)})';
+  }
+
+  String _emitAbstractSuperPropertyGet(k.AbstractSuperPropertyGet expression) {
+    return 'super.${_memberName(expression.name.text)}';
+  }
+
+  String _emitAbstractSuperPropertySet(k.AbstractSuperPropertySet expression) {
+    return 'super.${_memberName(expression.name.text)} = ${emitExpression(expression.value)}';
+  }
+
   String _emitSuperPropertyGet(k.SuperPropertyGet expression) {
     return 'super.${_memberName(expression.name.text)}';
   }
@@ -2187,6 +2249,114 @@ final class _EsmEmitter {
         ? 'null'
         : emitExpression(expression.variable.initializer!);
     return '(() => { let ${_variableName(expression.variable)} = $initializer; return ${emitExpression(expression.body)}; })()';
+  }
+
+  String _emitSymbol(String name, {k.Reference? libraryReference}) {
+    _usedHelpers.add('__dartSymbol');
+    final key = libraryReference == null
+        ? name
+        : '${_referencePath(libraryReference)}::$name';
+    return '__dartSymbol(${jsonEncode(key)}, ${jsonEncode(name)})';
+  }
+
+  String _emitTypeLiteral(k.DartType type) {
+    _usedHelpers.add('__dartType');
+    return '__dartType(${jsonEncode(_emitDartTypeName(type))})';
+  }
+
+  String _emitDartTypeName(k.DartType type) {
+    return switch (type) {
+      k.TypeParameterType() =>
+        '${type.parameter.name ?? 'T'}${_nullabilitySuffix(type.declaredNullability)}',
+      _ => type.toStringInternal(),
+    };
+  }
+
+  String _nullabilitySuffix(k.Nullability nullability) {
+    return switch (nullability) {
+      k.Nullability.nullable => '?',
+      k.Nullability.nonNullable || k.Nullability.undetermined => '',
+    };
+  }
+
+  String? _emitDeveloperStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:developer::')) {
+      return null;
+    }
+    if (path.endsWith('::@methods::debugger')) {
+      return _namedArgument(expression.arguments, 'when') ?? 'true';
+    }
+    if (path.endsWith('::@methods::inspect')) {
+      return positionalArgs.isEmpty ? 'null' : positionalArgs.first;
+    }
+    if (path.endsWith('::@methods::log') ||
+        path.endsWith('::@methods::postEvent') ||
+        path.endsWith('::@methods::registerExtension') ||
+        path.endsWith('::Timeline::@methods::startSync') ||
+        path.endsWith('::Timeline::@methods::finishSync') ||
+        path.endsWith('::Timeline::@methods::instantSync')) {
+      return 'null';
+    }
+    if (path.endsWith('::Timeline::@methods::timeSync')) {
+      return positionalArgs.length >= 2 ? '(${positionalArgs[1]})()' : 'null';
+    }
+    if (path.endsWith('::Flow::@methods::begin')) {
+      final id = _namedArgument(expression.arguments, 'id') ?? '0';
+      return '({ id: $id })';
+    }
+    if (path.endsWith('::Flow::@methods::step') ||
+        path.endsWith('::Flow::@methods::end')) {
+      final id = positionalArgs.isEmpty ? '0' : positionalArgs.first;
+      return '({ id: $id })';
+    }
+    if (path.endsWith('::Service::@methods::getInfo') ||
+        path.endsWith('::Service::@methods::controlWebServer')) {
+      _usedHelpers.add('__dartDeveloperServiceInfo');
+      return 'Promise.resolve(__dartDeveloperServiceInfo())';
+    }
+    if (path.endsWith('::Service::@methods::getIsolateId') ||
+        path.endsWith('::Service::@methods::getIsolateID') ||
+        path.endsWith('::Service::@methods::getObjectId')) {
+      return 'null';
+    }
+    return null;
+  }
+
+  String? _emitDeveloperStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:developer::')) {
+      return null;
+    }
+    if (path.endsWith('::Timeline::@getters::now')) {
+      return 'Math.trunc(Date.now() * 1000)';
+    }
+    if (path.endsWith('::@getters::extensionStreamHasListener')) {
+      return 'false';
+    }
+    if (path.endsWith('::@getters::reachabilityBarrier')) {
+      return '0';
+    }
+    if (path.endsWith('::NativeRuntime::@getters::buildId')) {
+      return 'null';
+    }
+    if (path.endsWith('::UserTag::@getters::defaultTag')) {
+      _usedHelpers.add('__dartDeveloperUserTag');
+      return '__dartDeveloperUserTag("Default")';
+    }
+    return null;
+  }
+
+  String? _namedArgument(k.Arguments arguments, String name) {
+    for (final argument in arguments.named) {
+      if (argument.name == name) {
+        return emitExpression(argument.value);
+      }
+    }
+    return null;
   }
 
   bool _isCoreReference(k.Reference reference, String namespace, String name) {
@@ -2419,6 +2589,36 @@ final class _EsmEmitter {
       helper.writeln('  console.log(__dartStr(value));');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartType')) {
+      helper.writeln('const __dartTypeCache = new Map();');
+      helper.writeln('function __dartType(name) {');
+      helper.writeln(
+        '  if (__dartTypeCache.has(name)) return __dartTypeCache.get(name);',
+      );
+      helper.writeln('  const value = Object.freeze({');
+      helper.writeln('    name,');
+      helper.writeln('    toString() { return name; },');
+      helper.writeln('  });');
+      helper.writeln('  __dartTypeCache.set(name, value);');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSymbol')) {
+      helper.writeln('const __dartSymbolCache = new Map();');
+      helper.writeln('function __dartSymbol(key, name) {');
+      helper.writeln(
+        '  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);',
+      );
+      helper.writeln('  const value = Object.freeze({');
+      helper.writeln('    name,');
+      helper.writeln(
+        '    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },',
+      );
+      helper.writeln('  });');
+      helper.writeln('  __dartSymbolCache.set(key, value);');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartNullCheck')) {
       helper.writeln('function __dartNullCheck(value) {');
       helper.writeln('  if (value == null) {');
@@ -2464,6 +2664,28 @@ final class _EsmEmitter {
         '  for (const [key, value] of entries) map.set(key, value);',
       );
       helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartDeveloperServiceInfo')) {
+      helper.writeln('function __dartDeveloperServiceInfo() {');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln('    majorVersion: 0,');
+      helper.writeln('    minorVersion: 0,');
+      helper.writeln('    serverUri: null,');
+      helper.writeln('    serverWebSocketUri: null,');
+      helper.writeln(
+        '    toString() { return "Dart VM Service Protocol v0.0"; },',
+      );
+      helper.writeln('  });');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartDeveloperUserTag')) {
+      helper.writeln('function __dartDeveloperUserTag(label) {');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln('    label,');
+      helper.writeln('    makeCurrent() { return this; },');
+      helper.writeln('    toString() { return label; },');
+      helper.writeln('  });');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStreamIterator')) {

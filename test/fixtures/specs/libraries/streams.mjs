@@ -65,11 +65,11 @@ function __dartStreamController(broadcast = false) {
   function maybeResolveDone() {
     if (!closed) return;
     if (broadcast) {
-      for (const listener of listeners) if (stateHasPending(listener)) return;
+      if (listeners.size > 0) return;
       resolveDone(null);
       return;
     }
-    if (!stateHasPending(singleState)) resolveDone(null);
+    if (!singleState.active && !stateHasPending(singleState)) resolveDone(null);
   }
   function settle(waiter, item) {
     if (item.done === true) waiter.resolve({ done: true });
@@ -110,9 +110,10 @@ function __dartStreamController(broadcast = false) {
     closed = true;
     if (broadcast) {
       for (const listener of listeners) {
-        if (listener.queue.length === 0) clearWaiters(listener);
+        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); listeners.delete(listener); }
       }
     } else if (singleState.queue.length === 0) {
+      singleState.active = false;
       clearWaiters(singleState);
     }
     maybeResolveDone();
@@ -127,6 +128,8 @@ function __dartStreamController(broadcast = false) {
           return result;
         }
         if (closed || !state.active) {
+          state.active = false;
+          state.bufferBeforeListen = false;
           if (remove) remove();
           maybeResolveDone();
           return Promise.resolve({ done: true });
@@ -268,8 +271,9 @@ function __dartStreamHandleError(stream, onError, test = null) {
   return (async function*() {
     const iterator = stream[Symbol.asyncIterator]();
     while (true) {
+      let next;
       try {
-        const next = await iterator.next();
+        next = await iterator.next();
         if (next.done) break;
         yield next.value;
       } catch (error) {
@@ -431,20 +435,22 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
     return new Promise((resolve) => { resumeWaiter = resolve; });
   }
   const done = (async () => {
-    try {
       while (!canceled) {
         await waitWhilePaused();
         if (canceled) break;
-        const next = await iterator.next();
+        let next;
+        try {
+          next = await iterator.next();
+        } catch (error) {
+          if (typeof onError === "function") onError(error);
+          else throw error;
+          if (cancelOnError) break;
+          continue;
+        }
         if (next.done) break;
         if (typeof onData === "function") onData(next.value);
       }
       if (!canceled && typeof onDone === "function") onDone();
-    } catch (error) {
-      if (typeof onError === "function") onError(error);
-      else throw error;
-      if (cancelOnError) canceled = true;
-    }
     return null;
   })();
   return {
@@ -459,6 +465,9 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       }
       return null;
     },
+    onData(handleData) { onData = handleData; return null; },
+    onError(handleError) { onError = handleError; return null; },
+    onDone(handleDone) { onDone = handleDone; return null; },
     cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },
     asFuture(value = null) { return done.then(() => value); },
   };
@@ -548,6 +557,27 @@ export async function main() {
     (listened.push(value), null);
 }, null, null, false).asFuture("future");
   __dartPrint("listen " + __dartStr(listenState) + " " + __dartStr(__dartIterableJoin(listened, ",")) + " " + __dartStr(paused) + " " + __dartStr(await listenFuture) + " " + __dartStr(__dartIterableJoin(listened, ",")));
+  const updateController = __dartStreamController(false);
+  const updated = new Array(0).fill(null);
+  const updateErrors = new Array(0).fill(null);
+  const updateDone = __dartCompleter();
+  const updateSubscription = __dartStreamListen(updateController.stream, function(value) {
+    (updated.push(value), null);
+}, null, null, false);
+  updateSubscription.onData(function(value) {
+    (updated.push((value * 2)), null);
+});
+  updateSubscription.onError(function(error) {
+    (updateErrors.push(__dartStr(error)), null);
+});
+  updateSubscription.onDone(function() {
+    updateDone.complete("done");
+});
+  updateController.add(3);
+  updateController.addError("changed-error");
+  updateController.add(4);
+  await updateController.close();
+  __dartPrint("listenUpdate " + __dartStr(__dartIterableJoin(updated, ",")) + " " + __dartStr(__dartIterableJoin(updateErrors, ",")) + " " + __dartStr(await updateDone.future));
   const controller = __dartStreamController(false);
   const controlledFuture = __dartStreamToList(controller.stream);
   __dartPrint("state " + __dartStr(controller.isClosed) + " " + __dartStr(controller.hasListener));

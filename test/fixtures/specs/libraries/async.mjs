@@ -227,11 +227,11 @@ function __dartStreamController(broadcast = false) {
   function maybeResolveDone() {
     if (!closed) return;
     if (broadcast) {
-      for (const listener of listeners) if (stateHasPending(listener)) return;
+      if (listeners.size > 0) return;
       resolveDone(null);
       return;
     }
-    if (!stateHasPending(singleState)) resolveDone(null);
+    if (!singleState.active && !stateHasPending(singleState)) resolveDone(null);
   }
   function settle(waiter, item) {
     if (item.done === true) waiter.resolve({ done: true });
@@ -272,9 +272,10 @@ function __dartStreamController(broadcast = false) {
     closed = true;
     if (broadcast) {
       for (const listener of listeners) {
-        if (listener.queue.length === 0) clearWaiters(listener);
+        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); listeners.delete(listener); }
       }
     } else if (singleState.queue.length === 0) {
+      singleState.active = false;
       clearWaiters(singleState);
     }
     maybeResolveDone();
@@ -289,6 +290,8 @@ function __dartStreamController(broadcast = false) {
           return result;
         }
         if (closed || !state.active) {
+          state.active = false;
+          state.bufferBeforeListen = false;
           if (remove) remove();
           maybeResolveDone();
           return Promise.resolve({ done: true });
@@ -408,8 +411,9 @@ function __dartStreamHandleError(stream, onError, test = null) {
   return (async function*() {
     const iterator = stream[Symbol.asyncIterator]();
     while (true) {
+      let next;
       try {
-        const next = await iterator.next();
+        next = await iterator.next();
         if (next.done) break;
         yield next.value;
       } catch (error) {
@@ -571,20 +575,22 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
     return new Promise((resolve) => { resumeWaiter = resolve; });
   }
   const done = (async () => {
-    try {
       while (!canceled) {
         await waitWhilePaused();
         if (canceled) break;
-        const next = await iterator.next();
+        let next;
+        try {
+          next = await iterator.next();
+        } catch (error) {
+          if (typeof onError === "function") onError(error);
+          else throw error;
+          if (cancelOnError) break;
+          continue;
+        }
         if (next.done) break;
         if (typeof onData === "function") onData(next.value);
       }
       if (!canceled && typeof onDone === "function") onDone();
-    } catch (error) {
-      if (typeof onError === "function") onError(error);
-      else throw error;
-      if (cancelOnError) canceled = true;
-    }
     return null;
   })();
   return {
@@ -599,6 +605,9 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       }
       return null;
     },
+    onData(handleData) { onData = handleData; return null; },
+    onError(handleError) { onError = handleError; return null; },
+    onDone(handleDone) { onDone = handleDone; return null; },
     cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },
     asFuture(value = null) { return done.then(() => value); },
   };

@@ -105,6 +105,31 @@ Future<void> main() async {
     '${await listenFuture} ${listened.join(',')}',
   );
 
+  final updateController = StreamController<int>();
+  final updated = <int>[];
+  final updateErrors = <String>[];
+  final updateDone = Completer<String>();
+  final updateSubscription = updateController.stream.listen((value) {
+    updated.add(value);
+  });
+  updateSubscription.onData((value) {
+    updated.add(value * 2);
+  });
+  updateSubscription.onError((error) {
+    updateErrors.add('$error');
+  });
+  updateSubscription.onDone(() {
+    updateDone.complete('done');
+  });
+  updateController.add(3);
+  updateController.addError('changed-error');
+  updateController.add(4);
+  await updateController.close();
+  print(
+    'listenUpdate ${updated.join(',')} ${updateErrors.join(',')} '
+    '${await updateDone.future}',
+  );
+
   final controller = StreamController<int>();
   final controlledFuture = controller.stream.toList();
   print('state ${controller.isClosed} ${controller.hasListener}');

@@ -9765,14 +9765,12 @@ final class _EsmEmitter {
       helper.writeln('  function maybeResolveDone() {');
       helper.writeln('    if (!closed) return;');
       helper.writeln('    if (broadcast) {');
-      helper.writeln(
-        '      for (const listener of listeners) if (stateHasPending(listener)) return;',
-      );
+      helper.writeln('      if (listeners.size > 0) return;');
       helper.writeln('      resolveDone(null);');
       helper.writeln('      return;');
       helper.writeln('    }');
       helper.writeln(
-        '    if (!stateHasPending(singleState)) resolveDone(null);',
+        '    if (!singleState.active && !stateHasPending(singleState)) resolveDone(null);',
       );
       helper.writeln('  }');
       helper.writeln('  function settle(waiter, item) {');
@@ -9835,10 +9833,11 @@ final class _EsmEmitter {
       helper.writeln('    if (broadcast) {');
       helper.writeln('      for (const listener of listeners) {');
       helper.writeln(
-        '        if (listener.queue.length === 0) clearWaiters(listener);',
+        '        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); listeners.delete(listener); }',
       );
       helper.writeln('      }');
       helper.writeln('    } else if (singleState.queue.length === 0) {');
+      helper.writeln('      singleState.active = false;');
       helper.writeln('      clearWaiters(singleState);');
       helper.writeln('    }');
       helper.writeln('    maybeResolveDone();');
@@ -9853,6 +9852,8 @@ final class _EsmEmitter {
       helper.writeln('          return result;');
       helper.writeln('        }');
       helper.writeln('        if (closed || !state.active) {');
+      helper.writeln('          state.active = false;');
+      helper.writeln('          state.bufferBeforeListen = false;');
       helper.writeln('          if (remove) remove();');
       helper.writeln('          maybeResolveDone();');
       helper.writeln('          return Promise.resolve({ done: true });');
@@ -10026,8 +10027,9 @@ final class _EsmEmitter {
       helper.writeln('  return (async function*() {');
       helper.writeln('    const iterator = stream[Symbol.asyncIterator]();');
       helper.writeln('    while (true) {');
+      helper.writeln('      let next;');
       helper.writeln('      try {');
-      helper.writeln('        const next = await iterator.next();');
+      helper.writeln('        next = await iterator.next();');
       helper.writeln('        if (next.done) break;');
       helper.writeln('        yield next.value;');
       helper.writeln('      } catch (error) {');
@@ -10213,11 +10215,20 @@ final class _EsmEmitter {
       );
       helper.writeln('  }');
       helper.writeln('  const done = (async () => {');
-      helper.writeln('    try {');
       helper.writeln('      while (!canceled) {');
       helper.writeln('        await waitWhilePaused();');
       helper.writeln('        if (canceled) break;');
-      helper.writeln('        const next = await iterator.next();');
+      helper.writeln('        let next;');
+      helper.writeln('        try {');
+      helper.writeln('          next = await iterator.next();');
+      helper.writeln('        } catch (error) {');
+      helper.writeln(
+        '          if (typeof onError === "function") onError(error);',
+      );
+      helper.writeln('          else throw error;');
+      helper.writeln('          if (cancelOnError) break;');
+      helper.writeln('          continue;');
+      helper.writeln('        }');
       helper.writeln('        if (next.done) break;');
       helper.writeln(
         '        if (typeof onData === "function") onData(next.value);',
@@ -10226,13 +10237,6 @@ final class _EsmEmitter {
       helper.writeln(
         '      if (!canceled && typeof onDone === "function") onDone();',
       );
-      helper.writeln('    } catch (error) {');
-      helper.writeln(
-        '      if (typeof onError === "function") onError(error);',
-      );
-      helper.writeln('      else throw error;');
-      helper.writeln('      if (cancelOnError) canceled = true;');
-      helper.writeln('    }');
       helper.writeln('    return null;');
       helper.writeln('  })();');
       helper.writeln('  return {');
@@ -10247,6 +10251,15 @@ final class _EsmEmitter {
       helper.writeln('      }');
       helper.writeln('      return null;');
       helper.writeln('    },');
+      helper.writeln(
+        '    onData(handleData) { onData = handleData; return null; },',
+      );
+      helper.writeln(
+        '    onError(handleError) { onError = handleError; return null; },',
+      );
+      helper.writeln(
+        '    onDone(handleDone) { onDone = handleDone; return null; },',
+      );
       helper.writeln(
         '    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },',
       );

@@ -1064,7 +1064,9 @@ export async function main() {
 });
   const handledThen = await Promise.reject("then-error").then(function(__wc0_formal) { return 0; }, function(error) { return 10; });
   const filtered = await Promise.reject("filtered").catch((error) => (function(error) { return __dartEquals(error, "filtered"); })(error) ? (function(error) { return 11; })(error) : Promise.reject(error));
-  __dartPrint("chain " + __dartStr(chained) + " " + __dartStr(recovered) + " " + __dartStr(completed) + " " + __dartStr(finalized) + " " + __dartStr(handledThen) + " " + __dartStr(filtered));
+  (Promise.reject("ignored").catch(() => null), null);
+  const onErrored = await Promise.reject("on-error").catch((error) => (function(error, stackTrace) { return 14; })(error, error?.stack ?? "<javascript stack unavailable>"));
+  __dartPrint("chain " + __dartStr(chained) + " " + __dartStr(recovered) + " " + __dartStr(completed) + " " + __dartStr(finalized) + " " + __dartStr(handledThen) + " " + __dartStr(filtered) + " " + __dartStr(onErrored));
   const streamed = await __dartStreamFirst(__dartFutureAsStream(Promise.resolve("streamed")));
   const fast = await __dartFutureTimeout(Promise.resolve("fast"), __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"10000\"]]]", () => __dartDuration({ microseconds: 10000 })), null);
   const fallback = await __dartFutureTimeout(new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return "slow"; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"10000\"]]]", () => __dartDuration({ microseconds: 10000 })).inMilliseconds))), __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1000\"]]]", () => __dartDuration({ microseconds: 1000 })), function() { return "fallback"; });

@@ -131,8 +131,13 @@ Future<void> main() async {
   final filtered = await Future<int>.error(
     'filtered',
   ).catchError((error) => 11, test: (error) => error == 'filtered');
+  Future<void>.error('ignored').ignore();
+  final onErrored = await Future<int>.error(
+    'on-error',
+  ).onError((error, stackTrace) => 14);
   print(
-    'chain $chained $recovered $completed $finalized $handledThen $filtered',
+    'chain $chained $recovered $completed $finalized $handledThen $filtered '
+    '$onErrored',
   );
 
   final streamed = await Future<String>.value('streamed').asStream().first;

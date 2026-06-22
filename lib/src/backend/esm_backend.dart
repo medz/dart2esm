@@ -4099,6 +4099,18 @@ final class _EsmEmitter {
       }
       return '$left.catch((error) => ($test)(error) ? (${positionalArgs.single})(error) : Promise.reject(error))';
     }
+    if (expression.arguments.named.isEmpty &&
+        name == 'onError' &&
+        positionalArgs.length == 1 &&
+        _isAsyncFutureMember(target, name)) {
+      return '$left.catch((error) => (${positionalArgs.single})(error, error?.stack ?? "<javascript stack unavailable>"))';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'ignore' &&
+        positionalArgs.isEmpty &&
+        _isAsyncFutureMember(target, name)) {
+      return '($left.catch(() => null), null)';
+    }
     if (name == 'whenComplete' &&
         positionalArgs.length == 1 &&
         _isAsyncFutureMember(target, name)) {
@@ -5583,6 +5595,14 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartFutureDoWhile');
       return '__dartFutureDoWhile(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::@methods::FutureExtensions|ignore' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single}.catch(() => null), null)';
+    }
+    if (path == 'dart:async::@methods::FutureExtensions|onError' &&
+        positionalArgs.length == 2) {
+      return '${positionalArgs[0]}.catch((error) => (${positionalArgs[1]})(error, error?.stack ?? "<javascript stack unavailable>"))';
     }
     if ((path == 'dart:async::Completer::@factories::' ||
             path == 'dart:async::Completer::@factories::sync') &&

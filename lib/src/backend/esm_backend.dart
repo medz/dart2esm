@@ -3316,6 +3316,18 @@ final class _EsmEmitter {
       return 'Array.from($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'expand' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return 'Array.from($left).flatMap((value) => Array.from((${positionalArgs.single})(value)))';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'followedBy' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      return '[...Array.from($left), ...Array.from(${positionalArgs.single})]';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'toList' &&
         positionalArgs.isEmpty &&
         _isCoreCollectionMember(target, name)) {
@@ -3373,10 +3385,24 @@ final class _EsmEmitter {
       return 'Array.from($left).slice(0, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'takeWhile' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      _usedHelpers.add('__dartIterableTakeWhile');
+      return '__dartIterableTakeWhile($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'skip' &&
         positionalArgs.length == 1 &&
         _isCoreCollectionMember(target, name)) {
       return 'Array.from($left).slice(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'skipWhile' &&
+        positionalArgs.length == 1 &&
+        _isCoreCollectionMember(target, name)) {
+      _usedHelpers.add('__dartIterableSkipWhile');
+      return '__dartIterableSkipWhile($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'elementAt' &&
@@ -3511,6 +3537,23 @@ final class _EsmEmitter {
       return '$left.splice(${positionalArgs.single}, 1)[0]';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'indexWhere' &&
+        positionalArgs.length >= 1 &&
+        positionalArgs.length <= 2 &&
+        _isCoreListMember(target, name)) {
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+      return '$left.findIndex((value, index) => index >= $start && (${positionalArgs[0]})(value))';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'lastIndexWhere' &&
+        positionalArgs.length >= 1 &&
+        positionalArgs.length <= 2 &&
+        _isCoreListMember(target, name)) {
+      _usedHelpers.add('__dartListLastIndexWhere');
+      final start = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
+      return '__dartListLastIndexWhere($left, ${positionalArgs[0]}, $start)';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
         positionalArgs.length == 1 &&
         _isCoreListMember(target, name)) {
@@ -3551,6 +3594,12 @@ final class _EsmEmitter {
       if (positionalArgs.length == 1) {
         return '$left.slice(${positionalArgs.single})';
       }
+      return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'getRange' &&
+        positionalArgs.length == 2 &&
+        _isCoreListMember(target, name)) {
       return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -3634,6 +3683,30 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartSetLookup');
       _usedHelpers.add('__dartEquals');
       return '__dartSetLookup($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'containsAll' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', 'containsAll')) {
+      _usedHelpers.add('__dartSetContainsAll');
+      _usedHelpers.add('__dartEquals');
+      return '__dartSetContainsAll($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'removeAll' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', 'removeAll')) {
+      _usedHelpers.add('__dartSetRemoveAll');
+      _usedHelpers.add('__dartEquals');
+      return '__dartSetRemoveAll($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'retainAll' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Set', 'retainAll')) {
+      _usedHelpers.add('__dartSetRetainAll');
+      _usedHelpers.add('__dartEquals');
+      return '__dartSetRetainAll($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
@@ -6244,6 +6317,18 @@ final class _EsmEmitter {
       helper.writeln('  return null;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartListLastIndexWhere')) {
+      helper.writeln(
+        'function __dartListLastIndexWhere(list, test, start = null) {',
+      );
+      helper.writeln(
+        '  for (let index = start == null ? list.length - 1 : start; index >= 0; index--) {',
+      );
+      helper.writeln('    if (test(list[index])) return index;');
+      helper.writeln('  }');
+      helper.writeln('  return -1;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListWhereMutate')) {
       helper.writeln('function __dartListRemoveWhere(list, test) {');
       helper.writeln(
@@ -6277,10 +6362,71 @@ final class _EsmEmitter {
       helper.writeln('  return false;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartIterableTakeWhile')) {
+      helper.writeln('function __dartIterableTakeWhile(iterable, test) {');
+      helper.writeln('  const result = [];');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    if (!test(value)) break;');
+      helper.writeln('    result.push(value);');
+      helper.writeln('  }');
+      helper.writeln('  return result;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIterableSkipWhile')) {
+      helper.writeln('function __dartIterableSkipWhile(iterable, test) {');
+      helper.writeln('  const result = [];');
+      helper.writeln('  let skipping = true;');
+      helper.writeln('  for (const value of iterable) {');
+      helper.writeln('    if (skipping && test(value)) continue;');
+      helper.writeln('    skipping = false;');
+      helper.writeln('    result.push(value);');
+      helper.writeln('  }');
+      helper.writeln('  return result;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartSetLookup')) {
       helper.writeln('function __dartSetLookup(set, needle) {');
       helper.writeln('  for (const value of set) {');
       helper.writeln('    if (__dartEquals(value, needle)) return value;');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetContainsAll')) {
+      helper.writeln('function __dartSetContainsAll(set, values) {');
+      helper.writeln('  for (const value of values) {');
+      helper.writeln('    let found = false;');
+      helper.writeln('    for (const candidate of set) {');
+      helper.writeln('      if (__dartEquals(candidate, value)) {');
+      helper.writeln('        found = true;');
+      helper.writeln('        break;');
+      helper.writeln('      }');
+      helper.writeln('    }');
+      helper.writeln('    if (!found) return false;');
+      helper.writeln('  }');
+      helper.writeln('  return true;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetRemoveAll')) {
+      helper.writeln('function __dartSetRemoveAll(set, values) {');
+      helper.writeln('  for (const value of values) {');
+      helper.writeln('    for (const candidate of Array.from(set)) {');
+      helper.writeln('      if (__dartEquals(candidate, value)) {');
+      helper.writeln('        set.delete(candidate);');
+      helper.writeln('        break;');
+      helper.writeln('      }');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetRetainAll')) {
+      helper.writeln('function __dartSetRetainAll(set, values) {');
+      helper.writeln('  const retained = Array.from(values);');
+      helper.writeln('  for (const value of Array.from(set)) {');
+      helper.writeln(
+        '    if (retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);',
+      );
       helper.writeln('  }');
       helper.writeln('  return null;');
       helper.writeln('}');
@@ -7029,6 +7175,8 @@ const _generatedGlobalNames = {
   '__dartIterableFirst',
   '__dartIterableJoin',
   '__dartIterableLast',
+  '__dartIterableSkipWhile',
+  '__dartIterableTakeWhile',
   '__dartCombineHash',
   '__dartFinishHash',
   '__dartHashValue',
@@ -7040,6 +7188,7 @@ const _generatedGlobalNames = {
   '__dartJsonEncode',
   '__dartLazyField',
   '__dartListRemove',
+  '__dartListLastIndexWhere',
   '__dartListRemoveWhere',
   '__dartListRetainWhere',
   '__dartListSetAll',
@@ -7059,7 +7208,10 @@ const _generatedGlobalNames = {
   '__dartRegExp',
   '__dartRegExpMatch',
   '__dartRoundToInt',
+  '__dartSetContainsAll',
   '__dartSetLookup',
+  '__dartSetRemoveAll',
+  '__dartSetRetainAll',
   '__dartStr',
   '__dartStream',
   '__dartStreamFirst',

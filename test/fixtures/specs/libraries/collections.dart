@@ -24,6 +24,17 @@ void main() {
     '${values.reduce((total, value) => total + value)}',
   );
   print(
+    'iterMore ${values.takeWhile((value) => value < 4).join(',')} '
+    '${values.skipWhile((value) => value < 4).join(',')} '
+    '${values.followedBy([7]).join(',')} '
+    '${values.expand((value) => [value, value * 10]).take(4).join(',')}',
+  );
+  print(
+    'listQuery ${values.indexWhere((value) => value == 4)} '
+    '${values.lastIndexWhere((value) => value == 1)} '
+    '${values.getRange(1, 4).join(',')}',
+  );
+  print(
     'where ${values.firstWhere((value) => value > 3)} '
     '${values.lastWhere((value) => value.isOdd)} '
     '${values.singleWhere((value) => value == 4)} '
@@ -68,6 +79,11 @@ void main() {
   );
   print('set lookup ${names.lookup('ada')} ${names.lookup('missing')}');
   print('set join ${names.join('/')}');
+  final setBulk = <String>{'a', 'b', 'c'};
+  final hasAll = setBulk.containsAll(['a', 'c']);
+  setBulk.removeAll(['b', 'x']);
+  setBulk.retainAll(['a', 'z']);
+  print('set bulk $hasAll ${setBulk.join(',')}');
 
   final counts = <String, int>{'one': 1};
   counts['two'] = 2;

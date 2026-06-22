@@ -83,6 +83,12 @@ function __dartListSetAll(list, index, values) {
   }
   return null;
 }
+function __dartListLastIndexWhere(list, test, start = null) {
+  for (let index = start == null ? list.length - 1 : start; index >= 0; index--) {
+    if (test(list[index])) return index;
+  }
+  return -1;
+}
 function __dartListRemoveWhere(list, test) {
   list.splice(0, list.length, ...list.filter((value) => !test(value)));
   return null;
@@ -100,9 +106,58 @@ function __dartIterableContains(iterable, needle) {
   }
   return false;
 }
+function __dartIterableTakeWhile(iterable, test) {
+  const result = [];
+  for (const value of iterable) {
+    if (!test(value)) break;
+    result.push(value);
+  }
+  return result;
+}
+function __dartIterableSkipWhile(iterable, test) {
+  const result = [];
+  let skipping = true;
+  for (const value of iterable) {
+    if (skipping && test(value)) continue;
+    skipping = false;
+    result.push(value);
+  }
+  return result;
+}
 function __dartSetLookup(set, needle) {
   for (const value of set) {
     if (__dartEquals(value, needle)) return value;
+  }
+  return null;
+}
+function __dartSetContainsAll(set, values) {
+  for (const value of values) {
+    let found = false;
+    for (const candidate of set) {
+      if (__dartEquals(candidate, value)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+function __dartSetRemoveAll(set, values) {
+  for (const value of values) {
+    for (const candidate of Array.from(set)) {
+      if (__dartEquals(candidate, value)) {
+        set.delete(candidate);
+        break;
+      }
+    }
+  }
+  return null;
+}
+function __dartSetRetainAll(set, values) {
+  const retained = Array.from(values);
+  for (const value of Array.from(set)) {
+    if (retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);
   }
   return null;
 }
@@ -158,6 +213,8 @@ export function main() {
   __dartPrint("filtered " + __dartStr(__dartIterableJoin(filtered, "|")));
   __dartPrint("fold " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value), 0)) + " " + __dartStr(Array.from(values).some(function(value) { return (value > 5); })) + " " + __dartStr(Array.from(values).every(function(value) { return (value > 0); })));
   __dartPrint("iter " + __dartStr(__dartIterableJoin(Array.from(Array.from(values).slice(2)).slice(0, 3), ",")) + " " + __dartStr(Array.from(values)[2]) + " " + __dartStr(Array.from(values).reduce((previous, value) => (function(total, value) { return (total + value); })(previous, value))));
+  __dartPrint("iterMore " + __dartStr(__dartIterableJoin(__dartIterableTakeWhile(values, function(value) { return (value < 4); }), ",")) + " " + __dartStr(__dartIterableJoin(__dartIterableSkipWhile(values, function(value) { return (value < 4); }), ",")) + " " + __dartStr(__dartIterableJoin([...Array.from(values), ...Array.from([7])], ",")) + " " + __dartStr(__dartIterableJoin(Array.from(Array.from(values).flatMap((value) => Array.from((function(value) { return [value, (value * 10)]; })(value)))).slice(0, 4), ",")));
+  __dartPrint("listQuery " + __dartStr(values.findIndex((value, index) => index >= 0 && (function(value) { return __dartEquals(value, 4); })(value))) + " " + __dartStr(__dartListLastIndexWhere(values, function(value) { return __dartEquals(value, 1); }, null)) + " " + __dartStr(__dartIterableJoin(values.slice(1, 4), ",")));
   __dartPrint("where " + __dartStr(__dartIterableFirstWhere(values, function(value) { return (value > 3); }, null)) + " " + __dartStr(__dartIterableLastWhere(values, function(value) { return (Math.trunc(value) % 2 !== 0); }, null)) + " " + __dartStr(__dartIterableSingleWhere(values, function(value) { return __dartEquals(value, 4); }, null)) + " " + __dartStr(__dartIterableFirstWhere(values, function(value) { return (value > 99); }, function() { return (-1); })));
   let visited = 0;
   (Array.from(values).forEach(function(value) {
@@ -194,6 +251,17 @@ export function main() {
   __dartPrint("set " + __dartStr(names.size) + " " + __dartStr(names.has("ada")) + " " + __dartStr(names.has("bob")));
   __dartPrint("set lookup " + __dartStr(__dartSetLookup(names, "ada")) + " " + __dartStr(__dartSetLookup(names, "missing")));
   __dartPrint("set join " + __dartStr(__dartIterableJoin(names, "/")));
+  const setBulk = (() => {
+    const v = new Set();
+    __dartSetAdd(v, "a");
+    __dartSetAdd(v, "b");
+    __dartSetAdd(v, "c");
+    return v;
+  })();
+  const hasAll = __dartSetContainsAll(setBulk, ["a", "c"]);
+  __dartSetRemoveAll(setBulk, ["b", "x"]);
+  __dartSetRetainAll(setBulk, ["a", "z"]);
+  __dartPrint("set bulk " + __dartStr(hasAll) + " " + __dartStr(__dartIterableJoin(setBulk, ",")));
   const counts = new Map([["one", 1]]);
   counts.set("two", 2);
   __dartPrint("map " + __dartStr(counts.size) + " " + __dartStr(counts.has("two")) + " " + __dartStr(counts.get("one")));

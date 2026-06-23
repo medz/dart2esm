@@ -1,5 +1,9 @@
 import 'dart:collection';
 
+int descendingInt(int left, int right) => right.compareTo(left);
+
+int descendingString(String left, String right) => right.compareTo(left);
+
 void main() {
   final map = HashMap<String, int>();
   map['one'] = 1;
@@ -56,5 +60,22 @@ void main() {
   print(
     'splayMap ${sortedMap.keys.join(',')} ${sortedMap.values.join(',')} '
     '${sortedMap['b']}',
+  );
+
+  final reversedSet = SplayTreeSet<int>.of([1, 3, 2], descendingInt);
+  final duplicateAdded = reversedSet.add(2);
+  final newAdded = reversedSet.add(0);
+  print('splaySetOf ${reversedSet.join(',')} $duplicateAdded $newAdded');
+
+  final reversedMap = SplayTreeMap<String, int>.of({
+    'a': 1,
+    'c': 3,
+    'b': 2,
+  }, descendingString);
+  reversedMap['d'] = 4;
+  reversedMap['a'] = 10;
+  print(
+    'splayMapOf ${reversedMap.keys.join(',')} '
+    '${reversedMap.values.join(',')} ${reversedMap['a']}',
   );
 }

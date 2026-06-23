@@ -6260,24 +6260,6 @@ final class _EsmEmitter {
           : 'null';
       return '__dartSplayTreeMap($compare, $isValidKey)';
     }
-    if (path.startsWith('dart:collection::SplayTreeSet::@constructors::') &&
-        positionalArgs.length <= 2) {
-      _usedHelpers.add('__dartSplayTreeSet');
-      final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
-      final isValidKey = positionalArgs.length >= 2
-          ? positionalArgs[1]
-          : 'null';
-      return '__dartSplayTreeSet($compare, $isValidKey)';
-    }
-    if (path.startsWith('dart:collection::SplayTreeMap::@constructors::') &&
-        positionalArgs.length <= 2) {
-      _usedHelpers.add('__dartSplayTreeMap');
-      final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
-      final isValidKey = positionalArgs.length >= 2
-          ? positionalArgs[1]
-          : 'null';
-      return '__dartSplayTreeMap($compare, $isValidKey)';
-    }
     if (path.startsWith('dart:async::_EmptyStream::@constructors::') &&
         positionalArgs.isEmpty) {
       _usedHelpers.add('__dartStream');

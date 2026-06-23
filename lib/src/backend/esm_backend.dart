@@ -3225,6 +3225,13 @@ final class _EsmEmitter {
     if (concurrentInvocation != null) {
       return concurrentInvocation;
     }
+    final mirrorsInvocation = _emitMirrorsStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (mirrorsInvocation != null) {
+      return mirrorsInvocation;
+    }
     final jsInteropInvocation = _emitJsInteropStaticInvocation(
       expression,
       positionalArgs,
@@ -6521,6 +6528,24 @@ final class _EsmEmitter {
         positionalArgs.isEmpty) {
       _usedHelpers.add('__dartConditionVariable');
       return '__dartConditionVariable()';
+    }
+    return null;
+  }
+
+  String? _emitMirrorsStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:mirrors::MirrorSystem::@methods::getName' &&
+        positionalArgs.length == 1) {
+      return '${positionalArgs.single}.name';
+    }
+    if (path == 'dart:mirrors::MirrorSystem::@methods::getSymbol' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartSymbol');
+      return '__dartSymbol(${positionalArgs[0]}, ${positionalArgs[0]})';
     }
     return null;
   }

@@ -53,6 +53,12 @@ void main() {
     'intMore ${5.isEven} ${5.isOdd} ${5.gcd(15)} ${(-12).gcd(18)} '
     '${5.modInverse(7)} ${5.modPow(3, 7)} ${(-31).toRadixString(16)}',
   );
+  final bits = 0x0f0f;
+  final lowerBits = 0x00ff;
+  print(
+    'bitOps ${bits & lowerBits} ${bits | 0x1000} ${bits ^ lowerBits} '
+    '${3 << 4} ${16 >> 2} ${16 >>> 2}',
+  );
   print(
     'doubleMore ${3.7.roundToDouble()} ${3.7.floorToDouble()} '
     '${3.2.ceilToDouble()} ${3.2.truncateToDouble()}',

@@ -3240,6 +3240,13 @@ final class _EsmEmitter {
     if (svgInvocation != null) {
       return svgInvocation;
     }
+    final htmlInvocation = _emitHtmlStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (htmlInvocation != null) {
+      return htmlInvocation;
+    }
     final jsInteropInvocation = _emitJsInteropStaticInvocation(
       expression,
       positionalArgs,
@@ -3708,6 +3715,9 @@ final class _EsmEmitter {
     }
     if (path == 'dart:html::@getters::document') {
       return 'globalThis.document';
+    }
+    if (path == 'dart:web_gl::RenderingContext::@getters::supported') {
+      return '(!!globalThis.window?.WebGLRenderingContext)';
     }
     return null;
   }
@@ -5782,6 +5792,35 @@ final class _EsmEmitter {
     List<String> positionalArgs,
     k.Arguments arguments,
   ) {
+    if (_isHtmlClassMember(target, 'CanvasElement', name)) {
+      if (name == 'getContext3d' &&
+          positionalArgs.isEmpty &&
+          _hasOnlyNamedArguments(arguments, {
+            'alpha',
+            'depth',
+            'stencil',
+            'antialias',
+            'premultipliedAlpha',
+            'preserveDrawingBuffer',
+          })) {
+        _usedHelpers.add('__dartCanvasGetContext3d');
+        final options = {
+          'alpha': _namedArgument(arguments, 'alpha') ?? 'true',
+          'depth': _namedArgument(arguments, 'depth') ?? 'true',
+          'stencil': _namedArgument(arguments, 'stencil') ?? 'false',
+          'antialias': _namedArgument(arguments, 'antialias') ?? 'true',
+          'premultipliedAlpha':
+              _namedArgument(arguments, 'premultipliedAlpha') ?? 'true',
+          'preserveDrawingBuffer':
+              _namedArgument(arguments, 'preserveDrawingBuffer') ?? 'false',
+        };
+        final optionsLiteral = options.entries
+            .map((entry) => '${entry.key}: ${entry.value}')
+            .join(', ');
+        return '__dartCanvasGetContext3d($receiver, { $optionsLiteral })';
+      }
+      return null;
+    }
     if (!_isHtmlClassMember(target, 'Storage', name) ||
         arguments.named.isNotEmpty) {
       return null;
@@ -5800,6 +5839,22 @@ final class _EsmEmitter {
     }
     if (name == 'clear' && positionalArgs.isEmpty) {
       return '(typeof $receiver.clear === "function" ? ($receiver.clear(), null) : (Object.keys($receiver).forEach((key) => delete $receiver[key]), null))';
+    }
+    return null;
+  }
+
+  String? _emitHtmlStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:html::CanvasElement::@factories::' &&
+        positionalArgs.isEmpty &&
+        _hasOnlyNamedArguments(expression.arguments, {'width', 'height'})) {
+      _usedHelpers.add('__dartCanvasElement');
+      final width = _namedArgument(expression.arguments, 'width') ?? 'null';
+      final height = _namedArgument(expression.arguments, 'height') ?? 'null';
+      return '__dartCanvasElement($width, $height)';
     }
     return null;
   }
@@ -11621,6 +11676,26 @@ final class _EsmEmitter {
       helper.writeln('  return value;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartCanvasElement')) {
+      helper.writeln('function __dartCanvasElement(width, height) {');
+      helper.writeln('  const document = globalThis.document;');
+      helper.writeln(
+        '  if (document == null || typeof document.createElement !== "function") throw new TypeError("CanvasElement requires document.createElement");',
+      );
+      helper.writeln('  const canvas = document.createElement("canvas");');
+      helper.writeln('  if (width != null) canvas.width = width;');
+      helper.writeln('  if (height != null) canvas.height = height;');
+      helper.writeln('  return canvas;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartCanvasGetContext3d')) {
+      helper.writeln('function __dartCanvasGetContext3d(canvas, options) {');
+      helper.writeln('  const context = canvas.getContext("webgl", options);');
+      helper.writeln(
+        '  return context ?? canvas.getContext("experimental-webgl", options);',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartFfiPointer')) {
       helper.writeln('function __dartFfiPointer(address) {');
       helper.writeln('  return Object.freeze({');
@@ -14730,6 +14805,12 @@ const _binaryOperators = {
   '/',
   '~/',
   '%',
+  '&',
+  '|',
+  '^',
+  '<<',
+  '>>',
+  '>>>',
   '<',
   '<=',
   '>',

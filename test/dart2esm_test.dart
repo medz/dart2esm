@@ -513,6 +513,25 @@ globalThis.document = {
 ''', 'svg root\n');
     return;
   }
+  if (fixture.id == 'libraries/web_gl') {
+    await _expectNodeOutputWithPrelude(output, '''
+class WebGLRenderingContext {
+  clearColor() {}
+  clear() {}
+}
+globalThis.WebGLRenderingContext = WebGLRenderingContext;
+globalThis.window = { WebGLRenderingContext };
+globalThis.document = {
+  createElement: tagName => ({
+    tagName,
+    width: 0,
+    height: 0,
+    getContext: contextId => contextId === "webgl" ? new WebGLRenderingContext() : null,
+  }),
+};
+''', 'webgl true 16388 16 8 true true\n');
+    return;
+  }
   await _expectSameDartAndNodeOutput(fixture.source, output);
 }
 

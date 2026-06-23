@@ -781,6 +781,9 @@ export function main() {
   __dartPrint("numFormat " + __dartStr(__dartNumClamp(numeric, (-3), 2)) + " " + __dartStr((numeric % 2)) + " " + __dartStr(Number(3.14159).toFixed(2)) + " " + __dartStr(Number(3.14159).toPrecision(3)));
   __dartPrint("numMeta " + __dartStr(Number.isNaN(Number(Number.NaN))) + " " + __dartStr((Number(Infinity) === Infinity || Number(Infinity) === -Infinity)) + " " + __dartStr(Number.isFinite(Number(3.0))) + " " + __dartStr((Number((-0.0)) < 0 || Object.is(Number((-0.0)), -0))));
   __dartPrint("intMore " + __dartStr((Math.trunc(5) % 2 === 0)) + " " + __dartStr((Math.trunc(5) % 2 !== 0)) + " " + __dartStr(__dartIntGcd(5, 15)) + " " + __dartStr(__dartIntGcd((-12), 18)) + " " + __dartStr(__dartIntModInverse(5, 7)) + " " + __dartStr(__dartIntModPow(5, 3, 7)) + " " + __dartStr(__dartIntToRadixString((-31), 16)));
+  const bits = 3855;
+  const lowerBits = 255;
+  __dartPrint("bitOps " + __dartStr((bits & lowerBits)) + " " + __dartStr((bits | 4096)) + " " + __dartStr((bits ^ lowerBits)) + " " + __dartStr((3 << 4)) + " " + __dartStr((16 >> 2)) + " " + __dartStr((16 >>> 2)));
   __dartPrint("doubleMore " + __dartStr(__dartDouble(__dartRoundToInt(3.7))) + " " + __dartStr(__dartDouble(Math.floor(3.7))) + " " + __dartStr(__dartDouble(Math.ceil(3.2))) + " " + __dartStr(__dartDouble(Math.trunc(3.2))));
   try {
     {

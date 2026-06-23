@@ -2956,6 +2956,10 @@ final class _EsmEmitter {
       }
       return '${_className(classNode)}.${_memberName(name)}';
     }
+    final coreErrorConstant = _emitCoreErrorInstanceConstant(constant);
+    if (coreErrorConstant != null) {
+      return coreErrorConstant;
+    }
     switch (_referencePath(constant.classReference)) {
       case 'dart:core::Object':
         return _emitCanonicalConst(constant, 'Object.freeze({})');
@@ -3097,6 +3101,24 @@ final class _EsmEmitter {
     }
     final className = _referencePath(constant.classReference);
     throw UnsupportedKernelNode(constant, 'instance constant $className');
+  }
+
+  String? _emitCoreErrorInstanceConstant(k.InstanceConstant constant) {
+    const prefix = 'dart:core::';
+    final path = _referencePath(constant.classReference);
+    if (!path.startsWith(prefix)) {
+      return null;
+    }
+    final typeName = path.substring(prefix.length);
+    if (!_coreErrorTypeNames.contains(typeName)) {
+      return null;
+    }
+    _usedHelpers.add('__dartCoreError');
+    final message = _emitConstantFieldValue(constant, 'message') ?? 'null';
+    return _emitCanonicalConst(
+      constant,
+      '__dartCoreError(${jsonEncode(typeName)}, $message)',
+    );
   }
 
   String _emitCanonicalConst(k.Constant constant, String value) {

@@ -1,5 +1,6 @@
 extension type UserId(int value) {
   static const defaultValue = 12;
+  static UserId current = UserId(1);
 
   factory UserId.zero() => UserId(0);
 
@@ -26,15 +27,16 @@ void main() {
   print('${id.value} ${id.plus(2)} ${maybeId is UserId}');
   print(
     '${UserId.parse('9').value} ${UserId.zeroValue} ${(id + 3).value} '
-    '${UserId.zero().value} ${UserId.defaultValue}',
+    '${UserId.zero().value} ${UserId.defaultValue} ${UserId.current.value}',
   );
   final make = UserId.new;
   final parse = UserId.parse;
   final zero = UserId.zero;
   final plus = id.plus;
   id.observed = 1;
+  UserId.current = id + 4;
   print(
     '${id.doubled} ${make(4).value} ${parse('10').value} '
-    '${zero().value} ${plus(6)}',
+    '${zero().value} ${plus(6)} ${UserId.current.value}',
   );
 }

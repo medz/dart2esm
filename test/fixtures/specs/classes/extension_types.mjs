@@ -80,6 +80,12 @@ export class UserId {
   static get defaultValue() {
     return UserId_defaultValue;
   }
+  static get current() {
+    return new UserId(__dartExtensionTypeRep(UserId_current, "value"));
+  }
+  static set current(value) {
+    return UserId_current = __dartExtensionTypeRep(value, "value");
+  }
   static parse(text) {
     return new UserId(__dartExtensionTypeRep(UserId_parse(text), "value"));
   }
@@ -107,6 +113,8 @@ export class UserId {
 }
 
 const UserId_defaultValue = 12;
+
+let UserId_current = UserId_constructor_(1);
 
 function UserId_parse(text) {
   return UserId_constructor_(__dartIntParse(text, null));
@@ -161,13 +169,14 @@ export function main() {
   const id = UserId_constructor_(5);
   const maybeId = hide(id);
   __dartPrint(__dartStr(__dartAs(__dartExtensionTypeRep(id, "value"), value => typeof value === "number", "int")) + " " + __dartStr(UserId_plus(id, 2)) + " " + __dartStr(typeof __dartExtensionTypeRep(maybeId, "value") === "number"));
-  __dartPrint(__dartStr(__dartAs(__dartExtensionTypeRep(UserId_parse("9"), "value"), value => typeof value === "number", "int")) + " " + __dartStr(UserId_zeroValue()) + " " + __dartStr(__dartAs(__dartExtensionTypeRep(UserId__(id, 3), "value"), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs(__dartExtensionTypeRep(UserId_constructor_zero(), "value"), value => typeof value === "number", "int")) + " " + __dartStr(12));
+  __dartPrint(__dartStr(__dartAs(__dartExtensionTypeRep(UserId_parse("9"), "value"), value => typeof value === "number", "int")) + " " + __dartStr(UserId_zeroValue()) + " " + __dartStr(__dartAs(__dartExtensionTypeRep(UserId__(id, 3), "value"), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs(__dartExtensionTypeRep(UserId_constructor_zero(), "value"), value => typeof value === "number", "int")) + " " + __dartStr(12) + " " + __dartStr(__dartAs(UserId_current, value => typeof value === "number", "int")));
   const make = $UserId__tearoff;
   const parse = UserId_parse;
   const zero = UserId_constructor___zero_tearOff;
   const plus = UserId_get_plus(id);
   UserId_set_observed(id, 1);
-  __dartPrint(__dartStr(UserId_get_doubled(id)) + " " + __dartStr(__dartAs((make)(4), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((parse)("10"), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((zero)(), value => typeof value === "number", "int")) + " " + __dartStr((plus)(6)));
+  UserId_current = UserId__(id, 4);
+  __dartPrint(__dartStr(UserId_get_doubled(id)) + " " + __dartStr(__dartAs((make)(4), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((parse)("10"), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((zero)(), value => typeof value === "number", "int")) + " " + __dartStr((plus)(6)) + " " + __dartStr(__dartAs(UserId_current, value => typeof value === "number", "int")));
 }
 
 

@@ -320,6 +320,9 @@ void main() {
         "console.log(parsed.value);\n"
         "console.log(UserId.zeroValue);\n"
         "console.log(UserId.defaultValue);\n"
+        "console.log(UserId.current.value);\n"
+        "UserId.current = UserId.parse('6');\n"
+        "console.log(UserId.current.value);\n"
         "console.log(UserId.zero().value);\n"
         "console.log(id['+'](3).value);\n",
       );
@@ -350,6 +353,8 @@ void main() {
       '9\n'
       '0\n'
       '12\n'
+      '1\n'
+      '6\n'
       '0\n'
       '8\n',
     );

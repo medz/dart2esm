@@ -5371,10 +5371,6 @@ final class _EsmEmitter {
   String _emitDynamicInvocation(k.DynamicInvocation expression) {
     final receiver = emitExpression(expression.receiver);
     final name = expression.name.text;
-    if (name == 'call') {
-      final args = _emitArguments(expression.arguments);
-      return '($receiver)($args)';
-    }
     _usedHelpers.add('__dartCall');
     _usedHelpers.add('__dartEquals');
     _usedHelpers.add('__dartIterableContains');
@@ -10405,7 +10401,15 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartCall')) {
       helper.writeln('function __dartCall(receiver, name, args) {');
-      helper.writeln('  if (name === "call") return receiver(...args);');
+      helper.writeln('  if (name === "call") {');
+      helper.writeln(
+        '    if (typeof receiver === "function") return receiver(...args);',
+      );
+      helper.writeln('    const call = receiver.call;');
+      helper.writeln(
+        '    if (typeof call === "function") return call.apply(receiver, args);',
+      );
+      helper.writeln('  }');
       helper.writeln('  if (Array.isArray(receiver)) {');
       helper.writeln('    switch (name) {');
       helper.writeln('      case "[]": return receiver[args[0]];');

@@ -6,7 +6,10 @@ describe('classes/callable_classes.mjs', () => {
     try {
       const module = await import('./callable_classes.mjs');
 
-      expect(log.mock.calls.map(([value]) => value)).toEqual(['7 8 8']);
+      expect(log.mock.calls.map(([value]) => value)).toEqual([
+        '7 8 8',
+        '7 8',
+      ]);
       expect(module.add2).toBeInstanceOf(module.Adder);
       expect(module.add2.call(5)).toBe(7);
 

@@ -47,7 +47,11 @@ function __dartGet(receiver, name) {
   return typeof value === "function" ? value.bind(receiver) : value;
 }
 function __dartCall(receiver, name, args) {
-  if (name === "call") return receiver(...args);
+  if (name === "call") {
+    if (typeof receiver === "function") return receiver(...args);
+    const call = receiver.call;
+    if (typeof call === "function") return call.apply(receiver, args);
+  }
   if (Array.isArray(receiver)) {
     switch (name) {
       case "[]": return receiver[args[0]];

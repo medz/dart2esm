@@ -50,7 +50,11 @@ function __dartGet(receiver, name) {
   return typeof value === "function" ? value.bind(receiver) : value;
 }
 function __dartCall(receiver, name, args) {
-  if (name === "call") return receiver(...args);
+  if (name === "call") {
+    if (typeof receiver === "function") return receiver(...args);
+    const call = receiver.call;
+    if (typeof call === "function") return call.apply(receiver, args);
+  }
   if (Array.isArray(receiver)) {
     switch (name) {
       case "[]": return receiver[args[0]];
@@ -368,7 +372,7 @@ export function describe(input) {
   let dynString = " Hello,Dart ";
   const dynStringText = __dartStr(__dartCall(__dartCall(dynString, "trim", []), "toUpperCase", [])) + ":" + __dartStr(__dartCall(dynString, "contains", ["Dart"])) + ":" + __dartStr(__dartCall(__dartCall(__dartCall(dynString, "split", [","]), "[]", [1]), "trim", []));
   const sure = __dartNullCheck(input);
-  return __dartStr(list) + " " + __dartStr(set) + " " + __dartStr(map) + " " + __dartStr(a) + " " + __dartStr(b) + " " + __dartStr(result) + " " + __dartStr(__dartGet(d, "value")) + " " + __dartStr((tear)(2)) + " " + __dartStr(dynListText) + " " + __dartStr(dynMapText) + " " + __dartStr(dynSetText) + " " + __dartStr(dynStringText) + " " + __dartStr(sure);
+  return __dartStr(list) + " " + __dartStr(set) + " " + __dartStr(map) + " " + __dartStr(a) + " " + __dartStr(b) + " " + __dartStr(result) + " " + __dartStr(__dartGet(d, "value")) + " " + __dartStr(__dartCall(tear, "call", [2])) + " " + __dartStr(dynListText) + " " + __dartStr(dynMapText) + " " + __dartStr(dynSetText) + " " + __dartStr(dynStringText) + " " + __dartStr(sure);
 }
 
 export function main() {

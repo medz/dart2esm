@@ -1099,9 +1099,7 @@ final class _EsmEmitter {
         case k.RedirectingInitializer():
           break;
         case k.AssertInitializer():
-          _diagnostics.add(
-            'AssertInitializer is currently emitted as a no-op.',
-          );
+          break;
         default:
           throw UnsupportedKernelNode(initializer, 'redirecting initializer');
       }
@@ -1142,9 +1140,7 @@ final class _EsmEmitter {
         case k.FieldInitializer():
           fieldInitializers.add(initializer);
         case k.AssertInitializer():
-          _diagnostics.add(
-            'AssertInitializer is currently emitted as a no-op.',
-          );
+          break;
         default:
           throw UnsupportedKernelNode(initializer, 'initializer');
       }
@@ -1214,9 +1210,7 @@ final class _EsmEmitter {
         case k.FieldInitializer():
           fieldInitializers.add(initializer);
         case k.AssertInitializer():
-          _diagnostics.add(
-            'AssertInitializer is currently emitted as a no-op.',
-          );
+          break;
         default:
           throw UnsupportedKernelNode(initializer, 'initializer');
       }
@@ -1273,9 +1267,7 @@ final class _EsmEmitter {
         case k.FieldInitializer():
           fieldInitializers.add(initializer);
         case k.AssertInitializer():
-          _diagnostics.add(
-            'AssertInitializer is currently emitted as a no-op.',
-          );
+          break;
         default:
           throw UnsupportedKernelNode(initializer, 'initializer');
       }
@@ -1319,7 +1311,7 @@ final class _EsmEmitter {
       case k.LocalInitializer():
         emitStatement(initializer.variable);
       case k.AssertInitializer():
-        _diagnostics.add('AssertInitializer is currently emitted as a no-op.');
+        break;
       case k.SuperInitializer():
         if (initializer.isSynthetic) {
           return;

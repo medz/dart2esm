@@ -19,9 +19,16 @@ class Adder {
   int call(int value) => base + value;
 }
 
+class Positive {
+  const Positive(this.value) : assert(value > 0);
+
+  final int value;
+}
+
 const sharedPoint = Point(2, 3);
 const origin = Point.origin();
 const sharedAdder = Adder(10);
+const positive = Positive(4);
 
 dynamic hide(dynamic value) => value;
 
@@ -31,4 +38,5 @@ void main() {
   print('${sharedPoint.describe()} ${sharedPoint.sum} ${maybePoint is Point}');
   print('${origin.describe()} ${sharedAdder(5)} ${maybeAdder is Adder}');
   print(identical(sharedPoint, sharedPoint));
+  print(positive.value);
 }

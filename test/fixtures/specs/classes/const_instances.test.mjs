@@ -10,6 +10,7 @@ describe('classes/const_instances.mjs', () => {
         '2,3 5 true',
         '0,0 15 true',
         'true',
+        '4',
       ]);
 
       expect(module.sharedPoint).toBeInstanceOf(module.Point);
@@ -23,6 +24,10 @@ describe('classes/const_instances.mjs', () => {
       expect(module.sharedAdder).toBeInstanceOf(module.Adder);
       expect(module.sharedAdder.call(5)).toBe(15);
       expect(Object.isFrozen(module.sharedAdder)).toBe(true);
+
+      expect(module.positive).toBeInstanceOf(module.Positive);
+      expect(module.positive.value).toBe(4);
+      expect(Object.isFrozen(module.positive)).toBe(true);
     } finally {
       log.mockRestore();
     }

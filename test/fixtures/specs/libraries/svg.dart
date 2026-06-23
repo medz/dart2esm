@@ -2,7 +2,7 @@
 
 import 'dart:svg' as svg;
 
-svg.SvgElement? hide(svg.SvgElement? value) => value;
+Object? hide(Object? value) => value;
 
 void main() {
   final element = svg.SvgElement.tag('svg');
@@ -13,9 +13,11 @@ void main() {
   title.text = 'Dart';
   element.append(title);
   final maybeTitle = hide(title);
+  final castTitle = maybeTitle as svg.SvgElement?;
 
   print(
     'svg ${element.id} ${element.getAttribute('viewBox')} '
-    '${element.children.length} ${maybeTitle?.text}',
+    '${element.children.length} ${castTitle?.text} '
+    '${maybeTitle is svg.SvgElement}',
   );
 }

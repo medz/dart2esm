@@ -499,6 +499,8 @@ class ElementStub {
 }
 const store = new Map();
 const elementsById = new Map();
+globalThis.Element = ElementStub;
+globalThis.Node = ElementStub;
 globalThis.document = {
   title: "",
   body: new ElementStub("body"),
@@ -517,7 +519,7 @@ globalThis.window = {
     setItem: (key, value) => { store.set(String(key), String(value)); },
   },
 };
-''', 'html true ok root hello child\n');
+''', 'html true ok root hello child true root\n');
     return;
   }
   if (fixture.id == 'libraries/indexed_db') {
@@ -624,10 +626,12 @@ class SvgElementStub {
   setAttribute(name, value) { this.attributes.set(String(name), String(value)); }
   getAttribute(name) { return this.attributes.has(String(name)) ? this.attributes.get(String(name)) : null; }
 }
+globalThis.SVGElement = SvgElementStub;
+globalThis.Node = SvgElementStub;
 globalThis.document = {
   createElementNS: (namespaceURI, tagName) => new SvgElementStub(namespaceURI, tagName),
 };
-''', 'svg root 0 0 10 10 1 Dart\n');
+''', 'svg root 0 0 10 10 1 Dart true\n');
     return;
   }
   if (fixture.id == 'libraries/web_gl') {
@@ -646,7 +650,7 @@ globalThis.document = {
     getContext: contextId => contextId === "webgl" ? new WebGLRenderingContext() : null,
   }),
 };
-''', 'webgl true 16388 16 8 true true\n');
+''', 'webgl true 16388 16 8 true true true true\n');
     return;
   }
   if (fixture.id == 'libraries/web_audio') {
@@ -665,7 +669,7 @@ class AudioContext {
 }
 globalThis.AudioContext = AudioContext;
 globalThis.window = { AudioContext };
-''', 'webAudio true 1.5 0.75 sine true\n');
+''', 'webAudio true 1.5 0.75 sine true true true\n');
     return;
   }
   await _expectSameDartAndNodeOutput(fixture.source, output);

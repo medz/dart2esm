@@ -2,6 +2,8 @@
 
 import 'dart:html';
 
+Object? hide(Object? value) => value;
+
 void main() {
   final title = document.title;
   window.localStorage['dart2esm'] = 'ok';
@@ -15,6 +17,11 @@ void main() {
   root.append(child);
   document.body!.append(root);
   final found = document.querySelector('#root');
+  final hiddenRoot = hide(root);
+  final castRoot = hiddenRoot as Element?;
 
-  print('html ${title.isEmpty} $stored ${found?.id} ${found?.text}');
+  print(
+    'html ${title.isEmpty} $stored ${found?.id} ${found?.text} '
+    '${hiddenRoot is Element} ${castRoot?.id}',
+  );
 }

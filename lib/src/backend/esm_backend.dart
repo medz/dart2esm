@@ -6391,6 +6391,10 @@ final class _EsmEmitter {
       if (_isCoreClass(classReference, 'Object')) {
         return '$operand != null';
       }
+      final nativeSdkTypeTest = _emitNativeSdkTypeTest(operand, type);
+      if (nativeSdkTypeTest != null) {
+        return nativeSdkTypeTest;
+      }
       final typeName = _interfaceTypeName(type);
       return switch (typeName) {
         'String' => 'typeof $operand === "string"',
@@ -6486,6 +6490,49 @@ final class _EsmEmitter {
       };
     }
     throw UnsupportedKernelNode(node, 'type test');
+  }
+
+  String? _emitNativeSdkTypeTest(String operand, k.InterfaceType type) {
+    final constructor = _nativeSdkConstructorExpression(type.classReference);
+    if (constructor == null) {
+      return null;
+    }
+    return '(typeof $constructor === "function" && $operand instanceof $constructor)';
+  }
+
+  String? _nativeSdkConstructorExpression(k.Reference classReference) {
+    final constructorName = switch (_referencePath(classReference)) {
+      'dart:html::Window' => 'Window',
+      'dart:html::Document' => 'Document',
+      'dart:html::Node' => 'Node',
+      'dart:html::Element' => 'Element',
+      'dart:html::HtmlElement' => 'HTMLElement',
+      'dart:html::CanvasElement' => 'HTMLCanvasElement',
+      'dart:html::Storage' => 'Storage',
+      'dart:html::Event' => 'Event',
+      'dart:svg::Node' => 'Node',
+      'dart:svg::SvgElement' => 'SVGElement',
+      'dart:web_gl::RenderingContext' => 'WebGLRenderingContext',
+      'dart:web_audio::AudioNode' => 'AudioNode',
+      'dart:web_audio::AudioParam' => 'AudioParam',
+      'dart:web_audio::GainNode' => 'GainNode',
+      'dart:web_audio::OscillatorNode' => 'OscillatorNode',
+      'dart:web_audio::AudioDestinationNode' => 'AudioDestinationNode',
+      'dart:indexed_db::IdbFactory' => 'IDBFactory',
+      'dart:indexed_db::Database' => 'IDBDatabase',
+      'dart:indexed_db::ObjectStore' => 'IDBObjectStore',
+      'dart:indexed_db::Transaction' => 'IDBTransaction',
+      'dart:indexed_db::Request' => 'IDBRequest',
+      'dart:indexed_db::KeyRange' => 'IDBKeyRange',
+      _ => null,
+    };
+    if (constructorName != null) {
+      return 'globalThis[${jsonEncode(constructorName)}]';
+    }
+    if (_referencePath(classReference) == 'dart:web_audio::AudioContext') {
+      return '(globalThis["AudioContext"] ?? globalThis["webkitAudioContext"])';
+    }
+    return null;
   }
 
   String _emitCoreErrorTypeTest(String operand, String typeName) {

@@ -36,8 +36,9 @@ dart2esm build/input.dill -o dist/input.mjs
 
 ## Architecture
 
-1. Dart source is lowered with `dart compile kernel --no-link-platform
-   --embed-sources`.
+1. Dart source is lowered to Kernel with `dart compile kernel
+   --no-link-platform`, falling back to the SDK `frontend_server` with the DDC
+   platform for JS/web-only SDK libraries.
 2. Kernel bytes are read with `package:kernel`.
 3. The backend walks the entry component and emits native `.mjs`.
 4. Public entry-library declarations are exported as ESM bindings. Imported

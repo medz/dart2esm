@@ -3177,6 +3177,13 @@ final class _EsmEmitter {
     if (isolateInvocation != null) {
       return isolateInvocation;
     }
+    final jsInteropInvocation = _emitJsInteropStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (jsInteropInvocation != null) {
+      return jsInteropInvocation;
+    }
     if (_isCoreReference(
           expression.targetReference,
           '@methods',
@@ -3548,6 +3555,10 @@ final class _EsmEmitter {
     if (asyncGet != null) {
       return asyncGet;
     }
+    final jsInteropGet = _emitJsInteropStaticGet(expression);
+    if (jsInteropGet != null) {
+      return jsInteropGet;
+    }
     final coreGet = _emitCoreStaticGet(expression);
     if (coreGet != null) {
       return coreGet;
@@ -3609,6 +3620,14 @@ final class _EsmEmitter {
       expression,
       'static get ${_referencePath(expression.targetReference)}',
     );
+  }
+
+  String? _emitJsInteropStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:_js_helper::@getters::staticInteropGlobalContext') {
+      return 'globalThis';
+    }
+    return null;
   }
 
   String? _emitCoreStaticGet(k.StaticGet expression) {
@@ -5726,6 +5745,17 @@ final class _EsmEmitter {
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "RawReceivePort"',
         'Isolate' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Isolate"',
+        'JSAny' => '$operand != null',
+        'JSObject' =>
+          '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
+        'JSArray' => 'Array.isArray($operand)',
+        'JSFunction' => 'typeof $operand === "function"',
+        'JSPromise' => '$operand instanceof Promise',
+        'JSString' => 'typeof $operand === "string"',
+        'JSNumber' => 'typeof $operand === "number"',
+        'JSBoolean' => 'typeof $operand === "boolean"',
+        'JSBigInt' => 'typeof $operand === "bigint"',
+        'JSSymbol' => 'typeof $operand === "symbol"',
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
         'TypedData' => 'ArrayBuffer.isView($operand)',
@@ -5900,6 +5930,39 @@ final class _EsmEmitter {
       k.Nullability.nullable => '?',
       k.Nullability.nonNullable || k.Nullability.undetermined => '',
     };
+  }
+
+  String? _emitJsInteropStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:_js_helper::') &&
+        !path.startsWith('dart:js_util::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    if ((name == 'getProperty' || name == '_getPropertyTrustType') &&
+        positionalArgs.length == 2) {
+      return '${positionalArgs[0]}[${positionalArgs[1]}]';
+    }
+    if ((name == 'setProperty' || name == '_setPropertyUnchecked') &&
+        positionalArgs.length == 3) {
+      return '(${positionalArgs[0]}[${positionalArgs[1]}] = ${positionalArgs[2]})';
+    }
+    if (name == 'hasProperty' && positionalArgs.length == 2) {
+      return '(${positionalArgs[1]} in ${positionalArgs[0]})';
+    }
+    if ((name == 'callMethod' || name == '_callMethodTrustType') &&
+        positionalArgs.length == 3) {
+      return '${positionalArgs[0]}[${positionalArgs[1]}](...Array.from(${positionalArgs[2]}))';
+    }
+    if ((name.startsWith('_callMethodUnchecked') ||
+            name.startsWith('_callMethodUncheckedTrustType')) &&
+        positionalArgs.length >= 2) {
+      return '${positionalArgs[0]}[${positionalArgs[1]}](${positionalArgs.skip(2).join(', ')})';
+    }
+    return null;
   }
 
   String? _emitIsolateStaticInvocation(

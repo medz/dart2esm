@@ -68,6 +68,26 @@ Future<File> _loadOrBuildKernel(
   }
 
   final output = File(p.join(tempDir.path, 'input.dill'));
+  final vmResult = await _buildVmKernel(input, output, options);
+  if (vmResult.exitCode == 0) {
+    return output;
+  }
+  if (!_shouldRetryWithDdc(vmResult)) {
+    throw _kernelBuildException(input, vmResult);
+  }
+
+  final ddcResult = await _buildDdcKernel(input, output, options);
+  if (ddcResult.exitCode != 0) {
+    throw _kernelBuildException(input, ddcResult);
+  }
+  return output;
+}
+
+Future<ProcessResult> _buildVmKernel(
+  File input,
+  File output,
+  Dart2EsmOptions options,
+) {
   final args = [
     'compile',
     'kernel',
@@ -80,23 +100,86 @@ Future<File> _loadOrBuildKernel(
     for (final define in options.environmentDefines) '-D$define',
     input.path,
   ];
-  final result = await Process.run(
+  return Process.run(
     Platform.resolvedExecutable,
     args,
     workingDirectory: options.workingDirectory.path,
   );
-  if (result.exitCode != 0) {
+}
+
+Future<ProcessResult> _buildDdcKernel(
+  File input,
+  File output,
+  Dart2EsmOptions options,
+) {
+  final sdkRoot = _dartSdkRoot();
+  final frontendServer = File(
+    p.join(
+      sdkRoot.path,
+      'bin',
+      'snapshots',
+      'frontend_server_aot.dart.snapshot',
+    ),
+  );
+  final dartaotruntime = File(p.join(sdkRoot.path, 'bin', 'dartaotruntime'));
+  final platform = File(
+    p.join(sdkRoot.path, 'lib', '_internal', 'ddc_platform.dill'),
+  );
+  if (!frontendServer.existsSync() ||
+      !dartaotruntime.existsSync() ||
+      !platform.existsSync()) {
     throw Dart2EsmException(
-      [
-        'Dart CFE failed while compiling Kernel for ${input.path}.',
-        if ((result.stdout as String).trim().isNotEmpty)
-          (result.stdout as String).trim(),
-        if ((result.stderr as String).trim().isNotEmpty)
-          (result.stderr as String).trim(),
-      ].join('\n'),
+      'Dart SDK is missing frontend_server or DDC platform files under ${sdkRoot.path}.',
     );
   }
-  return output;
+  final args = [
+    frontendServer.path,
+    '--sdk-root',
+    '${sdkRoot.path}${p.separator}',
+    '--platform',
+    platform.path,
+    '--target',
+    'dartdevc',
+    '--no-link-platform',
+    '--embed-source-text',
+    '--output-dill',
+    output.path,
+    if (options.packagesPath case final packagesPath?) ...[
+      '--packages',
+      _resolveFile(options.workingDirectory, packagesPath).path,
+    ],
+    for (final define in options.environmentDefines) '-D$define',
+    input.path,
+  ];
+  return Process.run(
+    dartaotruntime.path,
+    args,
+    workingDirectory: options.workingDirectory.path,
+  );
+}
+
+Directory _dartSdkRoot() {
+  final executable = File(
+    Platform.resolvedExecutable,
+  ).resolveSymbolicLinksSync();
+  return Directory(p.dirname(p.dirname(executable)));
+}
+
+bool _shouldRetryWithDdc(ProcessResult result) {
+  final output = '${result.stdout}\n${result.stderr}';
+  return output.contains('not available on this platform');
+}
+
+Dart2EsmException _kernelBuildException(File input, ProcessResult result) {
+  return Dart2EsmException(
+    [
+      'Dart CFE failed while compiling Kernel for ${input.path}.',
+      if ((result.stdout as String).trim().isNotEmpty)
+        (result.stdout as String).trim(),
+      if ((result.stderr as String).trim().isNotEmpty)
+        (result.stderr as String).trim(),
+    ].join('\n'),
+  );
 }
 
 final class Dart2EsmOptions {

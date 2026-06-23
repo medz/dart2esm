@@ -474,7 +474,20 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
   );
   expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
   expect(output.readAsStringSync(), fixture.expectedEsm.readAsStringSync());
+  if (fixture.id == 'libraries/js_interop') {
+    await _expectNodeOutput(output, 'jsInterop true true 7 ok true\n');
+    return;
+  }
   await _expectSameDartAndNodeOutput(fixture.source, output);
+}
+
+Future<void> _expectNodeOutput(File output, String stdout) async {
+  final nodeRun = await Process.run('node', [
+    output.path,
+  ], workingDirectory: output.parent.path);
+  expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
+  expect(nodeRun.stdout, stdout);
+  expect(nodeRun.stderr, isEmpty);
 }
 
 Future<void> _expectSameDartAndNodeOutput(File input, File output) async {

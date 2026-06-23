@@ -3236,6 +3236,10 @@ final class _EsmEmitter {
     if (ffiInvocation != null) {
       return ffiInvocation;
     }
+    final svgInvocation = _emitSvgStaticInvocation(expression, positionalArgs);
+    if (svgInvocation != null) {
+      return svgInvocation;
+    }
     final jsInteropInvocation = _emitJsInteropStaticInvocation(
       expression,
       positionalArgs,
@@ -6616,6 +6620,18 @@ final class _EsmEmitter {
         positionalArgs.isEmpty &&
         expression.arguments.types.length == 1) {
       return _ffiTypeSize(expression.arguments.types.single, expression);
+    }
+    return null;
+  }
+
+  String? _emitSvgStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:svg::SvgElement::@factories::tag' &&
+        positionalArgs.length == 1) {
+      return 'globalThis.document.createElementNS("http://www.w3.org/2000/svg", ${positionalArgs.single})';
     }
     return null;
   }

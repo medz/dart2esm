@@ -505,6 +505,14 @@ globalThis.window = {
     );
     return;
   }
+  if (fixture.id == 'libraries/svg') {
+    await _expectNodeOutputWithPrelude(output, '''
+globalThis.document = {
+  createElementNS: (namespaceURI, tagName) => ({ namespaceURI, tagName, id: "" }),
+};
+''', 'svg root\n');
+    return;
+  }
   await _expectSameDartAndNodeOutput(fixture.source, output);
 }
 

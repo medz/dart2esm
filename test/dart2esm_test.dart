@@ -606,10 +606,28 @@ globalThis.window = { indexedDB };
   }
   if (fixture.id == 'libraries/svg') {
     await _expectNodeOutputWithPrelude(output, '''
+class SvgElementStub {
+  constructor(namespaceURI, tagName) {
+    this.namespaceURI = namespaceURI;
+    this.tagName = tagName;
+    this.id = "";
+    this.textContent = "";
+    this.children = [];
+    this.attributes = new Map();
+  }
+  append(node) {
+    this.children.push(node);
+    this.textContent += node.textContent ?? "";
+    return node;
+  }
+  appendChild(node) { return this.append(node); }
+  setAttribute(name, value) { this.attributes.set(String(name), String(value)); }
+  getAttribute(name) { return this.attributes.has(String(name)) ? this.attributes.get(String(name)) : null; }
+}
 globalThis.document = {
-  createElementNS: (namespaceURI, tagName) => ({ namespaceURI, tagName, id: "" }),
+  createElementNS: (namespaceURI, tagName) => new SvgElementStub(namespaceURI, tagName),
 };
-''', 'svg root\n');
+''', 'svg root 0 0 10 10 1 Dart\n');
     return;
   }
   if (fixture.id == 'libraries/web_gl') {

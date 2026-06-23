@@ -3935,6 +3935,16 @@ final class _EsmEmitter {
     if (htmlInvocation != null) {
       return htmlInvocation;
     }
+    final svgInvocation = _emitSvgInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments,
+    );
+    if (svgInvocation != null) {
+      return svgInvocation;
+    }
     final legacyJsInvocation = _emitLegacyJsInstanceInvocation(
       target,
       name,
@@ -5719,6 +5729,14 @@ final class _EsmEmitter {
     if (htmlGet != null) {
       return htmlGet;
     }
+    final svgGet = _emitSvgInstanceGet(
+      expression.interfaceTargetReference,
+      name,
+      receiver,
+    );
+    if (svgGet != null) {
+      return svgGet;
+    }
     return _emitPropertyGet(receiver, _memberName(name));
   }
 
@@ -5728,6 +5746,17 @@ final class _EsmEmitter {
     String receiver,
   ) {
     if (_isHtmlClassMember(target, 'Node', name) && name == 'text') {
+      return '$receiver.textContent';
+    }
+    return null;
+  }
+
+  String? _emitSvgInstanceGet(
+    k.Reference target,
+    String name,
+    String receiver,
+  ) {
+    if (_isSvgClassMember(target, 'Node', name) && name == 'text') {
       return '$receiver.textContent';
     }
     return null;
@@ -5788,6 +5817,10 @@ final class _EsmEmitter {
     final name = expression.name.text;
     final value = emitExpression(expression.value);
     if (_isHtmlClassMember(expression.interfaceTargetReference, 'Node', name) &&
+        name == 'text') {
+      return '$receiver.textContent = $value';
+    }
+    if (_isSvgClassMember(expression.interfaceTargetReference, 'Node', name) &&
         name == 'text') {
       return '$receiver.textContent = $value';
     }
@@ -6668,6 +6701,9 @@ final class _EsmEmitter {
     if (_isHtmlClassMember(target, 'Node', name) && name == 'text') {
       return 'textContent';
     }
+    if (_isSvgClassMember(target, 'Node', name) && name == 'text') {
+      return 'textContent';
+    }
     return _memberName(name);
   }
 
@@ -7321,6 +7357,22 @@ final class _EsmEmitter {
     if (path == 'dart:svg::SvgElement::@factories::tag' &&
         positionalArgs.length == 1) {
       return 'globalThis.document.createElementNS("http://www.w3.org/2000/svg", ${positionalArgs.single})';
+    }
+    return null;
+  }
+
+  String? _emitSvgInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (_isSvgClassMember(target, 'Node', name) &&
+        name == 'append' &&
+        positionalArgs.length == 1 &&
+        arguments.named.isEmpty) {
+      return '$receiver.appendChild(${positionalArgs.single})';
     }
     return null;
   }
@@ -9175,6 +9227,12 @@ final class _EsmEmitter {
   ) {
     final path = _referencePath(reference);
     return path.startsWith('dart:html::$className::') &&
+        _pathHasMember(path, name);
+  }
+
+  bool _isSvgClassMember(k.Reference reference, String className, String name) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:svg::$className::') &&
         _pathHasMember(path, name);
   }
 

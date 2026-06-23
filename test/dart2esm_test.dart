@@ -475,7 +475,11 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
   expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
   expect(output.readAsStringSync(), fixture.expectedEsm.readAsStringSync());
   if (fixture.id == 'libraries/js_interop') {
-    await _expectNodeOutput(output, 'jsInterop true true 7 ok true\n');
+    await _expectNodeOutput(
+      output,
+      'jsInterop true true 7 ok true\n'
+      'jsInteropModern hello true 2 42 true true 9 true true true true true 1 yes true 1970\n',
+    );
     return;
   }
   await _expectSameDartAndNodeOutput(fixture.source, output);

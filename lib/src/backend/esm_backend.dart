@@ -3064,6 +3064,13 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartSymbol');
       return '__dartSymbol(${positionalArgs.single}, ${positionalArgs.single})';
     }
+    final jsInteropConstructor = _emitJsInteropConstructorInvocation(
+      expression.targetReference,
+      positionalArgs,
+    );
+    if (jsInteropConstructor != null) {
+      return jsInteropConstructor;
+    }
     if (_isCollectionQueueConstructorReference(expression.targetReference)) {
       return '[]';
     }
@@ -3329,7 +3336,7 @@ final class _EsmEmitter {
     }
     throw UnsupportedKernelNode(
       expression,
-      'static invocation ${target.name.text}',
+      'static invocation ${_referencePath(expression.targetReference)}',
     );
   }
 
@@ -3624,7 +3631,8 @@ final class _EsmEmitter {
 
   String? _emitJsInteropStaticGet(k.StaticGet expression) {
     final path = _referencePath(expression.targetReference);
-    if (path == 'dart:_js_helper::@getters::staticInteropGlobalContext') {
+    if (path == 'dart:_js_helper::@getters::staticInteropGlobalContext' ||
+        path == 'dart:js_interop::@getters::globalContext') {
       return 'globalThis';
     }
     return null;
@@ -5937,30 +5945,240 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
-    if (!path.startsWith('dart:_js_helper::') &&
-        !path.startsWith('dart:js_util::')) {
+    if (path.startsWith('dart:js_interop::@methods::')) {
+      final member = path.split('::').last;
+      final jsInteropInvocation = _emitModernJsInteropInvocation(
+        member,
+        expression,
+        positionalArgs,
+      );
+      if (jsInteropInvocation != null) {
+        return jsInteropInvocation;
+      }
+    }
+    if (path.startsWith('dart:js_interop_unsafe::@methods::')) {
+      final member = path.split('::').last;
+      final unsafeInvocation = _emitModernJsInteropUnsafeInvocation(
+        member,
+        positionalArgs,
+      );
+      if (unsafeInvocation != null) {
+        return unsafeInvocation;
+      }
+    }
+    if (path.startsWith('dart:_js_helper::') ||
+        path.startsWith('dart:js_util::')) {
+      final name = path.split('::').last;
+      if ((name == 'getProperty' || name == '_getPropertyTrustType') &&
+          positionalArgs.length == 2) {
+        return '${positionalArgs[0]}[${positionalArgs[1]}]';
+      }
+      if ((name == 'setProperty' || name == '_setPropertyUnchecked') &&
+          positionalArgs.length == 3) {
+        return '(${positionalArgs[0]}[${positionalArgs[1]}] = ${positionalArgs[2]})';
+      }
+      if (name == 'hasProperty' && positionalArgs.length == 2) {
+        return '(${positionalArgs[1]} in ${positionalArgs[0]})';
+      }
+      if ((name == 'callMethod' || name == '_callMethodTrustType') &&
+          positionalArgs.length == 3) {
+        return '${positionalArgs[0]}[${positionalArgs[1]}](...Array.from(${positionalArgs[2]}))';
+      }
+      if ((name.startsWith('_callMethodUnchecked') ||
+              name.startsWith('_callMethodUncheckedTrustType')) &&
+          positionalArgs.length >= 2) {
+        return '${positionalArgs[0]}[${positionalArgs[1]}](${positionalArgs.skip(2).join(', ')})';
+      }
+    }
+    return null;
+  }
+
+  String? _emitJsInteropConstructorInvocation(
+    k.Reference reference,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(reference);
+    if (path == 'dart:js_interop::JSObject::@constructors::' &&
+        positionalArgs.isEmpty) {
+      return '({})';
+    }
+    if (path == 'dart:js_interop::JSArray::@constructors::' &&
+        positionalArgs.isEmpty) {
+      return '[]';
+    }
+    if (path == 'dart:js_interop::JSArray::@constructors::withLength' &&
+        positionalArgs.length == 1) {
+      return 'new Array(${positionalArgs.single})';
+    }
+    return null;
+  }
+
+  String? _emitModernJsInteropInvocation(
+    String member,
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    if (member == 'JSObject|constructor#' && positionalArgs.isEmpty) {
+      return '({})';
+    }
+    if (member == 'JSArray|constructor#' && positionalArgs.isEmpty) {
+      return '[]';
+    }
+    if (member == 'JSArray|constructor#withLength' &&
+        positionalArgs.length == 1) {
+      return 'new Array(${positionalArgs.single})';
+    }
+    if (positionalArgs.isEmpty) {
       return null;
     }
-    final name = path.split('::').last;
-    if ((name == 'getProperty' || name == '_getPropertyTrustType') &&
+    final receiver = positionalArgs.first;
+    if (_isJsIdentityConversion(member) && positionalArgs.length == 1) {
+      return receiver;
+    }
+    if (member == 'JSNumberToNumber|get#toDartInt' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartJsNumberToDartInt');
+      return '__dartJsNumberToDartInt($receiver)';
+    }
+    if (member == 'NullableUndefineableJSAnyExtension|get#isUndefined' &&
+        positionalArgs.length == 1) {
+      return '$receiver === undefined';
+    }
+    if (member == 'NullableUndefineableJSAnyExtension|get#isNull' &&
+        positionalArgs.length == 1) {
+      return '$receiver === null';
+    }
+    if (member == 'JSAnyUtilityExtension|typeofEquals' &&
         positionalArgs.length == 2) {
-      return '${positionalArgs[0]}[${positionalArgs[1]}]';
+      return 'typeof $receiver === ${positionalArgs[1]}';
     }
-    if ((name == 'setProperty' || name == '_setPropertyUnchecked') &&
+    if (member == 'JSAnyUtilityExtension|instanceof' &&
+        positionalArgs.length == 2) {
+      return '$receiver instanceof ${positionalArgs[1]}';
+    }
+    if (member == 'JSAnyUtilityExtension|instanceOfString' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartJsInstanceOfString');
+      return '__dartJsInstanceOfString($receiver, ${positionalArgs[1]})';
+    }
+    if (member == 'JSAnyUtilityExtension|dartify' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartJsDartify');
+      return '__dartJsDartify($receiver)';
+    }
+    if (member == 'NullableObjectUtilExtension|jsify' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartJsify');
+      return '__dartJsify($receiver)';
+    }
+    if (member == 'NullableObjectUtilExtension|isA' &&
+        positionalArgs.length == 1 &&
+        expression.arguments.types.length == 1) {
+      return _emitTypeTest(
+        receiver,
+        expression.arguments.types.single,
+        expression,
+      );
+    }
+    if (member == 'JSFunctionUtilExtension|callAsFunction') {
+      return '${receiver}.call(${positionalArgs.skip(1).join(', ')})';
+    }
+    if (member == 'JSExportedDartFunctionToFunction|get#toDart' &&
+        positionalArgs.length == 1) {
+      return receiver;
+    }
+    if (member == 'FunctionToJSExportedDartFunction|get#toJS' &&
+        positionalArgs.length == 1) {
+      return receiver;
+    }
+    if (member == 'FunctionToJSExportedDartFunction|get#toJSCaptureThis' &&
+        positionalArgs.length == 1) {
+      return '(function(...args) { return ($receiver)(this, ...args); })';
+    }
+    return null;
+  }
+
+  bool _isJsIdentityConversion(String member) {
+    return switch (member) {
+      'StringToJSString|get#toJS' ||
+      'JSStringToString|get#toDart' ||
+      'DoubleToJSNumber|get#toJS' ||
+      'NumToJSExtension|get#toJS' ||
+      'JSNumberToNumber|get#toDartDouble' ||
+      'BoolToJSBoolean|get#toJS' ||
+      'JSBooleanToBool|get#toDart' ||
+      'ListToJSArray|get#toJS' ||
+      'ListToJSArray|get#toJSProxyOrRef' ||
+      'JSArrayToList|get#toDart' => true,
+      _ => false,
+    };
+  }
+
+  String? _emitModernJsInteropUnsafeInvocation(
+    String member,
+    List<String> positionalArgs,
+  ) {
+    if (positionalArgs.isEmpty) {
+      return null;
+    }
+    final receiver = positionalArgs.first;
+    if (member == 'JSObjectUnsafeUtilExtension|has' &&
+        positionalArgs.length == 2) {
+      return '(${positionalArgs[1]} in $receiver)';
+    }
+    if (member == 'JSObjectUnsafeUtilExtension|[]' &&
+        positionalArgs.length == 2) {
+      return '$receiver[${positionalArgs[1]}]';
+    }
+    if (member == 'JSObjectUnsafeUtilExtension|[]=' &&
         positionalArgs.length == 3) {
-      return '(${positionalArgs[0]}[${positionalArgs[1]}] = ${positionalArgs[2]})';
+      return '($receiver[${positionalArgs[1]}] = ${positionalArgs[2]})';
     }
-    if (name == 'hasProperty' && positionalArgs.length == 2) {
-      return '(${positionalArgs[1]} in ${positionalArgs[0]})';
+    if (member == 'JSObjectUnsafeUtilExtension|hasProperty' &&
+        positionalArgs.length == 2) {
+      return '(${positionalArgs[1]} in $receiver)';
     }
-    if ((name == 'callMethod' || name == '_callMethodTrustType') &&
+    if (member == 'JSObjectUnsafeUtilExtension|getProperty' &&
+        positionalArgs.length == 2) {
+      return '$receiver[${positionalArgs[1]}]';
+    }
+    if (member == 'JSObjectUnsafeUtilExtension|setProperty' &&
         positionalArgs.length == 3) {
-      return '${positionalArgs[0]}[${positionalArgs[1]}](...Array.from(${positionalArgs[2]}))';
+      return '($receiver[${positionalArgs[1]}] = ${positionalArgs[2]})';
     }
-    if ((name.startsWith('_callMethodUnchecked') ||
-            name.startsWith('_callMethodUncheckedTrustType')) &&
+    if (member == 'JSObjectUnsafeUtilExtension|delete' &&
+        positionalArgs.length == 2) {
+      return '(delete $receiver[${positionalArgs[1]}])';
+    }
+    if ((member == 'JSObjectUnsafeUtilExtension|callMethod' ||
+            member == 'JSObjectUnsafeUtilExtension|_callMethod') &&
         positionalArgs.length >= 2) {
-      return '${positionalArgs[0]}[${positionalArgs[1]}](${positionalArgs.skip(2).join(', ')})';
+      _usedHelpers.add('__dartJsCallMethodOptional');
+      return '__dartJsCallMethodOptional($receiver, ${positionalArgs[1]}, [${positionalArgs.skip(2).join(', ')}])';
+    }
+    if ((member == 'JSObjectUnsafeUtilExtension|callMethodVarArgs' ||
+            member == 'JSObjectUnsafeUtilExtension|_callMethodVarArgs') &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3) {
+      final args = positionalArgs.length == 3 ? positionalArgs[2] : 'null';
+      return '$receiver[${positionalArgs[1]}](...Array.from($args ?? []))';
+    }
+    if (member == 'JSFunctionUnsafeUtilExtension|_callAsConstructor' &&
+        positionalArgs.length >= 1) {
+      _usedHelpers.add('__dartJsConstructOptional');
+      return '__dartJsConstructOptional($receiver, [${positionalArgs.skip(1).join(', ')}])';
+    }
+    if (member == 'JSFunctionUnsafeUtilExtension|callAsConstructor' &&
+        positionalArgs.length >= 1) {
+      _usedHelpers.add('__dartJsConstructOptional');
+      return '__dartJsConstructOptional($receiver, [${positionalArgs.skip(1).join(', ')}])';
+    }
+    if ((member == 'JSFunctionUnsafeUtilExtension|callAsConstructorVarArgs' ||
+            member ==
+                'JSFunctionUnsafeUtilExtension|_callAsConstructorVarArgs') &&
+        positionalArgs.length <= 2) {
+      final args = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
+      return 'new $receiver(...Array.from($args ?? []))';
     }
     return null;
   }
@@ -10790,6 +11008,99 @@ final class _EsmEmitter {
       helper.writeln(
         '  if (value != null && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, field)) return value[field];',
       );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsNumberToDartInt')) {
+      helper.writeln('function __dartJsNumberToDartInt(value) {');
+      helper.writeln('  if (Number.isInteger(value)) return value;');
+      helper.writeln(
+        '  throw new TypeError("JavaScript number is not a Dart int");',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsCallMethodOptional') ||
+        _usedHelpers.contains('__dartJsConstructOptional')) {
+      helper.writeln('function __dartJsTrimOptionalArgs(args) {');
+      helper.writeln('  const values = Array.from(args);');
+      helper.writeln(
+        '  while (values.length > 0 && values[values.length - 1] == null) values.pop();',
+      );
+      helper.writeln('  return values;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsCallMethodOptional')) {
+      helper.writeln(
+        'function __dartJsCallMethodOptional(receiver, method, args) {',
+      );
+      helper.writeln(
+        '  return receiver[method](...__dartJsTrimOptionalArgs(args));',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsInstanceOfString')) {
+      helper.writeln(
+        'function __dartJsInstanceOfString(value, constructorName) {',
+      );
+      helper.writeln('  if (constructorName == null) return false;');
+      helper.writeln('  const text = String(constructorName);');
+      helper.writeln('  if (text.length === 0) return false;');
+      helper.writeln('  let constructor = globalThis;');
+      helper.writeln('  for (const part of text.split(".")) {');
+      helper.writeln('    constructor = constructor?.[part];');
+      helper.writeln('    if (constructor == null) return false;');
+      helper.writeln('  }');
+      helper.writeln(
+        '  return typeof constructor === "function" && value instanceof constructor;',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsConstructOptional')) {
+      helper.writeln('function __dartJsConstructOptional(constructor, args) {');
+      helper.writeln(
+        '  return new constructor(...__dartJsTrimOptionalArgs(args));',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsify')) {
+      helper.writeln('function __dartJsify(value) {');
+      helper.writeln('  if (value == null) return value;');
+      helper.writeln('  if (typeof value !== "object") return value;');
+      helper.writeln(
+        '  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer || value instanceof Date) return value;',
+      );
+      helper.writeln('  if (value instanceof Map) {');
+      helper.writeln('    const object = {};');
+      helper.writeln(
+        '    for (const [key, entryValue] of value) object[key] = __dartJsify(entryValue);',
+      );
+      helper.writeln('    return object;');
+      helper.writeln('  }');
+      helper.writeln(
+        '  if (Array.isArray(value) || value instanceof Set || typeof value[Symbol.iterator] === "function") return Array.from(value, __dartJsify);',
+      );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsDartify')) {
+      helper.writeln('function __dartJsDartify(value) {');
+      helper.writeln('  if (value == null) return null;');
+      helper.writeln('  if (typeof value !== "object") return value;');
+      helper.writeln(
+        '  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer || value instanceof Date) return value;',
+      );
+      helper.writeln(
+        '  if (Array.isArray(value)) return value.map(__dartJsDartify);',
+      );
+      helper.writeln(
+        '  if (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null) {',
+      );
+      helper.writeln('    const map = new Map();');
+      helper.writeln(
+        '    for (const key of Object.keys(value)) map.set(key, __dartJsDartify(value[key]));',
+      );
+      helper.writeln('    return map;');
+      helper.writeln('  }');
       helper.writeln('  return value;');
       helper.writeln('}');
     }

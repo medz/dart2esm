@@ -537,6 +537,11 @@ final class _EsmEmitter {
         writeln();
         _emitProcedure(member, export: false);
       }
+      final tearOff = descriptor.tearOffReference?.asMember;
+      if (tearOff is k.Procedure && !tearOff.isExternal) {
+        writeln();
+        _emitProcedure(tearOff, export: false);
+      }
     }
   }
 
@@ -589,7 +594,7 @@ final class _EsmEmitter {
       writeln('${_propertyKey(descriptor.name.text)}($parameters) {');
       _indent++;
       writeln(
-        'return ${_emitExtensionTypeReturn('${_procedureName(member)}($args)')};',
+        'return ${_emitExtensionTypeFacadeReturn('${_procedureName(member)}($args)', member.function.returnType)};',
       );
       _indent--;
       writeln('}');
@@ -610,7 +615,7 @@ final class _EsmEmitter {
       writeln('static ${_propertyKey(descriptor.name.text)}($parameters) {');
       _indent++;
       writeln(
-        'return ${_emitExtensionTypeReturn('${_procedureName(member)}($args)')};',
+        'return ${_emitExtensionTypeFacadeReturn('${_procedureName(member)}($args)', member.function.returnType)};',
       );
       _indent--;
       writeln('}');
@@ -633,7 +638,7 @@ final class _EsmEmitter {
       writeln('get ${_memberName(descriptor.name.text)}() {');
       _indent++;
       writeln(
-        'return ${_emitExtensionTypeReturn('${_procedureName(member)}($args)')};',
+        'return ${_emitExtensionTypeFacadeReturn('${_procedureName(member)}($args)', member.function.returnType)};',
       );
       _indent--;
       writeln('}');
@@ -652,14 +657,21 @@ final class _EsmEmitter {
       writeln('static get ${_memberName(descriptor.name.text)}() {');
       _indent++;
       writeln(
-        'return ${_emitExtensionTypeReturn('${_procedureName(member)}()')};',
+        'return ${_emitExtensionTypeFacadeReturn('${_procedureName(member)}()', member.function.returnType)};',
       );
       _indent--;
       writeln('}');
     });
   }
 
-  String _emitExtensionTypeReturn(String value) => value;
+  String _emitExtensionTypeFacadeReturn(String value, k.DartType returnType) {
+    final type = returnType.unalias;
+    if (type is! k.ExtensionType) {
+      return value;
+    }
+    final declaration = type.extensionTypeDeclaration;
+    return 'new ${_extensionTypeName(declaration)}(${_emitExtensionTypeRepresentation(value, declaration)})';
+  }
 
   String _emitExtensionTypeInstanceParameterList(k.FunctionNode function) {
     for (final parameter in function.positionalParameters.skip(1)) {
@@ -690,7 +702,7 @@ final class _EsmEmitter {
     k.FunctionNode function,
   ) {
     final args = <String>[
-      'this',
+      _emitExtensionTypeRepresentation('this', declaration),
       for (final parameter in function.positionalParameters.skip(1))
         _variableName(parameter),
     ];
@@ -3058,39 +3070,32 @@ final class _EsmEmitter {
     k.Arguments arguments,
     Object node,
   ) {
-    final declaration = extensionTypeMember.declaration;
     final descriptor = extensionTypeMember.descriptor;
-    final className = _extensionTypeName(declaration);
     switch (descriptor.kind) {
       case k.ExtensionTypeMemberKind.Constructor:
-        if (descriptor.name.text.isEmpty) {
-          return 'new $className(${_emitArguments(arguments)})';
-        }
-        return '$className.${_memberName(descriptor.name.text)}(${_emitArguments(arguments)})';
+        return '${_procedureName(target)}(${_emitArguments(arguments)})';
       case k.ExtensionTypeMemberKind.Method:
         if (extensionTypeMember.isTearOff) {
-          return _emitExtensionTypeInstanceTearOff(
-            declaration,
-            descriptor,
-            arguments,
-          );
+          return _emitExtensionTypeInstanceTearOff(target, arguments);
         }
         if (descriptor.isStatic) {
-          return '$className.${_memberName(descriptor.name.text)}(${_emitArguments(arguments)})';
+          return '${_procedureName(target)}(${_emitArguments(arguments)})';
         }
         return _emitExtensionTypeInstanceInvocation(
           descriptor,
+          target,
           arguments,
           node,
         );
       case k.ExtensionTypeMemberKind.Getter:
         if (descriptor.isStatic) {
-          return '$className.${_memberName(descriptor.name.text)}';
+          return '${_procedureName(target)}()';
         }
-        return _emitExtensionTypeInstanceGet(descriptor, arguments, node);
+        return _emitExtensionTypeInstanceGet(target, arguments, node);
       case k.ExtensionTypeMemberKind.Operator:
         return _emitExtensionTypeInstanceInvocation(
           descriptor,
+          target,
           arguments,
           node,
         );
@@ -3107,6 +3112,7 @@ final class _EsmEmitter {
 
   String _emitExtensionTypeInstanceInvocation(
     k.ExtensionTypeMemberDescriptor descriptor,
+    k.Procedure target,
     k.Arguments arguments,
     Object node,
   ) {
@@ -3115,11 +3121,12 @@ final class _EsmEmitter {
     }
     final receiver = emitExpression(arguments.positional.first);
     final args = _emitArgumentsWithoutFirstPositional(arguments);
-    return '${_emitPropertyGet(receiver, descriptor.name.text)}($args)';
+    final receiverArgs = args.isEmpty ? receiver : '$receiver, $args';
+    return '${_procedureName(target)}($receiverArgs)';
   }
 
   String _emitExtensionTypeInstanceGet(
-    k.ExtensionTypeMemberDescriptor descriptor,
+    k.Procedure target,
     k.Arguments arguments,
     Object node,
   ) {
@@ -3127,19 +3134,18 @@ final class _EsmEmitter {
       throw UnsupportedKernelNode(node, 'extension type getter');
     }
     final receiver = emitExpression(arguments.positional.single);
-    return _emitPropertyGet(receiver, _memberName(descriptor.name.text));
+    return '${_procedureName(target)}($receiver)';
   }
 
   String _emitExtensionTypeInstanceTearOff(
-    k.ExtensionTypeDeclaration declaration,
-    k.ExtensionTypeMemberDescriptor descriptor,
+    k.Procedure target,
     k.Arguments arguments,
   ) {
     if (arguments.positional.length != 1 || arguments.named.isNotEmpty) {
-      throw UnsupportedKernelNode(declaration, 'extension type tear-off');
+      throw UnsupportedKernelNode(target, 'extension type tear-off');
     }
     final receiver = emitExpression(arguments.positional.single);
-    return '${_emitPropertyGet(receiver, _memberName(descriptor.name.text))}.bind($receiver)';
+    return '${_procedureName(target)}($receiver)';
   }
 
   String _emitExtensionTypeTearOff(
@@ -3148,12 +3154,11 @@ final class _EsmEmitter {
     Object node,
   ) {
     final descriptor = extensionTypeMember.descriptor;
-    final className = _extensionTypeName(extensionTypeMember.declaration);
     if (descriptor.kind == k.ExtensionTypeMemberKind.Constructor) {
       return _extensionConstructorTearOffName(target);
     }
     if (descriptor.isStatic) {
-      return '$className.${_memberName(descriptor.name.text)}';
+      return _procedureName(target);
     }
     throw UnsupportedKernelNode(node, 'extension type tear-off');
   }
@@ -3254,13 +3259,7 @@ final class _EsmEmitter {
     if (target is k.Procedure &&
         extensionTypeMember?.descriptor.kind ==
             k.ExtensionTypeMemberKind.Constructor) {
-      final declaration = extensionTypeMember!.declaration;
-      final descriptor = extensionTypeMember.descriptor;
-      final className = _extensionTypeName(declaration);
-      if (descriptor.name.text.isEmpty) {
-        return 'new $className($args)';
-      }
-      return '$className.${_memberName(descriptor.name.text)}($args)';
+      return '${_procedureName(target)}($args)';
     }
     if (target is k.Constructor) {
       if (target.name.text.isEmpty) {
@@ -3320,6 +3319,11 @@ final class _EsmEmitter {
     if (target is k.Procedure && _procedureNames.containsKey(target)) {
       final extensionTypeMember = _extensionTypeDescriptors[target];
       if (extensionTypeMember != null) {
+        if (extensionTypeMember.descriptor.isStatic &&
+            extensionTypeMember.descriptor.kind ==
+                k.ExtensionTypeMemberKind.Getter) {
+          return '${_procedureName(target)}()';
+        }
         return _emitExtensionTypeTearOff(
           extensionTypeMember,
           target,
@@ -5336,7 +5340,14 @@ final class _EsmEmitter {
       return 'false';
     }
     if (type is k.ExtensionType) {
-      return '$operand instanceof ${_extensionTypeName(type.extensionTypeDeclaration)}';
+      return _emitTypeTest(
+        _emitExtensionTypeRepresentation(
+          operand,
+          type.extensionTypeDeclaration,
+        ),
+        type.extensionTypeErasure,
+        node,
+      );
     }
     if (type is k.FunctionType) {
       return 'typeof $operand === "function"';
@@ -5490,7 +5501,8 @@ final class _EsmEmitter {
     String value,
     k.ExtensionTypeDeclaration declaration,
   ) {
-    return _emitPropertyGet(value, _memberName(declaration.representationName));
+    _usedHelpers.add('__dartExtensionTypeRep');
+    return '__dartExtensionTypeRep($value, ${jsonEncode(_memberName(declaration.representationName))})';
   }
 
   String _interfaceTypeName(k.InterfaceType type) {
@@ -7283,7 +7295,10 @@ final class _EsmEmitter {
     return hasMember && path.startsWith('dart:async::Zone::');
   }
 
-  bool _isConvertStringConversionSinkMember(k.Reference reference, String name) {
+  bool _isConvertStringConversionSinkMember(
+    k.Reference reference,
+    String name,
+  ) {
     final path = _referencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
@@ -8584,7 +8599,9 @@ final class _EsmEmitter {
         helper.writeln('  for (const element of String(query).split("&")) {');
         helper.writeln('    const index = element.indexOf("=");');
         helper.writeln('    if (index === -1) {');
-        helper.writeln('      if (element !== "") map.set(__dartUriDecodeQueryComponent(element, encoding), "");');
+        helper.writeln(
+          '      if (element !== "") map.set(__dartUriDecodeQueryComponent(element, encoding), "");',
+        );
         helper.writeln('      continue;');
         helper.writeln('    }');
         helper.writeln('    if (index === 0) continue;');
@@ -9690,7 +9707,9 @@ final class _EsmEmitter {
         '      const terminated = text.endsWith("\\n") || text.endsWith("\\r");',
       );
       helper.writeln('      const stop = parts.length - 1;');
-      helper.writeln('      for (let i = 0; i < stop; i++) sink.add(parts[i]);');
+      helper.writeln(
+        '      for (let i = 0; i < stop; i++) sink.add(parts[i]);',
+      );
       helper.writeln('      carry = terminated ? "" : parts[stop];');
       helper.writeln('      return null;');
       helper.writeln('    },');
@@ -9702,7 +9721,9 @@ final class _EsmEmitter {
       helper.writeln('    close() {');
       helper.writeln('      if (carry.length > 0) sink.add(carry);');
       helper.writeln('      carry = "";');
-      helper.writeln('      if (typeof sink.close === "function") sink.close();');
+      helper.writeln(
+        '      if (typeof sink.close === "function") sink.close();',
+      );
       helper.writeln('      return null;');
       helper.writeln('    },');
       helper.writeln('  };');
@@ -9837,9 +9858,7 @@ final class _EsmEmitter {
       helper.writeln(
         '  if (Array.isArray(sink)) { sink.push(value); return null; }',
       );
-      helper.writeln(
-        '  throw new TypeError("Sink.add is not available");',
-      );
+      helper.writeln('  throw new TypeError("Sink.add is not available");');
       helper.writeln('}');
       helper.writeln('function __dartSinkClose(sink) {');
       helper.writeln(
@@ -9861,9 +9880,7 @@ final class _EsmEmitter {
       helper.writeln('function __dartConverterBind(converter, stream) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    for await (const value of stream) {');
-      helper.writeln(
-        '      yield __dartConverterConvert(converter, value);',
-      );
+      helper.writeln('      yield __dartConverterConvert(converter, value);');
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
@@ -10053,9 +10070,7 @@ final class _EsmEmitter {
       helper.writeln('      if (isLast) this.close();');
       helper.writeln('      return null;');
       helper.writeln('    },');
-      helper.writeln(
-        '    close() { closed = true; return null; },',
-      );
+      helper.writeln('    close() { closed = true; return null; },');
       helper.writeln(
         '    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },',
       );
@@ -10094,6 +10109,14 @@ final class _EsmEmitter {
       helper.writeln(
         '  throw new TypeError("Type cast failed: expected " + typeName);',
       );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartExtensionTypeRep')) {
+      helper.writeln('function __dartExtensionTypeRep(value, field) {');
+      helper.writeln(
+        '  if (value != null && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, field)) return value[field];',
+      );
+      helper.writeln('  return value;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartEnumByName')) {
@@ -10990,24 +11013,38 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartZone')) {
-      helper.writeln('function __dartCreateZone(parent = null, values = null) {');
-      helper.writeln('  const zoneValues = values instanceof Map ? values : new Map();');
+      helper.writeln(
+        'function __dartCreateZone(parent = null, values = null) {',
+      );
+      helper.writeln(
+        '  const zoneValues = values instanceof Map ? values : new Map();',
+      );
       helper.writeln('  const zone = {');
       helper.writeln('    __dartType: "Zone",');
       helper.writeln('    parent,');
       helper.writeln('    get(key) {');
-      helper.writeln('      if (zoneValues.has(key)) return zoneValues.get(key);');
+      helper.writeln(
+        '      if (zoneValues.has(key)) return zoneValues.get(key);',
+      );
       helper.writeln('      return parent == null ? null : parent.get(key);');
       helper.writeln('    },');
       helper.writeln('    "[]"(key) { return this.get(key); },');
-      helper.writeln('    run(body) { return __dartRunZoned(body, { zoneValues: null, parentZone: zone }); },');
-      helper.writeln('    runGuarded(body) { return __dartRunZonedGuarded(body, (error) => { throw error; }, { zoneValues: null, parentZone: zone }); },');
-      helper.writeln('    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },');
+      helper.writeln(
+        '    run(body) { return __dartRunZoned(body, { zoneValues: null, parentZone: zone }); },',
+      );
+      helper.writeln(
+        '    runGuarded(body) { return __dartRunZonedGuarded(body, (error) => { throw error; }, { zoneValues: null, parentZone: zone }); },',
+      );
+      helper.writeln(
+        '    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },',
+      );
       helper.writeln('    toString() { return "Zone"; },');
       helper.writeln('  };');
       helper.writeln('  return Object.freeze(zone);');
       helper.writeln('}');
-      helper.writeln('const __dartRootZone = __dartCreateZone(null, new Map());');
+      helper.writeln(
+        'const __dartRootZone = __dartCreateZone(null, new Map());',
+      );
       helper.writeln('let __dartCurrentZone = __dartRootZone;');
       helper.writeln('function __dartZoneValuesMap(zoneValues) {');
       helper.writeln('  if (zoneValues == null) return new Map();');
@@ -11019,8 +11056,12 @@ final class _EsmEmitter {
       helper.writeln('  __dartCurrentZone = zone;');
       helper.writeln('  try {');
       helper.writeln('    const result = body();');
-      helper.writeln('    if (result != null && typeof result.then === "function") {');
-      helper.writeln('      return result.finally(() => { __dartCurrentZone = previous; });');
+      helper.writeln(
+        '    if (result != null && typeof result.then === "function") {',
+      );
+      helper.writeln(
+        '      return result.finally(() => { __dartCurrentZone = previous; });',
+      );
       helper.writeln('    }');
       helper.writeln('    __dartCurrentZone = previous;');
       helper.writeln('    return result;');
@@ -11030,24 +11071,40 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('}');
       helper.writeln('function __dartRunZoned(body, options = {}) {');
-      helper.writeln('  const parent = options.parentZone ?? __dartCurrentZone;');
-      helper.writeln('  const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));');
+      helper.writeln(
+        '  const parent = options.parentZone ?? __dartCurrentZone;',
+      );
+      helper.writeln(
+        '  const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));',
+      );
       helper.writeln('  try {');
       helper.writeln('    return __dartRunInZone(zone, body);');
       helper.writeln('  } catch (error) {');
-      helper.writeln('    if (typeof options.onError === "function") return options.onError(error, error?.stack ?? "<javascript stack unavailable>");');
+      helper.writeln(
+        '    if (typeof options.onError === "function") return options.onError(error, error?.stack ?? "<javascript stack unavailable>");',
+      );
       helper.writeln('    throw error;');
       helper.writeln('  }');
       helper.writeln('}');
-      helper.writeln('function __dartRunZonedGuarded(body, onError, options = {}) {');
+      helper.writeln(
+        'function __dartRunZonedGuarded(body, onError, options = {}) {',
+      );
       helper.writeln('  try {');
-      helper.writeln('    const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });');
-      helper.writeln('    if (result != null && typeof result.then === "function") {');
-      helper.writeln('      return result.catch((error) => { onError(error, error?.stack ?? "<javascript stack unavailable>"); return null; });');
+      helper.writeln(
+        '    const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });',
+      );
+      helper.writeln(
+        '    if (result != null && typeof result.then === "function") {',
+      );
+      helper.writeln(
+        '      return result.catch((error) => { onError(error, error?.stack ?? "<javascript stack unavailable>"); return null; });',
+      );
       helper.writeln('    }');
       helper.writeln('    return result;');
       helper.writeln('  } catch (error) {');
-      helper.writeln('    onError(error, error?.stack ?? "<javascript stack unavailable>");');
+      helper.writeln(
+        '    onError(error, error?.stack ?? "<javascript stack unavailable>");',
+      );
       helper.writeln('    return null;');
       helper.writeln('  }');
       helper.writeln('}');
@@ -11147,7 +11204,9 @@ final class _EsmEmitter {
       helper.writeln(
         'function __dartParallelWaitError(values, errors, errorCount, defaultError) {',
       );
-      helper.writeln('  const suffix = errorCount > 1 ? "(" + errorCount + " errors)" : "";');
+      helper.writeln(
+        '  const suffix = errorCount > 1 ? "(" + errorCount + " errors)" : "";',
+      );
       helper.writeln(
         '  const message = defaultError == null ? "ParallelWaitError" + suffix : "ParallelWaitError" + suffix + ": " + String(defaultError.error);',
       );
@@ -11168,9 +11227,7 @@ final class _EsmEmitter {
       helper.writeln(
         '  return Promise.all(entries.map((future) => Promise.resolve(future).then(',
       );
-      helper.writeln(
-        '    (value) => ({ value, asyncError: null }),',
-      );
+      helper.writeln('    (value) => ({ value, asyncError: null }),');
       helper.writeln(
         '    (error) => ({ value: null, asyncError: __dartAsyncError(error) }),',
       );
@@ -12674,6 +12731,7 @@ const _generatedGlobalNames = {
   '__dartDurationToString',
   '__dartEnumAsNameMap',
   '__dartEnumByName',
+  '__dartExtensionTypeRep',
   '__dartExpando',
   '__dartEquals',
   '__dartFixedList',

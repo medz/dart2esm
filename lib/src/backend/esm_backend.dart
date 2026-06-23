@@ -3759,6 +3759,19 @@ final class _EsmEmitter {
       }
       return '$left[${positionalArgs[0]}] = ${positionalArgs[1]}';
     }
+    if (name == 'attach' &&
+        _isCoreFinalizerMember(target, name) &&
+        positionalArgs.length == 2 &&
+        _hasOnlyNamedArguments(expression.arguments, {'detach'})) {
+      final detach = _namedArgument(expression.arguments, 'detach') ?? 'null';
+      return '$left.attach(${positionalArgs[0]}, ${positionalArgs[1]}, { detach: $detach })';
+    }
+    if (name == 'detach' &&
+        _isCoreFinalizerMember(target, name) &&
+        expression.arguments.named.isEmpty &&
+        positionalArgs.length == 1) {
+      return '$left.detach(${positionalArgs.single})';
+    }
     if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
         positionalArgs.isNotEmpty &&
@@ -5223,6 +5236,10 @@ final class _EsmEmitter {
         _isTypedDataMember(expression.interfaceTargetReference, name)) {
       return '$receiver.byteLength';
     }
+    if (name == 'target' &&
+        _isCoreWeakReferenceMember(expression.interfaceTargetReference, name)) {
+      return '$receiver.target';
+    }
     if (name == 'isEmpty' &&
         _isCoreMember(expression.interfaceTargetReference, 'String', name)) {
       return '$receiver.length === 0';
@@ -5662,6 +5679,10 @@ final class _EsmEmitter {
         'Null' => '$operand === null',
         'Expando' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Expando"',
+        'WeakReference' || '_WeakReference' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "WeakReference"',
+        'Finalizer' || '_FinalizerImpl' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "Finalizer"',
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
         'TypedData' => 'ArrayBuffer.isView($operand)',
@@ -6114,6 +6135,16 @@ final class _EsmEmitter {
     if (path.startsWith('dart:core::Object::@constructors::') &&
         positionalArgs.isEmpty) {
       return '({})';
+    }
+    if (_isCoreWeakReferenceConstructorReference(reference) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartWeakReference');
+      return '__dartWeakReference(${positionalArgs.single})';
+    }
+    if (_isCoreFinalizerConstructorReference(reference) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartFinalizer');
+      return '__dartFinalizer(${positionalArgs.single})';
     }
     if (path.startsWith('dart:core::MapEntry::@constructors::') &&
         positionalArgs.length == 2) {
@@ -7391,6 +7422,32 @@ final class _EsmEmitter {
     ).startsWith('dart:core::Expando::@constructors::');
   }
 
+  bool _isCoreWeakReferenceConstructorReference(k.Reference reference) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:core::WeakReference::@constructors::') ||
+        path.startsWith('dart:core::_WeakReference::@constructors::');
+  }
+
+  bool _isCoreFinalizerConstructorReference(k.Reference reference) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:core::Finalizer::@constructors::') ||
+        path.startsWith('dart:core::_FinalizerImpl::@constructors::');
+  }
+
+  bool _isCoreWeakReferenceMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return (path.startsWith('dart:core::WeakReference::') ||
+            path.startsWith('dart:core::_WeakReference::')) &&
+        _pathHasMember(path, name);
+  }
+
+  bool _isCoreFinalizerMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    return (path.startsWith('dart:core::Finalizer::') ||
+            path.startsWith('dart:core::_FinalizerImpl::')) &&
+        _pathHasMember(path, name);
+  }
+
   bool _isSymbolConstructorReference(k.Reference reference) {
     return _referencePath(
       reference,
@@ -7462,6 +7519,13 @@ final class _EsmEmitter {
         path == 'dart:core::$className::@setters::$name' ||
         path == 'dart:core::$className::$name' ||
         path.endsWith('dart:core::$className::$name');
+  }
+
+  bool _pathHasMember(String path, String name) {
+    return path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.contains('::@setters::$name') ||
+        path.endsWith('::$name');
   }
 
   bool _isCoreNumberMember(k.Reference reference, String name) {
@@ -8104,6 +8168,65 @@ final class _EsmEmitter {
         '  Object.defineProperty(expando, "__dartType", { value: "Expando" });',
       );
       helper.writeln('  return Object.freeze(expando);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartWeakReference')) {
+      helper.writeln('function __dartWeakReference(target) {');
+      helper.writeln(
+        '  const ref = typeof WeakRef === "function" ? new WeakRef(target) : { deref() { return target; } };',
+      );
+      helper.writeln('  const weak = {');
+      helper.writeln('    get target() { return ref.deref() ?? null; },');
+      helper.writeln('    toString() { return "WeakReference"; },');
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(weak, "__dartType", { value: "WeakReference" });',
+      );
+      helper.writeln('  return Object.freeze(weak);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartFinalizer')) {
+      helper.writeln('function __dartFinalizer(callback) {');
+      helper.writeln(
+        '  const registry = typeof FinalizationRegistry === "function" ? new FinalizationRegistry(callback) : null;',
+      );
+      helper.writeln('  const detachTokens = new Map();');
+      helper.writeln('  const finalizer = {');
+      helper.writeln('    attach(value, token, options = {}) {');
+      helper.writeln('      if (registry != null) {');
+      helper.writeln('        const detach = options.detach ?? null;');
+      helper.writeln('        let unregisterToken = undefined;');
+      helper.writeln('        if (detach != null) {');
+      helper.writeln('          unregisterToken = detachTokens.get(detach);');
+      helper.writeln('          if (unregisterToken == null) {');
+      helper.writeln('            unregisterToken = {};');
+      helper.writeln('            detachTokens.set(detach, unregisterToken);');
+      helper.writeln('          }');
+      helper.writeln('        }');
+      helper.writeln(
+        '        registry.register(value, token, unregisterToken);',
+      );
+      helper.writeln('      }');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    detach(detach) {');
+      helper.writeln('      if (registry != null) {');
+      helper.writeln(
+        '        const unregisterToken = detachTokens.get(detach);',
+      );
+      helper.writeln('        if (unregisterToken != null) {');
+      helper.writeln('          registry.unregister(unregisterToken);');
+      helper.writeln('          detachTokens.delete(detach);');
+      helper.writeln('        }');
+      helper.writeln('      }');
+      helper.writeln('      return null;');
+      helper.writeln('    },');
+      helper.writeln('    toString() { return "Finalizer"; },');
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(finalizer, "__dartType", { value: "Finalizer" });',
+      );
+      helper.writeln('  return Object.freeze(finalizer);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartStringPattern')) {
@@ -13256,6 +13379,7 @@ const _generatedGlobalNames = {
   '__dartExtensionTypeRep',
   '__dartExpando',
   '__dartEquals',
+  '__dartFinalizer',
   '__dartFixedList',
   '__dartFormatException',
   '__dartFunctionApply',
@@ -13505,6 +13629,7 @@ const _generatedGlobalNames = {
   '__dartUtf8Decoder',
   '__dartUtf8Encode',
   '__dartUtf8Encoder',
+  '__dartWeakReference',
   '__dartZoneValuesMap',
 };
 

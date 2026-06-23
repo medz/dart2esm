@@ -1,4 +1,6 @@
 extension type UserId(int value) {
+  static const defaultValue = 12;
+
   factory UserId.zero() => UserId(0);
 
   static UserId parse(String text) => UserId(int.parse(text));
@@ -24,7 +26,7 @@ void main() {
   print('${id.value} ${id.plus(2)} ${maybeId is UserId}');
   print(
     '${UserId.parse('9').value} ${UserId.zeroValue} ${(id + 3).value} '
-    '${UserId.zero().value}',
+    '${UserId.zero().value} ${UserId.defaultValue}',
   );
   final make = UserId.new;
   final parse = UserId.parse;

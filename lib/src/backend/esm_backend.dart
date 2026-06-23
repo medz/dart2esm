@@ -525,10 +525,7 @@ final class _EsmEmitter {
         case k.ExtensionTypeMemberKind.Setter:
           _emitExtensionTypeSetter(declaration, descriptor);
         case k.ExtensionTypeMemberKind.Field:
-          throw UnsupportedKernelNode(
-            declaration,
-            'extension type member ${descriptor.kind}',
-          );
+          _emitExtensionTypeStaticField(declaration, descriptor);
       }
     }
     _indent--;
@@ -544,6 +541,36 @@ final class _EsmEmitter {
         writeln();
         _emitProcedure(tearOff, export: false);
       }
+      if (member is k.Field) {
+        writeln();
+        _emitTopLevelField(member, export: false);
+      }
+    }
+  }
+
+  void _emitExtensionTypeStaticField(
+    k.ExtensionTypeDeclaration declaration,
+    k.ExtensionTypeMemberDescriptor descriptor,
+  ) {
+    final member = descriptor.memberReference?.asMember;
+    if (member is! k.Field || !descriptor.isStatic) {
+      throw UnsupportedKernelNode(declaration, 'extension type field');
+    }
+    final name = _memberName(descriptor.name.text);
+    writeln('static get $name() {');
+    _indent++;
+    writeln(
+      'return ${_emitExtensionTypeFacadeReturn(_emitStaticFieldRead(member), member.type)};',
+    );
+    _indent--;
+    writeln('}');
+    if (member.hasSetter) {
+      writeln('static set $name(value) {');
+      _indent++;
+      final value = _emitExtensionTypeValueForDart('value', member.type);
+      writeln('return ${_emitStaticFieldWrite(member, value, member)};');
+      _indent--;
+      writeln('}');
     }
   }
 
@@ -726,6 +753,17 @@ final class _EsmEmitter {
     }
     final declaration = type.extensionTypeDeclaration;
     return 'new ${_extensionTypeName(declaration)}(${_emitExtensionTypeRepresentation(value, declaration)})';
+  }
+
+  String _emitExtensionTypeValueForDart(String value, k.DartType type) {
+    final unaliased = type.unalias;
+    if (unaliased is! k.ExtensionType) {
+      return value;
+    }
+    return _emitExtensionTypeRepresentation(
+      value,
+      unaliased.extensionTypeDeclaration,
+    );
   }
 
   String _emitExtensionTypeInstanceParameterList(k.FunctionNode function) {
@@ -3359,10 +3397,7 @@ final class _EsmEmitter {
     }
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
-      if (target.isLate) {
-        return '${_staticFieldCellName(target)}.get()';
-      }
-      return _fieldName(target).value;
+      return _emitStaticFieldRead(target);
     }
     if (target is k.Field && target.isStatic && target.enclosingClass != null) {
       return _emitClassStaticMemberGet(
@@ -3432,13 +3467,11 @@ final class _EsmEmitter {
   String _emitStaticSet(k.StaticSet expression) {
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
-      if (target.isLate) {
-        return '${_staticFieldCellName(target)}.set(${emitExpression(expression.value)})';
-      }
-      if (!target.hasSetter) {
-        throw UnsupportedKernelNode(expression, 'write to final field');
-      }
-      return '${_fieldName(target).value} = ${emitExpression(expression.value)}';
+      return _emitStaticFieldWrite(
+        target,
+        emitExpression(expression.value),
+        expression,
+      );
     }
     if (target is k.Field && target.isStatic && target.enclosingClass != null) {
       if (!target.hasSetter) {
@@ -3456,6 +3489,23 @@ final class _EsmEmitter {
       expression,
       'static set ${_referencePath(expression.targetReference)}',
     );
+  }
+
+  String _emitStaticFieldRead(k.Field field) {
+    if (field.isLate) {
+      return '${_staticFieldCellName(field)}.get()';
+    }
+    return _fieldName(field).value;
+  }
+
+  String _emitStaticFieldWrite(k.Field field, String value, Object node) {
+    if (field.isLate) {
+      return '${_staticFieldCellName(field)}.set($value)';
+    }
+    if (!field.hasSetter) {
+      throw UnsupportedKernelNode(node, 'write to final field');
+    }
+    return '${_fieldName(field).value} = $value';
   }
 
   String _emitInstanceInvocation(k.InstanceInvocation expression) {

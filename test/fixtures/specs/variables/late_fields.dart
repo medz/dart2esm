@@ -25,6 +25,42 @@ class Holder {
   int read() => lazyInstance + assigned + once;
 }
 
+String localLate() {
+  final log = <String>[];
+
+  int initLocal() {
+    log.add('init local');
+    return 3;
+  }
+
+  late int lazy = initLocal();
+  late int assigned;
+  late final int once;
+  String readAssigned() => assigned.toString();
+  void writeOnce(int value) {
+    once = value;
+  }
+
+  var uninitializedBlocked = false;
+  try {
+    readAssigned();
+  } catch (_) {
+    uninitializedBlocked = true;
+  }
+  assigned = 4;
+  writeOnce(5);
+  final first = lazy;
+  final second = lazy;
+  var onceBlocked = false;
+  try {
+    writeOnce(6);
+  } catch (_) {
+    onceBlocked = true;
+  }
+  return 'local $uninitializedBlocked $first $second $assigned $once '
+      '$onceBlocked ${log.join(',')}';
+}
+
 void main() {
   assignTop = 5;
   finalTop = 6;
@@ -48,5 +84,6 @@ void main() {
   } catch (_) {
     print('once blocked');
   }
+  print(localLate());
   print('count $initCount');
 }

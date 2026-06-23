@@ -20,6 +20,9 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartIterableJoin(iterable, separator = "") {
+  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+}
 function __dartLazyField(name, initialize, writable, publish) {
   let state = 0;
   let value;
@@ -108,6 +111,61 @@ export function init(name, value) {
   return value;
 }
 
+export function localLate() {
+  const log = new Array(0).fill(null);
+  function initLocal() {
+    (log.push("init local"), null);
+    return 3;
+  }
+  function _lazy_initializer() {
+    return initLocal();
+  }
+  const lazy = __dartLazyField("lazy", () => _lazy_initializer(), true, null);
+  const assigned = __dartLazyField("assigned", null, true, null);
+  const once = __dartLazyField("once", null, "once", null);
+  function readAssigned() {
+    return __dartStr(assigned.get());
+  }
+  function writeOnce(value) {
+    once.set(value);
+  }
+  let uninitializedBlocked = false;
+  try {
+    {
+      readAssigned();
+    }
+  } catch ($error) {
+    if ($error != null) {
+      const __wc0_formal = $error;
+      {
+        uninitializedBlocked = true;
+      }
+    } else {
+      throw $error;
+    }
+  }
+  assigned.set(4);
+  writeOnce(5);
+  const first = lazy.get();
+  const second = lazy.get();
+  let onceBlocked = false;
+  try {
+    {
+      writeOnce(6);
+    }
+  } catch ($error_1) {
+    if ($error_1 != null) {
+      const __wc1_formal = $error_1;
+      {
+        onceBlocked = true;
+      }
+    } else {
+      throw $error_1;
+    }
+  }
+  return "local " + __dartStr(uninitializedBlocked) + " " + __dartStr(first) + " " + __dartStr(second) + " " + __dartStr(assigned.get()) + " " + __dartStr(once.get()) + " " + __dartStr(onceBlocked) + " " + __dartStr(__dartIterableJoin(log, ","));
+}
+
 export function main() {
   $static_assignTop.set(5);
   $static_finalTop.set(6);
@@ -149,6 +207,7 @@ export function main() {
       throw $error_1;
     }
   }
+  __dartPrint(localLate());
   __dartPrint("count " + __dartStr(initCount));
 }
 

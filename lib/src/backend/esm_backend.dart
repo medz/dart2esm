@@ -1473,6 +1473,10 @@ final class _EsmEmitter {
 
   void _emitVariableDeclaration(k.VariableDeclaration statement) {
     _declareVariable(statement);
+    if (statement.isLate) {
+      _emitLocalLateVariableDeclaration(statement, statement.initializer);
+      return;
+    }
     final initializer = statement.initializer;
     final keyword = _localVariableKeyword(statement, initializer);
     writeln(
@@ -1486,6 +1490,15 @@ final class _EsmEmitter {
         ? 'null'
         : emitExpression(statement.initializer!);
     final existingName = _variableNames[variable];
+    if (variable.isLate) {
+      if (existingName == null) {
+        _declareVariable(variable);
+        _emitLocalLateVariableDeclaration(variable, statement.initializer);
+        return;
+      }
+      writeln('$existingName.set($initializer);');
+      return;
+    }
     if (existingName == null) {
       _declareVariable(variable);
       final keyword = _localVariableKeyword(variable, statement.initializer);
@@ -1493,6 +1506,32 @@ final class _EsmEmitter {
       return;
     }
     writeln('$existingName = $initializer;');
+  }
+
+  void _emitLocalLateVariableDeclaration(
+    k.VariableDeclaration variable,
+    k.Expression? initializer,
+  ) {
+    _usedHelpers.add('__dartLazyField');
+    final initializerCode = initializer == null
+        ? 'null'
+        : '() => ${emitExpression(initializer)}';
+    writeln(
+      'const ${_variableName(variable)} = __dartLazyField(${jsonEncode(variable.name ?? _variableName(variable))}, $initializerCode, ${_emitLocalLateWritable(variable, initializer)}, null);',
+    );
+  }
+
+  String _emitLocalLateWritable(
+    k.VariableDeclaration variable,
+    k.Expression? initializer,
+  ) {
+    if (initializer == null && variable.isFinal) {
+      return '"once"';
+    }
+    if (variable.isFinal || variable.isConst) {
+      return 'false';
+    }
+    return 'true';
   }
 
   String _localVariableKeyword(
@@ -2239,9 +2278,9 @@ final class _EsmEmitter {
       case k.NullLiteral():
         return 'null';
       case k.VariableGet():
-        return _variableName(expression.variable);
+        return _emitVariableGet(expression.variable);
       case k.VariableSet():
-        return '${_variableName(expression.variable)} = ${emitExpression(expression.value)}';
+        return _emitVariableSet(expression.variable, expression.value);
       case k.StringConcatenation():
         if (expression.expressions.isEmpty) {
           return '""';
@@ -2380,6 +2419,17 @@ final class _EsmEmitter {
       default:
         throw UnsupportedKernelNode(expression, 'expression');
     }
+  }
+
+  String _emitVariableGet(k.VariableDeclaration variable) {
+    final name = _variableName(variable);
+    return variable.isLate ? '$name.get()' : name;
+  }
+
+  String _emitVariableSet(k.VariableDeclaration variable, k.Expression value) {
+    final name = _variableName(variable);
+    final valueCode = emitExpression(value);
+    return variable.isLate ? '$name.set($valueCode)' : '$name = $valueCode';
   }
 
   String _emitFunctionExpression(k.FunctionExpression expression) {

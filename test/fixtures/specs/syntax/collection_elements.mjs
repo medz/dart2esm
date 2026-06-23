@@ -65,6 +65,13 @@ function __dartSetAddAll(set, values) {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -102,14 +109,14 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 function __dartIterator(iterable) {
-  const values = Array.isArray(iterable) ? iterable : Array.from(iterable);
+  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = values[index];
+        this.current = typeof values.get === "function" ? values.get(index) : values[index];
         return true;
       }
       this.current = undefined;

@@ -36,7 +36,7 @@ function __dartStringBuffer(initial = "") {
   let value = initial == null ? "" : String(initial);
   return {
     write(next) { value += String(next); },
-    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },
+    writeAll(values, separator = "") { const parts = []; if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") { for (let index = 0; index < values.length; index++) parts.push(String(values["[]"](index))); } else { for (const item of values) parts.push(String(item)); } value += parts.join(String(separator)); },
     writeCharCode(charCode) { value += String.fromCodePoint(charCode); },
     writeln(next = "") { value += String(next) + "\n"; },
     clear() { value = ""; },
@@ -464,6 +464,12 @@ function __dartIsCoreError(value, typeName) {
   if (typeName === "TypeError" && value instanceof TypeError) return true;
   return typeName === "Error" && value instanceof Error;
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -473,6 +479,13 @@ function __dartCompare(left, right, compare = null) {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -593,7 +606,7 @@ export function main() {
   __dartPrint("cleared " + __dartStr(buffer.isEmpty) + " " + __dartStr(__dartStr(buffer)));
   const textRunes = Array.from(Array.from("A😀B", (char) => char.codePointAt(0)));
   const constructedRunes = Array.from(String("Hi 😀"), (char) => char.codePointAt(0));
-  __dartPrint("runes " + __dartStr(textRunes.length) + " " + __dartStr(__dartIntToRadixString(textRunes[1], 16)) + " " + __dartStr(String.fromCodePoint(...Array.from(constructedRunes))) + " " + __dartStr(String.fromCodePoint(128512)));
+  __dartPrint("runes " + __dartStr(textRunes.length) + " " + __dartStr(__dartIntToRadixString(__dartIndexGet(textRunes, 1), 16)) + " " + __dartStr(String.fromCodePoint(...Array.from(constructedRunes))) + " " + __dartStr(String.fromCodePoint(128512)));
   const expando = __dartExpando("count");
   const expandoKey = new PlainObject();
   expando.set(expandoKey, 7);

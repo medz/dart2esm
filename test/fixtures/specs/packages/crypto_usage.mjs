@@ -216,10 +216,25 @@ function __dartIsCoreError(value, typeName) {
   if (typeName === "TypeError" && value instanceof TypeError) return true;
   return typeName === "Error" && value instanceof Error;
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
+function __dartIndexSet(receiver, index, value) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }
+  const op = receiver?.["[]="];
+  if (typeof op === "function") return op.call(receiver, index, value);
+  receiver[index] = value;
+  return value;
+}
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
-  const values = Array.from(source).slice(skipCount, skipCount + (end - start));
+  const values = [];
+  const count = end - start;
+  for (let index = 0; index < count; index++) values.push(__dartIndexGet(source, skipCount + index));
   for (let index = 0; index < values.length; index++) {
-    target[start + index] = values[index];
+    __dartIndexSet(target, start + index, values[index]);
   }
   return null;
 }
@@ -340,7 +355,7 @@ class Digest {
         let mismatch = 0;
         for (let i = 0; (i < n); i = (i + 1)) {
           {
-            mismatch = (mismatch | (a[i] ^ b[i]));
+            mismatch = (mismatch | (__dartIndexGet(a, i) ^ __dartIndexGet(b, i)));
           }
         }
         return __dartEquals(mismatch, 0);
@@ -437,13 +452,13 @@ class _HmacSink {
     let padding = new Uint8Array(key.length);
     for (let i = 0; (i < padding.length); i = (i + 1)) {
       {
-        padding[i] = (92 ^ key[i]);
+        __dartIndexSet(padding, i, (92 ^ __dartIndexGet(key, i)));
       }
     }
     this._outerSink.add(padding);
     for (let i_1 = 0; (i_1 < padding.length); i_1 = (i_1 + 1)) {
       {
-        padding[i_1] = (54 ^ key[i_1]);
+        __dartIndexSet(padding, i_1, (54 ^ __dartIndexGet(key, i_1)));
       }
     }
     this._innerSink.add(padding);
@@ -520,7 +535,7 @@ class HashSink {
         let j = 0;
         do {
           {
-            this._chunk32[j] = __dartNullCheck(this._byteDataView).getUint32((j * 4), this._endian);
+            __dartIndexSet(this._chunk32, j, __dartNullCheck(this._byteDataView).getUint32((j * 4), this._endian));
             j = (j + 1);
           }
         } while ((j < this._chunk32.length));
@@ -547,7 +562,7 @@ class HashSink {
     const byteData = new DataView(byteDigest.buffer);
     for (let i = 0; (i < cachedDigest.length); i = (i + 1)) {
       {
-        byteData.setUint32((i * 4), cachedDigest[i]);
+        byteData.setUint32((i * 4), __dartIndexGet(cachedDigest, i));
       }
     }
     return byteDigest;
@@ -561,7 +576,7 @@ class HashSink {
     const contentsLength = ((this._lengthInBytes + 1) + this._signatureBytes);
     const finalizedLength = this._roundUp(contentsLength, this._chunk.byteLength);
     let padding = new Uint8Array((finalizedLength - this._lengthInBytes));
-    padding[0] = 128;
+    __dartIndexSet(padding, 0, 128);
     let lengthInBits = (this._lengthInBytes * 8);
     const offset = (padding.length - 8);
     let byteData = new DataView(padding.buffer);
@@ -607,24 +622,24 @@ class _MD5Sink extends HashSink {
   constructor(sink) {
     super(sink, 16, { endian: true });
     this.digest = new Uint32Array(4);
-    this.digest[0] = 1732584193;
-    this.digest[1] = 4023233417;
-    this.digest[2] = 2562383102;
-    this.digest[3] = 271733878;
+    __dartIndexSet(this.digest, 0, 1732584193);
+    __dartIndexSet(this.digest, 1, 4023233417);
+    __dartIndexSet(this.digest, 2, 2562383102);
+    __dartIndexSet(this.digest, 3, 271733878);
   }
   updateHash(chunk) {
-    chunk[15];
-    let d = this.digest[3];
-    let c = this.digest[2];
-    let b = this.digest[1];
-    let a = this.digest[0];
+    __dartIndexGet(chunk, 15);
+    let d = __dartIndexGet(this.digest, 3);
+    let c = __dartIndexGet(this.digest, 2);
+    let b = __dartIndexGet(this.digest, 1);
+    let a = __dartIndexGet(this.digest, 0);
     let e = 0;
     let f = 0;
     function round(i) {
       let temp = d;
       d = c;
       c = b;
-      b = add32(b, rotl32(add32(add32(a, e), add32(__dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"3614090360\"],[\"int\",\"3905402710\"],[\"int\",\"606105819\"],[\"int\",\"3250441966\"],[\"int\",\"4118548399\"],[\"int\",\"1200080426\"],[\"int\",\"2821735955\"],[\"int\",\"4249261313\"],[\"int\",\"1770035416\"],[\"int\",\"2336552879\"],[\"int\",\"4294925233\"],[\"int\",\"2304563134\"],[\"int\",\"1804603682\"],[\"int\",\"4254626195\"],[\"int\",\"2792965006\"],[\"int\",\"1236535329\"],[\"int\",\"4129170786\"],[\"int\",\"3225465664\"],[\"int\",\"643717713\"],[\"int\",\"3921069994\"],[\"int\",\"3593408605\"],[\"int\",\"38016083\"],[\"int\",\"3634488961\"],[\"int\",\"3889429448\"],[\"int\",\"568446438\"],[\"int\",\"3275163606\"],[\"int\",\"4107603335\"],[\"int\",\"1163531501\"],[\"int\",\"2850285829\"],[\"int\",\"4243563512\"],[\"int\",\"1735328473\"],[\"int\",\"2368359562\"],[\"int\",\"4294588738\"],[\"int\",\"2272392833\"],[\"int\",\"1839030562\"],[\"int\",\"4259657740\"],[\"int\",\"2763975236\"],[\"int\",\"1272893353\"],[\"int\",\"4139469664\"],[\"int\",\"3200236656\"],[\"int\",\"681279174\"],[\"int\",\"3936430074\"],[\"int\",\"3572445317\"],[\"int\",\"76029189\"],[\"int\",\"3654602809\"],[\"int\",\"3873151461\"],[\"int\",\"530742520\"],[\"int\",\"3299628645\"],[\"int\",\"4096336452\"],[\"int\",\"1126891415\"],[\"int\",\"2878612391\"],[\"int\",\"4237533241\"],[\"int\",\"1700485571\"],[\"int\",\"2399980690\"],[\"int\",\"4293915773\"],[\"int\",\"2240044497\"],[\"int\",\"1873313359\"],[\"int\",\"4264355552\"],[\"int\",\"2734768916\"],[\"int\",\"1309151649\"],[\"int\",\"4149444226\"],[\"int\",\"3174756917\"],[\"int\",\"718787259\"],[\"int\",\"3951481745\"]]", () => Object.freeze([3614090360, 3905402710, 606105819, 3250441966, 4118548399, 1200080426, 2821735955, 4249261313, 1770035416, 2336552879, 4294925233, 2304563134, 1804603682, 4254626195, 2792965006, 1236535329, 4129170786, 3225465664, 643717713, 3921069994, 3593408605, 38016083, 3634488961, 3889429448, 568446438, 3275163606, 4107603335, 1163531501, 2850285829, 4243563512, 1735328473, 2368359562, 4294588738, 2272392833, 1839030562, 4259657740, 2763975236, 1272893353, 4139469664, 3200236656, 681279174, 3936430074, 3572445317, 76029189, 3654602809, 3873151461, 530742520, 3299628645, 4096336452, 1126891415, 2878612391, 4237533241, 1700485571, 2399980690, 4293915773, 2240044497, 1873313359, 4264355552, 2734768916, 1309151649, 4149444226, 3174756917, 718787259, 3951481745]))[i], chunk[f])), __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"]]", () => Object.freeze([7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21]))[i]));
+      b = add32(b, rotl32(add32(add32(a, e), add32(__dartIndexGet(__dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"3614090360\"],[\"int\",\"3905402710\"],[\"int\",\"606105819\"],[\"int\",\"3250441966\"],[\"int\",\"4118548399\"],[\"int\",\"1200080426\"],[\"int\",\"2821735955\"],[\"int\",\"4249261313\"],[\"int\",\"1770035416\"],[\"int\",\"2336552879\"],[\"int\",\"4294925233\"],[\"int\",\"2304563134\"],[\"int\",\"1804603682\"],[\"int\",\"4254626195\"],[\"int\",\"2792965006\"],[\"int\",\"1236535329\"],[\"int\",\"4129170786\"],[\"int\",\"3225465664\"],[\"int\",\"643717713\"],[\"int\",\"3921069994\"],[\"int\",\"3593408605\"],[\"int\",\"38016083\"],[\"int\",\"3634488961\"],[\"int\",\"3889429448\"],[\"int\",\"568446438\"],[\"int\",\"3275163606\"],[\"int\",\"4107603335\"],[\"int\",\"1163531501\"],[\"int\",\"2850285829\"],[\"int\",\"4243563512\"],[\"int\",\"1735328473\"],[\"int\",\"2368359562\"],[\"int\",\"4294588738\"],[\"int\",\"2272392833\"],[\"int\",\"1839030562\"],[\"int\",\"4259657740\"],[\"int\",\"2763975236\"],[\"int\",\"1272893353\"],[\"int\",\"4139469664\"],[\"int\",\"3200236656\"],[\"int\",\"681279174\"],[\"int\",\"3936430074\"],[\"int\",\"3572445317\"],[\"int\",\"76029189\"],[\"int\",\"3654602809\"],[\"int\",\"3873151461\"],[\"int\",\"530742520\"],[\"int\",\"3299628645\"],[\"int\",\"4096336452\"],[\"int\",\"1126891415\"],[\"int\",\"2878612391\"],[\"int\",\"4237533241\"],[\"int\",\"1700485571\"],[\"int\",\"2399980690\"],[\"int\",\"4293915773\"],[\"int\",\"2240044497\"],[\"int\",\"1873313359\"],[\"int\",\"4264355552\"],[\"int\",\"2734768916\"],[\"int\",\"1309151649\"],[\"int\",\"4149444226\"],[\"int\",\"3174756917\"],[\"int\",\"718787259\"],[\"int\",\"3951481745\"]]", () => Object.freeze([3614090360, 3905402710, 606105819, 3250441966, 4118548399, 1200080426, 2821735955, 4249261313, 1770035416, 2336552879, 4294925233, 2304563134, 1804603682, 4254626195, 2792965006, 1236535329, 4129170786, 3225465664, 643717713, 3921069994, 3593408605, 38016083, 3634488961, 3889429448, 568446438, 3275163606, 4107603335, 1163531501, 2850285829, 4243563512, 1735328473, 2368359562, 4294588738, 2272392833, 1839030562, 4259657740, 2763975236, 1272893353, 4139469664, 3200236656, 681279174, 3936430074, 3572445317, 76029189, 3654602809, 3873151461, 530742520, 3299628645, 4096336452, 1126891415, 2878612391, 4237533241, 1700485571, 2399980690, 4293915773, 2240044497, 1873313359, 4264355552, 2734768916, 1309151649, 4149444226, 3174756917, 718787259, 3951481745])), i), __dartIndexGet(chunk, f))), __dartIndexGet(__dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"7\"],[\"int\",\"12\"],[\"int\",\"17\"],[\"int\",\"22\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"5\"],[\"int\",\"9\"],[\"int\",\"14\"],[\"int\",\"20\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"4\"],[\"int\",\"11\"],[\"int\",\"16\"],[\"int\",\"23\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"],[\"int\",\"6\"],[\"int\",\"10\"],[\"int\",\"15\"],[\"int\",\"21\"]]", () => Object.freeze([7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21])), i)));
       a = temp;
     }
     for (let i = 0; (i < 16); i = (i + 1)) {
@@ -655,10 +670,10 @@ class _MD5Sink extends HashSink {
         round(i_3);
       }
     }
-    this.digest[0] = add32(a, this.digest[0]);
-    this.digest[1] = add32(b, this.digest[1]);
-    this.digest[2] = add32(c, this.digest[2]);
-    this.digest[3] = add32(d, this.digest[3]);
+    __dartIndexSet(this.digest, 0, add32(a, __dartIndexGet(this.digest, 0)));
+    __dartIndexSet(this.digest, 1, add32(b, __dartIndexGet(this.digest, 1)));
+    __dartIndexSet(this.digest, 2, add32(c, __dartIndexGet(this.digest, 2)));
+    __dartIndexSet(this.digest, 3, add32(d, __dartIndexGet(this.digest, 3)));
   }
 }
 
@@ -685,30 +700,30 @@ class _Sha1Sink extends HashSink {
     super(sink, 16);
     this.digest = new Uint32Array(5);
     this._extended = new Uint32Array(80);
-    this.digest[0] = 1732584193;
-    this.digest[1] = 4023233417;
-    this.digest[2] = 2562383102;
-    this.digest[3] = 271733878;
-    this.digest[4] = 3285377520;
+    __dartIndexSet(this.digest, 0, 1732584193);
+    __dartIndexSet(this.digest, 1, 4023233417);
+    __dartIndexSet(this.digest, 2, 2562383102);
+    __dartIndexSet(this.digest, 3, 271733878);
+    __dartIndexSet(this.digest, 4, 3285377520);
   }
   updateHash(chunk) {
-    let a = this.digest[0];
-    let b = this.digest[1];
-    let c = this.digest[2];
-    let d = this.digest[3];
-    let e = this.digest[4];
+    let a = __dartIndexGet(this.digest, 0);
+    let b = __dartIndexGet(this.digest, 1);
+    let c = __dartIndexGet(this.digest, 2);
+    let d = __dartIndexGet(this.digest, 3);
+    let e = __dartIndexGet(this.digest, 4);
     for (let i = 0; (i < 80); i = (i + 1)) {
       {
         if ((i < 16)) {
           {
-            this._extended[i] = chunk[i];
+            __dartIndexSet(this._extended, i, __dartIndexGet(chunk, i));
           }
         } else {
           {
-            this._extended[i] = rotl32((((this._extended[(i - 3)] ^ this._extended[(i - 8)]) ^ this._extended[(i - 14)]) ^ this._extended[(i - 16)]), 1);
+            __dartIndexSet(this._extended, i, rotl32((((__dartIndexGet(this._extended, (i - 3)) ^ __dartIndexGet(this._extended, (i - 8))) ^ __dartIndexGet(this._extended, (i - 14))) ^ __dartIndexGet(this._extended, (i - 16))), 1));
           }
         }
-        let newA = add32(add32(rotl32(a, 5), e), this._extended[i]);
+        let newA = add32(add32(rotl32(a, 5), e), __dartIndexGet(this._extended, i));
         if ((i < 20)) {
           {
             newA = add32(add32(newA, ((b & c) | ((~b) & d))), 1518500249);
@@ -737,11 +752,11 @@ class _Sha1Sink extends HashSink {
         a = (newA >>> 0);
       }
     }
-    this.digest[0] = add32(a, this.digest[0]);
-    this.digest[1] = add32(b, this.digest[1]);
-    this.digest[2] = add32(c, this.digest[2]);
-    this.digest[3] = add32(d, this.digest[3]);
-    this.digest[4] = add32(e, this.digest[4]);
+    __dartIndexSet(this.digest, 0, add32(a, __dartIndexGet(this.digest, 0)));
+    __dartIndexSet(this.digest, 1, add32(b, __dartIndexGet(this.digest, 1)));
+    __dartIndexSet(this.digest, 2, add32(c, __dartIndexGet(this.digest, 2)));
+    __dartIndexSet(this.digest, 3, add32(d, __dartIndexGet(this.digest, 3)));
+    __dartIndexSet(this.digest, 4, add32(e, __dartIndexGet(this.digest, 4)));
   }
 }
 
@@ -811,25 +826,25 @@ class _Sha32BitSink extends HashSink {
   updateHash(chunk) {
     for (let i = 0; (i < 16); i = (i + 1)) {
       {
-        this._extended[i] = chunk[i];
+        __dartIndexSet(this._extended, i, __dartIndexGet(chunk, i));
       }
     }
     for (let i_1 = 16; (i_1 < 64); i_1 = (i_1 + 1)) {
       {
-        this._extended[i_1] = add32(add32(this._ssig1(this._extended[(i_1 - 2)]), this._extended[(i_1 - 7)]), add32(this._ssig0(this._extended[(i_1 - 15)]), this._extended[(i_1 - 16)]));
+        __dartIndexSet(this._extended, i_1, add32(add32(this._ssig1(__dartIndexGet(this._extended, (i_1 - 2))), __dartIndexGet(this._extended, (i_1 - 7))), add32(this._ssig0(__dartIndexGet(this._extended, (i_1 - 15))), __dartIndexGet(this._extended, (i_1 - 16)))));
       }
     }
-    let a = this._digest[0];
-    let b = this._digest[1];
-    let c = this._digest[2];
-    let d = this._digest[3];
-    let e = this._digest[4];
-    let f = this._digest[5];
-    let g = this._digest[6];
-    let h = this._digest[7];
+    let a = __dartIndexGet(this._digest, 0);
+    let b = __dartIndexGet(this._digest, 1);
+    let c = __dartIndexGet(this._digest, 2);
+    let d = __dartIndexGet(this._digest, 3);
+    let e = __dartIndexGet(this._digest, 4);
+    let f = __dartIndexGet(this._digest, 5);
+    let g = __dartIndexGet(this._digest, 6);
+    let h = __dartIndexGet(this._digest, 7);
     for (let i_2 = 0; (i_2 < 64); i_2 = (i_2 + 1)) {
       {
-        let temp1 = add32(add32(h, this._bsig1(e)), add32(this._ch(e, f, g), add32(__dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"1116352408\"],[\"int\",\"1899447441\"],[\"int\",\"3049323471\"],[\"int\",\"3921009573\"],[\"int\",\"961987163\"],[\"int\",\"1508970993\"],[\"int\",\"2453635748\"],[\"int\",\"2870763221\"],[\"int\",\"3624381080\"],[\"int\",\"310598401\"],[\"int\",\"607225278\"],[\"int\",\"1426881987\"],[\"int\",\"1925078388\"],[\"int\",\"2162078206\"],[\"int\",\"2614888103\"],[\"int\",\"3248222580\"],[\"int\",\"3835390401\"],[\"int\",\"4022224774\"],[\"int\",\"264347078\"],[\"int\",\"604807628\"],[\"int\",\"770255983\"],[\"int\",\"1249150122\"],[\"int\",\"1555081692\"],[\"int\",\"1996064986\"],[\"int\",\"2554220882\"],[\"int\",\"2821834349\"],[\"int\",\"2952996808\"],[\"int\",\"3210313671\"],[\"int\",\"3336571891\"],[\"int\",\"3584528711\"],[\"int\",\"113926993\"],[\"int\",\"338241895\"],[\"int\",\"666307205\"],[\"int\",\"773529912\"],[\"int\",\"1294757372\"],[\"int\",\"1396182291\"],[\"int\",\"1695183700\"],[\"int\",\"1986661051\"],[\"int\",\"2177026350\"],[\"int\",\"2456956037\"],[\"int\",\"2730485921\"],[\"int\",\"2820302411\"],[\"int\",\"3259730800\"],[\"int\",\"3345764771\"],[\"int\",\"3516065817\"],[\"int\",\"3600352804\"],[\"int\",\"4094571909\"],[\"int\",\"275423344\"],[\"int\",\"430227734\"],[\"int\",\"506948616\"],[\"int\",\"659060556\"],[\"int\",\"883997877\"],[\"int\",\"958139571\"],[\"int\",\"1322822218\"],[\"int\",\"1537002063\"],[\"int\",\"1747873779\"],[\"int\",\"1955562222\"],[\"int\",\"2024104815\"],[\"int\",\"2227730452\"],[\"int\",\"2361852424\"],[\"int\",\"2428436474\"],[\"int\",\"2756734187\"],[\"int\",\"3204031479\"],[\"int\",\"3329325298\"]]", () => Object.freeze([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]))[i_2], this._extended[i_2])));
+        let temp1 = add32(add32(h, this._bsig1(e)), add32(this._ch(e, f, g), add32(__dartIndexGet(__dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"1116352408\"],[\"int\",\"1899447441\"],[\"int\",\"3049323471\"],[\"int\",\"3921009573\"],[\"int\",\"961987163\"],[\"int\",\"1508970993\"],[\"int\",\"2453635748\"],[\"int\",\"2870763221\"],[\"int\",\"3624381080\"],[\"int\",\"310598401\"],[\"int\",\"607225278\"],[\"int\",\"1426881987\"],[\"int\",\"1925078388\"],[\"int\",\"2162078206\"],[\"int\",\"2614888103\"],[\"int\",\"3248222580\"],[\"int\",\"3835390401\"],[\"int\",\"4022224774\"],[\"int\",\"264347078\"],[\"int\",\"604807628\"],[\"int\",\"770255983\"],[\"int\",\"1249150122\"],[\"int\",\"1555081692\"],[\"int\",\"1996064986\"],[\"int\",\"2554220882\"],[\"int\",\"2821834349\"],[\"int\",\"2952996808\"],[\"int\",\"3210313671\"],[\"int\",\"3336571891\"],[\"int\",\"3584528711\"],[\"int\",\"113926993\"],[\"int\",\"338241895\"],[\"int\",\"666307205\"],[\"int\",\"773529912\"],[\"int\",\"1294757372\"],[\"int\",\"1396182291\"],[\"int\",\"1695183700\"],[\"int\",\"1986661051\"],[\"int\",\"2177026350\"],[\"int\",\"2456956037\"],[\"int\",\"2730485921\"],[\"int\",\"2820302411\"],[\"int\",\"3259730800\"],[\"int\",\"3345764771\"],[\"int\",\"3516065817\"],[\"int\",\"3600352804\"],[\"int\",\"4094571909\"],[\"int\",\"275423344\"],[\"int\",\"430227734\"],[\"int\",\"506948616\"],[\"int\",\"659060556\"],[\"int\",\"883997877\"],[\"int\",\"958139571\"],[\"int\",\"1322822218\"],[\"int\",\"1537002063\"],[\"int\",\"1747873779\"],[\"int\",\"1955562222\"],[\"int\",\"2024104815\"],[\"int\",\"2227730452\"],[\"int\",\"2361852424\"],[\"int\",\"2428436474\"],[\"int\",\"2756734187\"],[\"int\",\"3204031479\"],[\"int\",\"3329325298\"]]", () => Object.freeze([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298])), i_2), __dartIndexGet(this._extended, i_2))));
         let temp2 = add32(this._bsig0(a), this._maj(a, b, c));
         h = g;
         g = f;
@@ -841,14 +856,14 @@ class _Sha32BitSink extends HashSink {
         a = add32(temp1, temp2);
       }
     }
-    this._digest[0] = add32(a, this._digest[0]);
-    this._digest[1] = add32(b, this._digest[1]);
-    this._digest[2] = add32(c, this._digest[2]);
-    this._digest[3] = add32(d, this._digest[3]);
-    this._digest[4] = add32(e, this._digest[4]);
-    this._digest[5] = add32(f, this._digest[5]);
-    this._digest[6] = add32(g, this._digest[6]);
-    this._digest[7] = add32(h, this._digest[7]);
+    __dartIndexSet(this._digest, 0, add32(a, __dartIndexGet(this._digest, 0)));
+    __dartIndexSet(this._digest, 1, add32(b, __dartIndexGet(this._digest, 1)));
+    __dartIndexSet(this._digest, 2, add32(c, __dartIndexGet(this._digest, 2)));
+    __dartIndexSet(this._digest, 3, add32(d, __dartIndexGet(this._digest, 3)));
+    __dartIndexSet(this._digest, 4, add32(e, __dartIndexGet(this._digest, 4)));
+    __dartIndexSet(this._digest, 5, add32(f, __dartIndexGet(this._digest, 5)));
+    __dartIndexSet(this._digest, 6, add32(g, __dartIndexGet(this._digest, 6)));
+    __dartIndexSet(this._digest, 7, add32(h, __dartIndexGet(this._digest, 7)));
   }
 }
 
@@ -887,7 +902,7 @@ class _Sha64BitSink extends HashSink {
     let ordered = new Uint32Array(this.digestBytes);
     for (let i = 0; (i < this.digestBytes); i = (i + 1)) {
       {
-        ordered[i] = unordered[(i + ((Math.trunc(i) % 2 === 0) ? 1 : (-1)))];
+        __dartIndexSet(ordered, i, __dartIndexGet(unordered, (i + ((Math.trunc(i) % 2 === 0) ? 1 : (-1)))));
       }
     }
     return ordered;
@@ -919,25 +934,25 @@ class _Sha64BitSink extends HashSink {
   updateHash(chunk) {
     for (let i = 0, x = 0; (i < 32); i = (i + 2), x = (x + 1)) {
       {
-        this._extended[x] = ((chunk[i] << 32) | chunk[(i + 1)]);
+        __dartIndexSet(this._extended, x, ((__dartIndexGet(chunk, i) << 32) | __dartIndexGet(chunk, (i + 1))));
       }
     }
     for (let t = 16; (t < 80); t = (t + 1)) {
       {
-        this._extended[t] = (((_Sha64BitSink._ssig1(this._extended[(t - 2)]) + this._extended[(t - 7)]) + _Sha64BitSink._ssig0(this._extended[(t - 15)])) + this._extended[(t - 16)]);
+        __dartIndexSet(this._extended, t, (((_Sha64BitSink._ssig1(__dartIndexGet(this._extended, (t - 2))) + __dartIndexGet(this._extended, (t - 7))) + _Sha64BitSink._ssig0(__dartIndexGet(this._extended, (t - 15)))) + __dartIndexGet(this._extended, (t - 16))));
       }
     }
-    let a = this._digest[0];
-    let b = this._digest[1];
-    let c = this._digest[2];
-    let d = this._digest[3];
-    let e = this._digest[4];
-    let f = this._digest[5];
-    let g = this._digest[6];
-    let h = this._digest[7];
+    let a = __dartIndexGet(this._digest, 0);
+    let b = __dartIndexGet(this._digest, 1);
+    let c = __dartIndexGet(this._digest, 2);
+    let d = __dartIndexGet(this._digest, 3);
+    let e = __dartIndexGet(this._digest, 4);
+    let f = __dartIndexGet(this._digest, 5);
+    let g = __dartIndexGet(this._digest, 6);
+    let h = __dartIndexGet(this._digest, 7);
     for (let i_1 = 0; (i_1 < 80); i_1 = (i_1 + 1)) {
       {
-        let temp1 = ((((h + _Sha64BitSink._bsig1(e)) + _Sha64BitSink._ch(e, f, g)) + _noise64[i_1]) + this._extended[i_1]);
+        let temp1 = ((((h + _Sha64BitSink._bsig1(e)) + _Sha64BitSink._ch(e, f, g)) + __dartIndexGet(_noise64, i_1)) + __dartIndexGet(this._extended, i_1));
         let temp2 = (_Sha64BitSink._bsig0(a) + _Sha64BitSink._maj(a, b, c));
         h = g;
         g = f;
@@ -949,14 +964,14 @@ class _Sha64BitSink extends HashSink {
         a = (temp1 + temp2);
       }
     }
-    (() => { let v = this._digest; return (() => { let v_1 = 0; return v[v_1] = (v[v_1] + a); })(); })();
-    (() => { let v_2 = this._digest; return (() => { let v_3 = 1; return v_2[v_3] = (v_2[v_3] + b); })(); })();
-    (() => { let v_4 = this._digest; return (() => { let v_5 = 2; return v_4[v_5] = (v_4[v_5] + c); })(); })();
-    (() => { let v_6 = this._digest; return (() => { let v_7 = 3; return v_6[v_7] = (v_6[v_7] + d); })(); })();
-    (() => { let v_8 = this._digest; return (() => { let v_9 = 4; return v_8[v_9] = (v_8[v_9] + e); })(); })();
-    (() => { let v_10 = this._digest; return (() => { let v_11 = 5; return v_10[v_11] = (v_10[v_11] + f); })(); })();
-    (() => { let v_12 = this._digest; return (() => { let v_13 = 6; return v_12[v_13] = (v_12[v_13] + g); })(); })();
-    (() => { let v_14 = this._digest; return (() => { let v_15 = 7; return v_14[v_15] = (v_14[v_15] + h); })(); })();
+    (() => { let v = this._digest; return (() => { let v_1 = 0; return __dartIndexSet(v, v_1, (__dartIndexGet(v, v_1) + a)); })(); })();
+    (() => { let v_2 = this._digest; return (() => { let v_3 = 1; return __dartIndexSet(v_2, v_3, (__dartIndexGet(v_2, v_3) + b)); })(); })();
+    (() => { let v_4 = this._digest; return (() => { let v_5 = 2; return __dartIndexSet(v_4, v_5, (__dartIndexGet(v_4, v_5) + c)); })(); })();
+    (() => { let v_6 = this._digest; return (() => { let v_7 = 3; return __dartIndexSet(v_6, v_7, (__dartIndexGet(v_6, v_7) + d)); })(); })();
+    (() => { let v_8 = this._digest; return (() => { let v_9 = 4; return __dartIndexSet(v_8, v_9, (__dartIndexGet(v_8, v_9) + e)); })(); })();
+    (() => { let v_10 = this._digest; return (() => { let v_11 = 5; return __dartIndexSet(v_10, v_11, (__dartIndexGet(v_10, v_11) + f)); })(); })();
+    (() => { let v_12 = this._digest; return (() => { let v_13 = 6; return __dartIndexSet(v_12, v_13, (__dartIndexGet(v_12, v_13) + g)); })(); })();
+    (() => { let v_14 = this._digest; return (() => { let v_15 = 7; return __dartIndexSet(v_14, v_15, (__dartIndexGet(v_14, v_15) + h)); })(); })();
   }
 }
 
@@ -1062,9 +1077,9 @@ function _hexEncode(bytes) {
   let charCodes = new Uint8Array((bytes.length * 2));
   for (let i = 0, j = 0; (i < bytes.length); i = (i + 1)) {
     {
-      let byte = bytes[i];
-      charCodes[(() => { let v = j; return (() => { let v_1 = j = (v + 1); return v; })(); })()] = "0123456789abcdef".charCodeAt((__dartShr(byte, 4) & 15));
-      charCodes[(() => { let v_2 = j; return (() => { let v_3 = j = (v_2 + 1); return v_2; })(); })()] = "0123456789abcdef".charCodeAt((byte & 15));
+      let byte = __dartIndexGet(bytes, i);
+      __dartIndexSet(charCodes, (() => { let v = j; return (() => { let v_1 = j = (v + 1); return v; })(); })(), "0123456789abcdef".charCodeAt((__dartShr(byte, 4) & 15)));
+      __dartIndexSet(charCodes, (() => { let v_2 = j; return (() => { let v_3 = j = (v_2 + 1); return v_2; })(); })(), "0123456789abcdef".charCodeAt((byte & 15)));
     }
   }
   return String.fromCodePoint(...Array.from(charCodes));

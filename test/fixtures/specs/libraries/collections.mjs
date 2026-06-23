@@ -54,6 +54,19 @@ function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
+function __dartIndexSet(receiver, index, value) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }
+  const op = receiver?.["[]="];
+  if (typeof op === "function") return op.call(receiver, index, value);
+  receiver[index] = value;
+  return value;
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -163,6 +176,13 @@ function __dartIdentityMap() {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -280,19 +300,25 @@ function __dartListRemove(list, needle) {
   return true;
 }
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
-  const values = Array.from(source).slice(start, end == null ? undefined : end);
-  for (let index = 0; index < values.length; index++) target[at + index] = values[index];
+  const stop = end == null ? source.length : end;
+  const values = [];
+  for (let index = start; index < stop; index++) values.push(__dartIndexGet(source, index));
+  for (let index = 0; index < values.length; index++) __dartIndexSet(target, at + index, values[index]);
   return null;
 }
 function __dartListWriteIterable(target, at, source) {
   let index = at;
-  for (const value of source) target[index++] = value;
+  if (source != null && typeof source["[]"] === "function" && typeof source.length === "number") {
+    for (let sourceIndex = 0; sourceIndex < source.length; sourceIndex++) __dartIndexSet(target, index++, __dartIndexGet(source, sourceIndex));
+  } else {
+    for (const value of source) __dartIndexSet(target, index++, value);
+  }
   return null;
 }
 function __dartListIndexOf(list, needle, start = 0) {
   const begin = Math.max(0, Math.trunc(start));
   for (let index = begin; index < list.length; index++) {
-    if (__dartEquals(list[index], needle)) return index;
+    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
   }
   return -1;
 }
@@ -300,21 +326,21 @@ function __dartListLastIndexOf(list, needle, start = null) {
   let index = start == null ? list.length - 1 : Math.trunc(start);
   if (index >= list.length) index = list.length - 1;
   for (; index >= 0; index--) {
-    if (__dartEquals(list[index], needle)) return index;
+    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
   }
   return -1;
 }
 function __dartListSetAll(list, index, values) {
   let offset = 0;
   for (const value of values) {
-    list[index + offset] = value;
+    __dartIndexSet(list, index + offset, value);
     offset++;
   }
   return null;
 }
 function __dartListLastIndexWhere(list, test, start = null) {
   for (let index = start == null ? list.length - 1 : start; index >= 0; index--) {
-    if (test(list[index])) return index;
+    if (test(__dartIndexGet(list, index))) return index;
   }
   return -1;
 }
@@ -329,11 +355,11 @@ function __dartListRetainWhere(list, test) {
 function __dartListAsMap(list) {
   return new (class extends Map {
     get size() { return list.length; }
-    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? list[key] : undefined; }
+    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? __dartIndexGet(list, key) : undefined; }
     has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }
-    entries() { return Array.from(list, (value, index) => [index, value])[Symbol.iterator](); }
+    entries() { return Array.from({ length: list.length }, (_, index) => [index, __dartIndexGet(list, index)])[Symbol.iterator](); }
     keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }
-    values() { return Array.from(list)[Symbol.iterator](); }
+    values() { return Array.from({ length: list.length }, (_, index) => __dartIndexGet(list, index))[Symbol.iterator](); }
     [Symbol.iterator]() { return this.entries(); }
     forEach(callback, thisArg = undefined) {
       for (let index = 0; index < list.length; index++) {
@@ -577,10 +603,10 @@ export class EqBox {
 
 export function main() {
   const values = new Array(3).fill(1);
-  values[1] = 2;
+  __dartIndexSet(values, 1, 2);
   (values.push(4), null);
   (values.push(...Array.from([5, 6])), null);
-  __dartPrint("list " + __dartStr(values.length) + " " + __dartStr(values[0]) + " " + __dartStr(values[values.length - 1]));
+  __dartPrint("list " + __dartStr(values.length) + " " + __dartStr(__dartIndexGet(values, 0)) + " " + __dartStr(__dartIndexGet(values, values.length - 1)));
   __dartPrint("list contains " + __dartStr(__dartIterableContains(values, 3)) + " " + __dartStr(__dartIterableContains(values, 4)));
   __dartPrint("list join " + __dartStr(__dartIterableJoin(values, ",")));
   const generated = Array.from({ length: 4 }, (_, index) => (function(index) { return (index * index); })(index));

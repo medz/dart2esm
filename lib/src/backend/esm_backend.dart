@@ -612,12 +612,56 @@ final class _EsmEmitter {
       }
       _emitMethod(procedure);
     }
+    _emitInheritedGetterBridgesForSetterOverrides(klass);
     _emitDartConvertSuperclassBridges(klass, declaredInstanceMembers);
     _indent--;
     writeln('}');
     _emitInterfaceHasInstance(klass);
     _emitNamedConstructorBodies(klass);
     _currentClass = previousClass;
+  }
+
+  void _emitInheritedGetterBridgesForSetterOverrides(k.Class klass) {
+    final localGetters = <String>{};
+    final localSetters = <String>{};
+    for (final procedure in klass.procedures) {
+      if (procedure.isStatic ||
+          procedure.isNoSuchMethodForwarder ||
+          procedure.isExternal ||
+          procedure.isAbstract) {
+        continue;
+      }
+      if (procedure.kind == k.ProcedureKind.Getter) {
+        localGetters.add(procedure.name.text);
+      } else if (procedure.kind == k.ProcedureKind.Setter) {
+        localSetters.add(procedure.name.text);
+      }
+    }
+    for (final name in localSetters) {
+      if (localGetters.contains(name) ||
+          !_hasInheritedInstanceGetter(_jsSuperclassFor(klass), name)) {
+        continue;
+      }
+      final memberName = _memberName(name);
+      writeln('get $memberName() { return super.$memberName; }');
+    }
+  }
+
+  bool _hasInheritedInstanceGetter(k.Class? klass, String name) {
+    var current = klass;
+    while (current != null) {
+      for (final procedure in current.procedures) {
+        if (!procedure.isStatic &&
+            procedure.kind == k.ProcedureKind.Getter &&
+            procedure.name.text == name &&
+            !procedure.isAbstract &&
+            !procedure.isExternal) {
+          return true;
+        }
+      }
+      current = _jsSuperclassFor(current);
+    }
+    return false;
   }
 
   void _emitDartConvertSuperclassBridges(
@@ -3511,6 +3555,16 @@ final class _EsmEmitter {
     if (_isListMapViewConstructorPath(path) && positionalArgs.length == 1) {
       return 'new Map(Array.from(${positionalArgs.single}, (value, index) => [index, value]))';
     }
+    if (path.startsWith(
+          'dart:collection::_MapBaseValueIterable::@constructors::',
+        ) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartMapBaseValues');
+      _usedHelpers.add('__dartMapGet');
+      _usedHelpers.add('__dartMapKey');
+      _usedHelpers.add('__dartEquals');
+      return '__dartMapBaseValues(${positionalArgs.single})';
+    }
     if (_isListIndicesIterableConstructorPath(path) &&
         positionalArgs.length == 1) {
       return 'Array.from(${positionalArgs.single}, (_value, index) => index)';
@@ -4695,6 +4749,10 @@ final class _EsmEmitter {
         _usedHelpers.add('__dartEquals');
         return '__dartMapGet($left, ${positionalArgs.single})';
       }
+      if (isListInvocation) {
+        _usedHelpers.add('__dartIndexGet');
+        return '__dartIndexGet($left, ${positionalArgs.single})';
+      }
       if (!_isNativeOperatorTarget(target)) {
         return '${_emitPropertyGet(left, name)}(${positionalArgs.single})';
       }
@@ -4711,6 +4769,10 @@ final class _EsmEmitter {
         _usedHelpers.add('__dartMapKey');
         _usedHelpers.add('__dartEquals');
         return '__dartMapSet($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
+      }
+      if (isListInvocation) {
+        _usedHelpers.add('__dartIndexSet');
+        return '__dartIndexSet($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
       }
       if (!_isNativeOperatorTarget(target)) {
         return '${_emitPropertyGet(left, name)}(${positionalArgs.join(', ')})';
@@ -6361,26 +6423,46 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartIterableIsEmpty');
       return '!__dartIterableIsEmpty($receiver)';
     }
+    if (name == 'isEmpty' && receiverCollectionKind == 'List') {
+      return '$receiver.length === 0';
+    }
+    if (name == 'isNotEmpty' && receiverCollectionKind == 'List') {
+      return '$receiver.length !== 0';
+    }
     if (name == 'first' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
       if (_isCoreListMember(expression.interfaceTargetReference, name) ||
           receiverCollectionKind == 'List') {
-        return '$receiver[0]';
+        _usedHelpers.add('__dartIndexGet');
+        return '__dartIndexGet($receiver, 0)';
       }
       _usedHelpers.add('__dartIterableFirst');
       return '__dartIterableFirst($receiver)';
+    }
+    if (name == 'first' && receiverCollectionKind == 'List') {
+      _usedHelpers.add('__dartIndexGet');
+      return '__dartIndexGet($receiver, 0)';
     }
     if (name == 'last' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
       if (_isCoreListMember(expression.interfaceTargetReference, name) ||
           receiverCollectionKind == 'List') {
-        return '$receiver[$receiver.length - 1]';
+        _usedHelpers.add('__dartIndexGet');
+        return '__dartIndexGet($receiver, $receiver.length - 1)';
       }
       _usedHelpers.add('__dartIterableLast');
       return '__dartIterableLast($receiver)';
     }
+    if (name == 'last' && receiverCollectionKind == 'List') {
+      _usedHelpers.add('__dartIndexGet');
+      return '__dartIndexGet($receiver, $receiver.length - 1)';
+    }
     if (name == 'single' &&
         _isCoreCollectionMember(expression.interfaceTargetReference, name)) {
+      _usedHelpers.add('__dartIterableSingle');
+      return '__dartIterableSingle($receiver)';
+    }
+    if (name == 'single' && receiverCollectionKind == 'List') {
       _usedHelpers.add('__dartIterableSingle');
       return '__dartIterableSingle($receiver)';
     }
@@ -6414,6 +6496,9 @@ final class _EsmEmitter {
       }
       _usedHelpers.add('__dartIterableLength');
       return '__dartIterableLength($receiver)';
+    }
+    if (name == 'length' && receiverCollectionKind == 'List') {
+      return '$receiver.length';
     }
     if (name == 'keys' &&
         (_isCoreMapMember(expression.interfaceTargetReference, name) ||
@@ -8547,6 +8632,13 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartUnmodifiableListView');
       return '__dartUnmodifiableListView(${positionalArgs.single})';
     }
+    if (path.startsWith(
+          'dart:collection::UnmodifiableMapView::@constructors::',
+        ) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUnmodifiableMapView');
+      return '__dartUnmodifiableMapView(${positionalArgs.single})';
+    }
     if (path.startsWith('dart:collection::SplayTreeSet::@constructors::') &&
         positionalArgs.length <= 2) {
       _usedHelpers.add('__dartSplayTreeSet');
@@ -8890,6 +8982,13 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartThrowWithStackTrace');
       return '__dartThrowWithStackTrace(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (path == 'dart:core::ArgumentError::@methods::checkNotNull' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartCoreError');
+      final name = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
+      return '(() => { const value = ${positionalArgs[0]}; if (value == null) throw __dartCoreError("ArgumentError", $name == null ? "Must not be null" : String($name) + " must not be null"); return value; })()';
     }
     final rangeCheck = _emitRangeErrorStaticInvocation(path, positionalArgs);
     if (rangeCheck != null) {
@@ -9468,6 +9567,19 @@ final class _EsmEmitter {
       return null;
     }
     final name = path.split('::').last;
+    final customEquals = _namedArgument(arguments, 'equals');
+    final customHashCode = _namedArgument(arguments, 'hashCode');
+    final customIsValidKey = _namedArgument(arguments, 'isValidKey');
+    if (name.isEmpty &&
+        positionalArgs.isEmpty &&
+        (customEquals != null ||
+            customHashCode != null ||
+            customIsValidKey != null) &&
+        (path.startsWith('dart:collection::LinkedHashMap::@factories::') ||
+            path.startsWith('dart:collection::HashMap::@factories::'))) {
+      _usedHelpers.add('__dartCustomHashMap');
+      return '__dartCustomHashMap(${customEquals ?? 'null'}, ${customHashCode ?? 'null'}, ${customIsValidKey ?? 'null'})';
+    }
     return switch (name) {
       '' when positionalArgs.isEmpty => 'new Map()',
       'identity' when positionalArgs.isEmpty => () {
@@ -10373,7 +10485,8 @@ final class _EsmEmitter {
     final path = _referencePath(reference);
     if (!path.startsWith('dart:core::') &&
         !path.startsWith('dart:_') &&
-        !path.startsWith('dart:collection::')) {
+        !path.startsWith('dart:collection::') &&
+        !path.startsWith('package:collection/')) {
       return false;
     }
     final hasMember =
@@ -10387,6 +10500,8 @@ final class _EsmEmitter {
     return path.contains('::Iterable::') ||
         path.contains('::ListIterable::') ||
         path.contains('::List::') ||
+        path.contains('::ListBase::') ||
+        path.contains('::ListMixin::') ||
         path.contains('::_List::') ||
         path.contains('::_GrowableList::') ||
         path.contains('::Runes::') ||
@@ -10408,6 +10523,8 @@ final class _EsmEmitter {
   bool _isCoreListMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
     return _isCoreMember(reference, 'List', name) ||
+        path.contains('::ListBase::') ||
+        path.contains('::ListMixin::') ||
         path.contains('::_List::') ||
         path.contains('::_GrowableList::');
   }
@@ -11039,7 +11156,7 @@ final class _EsmEmitter {
       helper.writeln('  return {');
       helper.writeln('    write(next) { value += String(next); },');
       helper.writeln(
-        '    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },',
+        '    writeAll(values, separator = "") { const parts = []; if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") { for (let index = 0; index < values.length; index++) parts.push(String(values["[]"](index))); } else { for (const item of values) parts.push(String(item)); } value += parts.join(String(separator)); },',
       );
       helper.writeln(
         '    writeCharCode(charCode) { value += String.fromCodePoint(charCode); },',
@@ -14024,6 +14141,45 @@ final class _EsmEmitter {
       helper.writeln('  return value;');
       helper.writeln('}');
     }
+    final emitsDartIndexGet =
+        _usedHelpers.contains('__dartIndexGet') ||
+        _usedHelpers.contains('__dartListAsMap') ||
+        _usedHelpers.contains('__dartListCopyRange') ||
+        _usedHelpers.contains('__dartListIndexOf') ||
+        _usedHelpers.contains('__dartListLastIndexOf') ||
+        _usedHelpers.contains('__dartListLastIndexWhere') ||
+        _usedHelpers.contains('__dartListSetRange');
+    final emitsDartIndexSet =
+        _usedHelpers.contains('__dartIndexSet') ||
+        _usedHelpers.contains('__dartListCopyRange') ||
+        _usedHelpers.contains('__dartListSetAll') ||
+        _usedHelpers.contains('__dartListSetRange') ||
+        _usedHelpers.contains('__dartListWriteIterable');
+    if (emitsDartIndexGet) {
+      helper.writeln('function __dartIndexGet(receiver, index) {');
+      helper.writeln(
+        '  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];',
+      );
+      helper.writeln('  const op = receiver?.["[]"];');
+      helper.writeln(
+        '  if (typeof op === "function") return op.call(receiver, index);',
+      );
+      helper.writeln('  return receiver[index];');
+      helper.writeln('}');
+    }
+    if (emitsDartIndexSet) {
+      helper.writeln('function __dartIndexSet(receiver, index, value) {');
+      helper.writeln(
+        '  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }',
+      );
+      helper.writeln('  const op = receiver?.["[]="];');
+      helper.writeln(
+        '  if (typeof op === "function") return op.call(receiver, index, value);',
+      );
+      helper.writeln('  receiver[index] = value;');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartCall')) {
       helper.writeln(
         'function __dartCall(receiver, name, args, namedArgs = null) {',
@@ -14404,6 +14560,23 @@ final class _EsmEmitter {
       helper.writeln('  return map;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartCustomHashMap')) {
+      helper.writeln(
+        'function __dartCustomHashMap(equals = null, hashCode = null, isValidKey = null) {',
+      );
+      helper.writeln('  const map = new Map();');
+      helper.writeln(
+        '  Object.defineProperty(map, "__dartMapEquals", { value: equals });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(map, "__dartMapHashCode", { value: hashCode });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(map, "__dartMapIsValidKey", { value: isValidKey });',
+      );
+      helper.writeln('  return map;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartMapKey')) {
       helper.writeln(
         'const __dartMapMissingKey = Symbol("dart.mapMissingKey");',
@@ -14412,6 +14585,17 @@ final class _EsmEmitter {
       helper.writeln(
         '  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;',
       );
+      helper.writeln('  if (map.__dartMapEquals != null) {');
+      helper.writeln(
+        '    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;',
+      );
+      helper.writeln('    for (const candidate of map.keys()) {');
+      helper.writeln(
+        '      if (map.__dartMapEquals(candidate, key)) return candidate;',
+      );
+      helper.writeln('    }');
+      helper.writeln('    return __dartMapMissingKey;');
+      helper.writeln('  }');
       helper.writeln('  if (map.__dartSplayCompare !== undefined) {');
       helper.writeln('    for (const candidate of map.keys()) {');
       helper.writeln(
@@ -14438,6 +14622,31 @@ final class _EsmEmitter {
       helper.writeln('  const actualKey = __dartMapKey(map, key);');
       helper.writeln(
         '  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapBaseValues')) {
+      helper.writeln('function __dartMapBaseKeys(map) {');
+      helper.writeln('  const keys = map.keys;');
+      helper.writeln(
+        '  return typeof keys === "function" ? keys.call(map) : keys;',
+      );
+      helper.writeln('}');
+      helper.writeln('function __dartMapBaseValue(map, key) {');
+      helper.writeln(
+        '  if (map instanceof Map) return __dartMapGet(map, key);',
+      );
+      helper.writeln(
+        '  if (map != null && typeof map["[]"] === "function") return map["[]"](key);',
+      );
+      helper.writeln(
+        '  if (map != null && typeof map.get === "function") return map.get(key);',
+      );
+      helper.writeln('  return map == null ? null : map[key];');
+      helper.writeln('}');
+      helper.writeln('function __dartMapBaseValues(map) {');
+      helper.writeln(
+        '  return Array.from(__dartMapBaseKeys(map), (key) => __dartMapBaseValue(map, key));',
       );
       helper.writeln('}');
     }
@@ -14608,6 +14817,42 @@ final class _EsmEmitter {
       helper.writeln('  });');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartUnmodifiableMapView')) {
+      helper.writeln('function __dartUnmodifiableMapView(source) {');
+      helper.writeln(
+        '  const map = source instanceof Map ? source : new Map(source);',
+      );
+      helper.writeln('  const readonly = new Set(["set", "delete", "clear"]);');
+      helper.writeln('  return new Proxy(map, {');
+      helper.writeln('    get(target, property) {');
+      helper.writeln(
+        '      if (readonly.has(property)) return () => { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); };',
+      );
+      helper.writeln(
+        '      const descriptor = Reflect.getOwnPropertyDescriptor(target, property);',
+      );
+      helper.writeln(
+        '      if (descriptor != null && "value" in descriptor) return descriptor.value;',
+      );
+      helper.writeln(
+        '      const value = Reflect.get(target, property, target);',
+      );
+      helper.writeln(
+        '      return typeof value === "function" ? value.bind(target) : value;',
+      );
+      helper.writeln('    },');
+      helper.writeln(
+        '    set() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); },',
+      );
+      helper.writeln(
+        '    deleteProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); },',
+      );
+      helper.writeln(
+        '    defineProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); },',
+      );
+      helper.writeln('  });');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListSort')) {
       helper.writeln('function __dartListSort(list, compare = null) {');
       helper.writeln('  if (typeof compare === "function") {');
@@ -14661,11 +14906,13 @@ final class _EsmEmitter {
       helper.writeln(
         'function __dartListCopyRange(target, at, source, start = 0, end = null) {',
       );
+      helper.writeln('  const stop = end == null ? source.length : end;');
+      helper.writeln('  const values = [];');
       helper.writeln(
-        '  const values = Array.from(source).slice(start, end == null ? undefined : end);',
+        '  for (let index = start; index < stop; index++) values.push(__dartIndexGet(source, index));',
       );
       helper.writeln(
-        '  for (let index = 0; index < values.length; index++) target[at + index] = values[index];',
+        '  for (let index = 0; index < values.length; index++) __dartIndexSet(target, at + index, values[index]);',
       );
       helper.writeln('  return null;');
       helper.writeln('}');
@@ -14673,7 +14920,17 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartListWriteIterable')) {
       helper.writeln('function __dartListWriteIterable(target, at, source) {');
       helper.writeln('  let index = at;');
-      helper.writeln('  for (const value of source) target[index++] = value;');
+      helper.writeln(
+        '  if (source != null && typeof source["[]"] === "function" && typeof source.length === "number") {',
+      );
+      helper.writeln(
+        '    for (let sourceIndex = 0; sourceIndex < source.length; sourceIndex++) __dartIndexSet(target, index++, __dartIndexGet(source, sourceIndex));',
+      );
+      helper.writeln('  } else {');
+      helper.writeln(
+        '    for (const value of source) __dartIndexSet(target, index++, value);',
+      );
+      helper.writeln('  }');
       helper.writeln('  return null;');
       helper.writeln('}');
     }
@@ -14684,7 +14941,7 @@ final class _EsmEmitter {
         '  for (let index = begin; index < list.length; index++) {',
       );
       helper.writeln(
-        '    if (__dartEquals(list[index], needle)) return index;',
+        '    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;',
       );
       helper.writeln('  }');
       helper.writeln('  return -1;');
@@ -14700,7 +14957,7 @@ final class _EsmEmitter {
       helper.writeln('  if (index >= list.length) index = list.length - 1;');
       helper.writeln('  for (; index >= 0; index--) {');
       helper.writeln(
-        '    if (__dartEquals(list[index], needle)) return index;',
+        '    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;',
       );
       helper.writeln('  }');
       helper.writeln('  return -1;');
@@ -14710,7 +14967,7 @@ final class _EsmEmitter {
       helper.writeln('function __dartListSetAll(list, index, values) {');
       helper.writeln('  let offset = 0;');
       helper.writeln('  for (const value of values) {');
-      helper.writeln('    list[index + offset] = value;');
+      helper.writeln('    __dartIndexSet(list, index + offset, value);');
       helper.writeln('    offset++;');
       helper.writeln('  }');
       helper.writeln('  return null;');
@@ -14723,7 +14980,9 @@ final class _EsmEmitter {
       helper.writeln(
         '  for (let index = start == null ? list.length - 1 : start; index >= 0; index--) {',
       );
-      helper.writeln('    if (test(list[index])) return index;');
+      helper.writeln(
+        '    if (test(__dartIndexGet(list, index))) return index;',
+      );
       helper.writeln('  }');
       helper.writeln('  return -1;');
       helper.writeln('}');
@@ -14747,19 +15006,19 @@ final class _EsmEmitter {
       helper.writeln('  return new (class extends Map {');
       helper.writeln('    get size() { return list.length; }');
       helper.writeln(
-        '    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? list[key] : undefined; }',
+        '    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? __dartIndexGet(list, key) : undefined; }',
       );
       helper.writeln(
         '    has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }',
       );
       helper.writeln(
-        '    entries() { return Array.from(list, (value, index) => [index, value])[Symbol.iterator](); }',
+        '    entries() { return Array.from({ length: list.length }, (_, index) => [index, __dartIndexGet(list, index)])[Symbol.iterator](); }',
       );
       helper.writeln(
         '    keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }',
       );
       helper.writeln(
-        '    values() { return Array.from(list)[Symbol.iterator](); }',
+        '    values() { return Array.from({ length: list.length }, (_, index) => __dartIndexGet(list, index))[Symbol.iterator](); }',
       );
       helper.writeln('    [Symbol.iterator]() { return this.entries(); }');
       helper.writeln('    forEach(callback, thisArg = undefined) {');
@@ -15113,11 +15372,15 @@ final class _EsmEmitter {
       helper.writeln(
         'function __dartListSetRange(target, start, end, source, skipCount = 0) {',
       );
+      helper.writeln('  const values = [];');
+      helper.writeln('  const count = end - start;');
       helper.writeln(
-        '  const values = Array.from(source).slice(skipCount, skipCount + (end - start));',
+        '  for (let index = 0; index < count; index++) values.push(__dartIndexGet(source, skipCount + index));',
       );
       helper.writeln('  for (let index = 0; index < values.length; index++) {');
-      helper.writeln('    target[start + index] = values[index];');
+      helper.writeln(
+        '    __dartIndexSet(target, start + index, values[index]);',
+      );
       helper.writeln('  }');
       helper.writeln('  return null;');
       helper.writeln('}');
@@ -17034,7 +17297,7 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartIterator')) {
       helper.writeln('function __dartIterator(iterable) {');
       helper.writeln(
-        '  const values = Array.isArray(iterable) ? iterable : Array.from(iterable);',
+        '  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);',
       );
       helper.writeln('  let index = -1;');
       helper.writeln('  return {');
@@ -17042,7 +17305,9 @@ final class _EsmEmitter {
       helper.writeln('    moveNext() {');
       helper.writeln('      index++;');
       helper.writeln('      if (index < values.length) {');
-      helper.writeln('        this.current = values[index];');
+      helper.writeln(
+        '        this.current = typeof values.get === "function" ? values.get(index) : values[index];',
+      );
       helper.writeln('        return true;');
       helper.writeln('      }');
       helper.writeln('      this.current = undefined;');
@@ -17305,6 +17570,7 @@ const _generatedGlobalNames = {
   '__dartCoreError',
   '__dartCreateZone',
   '__dartCurrentZone',
+  '__dartCustomHashMap',
   '__dartDateTime',
   '__dartDateTimeCopyWith',
   '__dartDateTimeFromMicros',
@@ -17336,6 +17602,8 @@ const _generatedGlobalNames = {
   '__dartFutureWaitAllSettled',
   '__dartFutureWait',
   '__dartGet',
+  '__dartIndexGet',
+  '__dartIndexSet',
   '__dartIntGcd',
   '__dartIntModInverse',
   '__dartIntModPow',
@@ -17406,8 +17674,10 @@ const _generatedGlobalNames = {
   '__dartListWhereMutate',
   '__dartListWriteIterable',
   '__dartUnmodifiableListView',
+  '__dartUnmodifiableMapView',
   '__dartMapAddAll',
   '__dartMapAddEntries',
+  '__dartMapBaseValues',
   '__dartMapContainsKey',
   '__dartMapContainsValue',
   '__dartMapFromEntries',

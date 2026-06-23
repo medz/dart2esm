@@ -20,6 +20,12 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -83,6 +89,13 @@ function __dartSetAddAll(set, values) {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -169,7 +182,7 @@ export function main() {
   (queue.push(1), null);
   (queue.unshift(0), null);
   (queue.push(2), null);
-  __dartPrint("queue " + __dartStr(queue.length) + " " + __dartStr(queue[0]) + " " + __dartStr(queue[queue.length - 1]) + " " + __dartStr(__dartIterableJoin(queue, ",")));
+  __dartPrint("queue " + __dartStr(queue.length) + " " + __dartStr(__dartIndexGet(queue, 0)) + " " + __dartStr(__dartIndexGet(queue, queue.length - 1)) + " " + __dartStr(__dartIterableJoin(queue, ",")));
   __dartPrint("remove " + __dartStr(queue.shift()) + " " + __dartStr(queue.pop()) + " " + __dartStr(__dartIterableJoin(queue, ",")));
   const linked = [];
   (linked.push(...Array.from(["b", "c"])), null);

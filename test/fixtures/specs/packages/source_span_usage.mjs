@@ -36,7 +36,7 @@ function __dartStringBuffer(initial = "") {
   let value = initial == null ? "" : String(initial);
   return {
     write(next) { value += String(next); },
-    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },
+    writeAll(values, separator = "") { const parts = []; if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") { for (let index = 0; index < values.length; index++) parts.push(String(values["[]"](index))); } else { for (const item of values) parts.push(String(item)); } value += parts.join(String(separator)); },
     writeCharCode(charCode) { value += String.fromCodePoint(charCode); },
     writeln(next = "") { value += String(next) + "\n"; },
     clear() { value = ""; },
@@ -567,6 +567,19 @@ function __dartBind(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
+function __dartIndexSet(receiver, index, value) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }
+  const op = receiver?.["[]="];
+  if (typeof op === "function") return op.call(receiver, index, value);
+  receiver[index] = value;
+  return value;
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -679,9 +692,23 @@ function __dartSetRetainWhere(set, test) {
   }
   return null;
 }
+function __dartCustomHashMap(equals = null, hashCode = null, isValidKey = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartMapEquals", { value: equals });
+  Object.defineProperty(map, "__dartMapHashCode", { value: hashCode });
+  Object.defineProperty(map, "__dartMapIsValidKey", { value: isValidKey });
+  return map;
+}
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -801,7 +828,7 @@ function __dartListRemove(list, needle) {
 function __dartListIndexOf(list, needle, start = 0) {
   const begin = Math.max(0, Math.trunc(start));
   for (let index = begin; index < list.length; index++) {
-    if (__dartEquals(list[index], needle)) return index;
+    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
   }
   return -1;
 }
@@ -809,21 +836,21 @@ function __dartListLastIndexOf(list, needle, start = null) {
   let index = start == null ? list.length - 1 : Math.trunc(start);
   if (index >= list.length) index = list.length - 1;
   for (; index >= 0; index--) {
-    if (__dartEquals(list[index], needle)) return index;
+    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
   }
   return -1;
 }
 function __dartListSetAll(list, index, values) {
   let offset = 0;
   for (const value of values) {
-    list[index + offset] = value;
+    __dartIndexSet(list, index + offset, value);
     offset++;
   }
   return null;
 }
 function __dartListLastIndexWhere(list, test, start = null) {
   for (let index = start == null ? list.length - 1 : start; index >= 0; index--) {
-    if (test(list[index])) return index;
+    if (test(__dartIndexGet(list, index))) return index;
   }
   return -1;
 }
@@ -838,11 +865,11 @@ function __dartListRetainWhere(list, test) {
 function __dartListAsMap(list) {
   return new (class extends Map {
     get size() { return list.length; }
-    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? list[key] : undefined; }
+    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? __dartIndexGet(list, key) : undefined; }
     has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }
-    entries() { return Array.from(list, (value, index) => [index, value])[Symbol.iterator](); }
+    entries() { return Array.from({ length: list.length }, (_, index) => [index, __dartIndexGet(list, index)])[Symbol.iterator](); }
     keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }
-    values() { return Array.from(list)[Symbol.iterator](); }
+    values() { return Array.from({ length: list.length }, (_, index) => __dartIndexGet(list, index))[Symbol.iterator](); }
     [Symbol.iterator]() { return this.entries(); }
     forEach(callback, thisArg = undefined) {
       for (let index = 0; index < list.length; index++) {
@@ -997,9 +1024,11 @@ function __dartIterableSingleWhere(iterable, test, orElse = null) {
   return found ? single : __dartIterableNoElement(orElse);
 }
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
-  const values = Array.from(source).slice(skipCount, skipCount + (end - start));
+  const values = [];
+  const count = end - start;
+  for (let index = 0; index < count; index++) values.push(__dartIndexGet(source, skipCount + index));
   for (let index = 0; index < values.length; index++) {
-    target[start + index] = values[index];
+    __dartIndexSet(target, start + index, values[index]);
   }
   return null;
 }
@@ -1109,14 +1138,14 @@ function __dartLazyField(name, initialize, writable, publish) {
   return { get, set };
 }
 function __dartIterator(iterable) {
-  const values = Array.isArray(iterable) ? iterable : Array.from(iterable);
+  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = values[index];
+        this.current = typeof values.get === "function" ? values.get(index) : values[index];
         return true;
       }
       this.current = undefined;
@@ -1250,7 +1279,7 @@ class ParsedPath {
     return $ParsedPath__(ParsedPath, style_1, root, isRootRelative_1, parts, separators);
   }
   extension(level = 1) {
-    return this._splitExtension(level)[1];
+    return __dartIndexGet(this._splitExtension(level), 1);
   }
   get isAbsolute() {
     return !((this.root === null));
@@ -1302,7 +1331,7 @@ class ParsedPath {
     return __dartIterableLast(copy.parts);
   }
   get basenameWithoutExtension() {
-    return this._splitExtension()[0];
+    return __dartIndexGet(this._splitExtension(), 0);
   }
   get hasTrailingSeparator() {
     return (!__dartIterableIsEmpty(this.parts) && (__dartEquals(__dartIterableLast(this.parts), "") || !(__dartEquals(__dartIterableLast(this.separators), ""))));
@@ -1315,7 +1344,7 @@ class ParsedPath {
       }
     }
     if (!__dartIterableIsEmpty(this.separators)) {
-      this.separators[(this.separators.length - 1)] = "";
+      __dartIndexSet(this.separators, (this.separators.length - 1), "");
     }
   }
   normalize({ canonicalize: canonicalize_1 = false } = {}) {
@@ -1367,7 +1396,7 @@ class ParsedPath {
     this.separators = new Array((newParts.length + 1)).fill(this.style.separator);
     if (((!(this.isAbsolute) || newParts.length === 0) || !(this.style.needsSeparator(__dartNullCheck(this.root))))) {
       {
-        this.separators[0] = "";
+        __dartIndexSet(this.separators, 0, "");
       }
     }
     if ((!((this.root === null)) && __dartEquals(this.style, Style.windows))) {
@@ -1387,8 +1416,8 @@ class ParsedPath {
     }
     for (let i = 0; (i < this.parts.length); i = (i + 1)) {
       {
-        builder.write(this.separators[i]);
-        builder.write(this.parts[i]);
+        builder.write(__dartIndexGet(this.separators, i));
+        builder.write(__dartIndexGet(this.parts, i));
       }
     }
     builder.write(__dartIterableLast(this.separators));
@@ -2008,7 +2037,7 @@ class Context {
                 parsed.root = path.substring(0, this.style.rootLength(path, { withDrive: true }));
                 if (this.style.needsSeparator(__dartNullCheck(parsed.root))) {
                   {
-                    parsed.separators[0] = this.style.separator;
+                    __dartIndexSet(parsed.separators, 0, this.style.separator);
                   }
                 }
                 buffer.clear();
@@ -2083,7 +2112,7 @@ class Context {
           {
             for (let i = 0; (i < root); i = (i + 1)) {
               {
-                if (__dartEquals(codeUnits[i], 47)) {
+                if (__dartEquals(__dartIndexGet(codeUnits, i), 47)) {
                   return true;
                 }
               }
@@ -2094,7 +2123,7 @@ class Context {
     }
     for (let i_1 = start; (i_1 < codeUnits.length); i_1 = (i_1 + 1)) {
       {
-        const codeUnit = codeUnits[i_1];
+        const codeUnit = __dartIndexGet(codeUnits, i_1);
         if (this.style.isSeparator(codeUnit)) {
           {
             if ((__dartEquals(this.style, Style.windows) && __dartEquals(codeUnit, 47))) {
@@ -2155,7 +2184,7 @@ class Context {
       v_1.normalize();
       return v_1;
     })(); })();
-    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(fromParsed.parts[0], "."))) {
+    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(__dartIndexGet(fromParsed.parts, 0), "."))) {
       {
         return __dartStr(pathParsed);
       }
@@ -2165,7 +2194,7 @@ class Context {
         return __dartStr(pathParsed);
       }
     }
-    while (((!__dartIterableIsEmpty(fromParsed.parts) && !__dartIterableIsEmpty(pathParsed.parts)) && this.style.pathsEqual(fromParsed.parts[0], pathParsed.parts[0]))) {
+    while (((!__dartIterableIsEmpty(fromParsed.parts) && !__dartIterableIsEmpty(pathParsed.parts)) && this.style.pathsEqual(__dartIndexGet(fromParsed.parts, 0), __dartIndexGet(pathParsed.parts, 0)))) {
       {
         fromParsed.parts.splice(0, 1)[0];
         fromParsed.separators.splice(1, 1)[0];
@@ -2173,13 +2202,13 @@ class Context {
         pathParsed.separators.splice(1, 1)[0];
       }
     }
-    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(fromParsed.parts[0], ".."))) {
+    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(__dartIndexGet(fromParsed.parts, 0), ".."))) {
       {
         (() => { throw new PathException("Unable to find a path to \"" + __dartStr(path) + "\" from \"" + __dartStr(from) + "\"."); })();
       }
     }
     (pathParsed.parts.splice(0, 0, ...Array.from(__dartFixedList(new Array(fromParsed.parts.length).fill("..")))), null);
-    pathParsed.separators[0] = "";
+    __dartIndexSet(pathParsed.separators, 0, "");
     (pathParsed.separators.splice(1, 0, ...Array.from(__dartFixedList(new Array(fromParsed.parts.length).fill(this.style.separator)))), null);
     if (__dartIterableIsEmpty(pathParsed.parts)) {
       return ".";
@@ -2538,9 +2567,9 @@ class Context {
     L:
     for (let i = (parsed.parts.length - 1); (i >= 0); i = (i - 1)) {
       {
-        if (parsed.parts[i].length !== 0) {
+        if (__dartIndexGet(parsed.parts, i).length !== 0) {
           {
-            parsed.parts[i] = parsed.basenameWithoutExtension;
+            __dartIndexSet(parsed.parts, i, parsed.basenameWithoutExtension);
             break L;
           }
         }
@@ -2627,7 +2656,15 @@ class PathMap {
   }
   static _create(context_1) {
     ((context_1 === null) ? context_1 = context : null);
-    return new Map();
+    return __dartCustomHashMap(function(path1, path2) {
+      if ((path1 === null)) {
+        return (path2 === null);
+      }
+      if ((path2 === null)) {
+        return false;
+      }
+      return __dartNullCheck(context_1).equals(path1, path2);
+}, function(path) { return ((path === null) ? 0 : __dartNullCheck(context_1).hash(path)); }, function(path) { return (typeof path === "string" || (path === null)); });
   }
 }
 
@@ -2838,10 +2875,10 @@ class DelegatingList extends _DelegatingIterableBase {
     return Array.from(base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingList.typed.E%)"));
   }
   "[]"(index) {
-    return this._base[index];
+    return __dartIndexGet(this._base, index);
   }
   "[]="(index, value) {
-    this._base[index] = value;
+    __dartIndexSet(this._base, index, value);
   }
   "+"(other) {
     return (this._base + other);
@@ -2942,6 +2979,9 @@ class DelegatingList extends _DelegatingIterableBase {
   sublist(start, end = null) {
     return this._base.slice(start, end);
   }
+  get first() { return super.first; }
+  get last() { return super.last; }
+  get length() { return super.length; }
 }
 
 class DelegatingSet extends _DelegatingIterableBase {
@@ -3607,6 +3647,7 @@ class _NonGrowableListView_DelegatingList_NonGrowableListMixin extends Delegatin
   clear() {
     return NonGrowableListMixin._throw();
   }
+  get length() { return super.length; }
 }
 
 class NonGrowableListView extends _NonGrowableListView_DelegatingList_NonGrowableListMixin {
@@ -3652,7 +3693,7 @@ class _BoolList_Object_ListMixin {
     __dartCheckValidRange(start, end, this.length, null, null, null);
     for (let i = start; (i < end); i = (i + 1)) {
       {
-        this[i] = value;
+        __dartIndexSet(this, i, value);
       }
     }
   }
@@ -3663,28 +3704,28 @@ class _BoolList_Object_ListMixin {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    return this[0];
+    return __dartIndexGet(this, 0);
   }
   set first(value) {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    this[0] = value;
+    __dartIndexSet(this, 0, value);
   }
   get last() {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    return this[(this.length - 1)];
+    return __dartIndexGet(this, (this.length - 1));
   }
   set last(value) {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    this[(this.length - 1)] = value;
+    __dartIndexSet(this, (this.length - 1), value);
   }
   elementAt(index) {
-    return this[index];
+    return __dartIndexGet(this, index);
   }
   followedBy(other) {
     return Array.from(this).concat(Array.from(other));
@@ -3693,7 +3734,7 @@ class _BoolList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        (action)(this[i]);
+        (action)(__dartIndexGet(this, i));
         if (!(__dartEquals(length, this.length))) {
           {
             (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
@@ -3706,7 +3747,7 @@ class _BoolList_Object_ListMixin {
     return __dartEquals(this.length, 0);
   }
   get isNotEmpty() {
-    return !(this.isEmpty);
+    return !(this.length === 0);
   }
   get single() {
     if (__dartEquals(this.length, 0)) {
@@ -3715,13 +3756,13 @@ class _BoolList_Object_ListMixin {
     if ((this.length > 1)) {
       (() => { throw __dartCoreError("StateError", "Too many elements"); })();
     }
-    return this[0];
+    return __dartIndexGet(this, 0);
   }
   contains(element) {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           return true;
         }
         if (!(__dartEquals(length, this.length))) {
@@ -3737,7 +3778,7 @@ class _BoolList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        if (!((test)(this[i]))) {
+        if (!((test)(__dartIndexGet(this, i)))) {
           return false;
         }
         if (!(__dartEquals(length, this.length))) {
@@ -3753,7 +3794,7 @@ class _BoolList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        if ((test)(this[i])) {
+        if ((test)(__dartIndexGet(this, i))) {
           return true;
         }
         if (!(__dartEquals(length, this.length))) {
@@ -3769,7 +3810,7 @@ class _BoolList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if ((test)(element)) {
           return element;
         }
@@ -3789,7 +3830,7 @@ class _BoolList_Object_ListMixin {
     let length = this.length;
     for (let i = (length - 1); (i >= 0); i = (i - 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if ((test)(element)) {
           return element;
         }
@@ -3811,7 +3852,7 @@ class _BoolList_Object_ListMixin {
     let matchFound = false;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if ((test)(element)) {
           {
             if (matchFound) {
@@ -3865,10 +3906,10 @@ class _BoolList_Object_ListMixin {
     if (__dartEquals(length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    let value = this[0];
+    let value = __dartIndexGet(this, 0);
     for (let i = 1; (i < length); i = (i + 1)) {
       {
-        value = (combine)(value, this[i]);
+        value = (combine)(value, __dartIndexGet(this, i));
         if (!(__dartEquals(length, this.length))) {
           {
             (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
@@ -3883,7 +3924,7 @@ class _BoolList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        value = (combine)(value, this[i]);
+        value = (combine)(value, __dartIndexGet(this, i));
         if (!(__dartEquals(length, this.length))) {
           {
             (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
@@ -3906,14 +3947,14 @@ class _BoolList_Object_ListMixin {
     return __dartIterableTakeWhile(this, test);
   }
   toList({ growable = true } = {}) {
-    if (this.isEmpty) {
+    if (this.length === 0) {
       return (growable ? [] : __dartFixedList([]));
     }
-    let first = this[0];
+    let first = __dartIndexGet(this, 0);
     let result = (growable ? new Array(this.length).fill(first) : __dartFixedList(new Array(this.length).fill(first)));
     for (let i = 1; (i < this.length); i = (i + 1)) {
       {
-        result[i] = this[i];
+        __dartIndexSet(result, i, __dartIndexGet(this, i));
       }
     }
     return result;
@@ -3922,13 +3963,13 @@ class _BoolList_Object_ListMixin {
     let result = new Set();
     for (let i = 0; (i < this.length); i = (i + 1)) {
       {
-        __dartSetAdd(result, this[i]);
+        __dartSetAdd(result, __dartIndexGet(this, i));
       }
     }
     return result;
   }
   add(element) {
-    this[(() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })()] = element;
+    __dartIndexSet(this, (() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })(), element);
   }
   addAll(iterable) {
     let i = this.length;
@@ -3948,7 +3989,7 @@ class _BoolList_Object_ListMixin {
   remove(element) {
     for (let i = 0; (i < this.length); i = (i + 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           {
             this._closeGap(i, (i + 1));
             return true;
@@ -3963,7 +4004,7 @@ class _BoolList_Object_ListMixin {
     let size = (end - start);
     for (let i = end; (i < length); i = (i + 1)) {
       {
-        this[(i - size)] = this[i];
+        __dartIndexSet(this, (i - size), __dartIndexGet(this, i));
       }
     }
     this.length = (length - size);
@@ -3979,7 +4020,7 @@ class _BoolList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if (__dartEquals((test)(element), retainMatching)) {
           {
             (retained.push(element), null);
@@ -3994,7 +4035,7 @@ class _BoolList_Object_ListMixin {
     }
     if (!(__dartEquals(retained.length, this.length))) {
       {
-        this.setRange(0, retained.length, retained);
+        __dartListSetRange(this, 0, retained.length, retained, 0);
         this.length = retained.length;
       }
     }
@@ -4011,7 +4052,7 @@ class _BoolList_Object_ListMixin {
         (() => { throw __dartCoreError("StateError", "No element"); })();
       }
     }
-    let result = this[(this.length - 1)];
+    let result = __dartIndexGet(this, (this.length - 1));
     this.length = (this.length - 1);
     return result;
   }
@@ -4025,9 +4066,9 @@ class _BoolList_Object_ListMixin {
       {
         let pos = random.nextInt(length);
         length = (length - 1);
-        let tmp = this[length];
-        this[length] = this[pos];
-        this[pos] = tmp;
+        let tmp = __dartIndexGet(this, length);
+        __dartIndexSet(this, length, __dartIndexGet(this, pos));
+        __dartIndexSet(this, pos, tmp);
       }
     }
   }
@@ -4045,7 +4086,7 @@ class _BoolList_Object_ListMixin {
     let listLength = this.length;
     ((end === null) ? end = listLength : null);
     __dartCheckValidRange(start, end, listLength, null, null, null);
-    return Array.from(this.getRange(start, end));
+    return Array.from(this.slice(start, end));
   }
   getRange(start, end) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
@@ -4088,7 +4129,7 @@ class _BoolList_Object_ListMixin {
       {
         for (let i = (length - 1); (i >= 0); i = (i - 1)) {
           {
-            this[(start + i)] = otherList[(otherStart + i)];
+            __dartIndexSet(this, (start + i), __dartIndexGet(otherList, (otherStart + i)));
           }
         }
       }
@@ -4096,7 +4137,7 @@ class _BoolList_Object_ListMixin {
       {
         for (let i_1 = 0; (i_1 < length); i_1 = (i_1 + 1)) {
           {
-            this[(start + i_1)] = otherList[(otherStart + i_1)];
+            __dartIndexSet(this, (start + i_1), __dartIndexGet(otherList, (otherStart + i_1)));
           }
         }
       }
@@ -4120,7 +4161,7 @@ class _BoolList_Object_ListMixin {
     if ((removeLength >= insertLength)) {
       {
         let insertEnd = (start + insertLength);
-        this.setRange(start, insertEnd, newContents);
+        __dartListSetRange(this, start, insertEnd, newContents, 0);
         if ((removeLength > insertLength)) {
           {
             this._closeGap(insertEnd, end);
@@ -4139,7 +4180,7 @@ class _BoolList_Object_ListMixin {
                 {
                   if ((i < end)) {
                     {
-                      this[i] = element;
+                      __dartIndexSet(this, i, element);
                     }
                   } else {
                     {
@@ -4159,15 +4200,15 @@ class _BoolList_Object_ListMixin {
           let insertEnd_1 = (start + insertLength);
           for (let i_1 = (oldLength - delta); (i_1 < oldLength); i_1 = (i_1 + 1)) {
             {
-              this.add(this[((i_1 > 0) ? i_1 : 0)]);
+              this.add(__dartIndexGet(this, ((i_1 > 0) ? i_1 : 0)));
             }
           }
           if ((insertEnd_1 < oldLength)) {
             {
-              this.setRange(insertEnd_1, oldLength, this, end);
+              __dartListSetRange(this, insertEnd_1, oldLength, this, end);
             }
           }
-          this.setRange(start, insertEnd_1, newContents);
+          __dartListSetRange(this, start, insertEnd_1, newContents, 0);
         }
       }
     }
@@ -4178,7 +4219,7 @@ class _BoolList_Object_ListMixin {
     }
     for (let i = start; (i < this.length); i = (i + 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           return i;
         }
       }
@@ -4191,7 +4232,7 @@ class _BoolList_Object_ListMixin {
     }
     for (let i = start; (i < this.length); i = (i + 1)) {
       {
-        if ((test)(this[i])) {
+        if ((test)(__dartIndexGet(this, i))) {
           return i;
         }
       }
@@ -4204,7 +4245,7 @@ class _BoolList_Object_ListMixin {
     }
     for (let i = start; (i >= 0); i = (i - 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           return i;
         }
       }
@@ -4217,7 +4258,7 @@ class _BoolList_Object_ListMixin {
     }
     for (let i = start; (i >= 0); i = (i - 1)) {
       {
-        if ((test)(this[i])) {
+        if ((test)(__dartIndexGet(this, i))) {
           return i;
         }
       }
@@ -4231,13 +4272,13 @@ class _BoolList_Object_ListMixin {
     this.add(element);
     if (!(__dartEquals(index, length))) {
       {
-        this.setRange((index + 1), (length + 1), this, index);
-        this[index] = element;
+        __dartListSetRange(this, (index + 1), (length + 1), this, index);
+        __dartIndexSet(this, index, element);
       }
     }
   }
   removeAt(index) {
-    let result = this[index];
+    let result = __dartIndexGet(this, index);
     this._closeGap(index, (index + 1));
     return result;
   }
@@ -4263,7 +4304,7 @@ class _BoolList_Object_ListMixin {
     let oldLength = this.length;
     for (let i = (oldLength - insertionLength); (i < oldLength); i = (i + 1)) {
       {
-        this.add(this[((i > 0) ? i : 0)]);
+        this.add(__dartIndexGet(this, ((i > 0) ? i : 0)));
       }
     }
     if (!(__dartEquals(__dartIterableLength(iterable), insertionLength))) {
@@ -4275,15 +4316,15 @@ class _BoolList_Object_ListMixin {
     let oldCopyStart = (index + insertionLength);
     if ((oldCopyStart < oldLength)) {
       {
-        this.setRange(oldCopyStart, oldLength, this, index);
+        __dartListSetRange(this, oldCopyStart, oldLength, this, index);
       }
     }
-    this.setAll(index, iterable);
+    __dartListSetAll(this, index, iterable);
   }
   setAll(index, iterable) {
     if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
       {
-        this.setRange(index, (index + __dartIterableLength(iterable)), iterable);
+        __dartListSetRange(this, index, (index + __dartIterableLength(iterable)), iterable, 0);
       }
     } else {
       {
@@ -4293,7 +4334,7 @@ class _BoolList_Object_ListMixin {
             {
               let element = _sync_for_iterator.current;
               {
-                this[(() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })()] = element;
+                __dartIndexSet(this, (() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element);
               }
             }
           }
@@ -4378,7 +4419,7 @@ class BoolList extends _BoolList_Object_ListMixin {
   }
   "[]"(index) {
     __dartCheckValidIndex(index, this, "index", this._length, null);
-    return !(__dartEquals((this._data[__dartShr(index, 5)] & (1 << (index & 31))), 0));
+    return !(__dartEquals((__dartIndexGet(this._data, __dartShr(index, 5)) & (1 << (index & 31))), 0));
   }
   "[]="(index, value) {
     __dartCheckValidIndex(index, this, "index", this._length, null);
@@ -4395,15 +4436,15 @@ class BoolList extends _BoolList_Object_ListMixin {
       {
         if (fill) {
           {
-            (() => { let v = this._data; return (() => { let v_1 = startWord; return v[v_1] = (v[v_1] | ((-1) << startBit)); })(); })();
+            (() => { let v = this._data; return (() => { let v_1 = startWord; return __dartIndexSet(v, v_1, (__dartIndexGet(v, v_1) | ((-1) << startBit))); })(); })();
             (this._data.fill((-1), (startWord + 1), endWord), null);
-            (() => { let v_2 = this._data; return (() => { let v_3 = endWord; return v_2[v_3] = (v_2[v_3] | ((1 << (endBit + 1)) - 1)); })(); })();
+            (() => { let v_2 = this._data; return (() => { let v_3 = endWord; return __dartIndexSet(v_2, v_3, (__dartIndexGet(v_2, v_3) | ((1 << (endBit + 1)) - 1))); })(); })();
           }
         } else {
           {
-            (() => { let v_4 = this._data; return (() => { let v_5 = startWord; return v_4[v_5] = (v_4[v_5] & ((1 << startBit) - 1)); })(); })();
+            (() => { let v_4 = this._data; return (() => { let v_5 = startWord; return __dartIndexSet(v_4, v_5, (__dartIndexGet(v_4, v_5) & ((1 << startBit) - 1))); })(); })();
             (this._data.fill(0, (startWord + 1), endWord), null);
-            (() => { let v_6 = this._data; return (() => { let v_7 = endWord; return v_6[v_7] = (v_6[v_7] & ((-1) << (endBit + 1))); })(); })();
+            (() => { let v_6 = this._data; return (() => { let v_7 = endWord; return __dartIndexSet(v_6, v_7, (__dartIndexGet(v_6, v_7) & ((-1) << (endBit + 1)))); })(); })();
           }
         }
       }
@@ -4411,11 +4452,11 @@ class BoolList extends _BoolList_Object_ListMixin {
       {
         if (fill) {
           {
-            (() => { let v_8 = this._data; return (() => { let v_9 = startWord; return v_8[v_9] = (v_8[v_9] | (((1 << ((endBit - startBit) + 1)) - 1) << startBit)); })(); })();
+            (() => { let v_8 = this._data; return (() => { let v_9 = startWord; return __dartIndexSet(v_8, v_9, (__dartIndexGet(v_8, v_9) | (((1 << ((endBit - startBit) + 1)) - 1) << startBit))); })(); })();
           }
         } else {
           {
-            (() => { let v_10 = this._data; return (() => { let v_11 = startWord; return v_10[v_11] = (v_10[v_11] & (((1 << startBit) - 1) | ((-1) << (endBit + 1)))); })(); })();
+            (() => { let v_10 = this._data; return (() => { let v_11 = startWord; return __dartIndexSet(v_10, v_11, (__dartIndexGet(v_10, v_11) & (((1 << startBit) - 1) | ((-1) << (endBit + 1))))); })(); })();
           }
         }
       }
@@ -4427,11 +4468,11 @@ class BoolList extends _BoolList_Object_ListMixin {
   _setBit(index, value) {
     if (value) {
       {
-        (() => { let v = this._data; return (() => { let v_1 = __dartShr(index, 5); return v[v_1] = (v[v_1] | (1 << (index & 31))); })(); })();
+        (() => { let v = this._data; return (() => { let v_1 = __dartShr(index, 5); return __dartIndexSet(v, v_1, (__dartIndexGet(v, v_1) | (1 << (index & 31)))); })(); })();
       }
     } else {
       {
-        (() => { let v_2 = this._data; return (() => { let v_3 = __dartShr(index, 5); return v_2[v_3] = (v_2[v_3] & (~(1 << (index & 31)))); })(); })();
+        (() => { let v_2 = this._data; return (() => { let v_3 = __dartShr(index, 5); return __dartIndexSet(v_2, v_3, (__dartIndexGet(v_2, v_3) & (~(1 << (index & 31))))); })(); })();
       }
     }
   }
@@ -4497,6 +4538,7 @@ class _GrowableBoolList extends BoolList {
     }
     this._length = length;
   }
+  get length() { return super.length; }
 }
 
 function $_GrowableBoolList__withCapacity($newTarget, length, capacity) {
@@ -4552,6 +4594,7 @@ class __NonGrowableBoolList_BoolList_NonGrowableListMixin extends BoolList {
   clear() {
     return NonGrowableListMixin._throw();
   }
+  get length() { return super.length; }
 }
 
 function $__NonGrowableBoolList_BoolList_NonGrowableListMixin__($newTarget, _data, _length) {
@@ -4594,7 +4637,7 @@ class _BoolListIterator {
     if ((this._pos < this._boolList.length)) {
       {
         let pos = (() => { let v = this._pos; return (() => { let v_1 = this._pos = (v + 1); return v; })(); })();
-        this._current = !(__dartEquals((this._boolList._data[__dartShr(pos, 5)] & (1 << (pos & 31))), 0));
+        this._current = !(__dartEquals((__dartIndexGet(this._boolList._data, __dartShr(pos, 5)) & (1 << (pos & 31))), 0));
         return true;
       }
     }
@@ -4829,10 +4872,10 @@ class CombinedListView {
     let initialIndex = index;
     for (let i = 0; (i < this._lists.length); i = (i + 1)) {
       {
-        let list = this._lists[i];
+        let list = __dartIndexGet(this._lists, i);
         if ((index < list.length)) {
           {
-            return list[index];
+            return __dartIndexGet(list, index);
           }
         }
         index = (index - list.length);
@@ -5069,7 +5112,7 @@ class ListEquality {
     }
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        if (!(this._elementEquality.equals(list1[i], list2[i]))) {
+        if (!(this._elementEquality.equals(__dartIndexGet(list1, i), __dartIndexGet(list2, i)))) {
           return false;
         }
       }
@@ -5083,7 +5126,7 @@ class ListEquality {
     let hash_1 = 0;
     for (let i = 0; (i < list.length); i = (i + 1)) {
       {
-        let c = this._elementEquality.hash(list[i]);
+        let c = this._elementEquality.hash(__dartIndexGet(list, i));
         hash_1 = ((hash_1 + c) & 2147483647);
         hash_1 = ((hash_1 + (hash_1 << 10)) & 2147483647);
         hash_1 = (hash_1 ^ __dartShr(hash_1, 6));
@@ -5111,7 +5154,7 @@ class _UnorderedEquality {
     if (((elements1 === null) || (elements2 === null))) {
       return false;
     }
-    let counts = new Map();
+    let counts = __dartCustomHashMap(__dartAs(__dartBind(this._elementEquality, "equals"), value => typeof value === "function", "bool Function(_UnorderedEquality.E%, _UnorderedEquality.E%)"), __dartAs(__dartBind(this._elementEquality, "hash"), value => typeof value === "function", "int Function(_UnorderedEquality.E%)"), __dartBind(this._elementEquality, "isValidKey"));
     let length = 0;
     {
       let _sync_for_iterator = __dartIterator(elements1);
@@ -5432,7 +5475,7 @@ class CaseInsensitiveEquality {
 
 class EqualityMap extends DelegatingMap {
   constructor(equality) {
-    super(new Map());
+    super(__dartCustomHashMap(__dartAs(__dartBind(equality, "equals"), value => typeof value === "function", "bool Function(EqualityMap.K%, EqualityMap.K%)"), __dartAs(__dartBind(equality, "hash"), value => typeof value === "function", "int Function(EqualityMap.K%)"), __dartBind(equality, "isValidKey")));
   }
   static from(equality, other) {
     return $EqualityMap_from(EqualityMap, equality, other);
@@ -5440,7 +5483,7 @@ class EqualityMap extends DelegatingMap {
 }
 
 function $EqualityMap_from($newTarget, equality, other) {
-  const $self = Reflect.construct(DelegatingMap, [new Map()], $newTarget);
+  const $self = Reflect.construct(DelegatingMap, [__dartCustomHashMap(__dartAs(__dartBind(equality, "equals"), value => typeof value === "function", "bool Function(EqualityMap.K%, EqualityMap.K%)"), __dartAs(__dartBind(equality, "hash"), value => typeof value === "function", "int Function(EqualityMap.K%)"), __dartBind(equality, "isValidKey"))], $newTarget);
   $self.addAll(other);
   return $self;
 }
@@ -5481,7 +5524,7 @@ class _IteratorZip {
     }
     for (let i = 0; (i < this._iterators.length); i = (i + 1)) {
       {
-        if (!(this._iterators[i].moveNext())) {
+        if (!(__dartIndexGet(this._iterators, i).moveNext())) {
           {
             this._current = null;
             return false;
@@ -5489,7 +5532,7 @@ class _IteratorZip {
         }
       }
     }
-    this._current = __dartFixedList(Array.from({ length: this._iterators.length }, (_, index) => ((i) => { return this._iterators[i].current; })(index)));
+    this._current = __dartFixedList(Array.from({ length: this._iterators.length }, (_, index) => ((i) => { return __dartIndexGet(this._iterators, i).current; })(index)));
     return true;
   }
   get current() {
@@ -5518,7 +5561,7 @@ class ListSlice {
       }
     }
     __dartCheckValidIndex(index, this, null, this.length, null);
-    return this.source[(this.start + index)];
+    return __dartIndexGet(this.source, (this.start + index));
   }
   "[]="(index, value) {
     if (!(__dartEquals(this.source.length, this._initialSize))) {
@@ -5527,7 +5570,7 @@ class ListSlice {
       }
     }
     __dartCheckValidIndex(index, this, null, this.length, null);
-    this.source[(this.start + index)] = value;
+    __dartIndexSet(this.source, (this.start + index), value);
   }
   setRange(start, end, iterable, skipCount = 0) {
     if (!(__dartEquals(this.source.length, this._initialSize))) {
@@ -5708,7 +5751,7 @@ class HeapPriorityQueue {
     Object.defineProperty(this, $PriorityQueue_interface, { value: true });
   }
   _elementAt(index) {
-    return (this._queue[index] ?? (null ?? __dartAs(v, value => true, "E")));
+    return (__dartIndexGet(this._queue, index) ?? (null ?? __dartAs(v, value => true, "E")));
   }
   add(element) {
     this._modificationCount = (this._modificationCount + 1);
@@ -5879,7 +5922,7 @@ class HeapPriorityQueue {
   _removeLast() {
     let newLength = (this._length - 1);
     let last = this._elementAt(newLength);
-    this._queue[newLength] = null;
+    __dartIndexSet(this._queue, newLength, null);
     this._length = newLength;
     return last;
   }
@@ -5892,11 +5935,11 @@ class HeapPriorityQueue {
         if (((() => { let v = element; return (() => { let v_1 = parent; return (this.comparison)(v, v_1); })(); })() > 0)) {
           break L;
         }
-        this._queue[index] = parent;
+        __dartIndexSet(this._queue, index, parent);
         index = parentIndex;
       }
     }
-    this._queue[index] = element;
+    __dartIndexSet(this._queue, index, element);
   }
   _bubbleDown(element, index) {
     let rightChildIndex = ((index * 2) + 2);
@@ -5922,11 +5965,11 @@ class HeapPriorityQueue {
         comp = (() => { let v_2 = element; return (() => { let v_3 = minChild; return (this.comparison)(v_2, v_3); })(); })();
         if ((comp <= 0)) {
           {
-            this._queue[index] = element;
+            __dartIndexSet(this._queue, index, element);
             return;
           }
         }
-        this._queue[index] = minChild;
+        __dartIndexSet(this._queue, index, minChild);
         index = minChildIndex;
         rightChildIndex = ((index * 2) + 2);
       }
@@ -5938,13 +5981,13 @@ class HeapPriorityQueue {
         let comp_1 = (() => { let v_4 = element; return (() => { let v_5 = child; return (this.comparison)(v_4, v_5); })(); })();
         if ((comp_1 > 0)) {
           {
-            this._queue[index] = child;
+            __dartIndexSet(this._queue, index, child);
             index = leftChildIndex_1;
           }
         }
       }
     }
-    this._queue[index] = element;
+    __dartIndexSet(this._queue, index, element);
   }
   _grow() {
     let newCapacity = ((this._queue.length * 2) + 1);
@@ -5982,7 +6025,7 @@ class _UnorderedElementsIterator {
     let nextIndex = (this._index + 1);
     if (((0 <= nextIndex) && (nextIndex < this._queue.length))) {
       {
-        this._current = this._queue._queue[nextIndex];
+        this._current = __dartIndexGet(this._queue._queue, nextIndex);
         this._index = nextIndex;
         return true;
       }
@@ -6000,7 +6043,7 @@ class _QueueList_Object_ListMixin {
   constructor() {
   }
   add(element) {
-    this[(() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })()] = element;
+    __dartIndexSet(this, (() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })(), element);
   }
   addAll(iterable) {
     let i = this.length;
@@ -6029,7 +6072,7 @@ class _QueueList_Object_ListMixin {
         (() => { throw __dartCoreError("StateError", "No element"); })();
       }
     }
-    let result = this[(this.length - 1)];
+    let result = __dartIndexGet(this, (this.length - 1));
     this.length = (this.length - 1);
     return result;
   }
@@ -6037,31 +6080,31 @@ class _QueueList_Object_ListMixin {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    return this[0];
+    return __dartIndexGet(this, 0);
   }
   set first(value) {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    this[0] = value;
+    __dartIndexSet(this, 0, value);
   }
   get last() {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    return this[(this.length - 1)];
+    return __dartIndexGet(this, (this.length - 1));
   }
   set last(value) {
     if (__dartEquals(this.length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    this[(this.length - 1)] = value;
+    __dartIndexSet(this, (this.length - 1), value);
   }
   get iterator() {
     return __dartIterator(this);
   }
   elementAt(index) {
-    return this[index];
+    return __dartIndexGet(this, index);
   }
   followedBy(other) {
     return Array.from(this).concat(Array.from(other));
@@ -6070,7 +6113,7 @@ class _QueueList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        (action)(this[i]);
+        (action)(__dartIndexGet(this, i));
         if (!(__dartEquals(length, this.length))) {
           {
             (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
@@ -6083,7 +6126,7 @@ class _QueueList_Object_ListMixin {
     return __dartEquals(this.length, 0);
   }
   get isNotEmpty() {
-    return !(this.isEmpty);
+    return !(this.length === 0);
   }
   get single() {
     if (__dartEquals(this.length, 0)) {
@@ -6092,13 +6135,13 @@ class _QueueList_Object_ListMixin {
     if ((this.length > 1)) {
       (() => { throw __dartCoreError("StateError", "Too many elements"); })();
     }
-    return this[0];
+    return __dartIndexGet(this, 0);
   }
   contains(element) {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           return true;
         }
         if (!(__dartEquals(length, this.length))) {
@@ -6114,7 +6157,7 @@ class _QueueList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        if (!((test)(this[i]))) {
+        if (!((test)(__dartIndexGet(this, i)))) {
           return false;
         }
         if (!(__dartEquals(length, this.length))) {
@@ -6130,7 +6173,7 @@ class _QueueList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        if ((test)(this[i])) {
+        if ((test)(__dartIndexGet(this, i))) {
           return true;
         }
         if (!(__dartEquals(length, this.length))) {
@@ -6146,7 +6189,7 @@ class _QueueList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if ((test)(element)) {
           return element;
         }
@@ -6166,7 +6209,7 @@ class _QueueList_Object_ListMixin {
     let length = this.length;
     for (let i = (length - 1); (i >= 0); i = (i - 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if ((test)(element)) {
           return element;
         }
@@ -6188,7 +6231,7 @@ class _QueueList_Object_ListMixin {
     let matchFound = false;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if ((test)(element)) {
           {
             if (matchFound) {
@@ -6242,10 +6285,10 @@ class _QueueList_Object_ListMixin {
     if (__dartEquals(length, 0)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    let value = this[0];
+    let value = __dartIndexGet(this, 0);
     for (let i = 1; (i < length); i = (i + 1)) {
       {
-        value = (combine)(value, this[i]);
+        value = (combine)(value, __dartIndexGet(this, i));
         if (!(__dartEquals(length, this.length))) {
           {
             (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
@@ -6260,7 +6303,7 @@ class _QueueList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        value = (combine)(value, this[i]);
+        value = (combine)(value, __dartIndexGet(this, i));
         if (!(__dartEquals(length, this.length))) {
           {
             (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
@@ -6283,14 +6326,14 @@ class _QueueList_Object_ListMixin {
     return __dartIterableTakeWhile(this, test);
   }
   toList({ growable = true } = {}) {
-    if (this.isEmpty) {
+    if (this.length === 0) {
       return (growable ? [] : __dartFixedList([]));
     }
-    let first = this[0];
+    let first = __dartIndexGet(this, 0);
     let result = (growable ? new Array(this.length).fill(first) : __dartFixedList(new Array(this.length).fill(first)));
     for (let i = 1; (i < this.length); i = (i + 1)) {
       {
-        result[i] = this[i];
+        __dartIndexSet(result, i, __dartIndexGet(this, i));
       }
     }
     return result;
@@ -6299,7 +6342,7 @@ class _QueueList_Object_ListMixin {
     let result = new Set();
     for (let i = 0; (i < this.length); i = (i + 1)) {
       {
-        __dartSetAdd(result, this[i]);
+        __dartSetAdd(result, __dartIndexGet(this, i));
       }
     }
     return result;
@@ -6307,7 +6350,7 @@ class _QueueList_Object_ListMixin {
   remove(element) {
     for (let i = 0; (i < this.length); i = (i + 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           {
             this._closeGap(i, (i + 1));
             return true;
@@ -6322,7 +6365,7 @@ class _QueueList_Object_ListMixin {
     let size = (end - start);
     for (let i = end; (i < length); i = (i + 1)) {
       {
-        this[(i - size)] = this[i];
+        __dartIndexSet(this, (i - size), __dartIndexGet(this, i));
       }
     }
     this.length = (length - size);
@@ -6338,7 +6381,7 @@ class _QueueList_Object_ListMixin {
     let length = this.length;
     for (let i = 0; (i < length); i = (i + 1)) {
       {
-        let element = this[i];
+        let element = __dartIndexGet(this, i);
         if (__dartEquals((test)(element), retainMatching)) {
           {
             (retained.push(element), null);
@@ -6353,7 +6396,7 @@ class _QueueList_Object_ListMixin {
     }
     if (!(__dartEquals(retained.length, this.length))) {
       {
-        this.setRange(0, retained.length, retained);
+        __dartListSetRange(this, 0, retained.length, retained, 0);
         this.length = retained.length;
       }
     }
@@ -6371,9 +6414,9 @@ class _QueueList_Object_ListMixin {
       {
         let pos = random.nextInt(length);
         length = (length - 1);
-        let tmp = this[length];
-        this[length] = this[pos];
-        this[pos] = tmp;
+        let tmp = __dartIndexGet(this, length);
+        __dartIndexSet(this, length, __dartIndexGet(this, pos));
+        __dartIndexSet(this, pos, tmp);
       }
     }
   }
@@ -6391,7 +6434,7 @@ class _QueueList_Object_ListMixin {
     let listLength = this.length;
     ((end === null) ? end = listLength : null);
     __dartCheckValidRange(start, end, listLength, null, null, null);
-    return Array.from(this.getRange(start, end));
+    return Array.from(this.slice(start, end));
   }
   getRange(start, end) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
@@ -6410,7 +6453,7 @@ class _QueueList_Object_ListMixin {
     __dartCheckValidRange(start, end, this.length, null, null, null);
     for (let i = start; (i < end); i = (i + 1)) {
       {
-        this[i] = value;
+        __dartIndexSet(this, i, value);
       }
     }
   }
@@ -6443,7 +6486,7 @@ class _QueueList_Object_ListMixin {
       {
         for (let i = (length - 1); (i >= 0); i = (i - 1)) {
           {
-            this[(start + i)] = otherList[(otherStart + i)];
+            __dartIndexSet(this, (start + i), __dartIndexGet(otherList, (otherStart + i)));
           }
         }
       }
@@ -6451,7 +6494,7 @@ class _QueueList_Object_ListMixin {
       {
         for (let i_1 = 0; (i_1 < length); i_1 = (i_1 + 1)) {
           {
-            this[(start + i_1)] = otherList[(otherStart + i_1)];
+            __dartIndexSet(this, (start + i_1), __dartIndexGet(otherList, (otherStart + i_1)));
           }
         }
       }
@@ -6475,7 +6518,7 @@ class _QueueList_Object_ListMixin {
     if ((removeLength >= insertLength)) {
       {
         let insertEnd = (start + insertLength);
-        this.setRange(start, insertEnd, newContents);
+        __dartListSetRange(this, start, insertEnd, newContents, 0);
         if ((removeLength > insertLength)) {
           {
             this._closeGap(insertEnd, end);
@@ -6494,7 +6537,7 @@ class _QueueList_Object_ListMixin {
                 {
                   if ((i < end)) {
                     {
-                      this[i] = element;
+                      __dartIndexSet(this, i, element);
                     }
                   } else {
                     {
@@ -6514,15 +6557,15 @@ class _QueueList_Object_ListMixin {
           let insertEnd_1 = (start + insertLength);
           for (let i_1 = (oldLength - delta); (i_1 < oldLength); i_1 = (i_1 + 1)) {
             {
-              this.add(this[((i_1 > 0) ? i_1 : 0)]);
+              this.add(__dartIndexGet(this, ((i_1 > 0) ? i_1 : 0)));
             }
           }
           if ((insertEnd_1 < oldLength)) {
             {
-              this.setRange(insertEnd_1, oldLength, this, end);
+              __dartListSetRange(this, insertEnd_1, oldLength, this, end);
             }
           }
-          this.setRange(start, insertEnd_1, newContents);
+          __dartListSetRange(this, start, insertEnd_1, newContents, 0);
         }
       }
     }
@@ -6533,7 +6576,7 @@ class _QueueList_Object_ListMixin {
     }
     for (let i = start; (i < this.length); i = (i + 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           return i;
         }
       }
@@ -6546,7 +6589,7 @@ class _QueueList_Object_ListMixin {
     }
     for (let i = start; (i < this.length); i = (i + 1)) {
       {
-        if ((test)(this[i])) {
+        if ((test)(__dartIndexGet(this, i))) {
           return i;
         }
       }
@@ -6559,7 +6602,7 @@ class _QueueList_Object_ListMixin {
     }
     for (let i = start; (i >= 0); i = (i - 1)) {
       {
-        if (__dartEquals(this[i], element)) {
+        if (__dartEquals(__dartIndexGet(this, i), element)) {
           return i;
         }
       }
@@ -6572,7 +6615,7 @@ class _QueueList_Object_ListMixin {
     }
     for (let i = start; (i >= 0); i = (i - 1)) {
       {
-        if ((test)(this[i])) {
+        if ((test)(__dartIndexGet(this, i))) {
           return i;
         }
       }
@@ -6586,13 +6629,13 @@ class _QueueList_Object_ListMixin {
     this.add(element);
     if (!(__dartEquals(index, length))) {
       {
-        this.setRange((index + 1), (length + 1), this, index);
-        this[index] = element;
+        __dartListSetRange(this, (index + 1), (length + 1), this, index);
+        __dartIndexSet(this, index, element);
       }
     }
   }
   removeAt(index) {
-    let result = this[index];
+    let result = __dartIndexGet(this, index);
     this._closeGap(index, (index + 1));
     return result;
   }
@@ -6618,7 +6661,7 @@ class _QueueList_Object_ListMixin {
     let oldLength = this.length;
     for (let i = (oldLength - insertionLength); (i < oldLength); i = (i + 1)) {
       {
-        this.add(this[((i > 0) ? i : 0)]);
+        this.add(__dartIndexGet(this, ((i > 0) ? i : 0)));
       }
     }
     if (!(__dartEquals(__dartIterableLength(iterable), insertionLength))) {
@@ -6630,15 +6673,15 @@ class _QueueList_Object_ListMixin {
     let oldCopyStart = (index + insertionLength);
     if ((oldCopyStart < oldLength)) {
       {
-        this.setRange(oldCopyStart, oldLength, this, index);
+        __dartListSetRange(this, oldCopyStart, oldLength, this, index);
       }
     }
-    this.setAll(index, iterable);
+    __dartListSetAll(this, index, iterable);
   }
   setAll(index, iterable) {
     if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
       {
-        this.setRange(index, (index + __dartIterableLength(iterable)), iterable);
+        __dartListSetRange(this, index, (index + __dartIterableLength(iterable)), iterable, 0);
       }
     } else {
       {
@@ -6648,7 +6691,7 @@ class _QueueList_Object_ListMixin {
             {
               let element = _sync_for_iterator.current;
               {
-                this[(() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })()] = element;
+                __dartIndexSet(this, (() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element);
               }
             }
           }
@@ -6771,7 +6814,7 @@ class QueueList extends _QueueList_Object_ListMixin {
   }
   addFirst(element) {
     this._head = ((this._head - 1) & (this._table.length - 1));
-    this._table[this._head] = element;
+    __dartIndexSet(this._table, this._head, element);
     if (__dartEquals(this._head, this._tail)) {
       this._grow();
     }
@@ -6780,8 +6823,8 @@ class QueueList extends _QueueList_Object_ListMixin {
     if (__dartEquals(this._head, this._tail)) {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    let result = (this._table[this._head] ?? __dartAs(v, value => true, "E"));
-    this._table[this._head] = null;
+    let result = (__dartIndexGet(this._table, this._head) ?? __dartAs(v, value => true, "E"));
+    __dartIndexSet(this._table, this._head, null);
     this._head = ((this._head + 1) & (this._table.length - 1));
     return result;
   }
@@ -6790,8 +6833,8 @@ class QueueList extends _QueueList_Object_ListMixin {
       (() => { throw __dartCoreError("StateError", "No element"); })();
     }
     this._tail = ((this._tail - 1) & (this._table.length - 1));
-    let result = (this._table[this._tail] ?? __dartAs(v, value => true, "E"));
-    this._table[this._tail] = null;
+    let result = (__dartIndexGet(this._table, this._tail) ?? __dartAs(v, value => true, "E"));
+    __dartIndexSet(this._table, this._tail, null);
     return result;
   }
   get length() {
@@ -6838,7 +6881,7 @@ class QueueList extends _QueueList_Object_ListMixin {
         (() => { throw __dartCoreError("RangeError", "Index " + __dartStr(index) + " must be in the range [0.." + __dartStr(this.length) + ")."); })();
       }
     }
-    return (this._table[((this._head + index) & (this._table.length - 1))] ?? __dartAs(v, value => true, "E"));
+    return (__dartIndexGet(this._table, ((this._head + index) & (this._table.length - 1))) ?? __dartAs(v, value => true, "E"));
   }
   "[]="(index, value) {
     if (((index < 0) || (index >= this.length))) {
@@ -6846,7 +6889,7 @@ class QueueList extends _QueueList_Object_ListMixin {
         (() => { throw __dartCoreError("RangeError", "Index " + __dartStr(index) + " must be in the range [0.." + __dartStr(this.length) + ")."); })();
       }
     }
-    this._table[((this._head + index) & (this._table.length - 1))] = value;
+    __dartIndexSet(this._table, ((this._head + index) & (this._table.length - 1)), value);
   }
   static _isPowerOf2(number) {
     return __dartEquals((number & (number - 1)), 0);
@@ -6864,7 +6907,7 @@ class QueueList extends _QueueList_Object_ListMixin {
     }
   }
   _add(element) {
-    this._table[this._tail] = element;
+    __dartIndexSet(this._table, this._tail, element);
     this._tail = ((this._tail + 1) & (this._table.length - 1));
     if (__dartEquals(this._head, this._tail)) {
       this._grow();
@@ -7997,8 +8040,8 @@ class Highlighter {
   static _contiguous(lines) {
     for (let i = 0; (i < (lines.length - 1)); i = (i + 1)) {
       {
-        const thisLine = lines[i];
-        const nextLine = lines[(i + 1)];
+        const thisLine = __dartIndexGet(lines, i);
+        const nextLine = __dartIndexGet(lines, (i + 1));
         if ((!(__dartEquals((thisLine.number + 1), nextLine.number)) && __dartEquals(thisLine.url, nextLine.url))) {
           {
             return false;
@@ -8041,7 +8084,7 @@ class Highlighter {
                   {
                     let line = _sync_for_iterator_1.current;
                     {
-                      if ((lines.length === 0 || (lineNumber > lines[lines.length - 1].number))) {
+                      if ((lines.length === 0 || (lineNumber > __dartIndexGet(lines, lines.length - 1).number))) {
                         {
                           (lines.push(new _Line(line, lineNumber, url_1)), null);
                         }
@@ -8094,10 +8137,10 @@ class Highlighter {
     const highlightsByColumn = __dartFixedList(new Array(this._maxMultilineSpans).fill(null));
     for (let i = 0; (i < this._lines.length); i = (i + 1)) {
       {
-        const line = this._lines[i];
+        const line = __dartIndexGet(this._lines, i);
         if ((i > 0)) {
           {
-            const lastLine = this._lines[(i - 1)];
+            const lastLine = __dartIndexGet(this._lines, (i - 1));
             if (!(__dartEquals(lastLine.url, line.url))) {
               {
                 this._writeSidebar({ end: upEnd() });
@@ -8136,7 +8179,7 @@ class Highlighter {
           this._buffer.write(" ");
         }
         const primaryIdx = line.highlights.findIndex((value, index) => index >= 0 && (function(highlight) { return highlight.isPrimary; })(value));
-        const primary = (__dartEquals(primaryIdx, (-1)) ? null : line.highlights[primaryIdx]);
+        const primary = (__dartEquals(primaryIdx, (-1)) ? null : __dartIndexGet(line.highlights, primaryIdx));
         if (!((primary === null))) {
           {
             this._writeHighlightedText(line.text, (__dartEquals(primary.span.start.line, line.number) ? primary.span.start.column : 0), (__dartEquals(primary.span.end.line, line.number) ? primary.span.end.column : line.text.length), { color: this._primaryColor });
@@ -8364,7 +8407,7 @@ class Highlighter {
     }
     const lines = label.split("\n");
     const color = (highlight.isPrimary ? this._primaryColor : this._secondaryColor);
-    this._colorize(() => { return this._buffer.write(" " + __dartStr(lines[0])); }, { color: color });
+    this._colorize(() => { return this._buffer.write(" " + __dartStr(__dartIndexGet(lines, 0))); }, { color: color });
     this._buffer.writeln();
     {
       let _sync_for_iterator = __dartIterator(Array.from(lines).slice(1));
@@ -8501,7 +8544,7 @@ function $Highlighter__($newTarget, _lines, _primaryColor, _secondaryColor) {
   $self._lines = _lines;
   $self._primaryColor = _primaryColor;
   $self._secondaryColor = _secondaryColor;
-  $self._paddingBeforeSidebar = (1 + Math.max(__dartStr((_lines[_lines.length - 1].number + 1)).length, (Highlighter._contiguous(_lines) ? 0 : 3)));
+  $self._paddingBeforeSidebar = (1 + Math.max(__dartStr((__dartIndexGet(_lines, _lines.length - 1).number + 1)).length, (Highlighter._contiguous(_lines) ? 0 : 3)));
   $self._maxMultilineSpans = Array.from(Array.from(_lines, function(line) { return __dartIterableLength(Array.from(line.highlights).filter(function(highlight) { return isMultiline(highlight.span); })); })).reduce((previous, value) => (((left, right) => Math.max(left, right)))(previous, value));
   $self._multipleFiles = !(isAllTheSame(Array.from(_lines, function(line) { return line.url; })));
   return $self;
@@ -8783,15 +8826,15 @@ class SourceFile {
       return false;
     }
     const cachedLine = __dartNullCheck(this._cachedLine);
-    if ((offset < this._lineStarts[cachedLine])) {
+    if ((offset < __dartIndexGet(this._lineStarts, cachedLine))) {
       return false;
     }
-    if (((cachedLine >= (this._lineStarts.length - 1)) || (offset < this._lineStarts[(cachedLine + 1)]))) {
+    if (((cachedLine >= (this._lineStarts.length - 1)) || (offset < __dartIndexGet(this._lineStarts, (cachedLine + 1))))) {
       {
         return true;
       }
     }
-    if (((cachedLine >= (this._lineStarts.length - 2)) || (offset < this._lineStarts[(cachedLine + 2)]))) {
+    if (((cachedLine >= (this._lineStarts.length - 2)) || (offset < __dartIndexGet(this._lineStarts, (cachedLine + 2))))) {
       {
         this._cachedLine = (cachedLine + 1);
         return true;
@@ -8805,7 +8848,7 @@ class SourceFile {
     while ((min_1 < max_1)) {
       {
         const half = (min_1 + __dartTruncDiv((max_1 - min_1), 2));
-        if ((this._lineStarts[half] > offset)) {
+        if ((__dartIndexGet(this._lineStarts, half) > offset)) {
           {
             max_1 = half;
           }
@@ -8847,7 +8890,7 @@ class SourceFile {
         }
       }
     }
-    const lineStart = this._lineStarts[line];
+    const lineStart = __dartIndexGet(this._lineStarts, line);
     if ((lineStart > offset)) {
       {
         (() => { throw __dartCoreError("RangeError", "Line " + __dartStr(line) + " comes after offset " + __dartStr(offset) + "."); })();
@@ -8874,8 +8917,8 @@ class SourceFile {
         }
       }
     }
-    const result = (this._lineStarts[line] + column);
-    if (((result > this.length) || (((line + 1) < this.lines) && (result >= this._lineStarts[(line + 1)])))) {
+    const result = (__dartIndexGet(this._lineStarts, line) + column);
+    if (((result > this.length) || (((line + 1) < this.lines) && (result >= __dartIndexGet(this._lineStarts, (line + 1)))))) {
       {
         (() => { throw __dartCoreError("RangeError", "Line " + __dartStr(line) + " doesn't have " + __dartStr(column) + " columns."); })();
       }
@@ -8903,11 +8946,11 @@ function $SourceFile__fromList($newTarget, decodedChars, { url: url_1 = null } =
   $self._decodedChars = new Uint32Array(decodedChars.length);
   for (let i = 0; (i < $self._decodedChars.length); i = (i + 1)) {
     {
-      let c = (() => { let v = $self._decodedChars; return (() => { let v_1 = i; return (() => { let v_2 = decodedChars[i]; return (() => { let v_3 = v[v_1] = v_2; return v_2; })(); })(); })(); })();
+      let c = (() => { let v = $self._decodedChars; return (() => { let v_1 = i; return (() => { let v_2 = __dartIndexGet(decodedChars, i); return (() => { let v_3 = __dartIndexSet(v, v_1, v_2); return v_2; })(); })(); })(); })();
       if (__dartEquals(c, 13)) {
         {
           const j = (i + 1);
-          if (((j >= decodedChars.length) || !(__dartEquals(decodedChars[j], 10)))) {
+          if (((j >= decodedChars.length) || !(__dartEquals(__dartIndexGet(decodedChars, j), 10)))) {
             c = 10;
           }
         }
@@ -9745,7 +9788,7 @@ class LineScanner extends StringScanner {
             }
           } else {
             {
-              const offsetOfLastNewline = (oldPosition + newlines[newlines.length - 1].end);
+              const offsetOfLastNewline = (oldPosition + __dartIndexGet(newlines, newlines.length - 1).end);
               this._column = (newPosition - offsetOfLastNewline);
             }
           }
@@ -9809,7 +9852,7 @@ class LineScanner extends StringScanner {
       }
     } else {
       {
-        this._column = (__dartNullCheck(__dartNullCheck(this.lastMatch)[0]).length - newlines[newlines.length - 1].end);
+        this._column = (__dartNullCheck(__dartNullCheck(this.lastMatch)[0]).length - __dartIndexGet(newlines, newlines.length - 1).end);
       }
     }
     return true;
@@ -9823,6 +9866,7 @@ class LineScanner extends StringScanner {
     }
     return newlines;
   }
+  get position() { return super.position; }
 }
 Object.defineProperty(LineScanner, Symbol.hasInstance, { value(value) { return value != null && value[$LineScanner_interface] === true; } });
 
@@ -9960,7 +10004,7 @@ class EagerSpanScanner extends SpanScanner {
           }
         } else {
           {
-            this._column = (newPosition - newlines[newlines.length - 1].end);
+            this._column = (newPosition - __dartIndexGet(newlines, newlines.length - 1).end);
           }
         }
       }
@@ -10020,7 +10064,7 @@ class EagerSpanScanner extends SpanScanner {
       }
     } else {
       {
-        this._column = (firstMatch.length - newlines[newlines.length - 1].end);
+        this._column = (firstMatch.length - __dartIndexGet(newlines, newlines.length - 1).end);
       }
     }
     return true;
@@ -10032,6 +10076,7 @@ class EagerSpanScanner extends SpanScanner {
     }
     return newlines;
   }
+  get position() { return super.position; }
 }
 
 class _EagerSpanScannerState {
@@ -10623,14 +10668,14 @@ function _validateArgList(method, args) {
   for (let i = 1; (i < args.length); i = (i + 1)) {
     L:
     {
-      if (((args[i] === null) || !((args[(i - 1)] === null)))) {
+      if (((__dartIndexGet(args, i) === null) || !((__dartIndexGet(args, (i - 1)) === null)))) {
         break L;
       }
       let numArgs = null;
       L_1:
       for (let v = numArgs = args.length; (numArgs >= 1); numArgs = (numArgs - 1)) {
         {
-          if (!((args[(numArgs - 1)] === null))) {
+          if (!((__dartIndexGet(args, (numArgs - 1)) === null))) {
             break L_1;
           }
         }
@@ -10819,7 +10864,7 @@ function binarySearchBy(sortedList, keyOf, compare, value, start = 0, end = null
   while ((min_1 < max_1)) {
     {
       let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-      let element = sortedList[mid];
+      let element = __dartIndexGet(sortedList, mid);
       let comp = (compare)((keyOf)(element), key);
       if (__dartEquals(comp, 0)) {
         return mid;
@@ -10851,7 +10896,7 @@ function lowerBoundBy(sortedList, keyOf, compare, value, start = 0, end = null) 
   while ((min_1 < max_1)) {
     {
       let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-      let element = sortedList[mid];
+      let element = __dartIndexGet(sortedList, mid);
       let comp = (compare)((keyOf)(element), key);
       if ((comp < 0)) {
         {
@@ -10875,9 +10920,9 @@ function shuffle(elements, start = 0, end = null, random = null) {
     {
       let pos = random.nextInt(length);
       length = (length - 1);
-      let tmp1 = elements[(start + pos)];
-      elements[(start + pos)] = elements[(start + length)];
-      elements[(start + length)] = tmp1;
+      let tmp1 = __dartIndexGet(elements, (start + pos));
+      __dartIndexSet(elements, (start + pos), __dartIndexGet(elements, (start + length)));
+      __dartIndexSet(elements, (start + length), tmp1);
     }
   }
 }
@@ -10890,9 +10935,9 @@ function reverse(elements, start = 0, end = null) {
 function _reverse(elements, start, end) {
   for (let i = start, j = (end - 1); (i < j); i = (i + 1), j = (j - 1)) {
     {
-      let tmp = elements[i];
-      elements[i] = elements[j];
-      elements[j] = tmp;
+      let tmp = __dartIndexGet(elements, i);
+      __dartIndexSet(elements, i, __dartIndexGet(elements, j));
+      __dartIndexSet(elements, j, tmp);
     }
   }
 }
@@ -10904,11 +10949,11 @@ function insertionSort(elements, { compare = null, start = 0, end = null } = {})
     {
       let min_1 = start;
       let max_1 = pos;
-      let element = elements[pos];
+      let element = __dartIndexGet(elements, pos);
       while ((min_1 < max_1)) {
         {
           let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-          let comparison = (compare)(element, elements[mid]);
+          let comparison = (compare)(element, __dartIndexGet(elements, mid));
           if ((comparison < 0)) {
             {
               max_1 = mid;
@@ -10921,7 +10966,7 @@ function insertionSort(elements, { compare = null, start = 0, end = null } = {})
         }
       }
       __dartListSetRange(elements, (min_1 + 1), (pos + 1), elements, min_1);
-      elements[min_1] = element;
+      __dartIndexSet(elements, min_1, element);
     }
   }
 }
@@ -10981,17 +11026,17 @@ function _movingInsertionSort(list, keyOf, compare, start, end, target, targetOf
   if (__dartEquals(length, 0)) {
     return;
   }
-  target[targetOffset] = list[start];
+  __dartIndexSet(target, targetOffset, __dartIndexGet(list, start));
   for (let i = 1; (i < length); i = (i + 1)) {
     {
-      let element = list[(start + i)];
+      let element = __dartIndexGet(list, (start + i));
       let elementKey = (keyOf)(element);
       let min_1 = targetOffset;
       let max_1 = (targetOffset + i);
       while ((min_1 < max_1)) {
         {
           let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-          if (((compare)(elementKey, (keyOf)(target[mid])) < 0)) {
+          if (((compare)(elementKey, (keyOf)(__dartIndexGet(target, mid))) < 0)) {
             {
               max_1 = mid;
             }
@@ -11003,7 +11048,7 @@ function _movingInsertionSort(list, keyOf, compare, start, end, target, targetOf
         }
       }
       __dartListSetRange(target, (min_1 + 1), ((targetOffset + i) + 1), target, min_1);
-      target[min_1] = element;
+      __dartIndexSet(target, min_1, element);
     }
   }
 }
@@ -11028,9 +11073,9 @@ function _mergeSort(elements, keyOf, compare, start, end, target, targetOffset) 
 function _merge(keyOf, compare, firstList, firstStart, firstEnd, secondList, secondStart, secondEnd, target, targetOffset) {
   let cursor1 = firstStart;
   let cursor2 = secondStart;
-  let firstElement = firstList[(() => { let v = cursor1; return (() => { let v_1 = cursor1 = (v + 1); return v; })(); })()];
+  let firstElement = __dartIndexGet(firstList, (() => { let v = cursor1; return (() => { let v_1 = cursor1 = (v + 1); return v; })(); })());
   let firstKey = (keyOf)(firstElement);
-  let secondElement = secondList[(() => { let v_2 = cursor2; return (() => { let v_3 = cursor2 = (v_2 + 1); return v_2; })(); })()];
+  let secondElement = __dartIndexGet(secondList, (() => { let v_2 = cursor2; return (() => { let v_3 = cursor2 = (v_2 + 1); return v_2; })(); })());
   let secondKey = (keyOf)(secondElement);
   L:
   while (true) {
@@ -11038,31 +11083,31 @@ function _merge(keyOf, compare, firstList, firstStart, firstEnd, secondList, sec
     {
       if (((compare)(firstKey, secondKey) <= 0)) {
         {
-          target[(() => { let v_4 = targetOffset; return (() => { let v_5 = targetOffset = (v_4 + 1); return v_4; })(); })()] = firstElement;
+          __dartIndexSet(target, (() => { let v_4 = targetOffset; return (() => { let v_5 = targetOffset = (v_4 + 1); return v_4; })(); })(), firstElement);
           if (__dartEquals(cursor1, firstEnd)) {
             break L;
           }
-          firstElement = firstList[(() => { let v_6 = cursor1; return (() => { let v_7 = cursor1 = (v_6 + 1); return v_6; })(); })()];
+          firstElement = __dartIndexGet(firstList, (() => { let v_6 = cursor1; return (() => { let v_7 = cursor1 = (v_6 + 1); return v_6; })(); })());
           firstKey = (keyOf)(firstElement);
         }
       } else {
         {
-          target[(() => { let v_8 = targetOffset; return (() => { let v_9 = targetOffset = (v_8 + 1); return v_8; })(); })()] = secondElement;
+          __dartIndexSet(target, (() => { let v_8 = targetOffset; return (() => { let v_9 = targetOffset = (v_8 + 1); return v_8; })(); })(), secondElement);
           if (!(__dartEquals(cursor2, secondEnd))) {
             {
-              secondElement = secondList[(() => { let v_10 = cursor2; return (() => { let v_11 = cursor2 = (v_10 + 1); return v_10; })(); })()];
+              secondElement = __dartIndexGet(secondList, (() => { let v_10 = cursor2; return (() => { let v_11 = cursor2 = (v_10 + 1); return v_10; })(); })());
               secondKey = (keyOf)(secondElement);
               break L_1;
             }
           }
-          target[(() => { let v_12 = targetOffset; return (() => { let v_13 = targetOffset = (v_12 + 1); return v_12; })(); })()] = firstElement;
+          __dartIndexSet(target, (() => { let v_12 = targetOffset; return (() => { let v_13 = targetOffset = (v_12 + 1); return v_12; })(); })(), firstElement);
           __dartListSetRange(target, targetOffset, (targetOffset + (firstEnd - cursor1)), firstList, cursor1);
           return;
         }
       }
     }
   }
-  target[(() => { let v_14 = targetOffset; return (() => { let v_15 = targetOffset = (v_14 + 1); return v_14; })(); })()] = secondElement;
+  __dartIndexSet(target, (() => { let v_14 = targetOffset; return (() => { let v_15 = targetOffset = (v_14 + 1); return v_14; })(); })(), secondElement);
   __dartListSetRange(target, targetOffset, (targetOffset + (secondEnd - cursor2)), secondList, cursor2);
 }
 
@@ -11082,16 +11127,16 @@ function _quickSort(list, keyOf, compare, random, start, end) {
   while ((length >= 24)) {
     {
       let pivotIndex = (random.nextInt(length) + start);
-      let pivot = list[pivotIndex];
+      let pivot = __dartIndexGet(list, pivotIndex);
       let pivotKey = (keyOf)(pivot);
       let endSmaller = start;
       let startGreater = end;
       let startPivots = (end - 1);
-      list[pivotIndex] = list[startPivots];
-      list[startPivots] = pivot;
+      __dartIndexSet(list, pivotIndex, __dartIndexGet(list, startPivots));
+      __dartIndexSet(list, startPivots, pivot);
       while ((endSmaller < startPivots)) {
         {
-          let current_1 = list[endSmaller];
+          let current_1 = __dartIndexGet(list, endSmaller);
           let relation = (compare)((keyOf)(current_1), pivotKey);
           if ((relation < 0)) {
             {
@@ -11101,15 +11146,15 @@ function _quickSort(list, keyOf, compare, random, start, end) {
             {
               startPivots = (startPivots - 1);
               let currentTarget = startPivots;
-              list[endSmaller] = list[startPivots];
+              __dartIndexSet(list, endSmaller, __dartIndexGet(list, startPivots));
               if ((relation > 0)) {
                 {
                   startGreater = (startGreater - 1);
                   currentTarget = startGreater;
-                  list[startPivots] = list[startGreater];
+                  __dartIndexSet(list, startPivots, __dartIndexGet(list, startGreater));
                 }
               }
-              list[currentTarget] = current_1;
+              __dartIndexSet(list, currentTarget, current_1);
             }
           }
         }
@@ -11791,8 +11836,8 @@ function IterableExtension_sample(_this, count, random = null) {
             }
           } else {
             {
-              (chosen.push(chosen[position]), null);
-              chosen[position] = nextElement;
+              (chosen.push(__dartIndexGet(chosen, position)), null);
+              __dartIndexSet(chosen, position, nextElement);
             }
           }
         }
@@ -11809,7 +11854,7 @@ function IterableExtension_sample(_this, count, random = null) {
       index = (index + 1);
       let position_1 = random.nextInt(index);
       if ((position_1 < count)) {
-        chosen[position_1] = iterator.current;
+        __dartIndexSet(chosen, position_1, iterator.current);
       }
     }
   }
@@ -13079,7 +13124,7 @@ function ListExtensions_get_lowerBoundBy(_this) {
 function ListExtensions_forEachIndexed(_this, action) {
   for (let index = 0; (index < _this.length); index = (index + 1)) {
     {
-      (action)(index, _this[index]);
+      (action)(index, __dartIndexGet(_this, index));
     }
   }
 }
@@ -13092,7 +13137,7 @@ function ListExtensions_forEachWhile(_this, action) {
   L:
   for (let index = 0; (index < _this.length); index = (index + 1)) {
     {
-      if (!((action)(_this[index]))) {
+      if (!((action)(__dartIndexGet(_this, index)))) {
         break L;
       }
     }
@@ -13111,7 +13156,7 @@ function ListExtensions_forEachIndexedWhile(_this, action) {
   L:
   for (let index = 0; (index < _this.length); index = (index + 1)) {
     {
-      if (!((action)(index, _this[index]))) {
+      if (!((action)(index, __dartIndexGet(_this, index)))) {
         break L;
       }
     }
@@ -13121,7 +13166,7 @@ function ListExtensions_forEachIndexedWhile(_this, action) {
 function* ListExtensions_mapIndexed(_this, convert) {
   for (let index = 0; (index < _this.length); index = (index + 1)) {
     {
-      yield (convert)(index, _this[index]);
+      yield (convert)(index, __dartIndexGet(_this, index));
     }
   }
 }
@@ -13133,7 +13178,7 @@ function ListExtensions_get_mapIndexed(_this) {
 function* ListExtensions_whereIndexed(_this, test) {
   for (let index = 0; (index < _this.length); index = (index + 1)) {
     {
-      let element = _this[index];
+      let element = __dartIndexGet(_this, index);
       if ((test)(index, element)) {
         yield element;
       }
@@ -13148,7 +13193,7 @@ function ListExtensions_get_whereIndexed(_this) {
 function* ListExtensions_whereNotIndexed(_this, test) {
   for (let index = 0; (index < _this.length); index = (index + 1)) {
     {
-      let element = _this[index];
+      let element = __dartIndexGet(_this, index);
       if (!((test)(index, element))) {
         yield element;
       }
@@ -13163,7 +13208,7 @@ function ListExtensions_get_whereNotIndexed(_this) {
 function* ListExtensions_expandIndexed(_this, expand) {
   for (let index = 0; (index < _this.length); index = (index + 1)) {
     {
-      yield* (expand)(index, _this[index]);
+      yield* (expand)(index, __dartIndexGet(_this, index));
     }
   }
 }
@@ -13209,9 +13254,9 @@ function ListExtensions_reverseRange(_this, start, end) {
   __dartCheckValidRange(start, end, _this.length, null, null, null);
   while ((start < (end = (end - 1)))) {
     {
-      let tmp = _this[start];
-      _this[start] = _this[end];
-      _this[end] = tmp;
+      let tmp = __dartIndexGet(_this, start);
+      __dartIndexSet(_this, start, __dartIndexGet(_this, end));
+      __dartIndexSet(_this, end, tmp);
       start = (start + 1);
     }
   }
@@ -13224,9 +13269,9 @@ function ListExtensions_get_reverseRange(_this) {
 function ListExtensions_swap(_this, index1, index2) {
   __dartCheckValidIndex(index1, _this, "index1", null, null);
   __dartCheckValidIndex(index2, _this, "index2", null, null);
-  let tmp = _this[index1];
-  _this[index1] = _this[index2];
-  _this[index2] = tmp;
+  let tmp = __dartIndexGet(_this, index1);
+  __dartIndexSet(_this, index1, __dartIndexGet(_this, index2));
+  __dartIndexSet(_this, index2, tmp);
 }
 
 function ListExtensions_get_swap(_this) {
@@ -13252,7 +13297,7 @@ function ListExtensions_equals(_this, other, equality = __dartConst("[\"instance
   }
   for (let i = 0; (i < _this.length); i = (i + 1)) {
     {
-      if (!(equality.equals(_this[i], other[i]))) {
+      if (!(equality.equals(__dartIndexGet(_this, i), __dartIndexGet(other, i)))) {
         return false;
       }
     }
@@ -13265,7 +13310,7 @@ function ListExtensions_get_equals(_this) {
 }
 
 function ListExtensions_elementAtOrNull(_this, index) {
-  return ((index < _this.length) ? _this[index] : null);
+  return ((index < _this.length) ? __dartIndexGet(_this, index) : null);
 }
 
 function ListExtensions_get_elementAtOrNull(_this) {
@@ -13368,7 +13413,7 @@ function replaceFirstNull(list, element) {
   if ((index < 0)) {
     (() => { throw __dartCoreError("ArgumentError", __dartStr(list) + " contains no null elements."); })();
   }
-  list[index] = element;
+  __dartIndexSet(list, index, element);
 }
 
 function replaceWithNull(list, element) {
@@ -13378,7 +13423,7 @@ function replaceWithNull(list, element) {
       (() => { throw __dartCoreError("ArgumentError", __dartStr(list) + " contains no elements matching " + __dartStr(element) + "."); })();
     }
   }
-  list[index] = null;
+  __dartIndexSet(list, index, null);
 }
 
 function countCodeUnits(string, codeUnit) {
@@ -13487,7 +13532,7 @@ function SourceSpanWithContextExtension_subspan(_this, start, end = null) {
     return _this;
   }
   const locations = subspanLocations(_this, start, end);
-  return new SourceSpanWithContext(locations[0], locations[1], _this.text.substring(start, end), _this.context);
+  return new SourceSpanWithContext(__dartIndexGet(locations, 0), __dartIndexGet(locations, 1), _this.text.substring(start, end), _this.context);
 }
 
 function SourceSpanWithContextExtension_get_subspan(_this) {
@@ -13790,7 +13835,7 @@ function SourceSpanExtension_subspan(_this, start, end = null) {
     return _this;
   }
   const locations = subspanLocations(_this, start, end);
-  return new SourceSpan(locations[0], locations[1], _this.text.substring(start, end));
+  return new SourceSpan(__dartIndexGet(locations, 0), __dartIndexGet(locations, 1), _this.text.substring(start, end));
 }
 
 function SourceSpanExtension_get_subspan(_this) {

@@ -88,6 +88,13 @@ function __dartGet(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
+function __dartIndexSet(receiver, index, value) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }
+  const op = receiver?.["[]="];
+  if (typeof op === "function") return op.call(receiver, index, value);
+  receiver[index] = value;
+  return value;
+}
 function __dartCall(receiver, name, args, namedArgs = null) {
   const callArgs = namedArgs == null ? args : [...args, namedArgs];
   if (name === "call") {
@@ -220,6 +227,13 @@ function __dartIdentityMap() {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -343,7 +357,7 @@ export function main() {
   const listFixed = Object.freeze(Array.from(listFrom));
   __dartPrint("list " + __dartStr(listFixed.length) + " " + __dartStr(__dartIterableJoin(listFixed, ",")));
   const fixedFilled = __dartFixedList(new Array(2).fill(7));
-  fixedFilled[0] = 8;
+  __dartIndexSet(fixedFilled, 0, 8);
   let fixedAddFailed = false;
   try {
     {
@@ -362,7 +376,7 @@ export function main() {
   const growableEmpty = [];
   (growableEmpty.push(1), null);
   const fixedCopy = __dartFixedList(Array.from([1, 2, 3]));
-  fixedCopy[0] = 4;
+  __dartIndexSet(fixedCopy, 0, 4);
   let fixedCopyAddFailed = false;
   try {
     {

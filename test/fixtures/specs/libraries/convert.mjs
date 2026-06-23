@@ -24,7 +24,7 @@ function __dartStringBuffer(initial = "") {
   let value = initial == null ? "" : String(initial);
   return {
     write(next) { value += String(next); },
-    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },
+    writeAll(values, separator = "") { const parts = []; if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") { for (let index = 0; index < values.length; index++) parts.push(String(values["[]"](index))); } else { for (const item of values) parts.push(String(item)); } value += parts.join(String(separator)); },
     writeCharCode(charCode) { value += String.fromCodePoint(charCode); },
     writeln(next = "") { value += String(next) + "\n"; },
     clear() { value = ""; },
@@ -522,6 +522,12 @@ function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -531,6 +537,13 @@ function __dartCompare(left, right, compare = null) {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -1334,7 +1347,7 @@ export async function main() {
   const malformedUtf8Override = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode([255], { allowMalformed: true });
   const invalidAscii = __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",true]]]", () => __dartAsciiCodec(true)).decode([65, 200]);
   const invalidLatin = __dartConst("[\"instance\",\"dart:convert::Latin1Codec\",[\"field\",\"dart:convert::Latin1Codec::@fields::dart:convert::_allowInvalid\",[\"bool\",true]]]", () => __dartLatin1Codec(true)).decode([65, 300]);
-  __dartPrint("malformed " + __dartStr(Array.from(malformedUtf8, (char) => char.codePointAt(0))[0]) + " " + __dartStr(Array.from(malformedUtf8Override, (char) => char.codePointAt(0))[0]) + " " + __dartStr(Array.from(invalidAscii, (char) => char.codePointAt(0))[Array.from(invalidAscii, (char) => char.codePointAt(0)).length - 1]) + " " + __dartStr(Array.from(invalidLatin, (char) => char.codePointAt(0))[Array.from(invalidLatin, (char) => char.codePointAt(0)).length - 1]));
+  __dartPrint("malformed " + __dartStr(__dartIndexGet(Array.from(malformedUtf8, (char) => char.codePointAt(0)), 0)) + " " + __dartStr(__dartIndexGet(Array.from(malformedUtf8Override, (char) => char.codePointAt(0)), 0)) + " " + __dartStr(__dartIndexGet(Array.from(invalidAscii, (char) => char.codePointAt(0)), Array.from(invalidAscii, (char) => char.codePointAt(0)).length - 1)) + " " + __dartStr(__dartIndexGet(Array.from(invalidLatin, (char) => char.codePointAt(0)), Array.from(invalidLatin, (char) => char.codePointAt(0)).length - 1)));
   const token = __dartBase64Encode(bytes);
   __dartPrint("base64 " + __dartStr(token) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(__dartBase64Decode(token))));
   const urlToken = __dartConst("[\"instance\",\"dart:convert::Base64Codec\",[\"field\",\"dart:convert::Base64Codec::@fields::dart:convert::_encoder\",[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]]]", () => __dartBase64Codec(true)).encode(bytes);
@@ -1420,13 +1433,13 @@ export async function main() {
   __dartPrint("jsonObjects " + __dartStr(indented.includes("\n  \"a\"")) + " " + __dartStr(indented.includes("\n    1")) + " " + __dartStr(__dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(jsonUtf8Bytes).includes("\n \"b\"")) + " " + __dartStr(__dartMapGet(decodedObject, "c")) + " " + __dartStr(__dartMapGet(revivedObject, "n")));
   const utf8Partial = __dartIterableJoin(__dartConst("[\"instance\",\"dart:convert::Utf8Encoder\"]", () => __dartUtf8Encoder()).convert("hé", 1), ",");
   const utf8Decoded = __dartConst("[\"instance\",\"dart:convert::Utf8Decoder\",[\"field\",\"dart:convert::Utf8Decoder::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Decoder(false)).convert([120, 195, 169, 121], 1, 3);
-  const malformedDecoded = Array.from(__dartConst("[\"instance\",\"dart:convert::Utf8Decoder\",[\"field\",\"dart:convert::Utf8Decoder::@fields::dart:convert::_allowMalformed\",[\"bool\",true]]]", () => __dartUtf8Decoder(true)).convert([255]), (char) => char.codePointAt(0))[0];
+  const malformedDecoded = __dartIndexGet(Array.from(__dartConst("[\"instance\",\"dart:convert::Utf8Decoder\",[\"field\",\"dart:convert::Utf8Decoder::@fields::dart:convert::_allowMalformed\",[\"bool\",true]]]", () => __dartUtf8Decoder(true)).convert([255]), (char) => char.codePointAt(0)), 0);
   const asciiPartial = __dartIterableJoin(__dartConst("[\"instance\",\"dart:convert::AsciiEncoder\",[\"field\",\"dart:convert::_UnicodeSubsetEncoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiEncoder()).convert("AZ", 1), ",");
   const asciiDecoded = __dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",false]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(false)).convert([88, 89, 90], 1, 3);
-  const asciiInvalid = Array.from(__dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(true)).convert([65, 200]), (char) => char.codePointAt(0))[Array.from(__dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(true)).convert([65, 200]), (char) => char.codePointAt(0)).length - 1];
+  const asciiInvalid = __dartIndexGet(Array.from(__dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(true)).convert([65, 200]), (char) => char.codePointAt(0)), Array.from(__dartConst("[\"instance\",\"dart:convert::AsciiDecoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"127\"]]]", () => __dartAsciiDecoder(true)).convert([65, 200]), (char) => char.codePointAt(0)).length - 1);
   const latinPartial = __dartIterableJoin(__dartConst("[\"instance\",\"dart:convert::Latin1Encoder\",[\"field\",\"dart:convert::_UnicodeSubsetEncoder::@fields::dart:convert::_subsetMask\",[\"int\",\"255\"]]]", () => __dartLatin1Encoder()).convert("Aÿ", 1), ",");
   const latinDecoded = __dartConst("[\"instance\",\"dart:convert::Latin1Decoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",false]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"255\"]]]", () => __dartLatin1Decoder(false)).convert([65, 255], 1);
-  const latinInvalid = Array.from(__dartConst("[\"instance\",\"dart:convert::Latin1Decoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"255\"]]]", () => __dartLatin1Decoder(true)).convert([300]), (char) => char.codePointAt(0))[0];
+  const latinInvalid = __dartIndexGet(Array.from(__dartConst("[\"instance\",\"dart:convert::Latin1Decoder\",[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_allowInvalid\",[\"bool\",true]],[\"field\",\"dart:convert::_UnicodeSubsetDecoder::@fields::dart:convert::_subsetMask\",[\"int\",\"255\"]]]", () => __dartLatin1Decoder(true)).convert([300]), (char) => char.codePointAt(0)), 0);
   __dartPrint("converterObjects " + __dartStr(utf8Partial) + " " + __dartStr(utf8Decoded) + " " + __dartStr(malformedDecoded) + " " + __dartStr(asciiPartial) + " " + __dartStr(asciiDecoded) + " " + __dartStr(asciiInvalid) + " " + __dartStr(latinPartial) + " " + __dartStr(latinDecoded) + " " + __dartStr(latinInvalid));
   const urlObjectToken = __dartConst("[\"instance\",\"dart:convert::Base64Encoder\",[\"field\",\"dart:convert::Base64Encoder::@fields::dart:convert::_urlSafe\",[\"bool\",true]]]", () => __dartBase64Encoder(true)).convert([251, 255]);
   const decodedUrlObject = __dartConst("[\"instance\",\"dart:convert::Base64Decoder\"]", () => __dartBase64Decoder()).convert(urlObjectToken);

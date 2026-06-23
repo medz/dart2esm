@@ -20,6 +20,12 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
@@ -51,7 +57,7 @@ export function main() {
   __dartPrint("name " + __dartStr(Color.red.name));
   __dartPrint("index " + __dartStr(Color.green.index));
   __dartPrint("count " + __dartStr(Color.values.length));
-  __dartPrint("third " + __dartStr(Color.values[2].name));
+  __dartPrint("third " + __dartStr(__dartIndexGet(Color.values, 2).name));
   __dartPrint("string " + __dartStr(Color.red));
   __dartPrint("same " + __dartStr(__dartEquals(Color.red, Color.red)));
   __dartPrint("different " + __dartStr(__dartEquals(Color.red, Color.green)));

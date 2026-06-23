@@ -43,14 +43,14 @@ function __dartStreamIterator(stream) {
   };
 }
 function __dartIterator(iterable) {
-  const values = Array.isArray(iterable) ? iterable : Array.from(iterable);
+  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = values[index];
+        this.current = typeof values.get === "function" ? values.get(index) : values[index];
         return true;
       }
       this.current = undefined;

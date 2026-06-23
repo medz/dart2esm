@@ -28,6 +28,12 @@ function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -37,6 +43,13 @@ function __dartCompare(left, right, compare = null) {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -191,9 +204,9 @@ export function shape(value) {
       {
         let first = null;
         let second = null;
-        if (((((Array.isArray(_0_0) || (ArrayBuffer.isView(_0_0) && !(_0_0 instanceof DataView))) && __dartEquals(_0_0.length, 2)) && (typeof (_0_6_isSet ? _0_6 : (() => { let v_1 = _0_6_isSet = true; return _0_6 = _0_0[0]; })()) === "number" && (() => { let v_2 = first = __dartAs((_0_6_isSet ? _0_6 : (() => { let v_3 = _0_6_isSet = true; return _0_6 = _0_0[0]; })()), value => typeof value === "number", "int"); return true; })())) && typeof (_0_7_isSet ? _0_7 : (() => { let v_4 = _0_7_isSet = true; return _0_7 = _0_0[1]; })()) === "number")) {
+        if (((((Array.isArray(_0_0) || (ArrayBuffer.isView(_0_0) && !(_0_0 instanceof DataView))) && __dartEquals(_0_0.length, 2)) && (typeof (_0_6_isSet ? _0_6 : (() => { let v_1 = _0_6_isSet = true; return _0_6 = __dartIndexGet(_0_0, 0); })()) === "number" && (() => { let v_2 = first = __dartAs((_0_6_isSet ? _0_6 : (() => { let v_3 = _0_6_isSet = true; return _0_6 = __dartIndexGet(_0_0, 0); })()), value => typeof value === "number", "int"); return true; })())) && typeof (_0_7_isSet ? _0_7 : (() => { let v_4 = _0_7_isSet = true; return _0_7 = __dartIndexGet(_0_0, 1); })()) === "number")) {
           {
-            second = __dartAs((_0_7_isSet ? _0_7 : (() => { let v_5 = _0_7_isSet = true; return _0_7 = _0_0[1]; })()), value => typeof value === "number", "int");
+            second = __dartAs((_0_7_isSet ? _0_7 : (() => { let v_5 = _0_7_isSet = true; return _0_7 = __dartIndexGet(_0_0, 1); })()), value => typeof value === "number", "int");
             v = "list " + __dartStr((first + second));
             break L;
           }

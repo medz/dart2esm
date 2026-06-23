@@ -20,6 +20,12 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
@@ -95,9 +101,9 @@ export function main() {
   __dartPrint((options)(5).describe());
   __dartPrint((options)(6, { label: "custom" }).describe());
   __dartPrint((intHolder)(7).describe());
-  __dartPrint((__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"constructorTearOff\",\"constructor:Box.\"],[\"constructorTearOff\",\"constructor:Box.named\"],[\"redirectingFactoryTearOff\",\"procedure:Box.alias\"]]", () => Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff]))[0])(8).describe());
-  __dartPrint((__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"constructorTearOff\",\"constructor:Box.\"],[\"constructorTearOff\",\"constructor:Box.named\"],[\"redirectingFactoryTearOff\",\"procedure:Box.alias\"]]", () => Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff]))[1])(9).describe());
-  __dartPrint((__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"constructorTearOff\",\"constructor:Box.\"],[\"constructorTearOff\",\"constructor:Box.named\"],[\"redirectingFactoryTearOff\",\"procedure:Box.alias\"]]", () => Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff]))[2])(10).describe());
+  __dartPrint((__dartIndexGet(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"constructorTearOff\",\"constructor:Box.\"],[\"constructorTearOff\",\"constructor:Box.named\"],[\"redirectingFactoryTearOff\",\"procedure:Box.alias\"]]", () => Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff])), 0))(8).describe());
+  __dartPrint((__dartIndexGet(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"constructorTearOff\",\"constructor:Box.\"],[\"constructorTearOff\",\"constructor:Box.named\"],[\"redirectingFactoryTearOff\",\"procedure:Box.alias\"]]", () => Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff])), 1))(9).describe());
+  __dartPrint((__dartIndexGet(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"constructorTearOff\",\"constructor:Box.\"],[\"constructorTearOff\",\"constructor:Box.named\"],[\"redirectingFactoryTearOff\",\"procedure:Box.alias\"]]", () => Object.freeze([$Box_new_tearoff, $Box_named_tearoff, $Box_alias_tearoff])), 2))(10).describe());
   __dartPrint(__dartEquals(unnamed, unnamedAgain));
   __dartPrint(__dartEquals(unnamed, $Box_new_tearoff));
 }

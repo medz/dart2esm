@@ -37,6 +37,12 @@ function __dartEnumAsNameMap(values) {
   for (const value of values) map.set(value.name, value);
   return map;
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -46,6 +52,13 @@ function __dartCompare(left, right, compare = null) {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -112,7 +125,7 @@ export function main() {
   __dartPrint("fields " + __dartStr(Status.failed.code) + " " + __dartStr(Status.failed.label));
   __dartPrint("getter " + __dartStr(Status.ready.ok) + " " + __dartStr(Status.failed.ok));
   __dartPrint("method " + __dartStr(Status.ready.describe()));
-  __dartPrint("values " + __dartStr(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])).length) + " " + __dartStr(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed]))[1].name));
+  __dartPrint("values " + __dartStr(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])).length) + " " + __dartStr(__dartIndexGet(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])), 1).name));
   const byName = __dartEnumByName(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])), "ready");
   const nameMap = __dartEnumAsNameMap(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"ready\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"0\"]],[\"field\",\"field:Status.code\",[\"int\",\"200\"]],[\"field\",\"field:Status.label\",[\"string\",\"Ready\"]]],[\"instance\",\"class:Status\",[\"field\",\"dart:core::_Enum::@fields::dart:core::_name\",[\"string\",\"failed\"]],[\"field\",\"dart:core::_Enum::@fields::index\",[\"int\",\"1\"]],[\"field\",\"field:Status.code\",[\"int\",\"500\"]],[\"field\",\"field:Status.label\",[\"string\",\"Failed\"]]]]", () => Object.freeze([Status.ready, Status.failed])));
   __dartPrint("byName " + __dartStr(byName.code) + " " + __dartStr(__dartNullCheck(__dartMapGet(nameMap, "failed")).label));

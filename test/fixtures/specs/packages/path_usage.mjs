@@ -24,7 +24,7 @@ function __dartStringBuffer(initial = "") {
   let value = initial == null ? "" : String(initial);
   return {
     write(next) { value += String(next); },
-    writeAll(values, separator = "") { value += Array.from(values, String).join(String(separator)); },
+    writeAll(values, separator = "") { const parts = []; if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") { for (let index = 0; index < values.length; index++) parts.push(String(values["[]"](index))); } else { for (const item of values) parts.push(String(item)); } value += parts.join(String(separator)); },
     writeCharCode(charCode) { value += String.fromCodePoint(charCode); },
     writeln(next = "") { value += String(next) + "\n"; },
     clear() { value = ""; },
@@ -280,6 +280,19 @@ function __dartIsCoreError(value, typeName) {
   if (typeName === "TypeError" && value instanceof TypeError) return true;
   return typeName === "Error" && value instanceof Error;
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
+function __dartIndexSet(receiver, index, value) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }
+  const op = receiver?.["[]="];
+  if (typeof op === "function") return op.call(receiver, index, value);
+  receiver[index] = value;
+  return value;
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -375,6 +388,13 @@ function __dartSetRetainWhere(set, test) {
     if (!test(value)) set.delete(value);
   }
   return null;
+}
+function __dartCustomHashMap(equals = null, hashCode = null, isValidKey = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartMapEquals", { value: equals });
+  Object.defineProperty(map, "__dartMapHashCode", { value: hashCode });
+  Object.defineProperty(map, "__dartMapIsValidKey", { value: isValidKey });
+  return map;
 }
 function __dartIterableContains(iterable, needle) {
   if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
@@ -537,14 +557,14 @@ function __dartLazyField(name, initialize, writable, publish) {
   return { get, set };
 }
 function __dartIterator(iterable) {
-  const values = Array.isArray(iterable) ? iterable : Array.from(iterable);
+  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = values[index];
+        this.current = typeof values.get === "function" ? values.get(index) : values[index];
         return true;
       }
       this.current = undefined;
@@ -563,7 +583,7 @@ class ParsedPath {
     return $ParsedPath__(ParsedPath, style_1, root, isRootRelative_1, parts, separators);
   }
   extension(level = 1) {
-    return this._splitExtension(level)[1];
+    return __dartIndexGet(this._splitExtension(level), 1);
   }
   get isAbsolute() {
     return !((this.root === null));
@@ -615,7 +635,7 @@ class ParsedPath {
     return __dartIterableLast(copy.parts);
   }
   get basenameWithoutExtension() {
-    return this._splitExtension()[0];
+    return __dartIndexGet(this._splitExtension(), 0);
   }
   get hasTrailingSeparator() {
     return (!__dartIterableIsEmpty(this.parts) && (__dartEquals(__dartIterableLast(this.parts), "") || !(__dartEquals(__dartIterableLast(this.separators), ""))));
@@ -628,7 +648,7 @@ class ParsedPath {
       }
     }
     if (!__dartIterableIsEmpty(this.separators)) {
-      this.separators[(this.separators.length - 1)] = "";
+      __dartIndexSet(this.separators, (this.separators.length - 1), "");
     }
   }
   normalize({ canonicalize: canonicalize_1 = false } = {}) {
@@ -680,7 +700,7 @@ class ParsedPath {
     this.separators = new Array((newParts.length + 1)).fill(this.style.separator);
     if (((!(this.isAbsolute) || newParts.length === 0) || !(this.style.needsSeparator(__dartNullCheck(this.root))))) {
       {
-        this.separators[0] = "";
+        __dartIndexSet(this.separators, 0, "");
       }
     }
     if ((!((this.root === null)) && __dartEquals(this.style, Style.windows))) {
@@ -700,8 +720,8 @@ class ParsedPath {
     }
     for (let i = 0; (i < this.parts.length); i = (i + 1)) {
       {
-        builder.write(this.separators[i]);
-        builder.write(this.parts[i]);
+        builder.write(__dartIndexGet(this.separators, i));
+        builder.write(__dartIndexGet(this.parts, i));
       }
     }
     builder.write(__dartIterableLast(this.separators));
@@ -1321,7 +1341,7 @@ class Context {
                 parsed.root = path.substring(0, this.style.rootLength(path, { withDrive: true }));
                 if (this.style.needsSeparator(__dartNullCheck(parsed.root))) {
                   {
-                    parsed.separators[0] = this.style.separator;
+                    __dartIndexSet(parsed.separators, 0, this.style.separator);
                   }
                 }
                 buffer.clear();
@@ -1396,7 +1416,7 @@ class Context {
           {
             for (let i = 0; (i < root); i = (i + 1)) {
               {
-                if (__dartEquals(codeUnits[i], 47)) {
+                if (__dartEquals(__dartIndexGet(codeUnits, i), 47)) {
                   return true;
                 }
               }
@@ -1407,7 +1427,7 @@ class Context {
     }
     for (let i_1 = start; (i_1 < codeUnits.length); i_1 = (i_1 + 1)) {
       {
-        const codeUnit = codeUnits[i_1];
+        const codeUnit = __dartIndexGet(codeUnits, i_1);
         if (this.style.isSeparator(codeUnit)) {
           {
             if ((__dartEquals(this.style, Style.windows) && __dartEquals(codeUnit, 47))) {
@@ -1468,7 +1488,7 @@ class Context {
       v_1.normalize();
       return v_1;
     })(); })();
-    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(fromParsed.parts[0], "."))) {
+    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(__dartIndexGet(fromParsed.parts, 0), "."))) {
       {
         return __dartStr(pathParsed);
       }
@@ -1478,7 +1498,7 @@ class Context {
         return __dartStr(pathParsed);
       }
     }
-    while (((!__dartIterableIsEmpty(fromParsed.parts) && !__dartIterableIsEmpty(pathParsed.parts)) && this.style.pathsEqual(fromParsed.parts[0], pathParsed.parts[0]))) {
+    while (((!__dartIterableIsEmpty(fromParsed.parts) && !__dartIterableIsEmpty(pathParsed.parts)) && this.style.pathsEqual(__dartIndexGet(fromParsed.parts, 0), __dartIndexGet(pathParsed.parts, 0)))) {
       {
         fromParsed.parts.splice(0, 1)[0];
         fromParsed.separators.splice(1, 1)[0];
@@ -1486,13 +1506,13 @@ class Context {
         pathParsed.separators.splice(1, 1)[0];
       }
     }
-    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(fromParsed.parts[0], ".."))) {
+    if ((!__dartIterableIsEmpty(fromParsed.parts) && __dartEquals(__dartIndexGet(fromParsed.parts, 0), ".."))) {
       {
         (() => { throw new PathException("Unable to find a path to \"" + __dartStr(path) + "\" from \"" + __dartStr(from) + "\"."); })();
       }
     }
     (pathParsed.parts.splice(0, 0, ...Array.from(__dartFixedList(new Array(fromParsed.parts.length).fill("..")))), null);
-    pathParsed.separators[0] = "";
+    __dartIndexSet(pathParsed.separators, 0, "");
     (pathParsed.separators.splice(1, 0, ...Array.from(__dartFixedList(new Array(fromParsed.parts.length).fill(this.style.separator)))), null);
     if (__dartIterableIsEmpty(pathParsed.parts)) {
       return ".";
@@ -1851,9 +1871,9 @@ class Context {
     L:
     for (let i = (parsed.parts.length - 1); (i >= 0); i = (i - 1)) {
       {
-        if (parsed.parts[i].length !== 0) {
+        if (__dartIndexGet(parsed.parts, i).length !== 0) {
           {
-            parsed.parts[i] = parsed.basenameWithoutExtension;
+            __dartIndexSet(parsed.parts, i, parsed.basenameWithoutExtension);
             break L;
           }
         }
@@ -1940,7 +1960,15 @@ class PathMap {
   }
   static _create(context_1) {
     ((context_1 === null) ? context_1 = context : null);
-    return new Map();
+    return __dartCustomHashMap(function(path1, path2) {
+      if ((path1 === null)) {
+        return (path2 === null);
+      }
+      if ((path2 === null)) {
+        return false;
+      }
+      return __dartNullCheck(context_1).equals(path1, path2);
+}, function(path) { return ((path === null) ? 0 : __dartNullCheck(context_1).hash(path)); }, function(path) { return (typeof path === "string" || (path === null)); });
   }
 }
 
@@ -2154,14 +2182,14 @@ function _validateArgList(method, args) {
   for (let i = 1; (i < args.length); i = (i + 1)) {
     L:
     {
-      if (((args[i] === null) || !((args[(i - 1)] === null)))) {
+      if (((__dartIndexGet(args, i) === null) || !((__dartIndexGet(args, (i - 1)) === null)))) {
         break L;
       }
       let numArgs = null;
       L_1:
       for (let v = numArgs = args.length; (numArgs >= 1); numArgs = (numArgs - 1)) {
         {
-          if (!((args[(numArgs - 1)] === null))) {
+          if (!((__dartIndexGet(args, (numArgs - 1)) === null))) {
             break L_1;
           }
         }

@@ -79,6 +79,12 @@ function __dartBind(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
 function __dartListSort(list, compare = null) {
   if (typeof compare === "function") {
     list.sort((left, right) => compare(left, right));
@@ -1213,7 +1219,7 @@ export async function main() {
     if ($error_2 != null && typeof $error_2 === "object" && $error_2.__dartType === "ParallelWaitError") {
       const error_2 = $error_2;
       {
-        __dartPrint("extensionWaitError " + __dartStr(__dartIterableJoin(error_2.values, ",")) + " " + __dartStr(__dartNullCheck(error_2.errors[1]).error) + " " + __dartStr(__dartStr(error_2).includes("parallel-list")));
+        __dartPrint("extensionWaitError " + __dartStr(__dartIterableJoin(error_2.values, ",")) + " " + __dartStr(__dartNullCheck(__dartIndexGet(error_2.errors, 1)).error) + " " + __dartStr(__dartStr(error_2).includes("parallel-list")));
       }
     } else {
       throw $error_2;

@@ -20,6 +20,19 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartIndexGet(receiver, index) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
+  const op = receiver?.["[]"];
+  if (typeof op === "function") return op.call(receiver, index);
+  return receiver[index];
+}
+function __dartIndexSet(receiver, index, value) {
+  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }
+  const op = receiver?.["[]="];
+  if (typeof op === "function") return op.call(receiver, index, value);
+  receiver[index] = value;
+  return value;
+}
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
   const compareTo = left?.compareTo;
@@ -29,6 +42,13 @@ function __dartCompare(left, right, compare = null) {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartMapEquals != null) {
+    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (map.__dartSplayCompare !== undefined) {
     for (const candidate of map.keys()) {
       if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
@@ -47,7 +67,7 @@ function __dartMapGet(map, key) {
 function __dartListIndexOf(list, needle, start = 0) {
   const begin = Math.max(0, Math.trunc(start));
   for (let index = begin; index < list.length; index++) {
-    if (__dartEquals(list[index], needle)) return index;
+    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
   }
   return -1;
 }
@@ -55,14 +75,14 @@ function __dartListLastIndexOf(list, needle, start = null) {
   let index = start == null ? list.length - 1 : Math.trunc(start);
   if (index >= list.length) index = list.length - 1;
   for (; index >= 0; index--) {
-    if (__dartEquals(list[index], needle)) return index;
+    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
   }
   return -1;
 }
 function __dartListSetAll(list, index, values) {
   let offset = 0;
   for (const value of values) {
-    list[index + offset] = value;
+    __dartIndexSet(list, index + offset, value);
     offset++;
   }
   return null;
@@ -70,11 +90,11 @@ function __dartListSetAll(list, index, values) {
 function __dartListAsMap(list) {
   return new (class extends Map {
     get size() { return list.length; }
-    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? list[key] : undefined; }
+    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? __dartIndexGet(list, key) : undefined; }
     has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }
-    entries() { return Array.from(list, (value, index) => [index, value])[Symbol.iterator](); }
+    entries() { return Array.from({ length: list.length }, (_, index) => [index, __dartIndexGet(list, index)])[Symbol.iterator](); }
     keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }
-    values() { return Array.from(list)[Symbol.iterator](); }
+    values() { return Array.from({ length: list.length }, (_, index) => __dartIndexGet(list, index))[Symbol.iterator](); }
     [Symbol.iterator]() { return this.entries(); }
     forEach(callback, thisArg = undefined) {
       for (let index = 0; index < list.length; index++) {
@@ -104,9 +124,11 @@ function __dartTypedDataSublistView(data, start, end, viewConstructor, bytesPerE
   return new viewConstructor(data.buffer, byteOffset, Math.trunc(byteLength / bytesPerElement));
 }
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
-  const values = Array.from(source).slice(skipCount, skipCount + (end - start));
+  const values = [];
+  const count = end - start;
+  for (let index = 0; index < count; index++) values.push(__dartIndexGet(source, skipCount + index));
   for (let index = 0; index < values.length; index++) {
-    target[start + index] = values[index];
+    __dartIndexSet(target, start + index, values[index]);
   }
   return null;
 }
@@ -123,17 +145,17 @@ function __dartEquals(left, right) {
 export function main() {
   const bytes = Uint8Array.from([1, 2, 255]);
   let hidden = bytes;
-  __dartPrint("from " + __dartStr(bytes.length) + " " + __dartStr(bytes[2]) + " " + __dartStr(hidden instanceof Uint8Array));
+  __dartPrint("from " + __dartStr(bytes.length) + " " + __dartStr(__dartIndexGet(bytes, 2)) + " " + __dartStr(hidden instanceof Uint8Array));
   __dartPrint("types " + __dartStr((Array.isArray(hidden) || (ArrayBuffer.isView(hidden) && !(hidden instanceof DataView)))) + " " + __dartStr(hidden != null && typeof hidden !== "string" && !(hidden instanceof Map) && typeof hidden[Symbol.iterator] === "function"));
   const zeros = new Uint8Array(3);
-  zeros[0] = 7;
-  zeros[2] = 9;
-  __dartPrint("new " + __dartStr(zeros.length) + " " + __dartStr(zeros[0]) + " " + __dartStr(zeros[1]) + " " + __dartStr(zeros[2]));
+  __dartIndexSet(zeros, 0, 7);
+  __dartIndexSet(zeros, 2, 9);
+  __dartPrint("new " + __dartStr(zeros.length) + " " + __dartStr(__dartIndexGet(zeros, 0)) + " " + __dartStr(__dartIndexGet(zeros, 1)) + " " + __dartStr(__dartIndexGet(zeros, 2)));
   const ints = Int32Array.from([1, (-2), 3]);
   const floats = new Float64Array(2);
-  floats[0] = 1.5;
-  floats[1] = (-2.25);
-  __dartPrint("typed " + __dartStr(ints.length) + " " + __dartStr(ints[1]) + " " + __dartStr(floats[0]) + " " + __dartStr(floats[1]));
+  __dartIndexSet(floats, 0, 1.5);
+  __dartIndexSet(floats, 1, (-2.25));
+  __dartPrint("typed " + __dartStr(ints.length) + " " + __dartStr(__dartIndexGet(ints, 1)) + " " + __dartStr(__dartIndexGet(floats, 0)) + " " + __dartStr(__dartIndexGet(floats, 1)));
   const data = new DataView(new ArrayBuffer(4));
   let hiddenData = data;
   data.setInt16(0, 4660);
@@ -142,17 +164,17 @@ export function main() {
   __dartPrint("datatypes " + __dartStr(hiddenData instanceof DataView) + " " + __dartStr(ArrayBuffer.isView(hiddenData)));
   const words = new Uint16Array(bytes.buffer, 0, 1);
   let hiddenBuffer = bytes.buffer;
-  words[0] = 513;
-  __dartPrint("view " + __dartStr(bytes[0]) + " " + __dartStr(bytes[1]) + " " + __dartStr(words.byteLength) + " " + __dartStr(words.byteOffset) + " " + __dartStr((words instanceof DataView ? 1 : words.BYTES_PER_ELEMENT)));
+  __dartIndexSet(words, 0, 513);
+  __dartPrint("view " + __dartStr(__dartIndexGet(bytes, 0)) + " " + __dartStr(__dartIndexGet(bytes, 1)) + " " + __dartStr(words.byteLength) + " " + __dartStr(words.byteOffset) + " " + __dartStr((words instanceof DataView ? 1 : words.BYTES_PER_ELEMENT)));
   __dartPrint("buffertype " + __dartStr(hiddenBuffer instanceof ArrayBuffer));
   const sublist = __dartTypedDataSublistView(bytes, 1, 3, Uint8Array, 1);
-  sublist[0] = 8;
-  __dartPrint("sublist " + __dartStr(sublist.length) + " " + __dartStr(sublist[0]) + " " + __dartStr(bytes[1]));
+  __dartIndexSet(sublist, 0, 8);
+  __dartPrint("sublist " + __dartStr(sublist.length) + " " + __dartStr(__dartIndexGet(sublist, 0)) + " " + __dartStr(__dartIndexGet(bytes, 1)));
   const fromBuffer = new Uint8Array(bytes.buffer, 1, 2);
-  __dartPrint("buffer " + __dartStr(fromBuffer.length) + " " + __dartStr(fromBuffer[0]) + " " + __dartStr(bytes.buffer.byteLength));
+  __dartPrint("buffer " + __dartStr(fromBuffer.length) + " " + __dartStr(__dartIndexGet(fromBuffer, 0)) + " " + __dartStr(bytes.buffer.byteLength));
   const dataView = new DataView(bytes.buffer, 0, bytes.byteLength);
   dataView.setUint16(0, 2571, true);
-  __dartPrint("viewdata " + __dartStr(bytes[0]) + " " + __dartStr(bytes[1]) + " " + __dartStr(dataView.byteOffset) + " " + __dartStr((dataView instanceof DataView ? 1 : dataView.BYTES_PER_ELEMENT)));
+  __dartPrint("viewdata " + __dartStr(__dartIndexGet(bytes, 0)) + " " + __dartStr(__dartIndexGet(bytes, 1)) + " " + __dartStr(dataView.byteOffset) + " " + __dartStr((dataView instanceof DataView ? 1 : dataView.BYTES_PER_ELEMENT)));
   const byteSlice = __dartTypedDataSublistView(bytes, 0, 2, DataView, 1);
   __dartPrint("byteslice " + __dartStr(byteSlice.byteLength) + " " + __dartStr(byteSlice.getUint8(1)));
   const numbers = new DataView(new ArrayBuffer(36));

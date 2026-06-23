@@ -77,6 +77,7 @@ Future<File> _loadOrBuildKernel(
     output.path,
     if (options.packagesPath case final packagesPath?)
       '--packages=${_resolveFile(options.workingDirectory, packagesPath).path}',
+    for (final define in options.environmentDefines) '-D$define',
     input.path,
   ];
   final result = await Process.run(
@@ -104,6 +105,7 @@ final class Dart2EsmOptions {
     required this.outputPath,
     required this.workingDirectory,
     this.packagesPath,
+    this.environmentDefines = const [],
     this.runMain = true,
   });
 
@@ -111,6 +113,7 @@ final class Dart2EsmOptions {
   final String outputPath;
   final Directory workingDirectory;
   final String? packagesPath;
+  final List<String> environmentDefines;
   final bool runMain;
 }
 

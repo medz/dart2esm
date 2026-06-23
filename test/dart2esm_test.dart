@@ -158,6 +158,73 @@ void main() {
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
   });
 
+  test('compile options pass environment defines to CFE', () async {
+    final fixture = File(
+      p.join(fixtureDir.path, 'libraries', 'environment.dart'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp('dart2esm-env-');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'environment.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: fixture.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        environmentDefines: const [
+          'dart2esm.feature=true',
+          'dart2esm.answer=42',
+          'dart2esm.label=defined',
+        ],
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    final nodeRun = await Process.run('node', [
+      output.path,
+    ], workingDirectory: tempDir.path);
+    expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
+    expect(nodeRun.stdout, 'env true true 42 defined\n');
+    expect(nodeRun.stderr, isEmpty);
+  });
+
+  test('CLI -D passes environment defines to CFE', () async {
+    final fixture = File(
+      p.join(fixtureDir.path, 'libraries', 'environment.dart'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp('dart2esm-cli-env-');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'environment.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [
+        fixture.path,
+        '-o',
+        output.path,
+        '-Ddart2esm.feature=true,dart2esm.answer=43',
+        '--define=dart2esm.label=cli',
+      ],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.success);
+    expect(
+      File(p.join(tempDir.path, 'stdout.log')).readAsStringSync(),
+      isEmpty,
+    );
+    final nodeRun = await Process.run('node', [
+      output.path,
+    ], workingDirectory: tempDir.path);
+    expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
+    expect(nodeRun.stdout, 'env true true 43 cli\n');
+    expect(nodeRun.stderr, isEmpty);
+  });
+
   test(
     'no-run-main import exposes initialized top-level ESM bindings',
     () async {

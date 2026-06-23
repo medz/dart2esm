@@ -56,6 +56,7 @@ Future<int> runDart2Esm(
         outputPath: output,
         workingDirectory: Directory.current,
         packagesPath: results['packages'] as String?,
+        environmentDefines: results['define'] as List<String>,
         runMain: results['run-main'] as bool,
       ),
     );
@@ -84,6 +85,13 @@ ArgParser _buildParser() {
       'packages',
       valueHelp: 'package_config.json',
       help: 'Use an explicit package configuration when compiling Dart input.',
+    )
+    ..addMultiOption(
+      'define',
+      abbr: 'D',
+      valueHelp: 'key=value',
+      help: 'Define a compile-time environment declaration.',
+      splitCommas: true,
     )
     ..addFlag(
       'run-main',

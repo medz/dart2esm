@@ -28,8 +28,80 @@ function __dartFixedList(list) {
   return Object.seal(list);
 }
 function __dartGet(receiver, name) {
+  if (Array.isArray(receiver)) {
+    if (name === "isEmpty") return receiver.length === 0;
+    if (name === "isNotEmpty") return receiver.length !== 0;
+    if (name === "first") return receiver[0];
+    if (name === "last") return receiver[receiver.length - 1];
+  }
+  if (receiver instanceof Map || receiver instanceof Set) {
+    if (name === "length") return receiver.size;
+    if (name === "isEmpty") return receiver.size === 0;
+    if (name === "isNotEmpty") return receiver.size !== 0;
+  }
+  if (typeof receiver === "string") {
+    if (name === "isEmpty") return receiver.length === 0;
+    if (name === "isNotEmpty") return receiver.length !== 0;
+  }
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
+}
+function __dartCall(receiver, name, args) {
+  if (name === "call") return receiver(...args);
+  if (Array.isArray(receiver)) {
+    switch (name) {
+      case "[]": return receiver[args[0]];
+      case "[]=": receiver[args[0]] = args[1]; return args[1];
+      case "add": receiver.push(args[0]); return null;
+      case "addAll": receiver.push(...Array.from(args[0])); return null;
+      case "clear": receiver.length = 0; return null;
+      case "contains": return __dartIterableContains(receiver, args[0]);
+      case "elementAt": return receiver[args[0]];
+      case "join": return receiver.map(__dartStr).join(args.length === 0 ? "" : args[0]);
+      case "remove": { const index = receiver.findIndex(value => __dartEquals(value, args[0])); if (index < 0) return false; receiver.splice(index, 1); return true; }
+      case "removeAt": return receiver.splice(args[0], 1)[0];
+      case "removeLast": return receiver.pop();
+      case "toList": return Array.from(receiver);
+      case "toSet": return new Set(receiver);
+    }
+  }
+  if (receiver instanceof Map) {
+    switch (name) {
+      case "[]": return __dartMapGet(receiver, args[0]);
+      case "[]=": return __dartMapSet(receiver, args[0], args[1]);
+      case "clear": receiver.clear(); return null;
+      case "containsKey": return __dartMapContainsKey(receiver, args[0]);
+      case "remove": return __dartMapRemove(receiver, args[0]);
+    }
+  }
+  if (receiver instanceof Set) {
+    switch (name) {
+      case "add": return __dartSetAdd(receiver, args[0]);
+      case "addAll": for (const value of args[0]) __dartSetAdd(receiver, value); return null;
+      case "clear": receiver.clear(); return null;
+      case "contains": return __dartIterableContains(receiver, args[0]);
+      case "remove": return __dartSetRemove(receiver, args[0]);
+      case "toList": return Array.from(receiver);
+      case "toSet": return new Set(receiver);
+    }
+  }
+  if (typeof receiver === "string") {
+    switch (name) {
+      case "contains": return receiver.includes(args[0], args.length > 1 ? args[1] : 0);
+      case "endsWith": return receiver.endsWith(args[0]);
+      case "indexOf": return receiver.indexOf(args[0], args.length > 1 ? args[1] : 0);
+      case "lastIndexOf": return args.length > 1 ? receiver.lastIndexOf(args[0], args[1]) : receiver.lastIndexOf(args[0]);
+      case "split": return receiver.split(args[0]);
+      case "startsWith": return receiver.startsWith(args[0], args.length > 1 ? args[1] : 0);
+      case "substring": return receiver.substring(args[0], args.length > 1 ? args[1] : undefined);
+      case "toLowerCase": return receiver.toLowerCase();
+      case "toUpperCase": return receiver.toUpperCase();
+      case "trim": return receiver.trim();
+    }
+  }
+  const method = receiver[name];
+  if (typeof method === "function") return method.apply(receiver, args);
+  throw new TypeError("No such method " + String(name));
 }
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
@@ -50,6 +122,20 @@ function __dartSetFrom(values) {
   const set = new Set();
   for (const value of values) __dartSetAdd(set, value);
   return set;
+}
+function __dartSetRemove(set, needle) {
+  if (set.__dartIdentitySet) {
+    const found = set.has(needle);
+    set.delete(needle);
+    return found;
+  }
+  for (const value of set) {
+    if (__dartEquals(value, needle)) {
+      set.delete(value);
+      return true;
+    }
+  }
+  return false;
 }
 function __dartIdentityMap() {
   const map = new Map();
@@ -74,6 +160,13 @@ function __dartMapGet(map, key) {
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+function __dartMapRemove(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey === __dartMapMissingKey) return null;
+  const value = map.get(actualKey);
+  map.delete(actualKey);
   return value;
 }
 function __dartMapFromEntries(entries) {
@@ -227,7 +320,7 @@ export function main() {
   const eqMapFixed = __dartConstMap(eqMapSource);
   __dartPrint("mapFixed " + __dartStr(eqMapFixed.size) + " " + __dartStr(__dartMapGet(eqMapFixed, new EqBox(1))) + " " + __dartStr(__dartMapContainsKey(eqMapFixed, new EqBox(1))));
   const entries = __dartMapFromEntries(Array.from([Object.freeze({ key: "three", value: 3 }), Object.freeze({ key: "four", value: 4 })], (entry) => [entry.key, entry.value]));
-  const iterable = __dartMapFromIterable(["aa", "bbb"], function(value) { return __dartAs(__dartGet(value, "length"), value => typeof value === "number", "int"); }, function(value) { return __dartAs(value.toUpperCase(), value => typeof value === "string", "String"); });
+  const iterable = __dartMapFromIterable(["aa", "bbb"], function(value) { return __dartAs(__dartGet(value, "length"), value => typeof value === "number", "int"); }, function(value) { return __dartAs(__dartCall(value, "toUpperCase", []), value => typeof value === "string", "String"); });
   const iterables = __dartMapFromIterables(["x", "y"], [10, 20]);
   const identity = __dartIdentityMap();
   const identityKey = [1];

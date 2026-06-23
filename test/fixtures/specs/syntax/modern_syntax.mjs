@@ -31,8 +31,80 @@ function __dartNullCheck(value) {
   return value;
 }
 function __dartGet(receiver, name) {
+  if (Array.isArray(receiver)) {
+    if (name === "isEmpty") return receiver.length === 0;
+    if (name === "isNotEmpty") return receiver.length !== 0;
+    if (name === "first") return receiver[0];
+    if (name === "last") return receiver[receiver.length - 1];
+  }
+  if (receiver instanceof Map || receiver instanceof Set) {
+    if (name === "length") return receiver.size;
+    if (name === "isEmpty") return receiver.size === 0;
+    if (name === "isNotEmpty") return receiver.size !== 0;
+  }
+  if (typeof receiver === "string") {
+    if (name === "isEmpty") return receiver.length === 0;
+    if (name === "isNotEmpty") return receiver.length !== 0;
+  }
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
+}
+function __dartCall(receiver, name, args) {
+  if (name === "call") return receiver(...args);
+  if (Array.isArray(receiver)) {
+    switch (name) {
+      case "[]": return receiver[args[0]];
+      case "[]=": receiver[args[0]] = args[1]; return args[1];
+      case "add": receiver.push(args[0]); return null;
+      case "addAll": receiver.push(...Array.from(args[0])); return null;
+      case "clear": receiver.length = 0; return null;
+      case "contains": return __dartIterableContains(receiver, args[0]);
+      case "elementAt": return receiver[args[0]];
+      case "join": return receiver.map(__dartStr).join(args.length === 0 ? "" : args[0]);
+      case "remove": { const index = receiver.findIndex(value => __dartEquals(value, args[0])); if (index < 0) return false; receiver.splice(index, 1); return true; }
+      case "removeAt": return receiver.splice(args[0], 1)[0];
+      case "removeLast": return receiver.pop();
+      case "toList": return Array.from(receiver);
+      case "toSet": return new Set(receiver);
+    }
+  }
+  if (receiver instanceof Map) {
+    switch (name) {
+      case "[]": return __dartMapGet(receiver, args[0]);
+      case "[]=": return __dartMapSet(receiver, args[0], args[1]);
+      case "clear": receiver.clear(); return null;
+      case "containsKey": return __dartMapContainsKey(receiver, args[0]);
+      case "remove": return __dartMapRemove(receiver, args[0]);
+    }
+  }
+  if (receiver instanceof Set) {
+    switch (name) {
+      case "add": return __dartSetAdd(receiver, args[0]);
+      case "addAll": for (const value of args[0]) __dartSetAdd(receiver, value); return null;
+      case "clear": receiver.clear(); return null;
+      case "contains": return __dartIterableContains(receiver, args[0]);
+      case "remove": return __dartSetRemove(receiver, args[0]);
+      case "toList": return Array.from(receiver);
+      case "toSet": return new Set(receiver);
+    }
+  }
+  if (typeof receiver === "string") {
+    switch (name) {
+      case "contains": return receiver.includes(args[0], args.length > 1 ? args[1] : 0);
+      case "endsWith": return receiver.endsWith(args[0]);
+      case "indexOf": return receiver.indexOf(args[0], args.length > 1 ? args[1] : 0);
+      case "lastIndexOf": return args.length > 1 ? receiver.lastIndexOf(args[0], args[1]) : receiver.lastIndexOf(args[0]);
+      case "split": return receiver.split(args[0]);
+      case "startsWith": return receiver.startsWith(args[0], args.length > 1 ? args[1] : 0);
+      case "substring": return receiver.substring(args[0], args.length > 1 ? args[1] : undefined);
+      case "toLowerCase": return receiver.toLowerCase();
+      case "toUpperCase": return receiver.toUpperCase();
+      case "trim": return receiver.trim();
+    }
+  }
+  const method = receiver[name];
+  if (typeof method === "function") return method.apply(receiver, args);
+  throw new TypeError("No such method " + String(name));
 }
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
@@ -48,6 +120,20 @@ function __dartSetAddAll(set, values) {
   for (const value of values) __dartSetAdd(set, value);
   return null;
 }
+function __dartSetRemove(set, needle) {
+  if (set.__dartIdentitySet) {
+    const found = set.has(needle);
+    set.delete(needle);
+    return found;
+  }
+  for (const value of set) {
+    if (__dartEquals(value, needle)) {
+      set.delete(value);
+      return true;
+    }
+  }
+  return false;
+}
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
@@ -55,6 +141,13 @@ function __dartMapKey(map, key) {
     if (__dartEquals(candidate, key)) return candidate;
   }
   return __dartMapMissingKey;
+}
+function __dartMapContainsKey(map, key) {
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
@@ -64,6 +157,13 @@ function __dartMapSet(map, key, value) {
 function __dartMapAddAll(map, entries) {
   for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
+}
+function __dartMapRemove(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey === __dartMapMissingKey) return null;
+  const value = map.get(actualKey);
+  map.delete(actualKey);
+  return value;
 }
 function __dartIterableContains(iterable, needle) {
   if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
@@ -248,10 +348,27 @@ export function describe(input) {
     return v;
   })();
   let d = new Bag(10);
-  d.value = d.add(1);
+  d.value = __dartCall(d, "add", [1]);
   const tear = __dartGet(d, "add");
+  let dynList = [1, 2];
+  __dartCall(dynList, "add", [3]);
+  __dartCall(dynList, "[]=", [1, 4]);
+  const dynListText = __dartStr(__dartCall(dynList, "[]", [0])) + ":" + __dartStr(__dartCall(dynList, "[]", [1])) + ":" + __dartStr(__dartCall(dynList, "join", ["|"])) + ":" + __dartStr(__dartCall(dynList, "contains", [3]));
+  let dynMap = new Map([["a", 1]]);
+  __dartCall(dynMap, "[]=", ["b", 2]);
+  const dynMapText = __dartStr(__dartCall(dynMap, "[]", ["a"])) + ":" + __dartStr(__dartCall(dynMap, "containsKey", ["b"])) + ":" + __dartStr(__dartCall(dynMap, "remove", ["a"])) + ":" + __dartStr(__dartCall(dynMap, "[]", ["a"]));
+  let dynSet = (() => {
+    const v = new Set();
+    __dartSetAdd(v, "a");
+    return v;
+  })();
+  const dynSetAdded = __dartCall(dynSet, "add", ["b"]);
+  const dynSetDuplicate = __dartCall(dynSet, "add", ["b"]);
+  const dynSetText = __dartStr(dynSetAdded) + ":" + __dartStr(dynSetDuplicate) + ":" + __dartStr(__dartCall(dynSet, "contains", ["a"])) + ":" + __dartStr(__dartCall(dynSet, "remove", ["a"])) + ":" + __dartStr(__dartGet(dynSet, "length"));
+  let dynString = " Hello,Dart ";
+  const dynStringText = __dartStr(__dartCall(__dartCall(dynString, "trim", []), "toUpperCase", [])) + ":" + __dartStr(__dartCall(dynString, "contains", ["Dart"])) + ":" + __dartStr(__dartCall(__dartCall(__dartCall(dynString, "split", [","]), "[]", [1]), "trim", []));
   const sure = __dartNullCheck(input);
-  return __dartStr(list) + " " + __dartStr(set) + " " + __dartStr(map) + " " + __dartStr(a) + " " + __dartStr(b) + " " + __dartStr(result) + " " + __dartStr(__dartGet(d, "value")) + " " + __dartStr((tear)(2)) + " " + __dartStr(sure);
+  return __dartStr(list) + " " + __dartStr(set) + " " + __dartStr(map) + " " + __dartStr(a) + " " + __dartStr(b) + " " + __dartStr(result) + " " + __dartStr(__dartGet(d, "value")) + " " + __dartStr((tear)(2)) + " " + __dartStr(dynListText) + " " + __dartStr(dynMapText) + " " + __dartStr(dynSetText) + " " + __dartStr(dynStringText) + " " + __dartStr(sure);
 }
 
 export function main() {

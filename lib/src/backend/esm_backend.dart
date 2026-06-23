@@ -5337,11 +5337,27 @@ final class _EsmEmitter {
   String _emitDynamicInvocation(k.DynamicInvocation expression) {
     final receiver = emitExpression(expression.receiver);
     final name = expression.name.text;
-    final args = _emitArguments(expression.arguments);
     if (name == 'call') {
+      final args = _emitArguments(expression.arguments);
       return '($receiver)($args)';
     }
-    return '${_emitPropertyGet(receiver, name)}($args)';
+    _usedHelpers.add('__dartCall');
+    _usedHelpers.add('__dartEquals');
+    _usedHelpers.add('__dartIterableContains');
+    _usedHelpers.add('__dartMapContainsKey');
+    _usedHelpers.add('__dartMapGet');
+    _usedHelpers.add('__dartMapKey');
+    _usedHelpers.add('__dartMapRemove');
+    _usedHelpers.add('__dartMapSet');
+    _usedHelpers.add('__dartSetAdd');
+    _usedHelpers.add('__dartSetRemove');
+    _usedHelpers.add('__dartStr');
+    final args = [
+      ...expression.arguments.positional.map(emitExpression),
+      if (expression.arguments.named.isNotEmpty)
+        '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }',
+    ];
+    return '__dartCall($receiver, ${jsonEncode(name)}, [${args.join(', ')}])';
   }
 
   String _emitDynamicGet(k.DynamicGet expression) {
@@ -10318,9 +10334,125 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartGet')) {
       helper.writeln('function __dartGet(receiver, name) {');
+      helper.writeln('  if (Array.isArray(receiver)) {');
+      helper.writeln('    if (name === "isEmpty") return receiver.length === 0;');
+      helper.writeln('    if (name === "isNotEmpty") return receiver.length !== 0;');
+      helper.writeln('    if (name === "first") return receiver[0];');
+      helper.writeln('    if (name === "last") return receiver[receiver.length - 1];');
+      helper.writeln('  }');
+      helper.writeln('  if (receiver instanceof Map || receiver instanceof Set) {');
+      helper.writeln('    if (name === "length") return receiver.size;');
+      helper.writeln('    if (name === "isEmpty") return receiver.size === 0;');
+      helper.writeln('    if (name === "isNotEmpty") return receiver.size !== 0;');
+      helper.writeln('  }');
+      helper.writeln('  if (typeof receiver === "string") {');
+      helper.writeln('    if (name === "isEmpty") return receiver.length === 0;');
+      helper.writeln('    if (name === "isNotEmpty") return receiver.length !== 0;');
+      helper.writeln('  }');
       helper.writeln('  const value = receiver[name];');
       helper.writeln(
         '  return typeof value === "function" ? value.bind(receiver) : value;',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartCall')) {
+      helper.writeln('function __dartCall(receiver, name, args) {');
+      helper.writeln('  if (name === "call") return receiver(...args);');
+      helper.writeln('  if (Array.isArray(receiver)) {');
+      helper.writeln('    switch (name) {');
+      helper.writeln('      case "[]": return receiver[args[0]];');
+      helper.writeln(
+        '      case "[]=": receiver[args[0]] = args[1]; return args[1];',
+      );
+      helper.writeln(
+        '      case "add": receiver.push(args[0]); return null;',
+      );
+      helper.writeln(
+        '      case "addAll": receiver.push(...Array.from(args[0])); return null;',
+      );
+      helper.writeln('      case "clear": receiver.length = 0; return null;');
+      helper.writeln(
+        '      case "contains": return __dartIterableContains(receiver, args[0]);',
+      );
+      helper.writeln('      case "elementAt": return receiver[args[0]];');
+      helper.writeln(
+        '      case "join": return receiver.map(__dartStr).join(args.length === 0 ? "" : args[0]);',
+      );
+      helper.writeln(
+        '      case "remove": { const index = receiver.findIndex(value => __dartEquals(value, args[0])); if (index < 0) return false; receiver.splice(index, 1); return true; }',
+      );
+      helper.writeln('      case "removeAt": return receiver.splice(args[0], 1)[0];');
+      helper.writeln('      case "removeLast": return receiver.pop();');
+      helper.writeln(
+        '      case "toList": return Array.from(receiver);',
+      );
+      helper.writeln(
+        '      case "toSet": return new Set(receiver);',
+      );
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  if (receiver instanceof Map) {');
+      helper.writeln('    switch (name) {');
+      helper.writeln('      case "[]": return __dartMapGet(receiver, args[0]);');
+      helper.writeln(
+        '      case "[]=": return __dartMapSet(receiver, args[0], args[1]);',
+      );
+      helper.writeln('      case "clear": receiver.clear(); return null;');
+      helper.writeln(
+        '      case "containsKey": return __dartMapContainsKey(receiver, args[0]);',
+      );
+      helper.writeln(
+        '      case "remove": return __dartMapRemove(receiver, args[0]);',
+      );
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  if (receiver instanceof Set) {');
+      helper.writeln('    switch (name) {');
+      helper.writeln('      case "add": return __dartSetAdd(receiver, args[0]);');
+      helper.writeln(
+        '      case "addAll": for (const value of args[0]) __dartSetAdd(receiver, value); return null;',
+      );
+      helper.writeln('      case "clear": receiver.clear(); return null;');
+      helper.writeln(
+        '      case "contains": return __dartIterableContains(receiver, args[0]);',
+      );
+      helper.writeln(
+        '      case "remove": return __dartSetRemove(receiver, args[0]);',
+      );
+      helper.writeln('      case "toList": return Array.from(receiver);');
+      helper.writeln('      case "toSet": return new Set(receiver);');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  if (typeof receiver === "string") {');
+      helper.writeln('    switch (name) {');
+      helper.writeln(
+        '      case "contains": return receiver.includes(args[0], args.length > 1 ? args[1] : 0);',
+      );
+      helper.writeln('      case "endsWith": return receiver.endsWith(args[0]);');
+      helper.writeln(
+        '      case "indexOf": return receiver.indexOf(args[0], args.length > 1 ? args[1] : 0);',
+      );
+      helper.writeln(
+        '      case "lastIndexOf": return args.length > 1 ? receiver.lastIndexOf(args[0], args[1]) : receiver.lastIndexOf(args[0]);',
+      );
+      helper.writeln('      case "split": return receiver.split(args[0]);');
+      helper.writeln(
+        '      case "startsWith": return receiver.startsWith(args[0], args.length > 1 ? args[1] : 0);',
+      );
+      helper.writeln(
+        '      case "substring": return receiver.substring(args[0], args.length > 1 ? args[1] : undefined);',
+      );
+      helper.writeln('      case "toLowerCase": return receiver.toLowerCase();');
+      helper.writeln('      case "toUpperCase": return receiver.toUpperCase();');
+      helper.writeln('      case "trim": return receiver.trim();');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  const method = receiver[name];');
+      helper.writeln(
+        '  if (typeof method === "function") return method.apply(receiver, args);',
+      );
+      helper.writeln(
+        '  throw new TypeError("No such method " + String(name));',
       );
       helper.writeln('}');
     }
@@ -12887,6 +13019,7 @@ const _generatedGlobalNames = {
   '__dartBigIntParse',
   '__dartByteConversionSink',
   '__dartByteConversionSinkFrom',
+  '__dartCall',
   '__dartChunkedConversionSink',
   '__dartCompleter',
   '__dartConst',

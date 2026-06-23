@@ -133,4 +133,21 @@ Future<void> main() async {
     '$dartIteratorFirst $moved ${jsToDartIterator.current.toDartInt} '
     '${manualValue.value!.toDartInt} ${manualDone.isDone}',
   );
+
+  final jsBuffer = JSArrayBuffer(4);
+  final dartBuffer = jsBuffer.toDart;
+  final jsView = JSDataView(dartBuffer.toJS);
+  final dartView = jsView.toDart;
+  dartView.setUint8(0, 23);
+  final jsBytes = JSUint8Array.withLength(3);
+  final dartBytes = jsBytes.toDart;
+  dartBytes[0] = 7;
+  dartBytes[1] = 8;
+  dartBytes[2] = 9;
+  final roundTripBytes = dartBytes.toJS.toDart;
+  final bufferBytes = JSUint8Array(dartBuffer.toJS).toDart;
+  print(
+    'jsTyped ${dartBuffer.lengthInBytes} ${dartView.toJS.toDart.getUint8(0)} '
+    '${roundTripBytes.join(',')} ${bufferBytes[0]}',
+  );
 }

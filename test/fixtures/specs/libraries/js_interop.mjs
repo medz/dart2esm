@@ -260,6 +260,19 @@ export async function main() {
   const manualValue = ({ value: 21, done: false });
   const manualDone = ({ done: true });
   __dartPrint("jsIterator " + __dartStr(uniqueSymbol["description"]) + " " + __dartStr((Symbol.keyFor(sharedSymbol) ?? null)) + " " + __dartStr(typeof __dartExtensionTypeRep(globalThis["Symbol"]["iterator"], "_jsSymbol") === "symbol") + " " + __dartStr(__dartJsNumberToDartInt(__dartNullCheck(firstResult["value"]))) + " " + __dartStr(__dartJsNumberToDartInt(__dartNullCheck(secondResult["value"]))) + " " + __dartStr((doneResult.done === true)) + " " + __dartStr(dartValues) + " " + __dartStr(dartIteratorFirst) + " " + __dartStr(moved) + " " + __dartStr(__dartJsNumberToDartInt(jsToDartIterator.current)) + " " + __dartStr(__dartJsNumberToDartInt(__dartNullCheck(manualValue["value"]))) + " " + __dartStr((manualDone.done === true)));
+  const jsBuffer = new globalThis["ArrayBuffer"](4);
+  const dartBuffer = jsBuffer;
+  const jsView = new globalThis["DataView"](dartBuffer);
+  const dartView = jsView;
+  dartView.setUint8(0, 23);
+  const jsBytes = new globalThis["Uint8Array"](3);
+  const dartBytes = jsBytes;
+  dartBytes[0] = 7;
+  dartBytes[1] = 8;
+  dartBytes[2] = 9;
+  const roundTripBytes = dartBytes;
+  const bufferBytes = new globalThis["Uint8Array"](dartBuffer);
+  __dartPrint("jsTyped " + __dartStr(dartBuffer.byteLength) + " " + __dartStr(dartView.getUint8(0)) + " " + __dartStr(__dartIterableJoin(roundTripBytes, ",")) + " " + __dartStr(bufferBytes[0]));
 }
 
 await main();

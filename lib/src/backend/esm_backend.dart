@@ -6932,7 +6932,29 @@ final class _EsmEmitter {
       'JSBooleanToBool|get#toDart' ||
       'ListToJSArray|get#toJS' ||
       'ListToJSArray|get#toJSProxyOrRef' ||
-      'JSArrayToList|get#toDart' => true,
+      'JSArrayToList|get#toDart' ||
+      'JSArrayBufferToByteBuffer|get#toDart' ||
+      'ByteBufferToJSArrayBuffer|get#toJS' ||
+      'JSDataViewToByteData|get#toDart' ||
+      'ByteDataToJSDataView|get#toJS' ||
+      'JSInt8ArrayToInt8List|get#toDart' ||
+      'Int8ListToJSInt8Array|get#toJS' ||
+      'JSUint8ArrayToUint8List|get#toDart' ||
+      'Uint8ListToJSUint8Array|get#toJS' ||
+      'JSUint8ClampedArrayToUint8ClampedList|get#toDart' ||
+      'Uint8ClampedListToJSUint8ClampedArray|get#toJS' ||
+      'JSInt16ArrayToInt16List|get#toDart' ||
+      'Int16ListToJSInt16Array|get#toJS' ||
+      'JSUint16ArrayToUint16List|get#toDart' ||
+      'Uint16ListToJSUint16Array|get#toJS' ||
+      'JSInt32ArrayToInt32List|get#toDart' ||
+      'Int32ListToJSInt32Array|get#toJS' ||
+      'JSUint32ArrayToUint32List|get#toDart' ||
+      'Uint32ListToJSUint32Array|get#toJS' ||
+      'JSFloat32ArrayToFloat32List|get#toDart' ||
+      'Float32ListToJSFloat32Array|get#toJS' ||
+      'JSFloat64ArrayToFloat64List|get#toDart' ||
+      'Float64ListToJSFloat64Array|get#toJS' => true,
       _ => false,
     };
   }

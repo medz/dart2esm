@@ -3218,6 +3218,13 @@ final class _EsmEmitter {
     if (isolateInvocation != null) {
       return isolateInvocation;
     }
+    final concurrentInvocation = _emitConcurrentStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (concurrentInvocation != null) {
+      return concurrentInvocation;
+    }
     final jsInteropInvocation = _emitJsInteropStaticInvocation(
       expression,
       positionalArgs,
@@ -3796,6 +3803,16 @@ final class _EsmEmitter {
     );
     if (bigIntInvocation != null) {
       return bigIntInvocation;
+    }
+    final concurrentInvocation = _emitConcurrentInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments,
+    );
+    if (concurrentInvocation != null) {
+      return concurrentInvocation;
     }
     final htmlInvocation = _emitHtmlInstanceInvocation(
       target,
@@ -6490,6 +6507,52 @@ final class _EsmEmitter {
     return null;
   }
 
+  String? _emitConcurrentStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:concurrent::Mutex::@factories::' &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartMutex');
+      return '__dartMutex()';
+    }
+    if (path == 'dart:concurrent::ConditionVariable::@factories::' &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartConditionVariable');
+      return '__dartConditionVariable()';
+    }
+    return null;
+  }
+
+  String? _emitConcurrentInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (arguments.named.isNotEmpty) {
+      return null;
+    }
+    if (_isConcurrentClassMember(target, 'Mutex', name) &&
+        (name == 'runLocked' || name == '_runLocked') &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single})()';
+    }
+    if (_isConcurrentClassMember(target, 'ConditionVariable', name)) {
+      if (name == 'wait' &&
+          positionalArgs.isNotEmpty &&
+          positionalArgs.length <= 2) {
+        return 'null';
+      }
+      if ((name == 'notify' || name == 'notifyAll') && positionalArgs.isEmpty) {
+        return 'null';
+      }
+    }
+    return null;
+  }
+
   String? _emitDeveloperStaticInvocation(
     k.StaticInvocation expression,
     List<String> positionalArgs,
@@ -8280,6 +8343,16 @@ final class _EsmEmitter {
   ) {
     final path = _referencePath(reference);
     return path.startsWith('dart:html::$className::') &&
+        _pathHasMember(path, name);
+  }
+
+  bool _isConcurrentClassMember(
+    k.Reference reference,
+    String className,
+    String name,
+  ) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:concurrent::$className::') &&
         _pathHasMember(path, name);
   }
 
@@ -11397,6 +11470,23 @@ final class _EsmEmitter {
       helper.writeln('    return map;');
       helper.writeln('  }');
       helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMutex')) {
+      helper.writeln('function __dartMutex() {');
+      helper.writeln('  return {');
+      helper.writeln('    runLocked(action) { return action(); },');
+      helper.writeln('    _runLocked(action) { return action(); },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartConditionVariable')) {
+      helper.writeln('function __dartConditionVariable() {');
+      helper.writeln('  return {');
+      helper.writeln('    wait() { return null; },');
+      helper.writeln('    notify() { return null; },');
+      helper.writeln('    notifyAll() { return null; },');
+      helper.writeln('  };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartEnumByName')) {

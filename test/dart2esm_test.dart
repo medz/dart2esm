@@ -475,6 +475,10 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
   );
   expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
   expect(output.readAsStringSync(), fixture.expectedEsm.readAsStringSync());
+  if (fixture.id == 'libraries/concurrent') {
+    await _expectNodeOutput(output, 'concurrent 42\n');
+    return;
+  }
   if (fixture.id == 'libraries/html') {
     await _expectNodeOutputWithPrelude(output, '''
 const store = new Map();

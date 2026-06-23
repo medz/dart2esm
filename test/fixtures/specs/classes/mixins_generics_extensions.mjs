@@ -33,6 +33,7 @@ export class Box {
 }
 
 export class Named {
+  name;
   label() {
     return "name:" + __dartStr(this.name);
   }
@@ -42,6 +43,7 @@ export class _User_Object_Named extends Named {
   constructor() {
     super();
   }
+  name;
   label() {
     return "name:" + __dartStr(this.name);
   }

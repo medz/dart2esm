@@ -385,8 +385,12 @@ final class _EsmEmitter {
         _emitConstructor(constructor, klass);
       }
     }
+    final abstractFields = <String>{};
     for (final procedure in klass.procedures) {
       if (procedure.isExternal || procedure.isAbstract) {
+        if (!procedure.isExternal && procedure.isAbstract) {
+          _emitAbstractMemberStub(procedure, abstractFields);
+        }
         continue;
       }
       _emitMethod(procedure);
@@ -1460,6 +1464,36 @@ final class _EsmEmitter {
         throw UnsupportedKernelNode(function, 'method body');
       }
       _emitFunctionBody(body);
+      _indent--;
+      writeln('}');
+    });
+  }
+
+  void _emitAbstractMemberStub(
+    k.Procedure procedure,
+    Set<String> abstractFields,
+  ) {
+    if (procedure.kind == k.ProcedureKind.Getter ||
+        procedure.kind == k.ProcedureKind.Setter) {
+      final name = _memberName(procedure.name.text);
+      if (abstractFields.add(name)) {
+        writeln('$name;');
+      }
+      return;
+    }
+    final function = procedure.function;
+    final name = procedure.kind == k.ProcedureKind.Operator
+        ? _propertyKey(procedure.name.text)
+        : _memberName(procedure.name.text);
+    final staticPrefix = procedure.isStatic ? 'static ' : '';
+    _withFunctionNameScope(() {
+      writeln('$staticPrefix$name(${_emitParameterList(function)}) {');
+      _indent++;
+      final owner = procedure.enclosingClass?.name ?? '<library>';
+      final message = jsonEncode(
+        'Abstract member $owner.${procedure.name.text}',
+      );
+      writeln('throw new TypeError($message);');
       _indent--;
       writeln('}');
     });
@@ -10335,19 +10369,33 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartGet')) {
       helper.writeln('function __dartGet(receiver, name) {');
       helper.writeln('  if (Array.isArray(receiver)) {');
-      helper.writeln('    if (name === "isEmpty") return receiver.length === 0;');
-      helper.writeln('    if (name === "isNotEmpty") return receiver.length !== 0;');
+      helper.writeln(
+        '    if (name === "isEmpty") return receiver.length === 0;',
+      );
+      helper.writeln(
+        '    if (name === "isNotEmpty") return receiver.length !== 0;',
+      );
       helper.writeln('    if (name === "first") return receiver[0];');
-      helper.writeln('    if (name === "last") return receiver[receiver.length - 1];');
+      helper.writeln(
+        '    if (name === "last") return receiver[receiver.length - 1];',
+      );
       helper.writeln('  }');
-      helper.writeln('  if (receiver instanceof Map || receiver instanceof Set) {');
+      helper.writeln(
+        '  if (receiver instanceof Map || receiver instanceof Set) {',
+      );
       helper.writeln('    if (name === "length") return receiver.size;');
       helper.writeln('    if (name === "isEmpty") return receiver.size === 0;');
-      helper.writeln('    if (name === "isNotEmpty") return receiver.size !== 0;');
+      helper.writeln(
+        '    if (name === "isNotEmpty") return receiver.size !== 0;',
+      );
       helper.writeln('  }');
       helper.writeln('  if (typeof receiver === "string") {');
-      helper.writeln('    if (name === "isEmpty") return receiver.length === 0;');
-      helper.writeln('    if (name === "isNotEmpty") return receiver.length !== 0;');
+      helper.writeln(
+        '    if (name === "isEmpty") return receiver.length === 0;',
+      );
+      helper.writeln(
+        '    if (name === "isNotEmpty") return receiver.length !== 0;',
+      );
       helper.writeln('  }');
       helper.writeln('  const value = receiver[name];');
       helper.writeln(
@@ -10364,9 +10412,7 @@ final class _EsmEmitter {
       helper.writeln(
         '      case "[]=": receiver[args[0]] = args[1]; return args[1];',
       );
-      helper.writeln(
-        '      case "add": receiver.push(args[0]); return null;',
-      );
+      helper.writeln('      case "add": receiver.push(args[0]); return null;');
       helper.writeln(
         '      case "addAll": receiver.push(...Array.from(args[0])); return null;',
       );
@@ -10381,19 +10427,19 @@ final class _EsmEmitter {
       helper.writeln(
         '      case "remove": { const index = receiver.findIndex(value => __dartEquals(value, args[0])); if (index < 0) return false; receiver.splice(index, 1); return true; }',
       );
-      helper.writeln('      case "removeAt": return receiver.splice(args[0], 1)[0];');
+      helper.writeln(
+        '      case "removeAt": return receiver.splice(args[0], 1)[0];',
+      );
       helper.writeln('      case "removeLast": return receiver.pop();');
-      helper.writeln(
-        '      case "toList": return Array.from(receiver);',
-      );
-      helper.writeln(
-        '      case "toSet": return new Set(receiver);',
-      );
+      helper.writeln('      case "toList": return Array.from(receiver);');
+      helper.writeln('      case "toSet": return new Set(receiver);');
       helper.writeln('    }');
       helper.writeln('  }');
       helper.writeln('  if (receiver instanceof Map) {');
       helper.writeln('    switch (name) {');
-      helper.writeln('      case "[]": return __dartMapGet(receiver, args[0]);');
+      helper.writeln(
+        '      case "[]": return __dartMapGet(receiver, args[0]);',
+      );
       helper.writeln(
         '      case "[]=": return __dartMapSet(receiver, args[0], args[1]);',
       );
@@ -10408,7 +10454,9 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  if (receiver instanceof Set) {');
       helper.writeln('    switch (name) {');
-      helper.writeln('      case "add": return __dartSetAdd(receiver, args[0]);');
+      helper.writeln(
+        '      case "add": return __dartSetAdd(receiver, args[0]);',
+      );
       helper.writeln(
         '      case "addAll": for (const value of args[0]) __dartSetAdd(receiver, value); return null;',
       );
@@ -10428,7 +10476,9 @@ final class _EsmEmitter {
       helper.writeln(
         '      case "contains": return receiver.includes(args[0], args.length > 1 ? args[1] : 0);',
       );
-      helper.writeln('      case "endsWith": return receiver.endsWith(args[0]);');
+      helper.writeln(
+        '      case "endsWith": return receiver.endsWith(args[0]);',
+      );
       helper.writeln(
         '      case "indexOf": return receiver.indexOf(args[0], args.length > 1 ? args[1] : 0);',
       );
@@ -10442,8 +10492,12 @@ final class _EsmEmitter {
       helper.writeln(
         '      case "substring": return receiver.substring(args[0], args.length > 1 ? args[1] : undefined);',
       );
-      helper.writeln('      case "toLowerCase": return receiver.toLowerCase();');
-      helper.writeln('      case "toUpperCase": return receiver.toUpperCase();');
+      helper.writeln(
+        '      case "toLowerCase": return receiver.toLowerCase();',
+      );
+      helper.writeln(
+        '      case "toUpperCase": return receiver.toUpperCase();',
+      );
       helper.writeln('      case "trim": return receiver.trim();');
       helper.writeln('    }');
       helper.writeln('  }');
@@ -11279,9 +11333,7 @@ final class _EsmEmitter {
       helper.writeln('      return parent == null ? null : parent.get(key);');
       helper.writeln('    },');
       helper.writeln('    "[]"(key) { return this.get(key); },');
-      helper.writeln(
-        '    run(body) { return __dartRunInZone(zone, body); },',
-      );
+      helper.writeln('    run(body) { return __dartRunInZone(zone, body); },');
       helper.writeln(
         '    runUnary(body, argument) { return __dartRunInZone(zone, () => body(argument)); },',
       );
@@ -11333,9 +11385,7 @@ final class _EsmEmitter {
       helper.writeln(
         '    handleUncaughtError(error, stackTrace = null) { throw error; },',
       );
-      helper.writeln(
-        '    inSameErrorZone(other) { return true; },',
-      );
+      helper.writeln('    inSameErrorZone(other) { return true; },');
       helper.writeln(
         '    print(line) { console.log(String(line)); return null; },',
       );
@@ -11356,9 +11406,7 @@ final class _EsmEmitter {
         helper.writeln(
           'function __dartScheduleMicrotask(callback, zone = __dartCurrentZone) {',
         );
-        helper.writeln(
-          '  const run = () => __dartRunInZone(zone, callback);',
-        );
+        helper.writeln('  const run = () => __dartRunInZone(zone, callback);');
         helper.writeln(
           '  if (typeof queueMicrotask === "function") queueMicrotask(run);',
         );

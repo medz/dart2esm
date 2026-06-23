@@ -41,6 +41,32 @@ function __dartPatternRegExp(pattern, global = false) {
   }
   return null;
 }
+function __dartPatternAllMatches(pattern, input, start = 0) {
+  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.allMatches === "function") return pattern.allMatches(input, start);
+  const text = String(input);
+  const regexp = __dartPatternRegExp(pattern, true);
+  if (regexp != null) {
+    const matches = [];
+    regexp.lastIndex = start;
+    let match;
+    while ((match = regexp.exec(text)) !== null) {
+      matches.push(__dartRegExpMatch(match, 0, text, pattern));
+      if (match[0] === "") regexp.lastIndex++;
+    }
+    return matches;
+  }
+  return __dartStringAllMatches(pattern, text, start);
+}
+function __dartPatternMatchAsPrefix(pattern, input, start = 0) {
+  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.matchAsPrefix === "function") return pattern.matchAsPrefix(input, start);
+  const text = String(input);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const match = regexp.exec(text.slice(start));
+    return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start, text, pattern);
+  }
+  return __dartStringMatchAsPrefix(pattern, text, start);
+}
 function __dartStringContains(source, pattern, start = 0) {
   const text = String(source);
   const regexp = __dartPatternRegExp(pattern, false);
@@ -363,10 +389,10 @@ export function main() {
   __dartPrint("mapped " + __dartStr(__dartStringReplaceAllMapped(mixed, digits, function(match) { return "[" + __dartStr(match.group(0)) + ":" + __dartStr(match.start) + "]"; })) + " " + __dartStr(__dartStringReplaceFirstMapped(mixed, digits, function(match) { return "[" + __dartStr(match[0]) + "]"; }, 2)));
   __dartPrint("splitMap " + __dartStr(__dartStringSplitMapJoin(mixed, digits, function(match) { return "<" + __dartStr(match[0]) + ">"; }, function(part) { return part.toUpperCase(); })));
   __dartPrint("stringMapped " + __dartStr(__dartStringReplaceAllMapped("aa bb aa", "aa", function(match) { return __dartStr(match.start) + ":" + __dartStr(match.group(0)); })) + " " + __dartStr(__dartStringSplitMapJoin("aa bb aa", "bb", function(match) { return "<" + __dartStr(match.group(0)) + ">"; }, function(part) { return part.trim(); })));
-  const stringPatternMatches = __dartStringAllMatches("aa", "aa bb aa", 1);
-  const stringPrefix = __dartNullCheck(__dartStringMatchAsPrefix("bb", "aa bb aa", 3));
+  const stringPatternMatches = __dartPatternAllMatches("aa", "aa bb aa", 1);
+  const stringPrefix = __dartNullCheck(__dartPatternMatchAsPrefix("bb", "aa bb aa", 3));
   __dartPrint("stringPatternDirect " + __dartStr(__dartIterableJoin(Array.from(stringPatternMatches, function(match) { return match.start; }), ",")) + " " + __dartStr(stringPrefix.group(0)) + " " + __dartStr(stringPrefix.start) + " " + __dartStr(stringPrefix.end));
-  const prefix = __dartNullCheck(digits.matchAsPrefix(mixed, 1));
+  const prefix = __dartNullCheck(__dartPatternMatchAsPrefix(digits, mixed, 1));
   __dartPrint("meta " + __dartStr(pattern.pattern) + " " + __dartStr(pattern.isCaseSensitive) + " " + __dartStr(pattern.isMultiLine) + " " + __dartStr(pattern.isUnicode) + " " + __dartStr(pattern.isDotAll));
   __dartPrint("matchMeta " + __dartStr(first.input) + " " + __dartStr(first.pattern) + " " + __dartStr(__dartObjectToString(pattern)));
   __dartPrint("prefix " + __dartStr(prefix.group(0)) + " " + __dartStr(prefix.start) + " " + __dartStr(prefix.end));

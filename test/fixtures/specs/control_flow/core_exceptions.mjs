@@ -62,6 +62,32 @@ function __dartPatternRegExp(pattern, global = false) {
   }
   return null;
 }
+function __dartPatternAllMatches(pattern, input, start = 0) {
+  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.allMatches === "function") return pattern.allMatches(input, start);
+  const text = String(input);
+  const regexp = __dartPatternRegExp(pattern, true);
+  if (regexp != null) {
+    const matches = [];
+    regexp.lastIndex = start;
+    let match;
+    while ((match = regexp.exec(text)) !== null) {
+      matches.push(__dartRegExpMatch(match, 0, text, pattern));
+      if (match[0] === "") regexp.lastIndex++;
+    }
+    return matches;
+  }
+  return __dartStringAllMatches(pattern, text, start);
+}
+function __dartPatternMatchAsPrefix(pattern, input, start = 0) {
+  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.matchAsPrefix === "function") return pattern.matchAsPrefix(input, start);
+  const text = String(input);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const match = regexp.exec(text.slice(start));
+    return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start, text, pattern);
+  }
+  return __dartStringMatchAsPrefix(pattern, text, start);
+}
 function __dartStringContains(source, pattern, start = 0) {
   const text = String(source);
   const regexp = __dartPatternRegExp(pattern, false);

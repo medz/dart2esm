@@ -762,6 +762,8 @@ function $ParsedPath__($newTarget, style_1, root, isRootRelative_1, parts, separ
 }
 
 class Style {
+  constructor() {
+  }
   static _getPlatformStyle() {
     if (!(__dartEquals(__dartUriParse((globalThis.location?.href ?? import.meta.url), false).scheme, "file"))) {
       return Style.url;

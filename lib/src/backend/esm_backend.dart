@@ -56,6 +56,8 @@ final class _EsmEmitter {
   final _variableNames = <k.VariableDeclaration, String>{};
   final _labelNames = <k.LabeledStatement, String>{};
   final _continueSwitchTargets = <k.SwitchCase, _ContinueSwitchTarget>{};
+  final _interfaceMarkersByClass = <k.Class, Set<k.Class>>{};
+  final _interfaceMarkerNames = <k.Class, String>{};
   final _usedHelpers = <String>{};
   final _usedNames = <String>{};
   final _jsInterfaceSuperclasses = <k.Class, k.Class>{};
@@ -274,12 +276,20 @@ final class _EsmEmitter {
   }
 
   void _prepareClassRuntime(List<k.Library> libraries) {
+    final classes = {for (final library in libraries) ...library.classes};
     for (final library in libraries) {
       for (final klass in library.classes) {
         final superclass = _jsInterfaceSuperclassFor(klass);
         if (superclass != null) {
           _jsInterfaceSuperclasses[klass] = superclass;
-          _jsInterfaceBaseClasses.add(superclass);
+        }
+        final interfaces = _implementedInterfaceClasses(klass, classes);
+        if (interfaces.isNotEmpty) {
+          _interfaceMarkersByClass[klass] = interfaces;
+          _jsInterfaceBaseClasses.addAll(interfaces);
+          for (final interface in interfaces) {
+            _interfaceMarkerName(interface);
+          }
         }
       }
     }
@@ -290,6 +300,7 @@ final class _EsmEmitter {
     Map<k.Library, Set<String>> exportNamesByLibrary,
   ) {
     final classes = _classesInGlobalEmitOrder(libraries);
+    _emitInterfaceMarkerConstants();
     for (final klass in classes) {
       final exportNames = exportNamesByLibrary[klass.enclosingLibrary];
       _emitClass(klass, export: _shouldExport(klass.name, exportNames));
@@ -307,6 +318,19 @@ final class _EsmEmitter {
     }
     for (final klass in classes) {
       _emitClassStaticFields(klass);
+    }
+  }
+
+  void _emitInterfaceMarkerConstants() {
+    final interfaces = _jsInterfaceBaseClasses.toList()
+      ..sort((left, right) => _className(left).compareTo(_className(right)));
+    for (final interface in interfaces) {
+      writeln(
+        'const ${_interfaceMarkerName(interface)} = Symbol(${jsonEncode(interface.name)});',
+      );
+    }
+    if (interfaces.isNotEmpty) {
+      writeln();
     }
   }
 
@@ -584,6 +608,7 @@ final class _EsmEmitter {
     }
     _indent--;
     writeln('}');
+    _emitInterfaceHasInstance(klass);
     _emitNamedConstructorBodies(klass);
     _currentClass = previousClass;
   }
@@ -626,6 +651,7 @@ final class _EsmEmitter {
         'Object.defineProperty(this, ${jsonEncode(memberName)}, { value: $memberName, enumerable: true });',
       );
     }
+    _emitInterfaceMarkers(klass);
     writeln('Object.freeze(this);');
     _indent--;
     writeln('}');
@@ -671,7 +697,19 @@ final class _EsmEmitter {
     writeln(
       'Object.defineProperty($className, "values", { value: Object.freeze([${entries.map((entry) => '$className.${_memberName(entry.name.text)}').join(', ')}]), enumerable: true });',
     );
+    _emitInterfaceHasInstance(klass);
     _currentClass = previousClass;
+  }
+
+  void _emitInterfaceHasInstance(k.Class klass) {
+    if (!_jsInterfaceBaseClasses.contains(klass)) {
+      return;
+    }
+    final className = _className(klass);
+    final marker = _interfaceMarkerName(klass);
+    writeln(
+      'Object.defineProperty($className, Symbol.hasInstance, { value(value) { return value != null && value[$marker] === true; } });',
+    );
   }
 
   void _emitExtensionTypeDeclaration(
@@ -1011,27 +1049,33 @@ final class _EsmEmitter {
     if (_hasNonObjectSuperclass(klass)) {
       return null;
     }
-    final mixedInClass = _localClassFromSupertype(klass.mixedInType, {
+    return _localClassFromSupertype(klass.mixedInType, {
       for (final library in component.libraries)
         if (identical(library, klass.enclosingLibrary) ||
             library.importUri.scheme != 'dart')
           ...library.classes,
     });
-    if (mixedInClass != null) {
-      return mixedInClass;
-    }
-    for (final supertype in klass.implementedTypes) {
-      final interfaceClass = _localClassFromSupertype(supertype, {
-        for (final library in component.libraries)
-          if (identical(library, klass.enclosingLibrary) ||
-              library.importUri.scheme != 'dart')
-            ...library.classes,
-      });
-      if (interfaceClass != null) {
-        return interfaceClass;
+  }
+
+  Set<k.Class> _implementedInterfaceClasses(
+    k.Class klass,
+    Set<k.Class> classes,
+  ) {
+    final result = <k.Class>{};
+    void visit(k.Supertype? supertype) {
+      final interface = _localClassFromSupertype(supertype, classes);
+      if (interface == null || !result.add(interface)) {
+        return;
+      }
+      for (final inherited in interface.implementedTypes) {
+        visit(inherited);
       }
     }
-    return null;
+
+    for (final supertype in klass.implementedTypes) {
+      visit(supertype);
+    }
+    return result;
   }
 
   bool _hasNonObjectSuperclass(k.Class klass) {
@@ -1043,9 +1087,30 @@ final class _EsmEmitter {
     return _jsSuperclassFor(klass) != null;
   }
 
+  List<k.Class> _interfaceMarkersForClass(k.Class klass) {
+    final interfaces = <k.Class>{...?_interfaceMarkersByClass[klass]};
+    if (_jsInterfaceBaseClasses.contains(klass)) {
+      interfaces.add(klass);
+    }
+    return interfaces.toList()
+      ..sort((left, right) => _className(left).compareTo(_className(right)));
+  }
+
+  void _emitInterfaceMarkers(k.Class klass) {
+    for (final interface in _interfaceMarkersForClass(klass)) {
+      writeln(
+        'Object.defineProperty($_thisExpression, ${_interfaceMarkerName(interface)}, { value: true });',
+      );
+    }
+  }
+
   void _emitDefaultConstructor(k.Class klass) {
     final hasJsSuperclass = _hasJsSuperclass(klass);
-    if (!hasJsSuperclass && !klass.fields.any((field) => !field.isStatic)) {
+    final hasInterfaceMarkers = _interfaceMarkersForClass(klass).isNotEmpty;
+    if (!hasJsSuperclass &&
+        !klass.isAbstract &&
+        !hasInterfaceMarkers &&
+        !klass.fields.any((field) => !field.isStatic)) {
       return;
     }
     _withFunctionNameScope(() {
@@ -1055,6 +1120,7 @@ final class _EsmEmitter {
         writeln('super();');
       }
       _emitInstanceFieldDefaults(klass);
+      _emitInterfaceMarkers(klass);
       _indent--;
       writeln('}');
     });
@@ -1063,6 +1129,9 @@ final class _EsmEmitter {
   bool _canOmitConstructor(k.Constructor constructor, k.Class klass) {
     final function = constructor.function;
     if (_hasJsSuperclass(klass)) {
+      return false;
+    }
+    if (klass.isAbstract || _interfaceMarkersForClass(klass).isNotEmpty) {
       return false;
     }
     if (klass.fields.any((field) => !field.isStatic) ||
@@ -1095,7 +1164,7 @@ final class _EsmEmitter {
     final message = jsonEncode(
       'Class ${klass.name} has no unnamed constructor',
     );
-    if (_jsInterfaceBaseClasses.contains(klass)) {
+    if (klass.isAbstract) {
       writeln('if (new.target === ${_className(klass)}) {');
       _indent++;
       writeln('throw new TypeError($message);');
@@ -1151,6 +1220,9 @@ final class _EsmEmitter {
           for (final initializer in constructor.initializers) {
             _emitInitializer(initializer);
           }
+        }
+        if (!bodyEmitted) {
+          _emitInterfaceMarkers(klass);
         }
         final body = function.body;
         if (body != null && !bodyEmitted) {
@@ -1235,6 +1307,7 @@ final class _EsmEmitter {
               klass,
               skipFields: _initializedFields(constructor.initializers),
             );
+            _emitInterfaceMarkers(klass);
             if (fieldInitializers == null) {
               for (final initializer in constructor.initializers) {
                 _emitInitializer(initializer);
@@ -1478,6 +1551,7 @@ final class _EsmEmitter {
           klass,
           skipFields: _initializedFields(constructor.initializers),
         );
+        _emitInterfaceMarkers(klass);
         for (final initializer in fieldInitializers) {
           _emitInitializer(initializer);
         }
@@ -1680,6 +1754,29 @@ final class _EsmEmitter {
         ? _propertyKey(procedure.name.text)
         : _memberName(procedure.name.text);
     final staticPrefix = procedure.isStatic ? 'static ' : '';
+    if (procedure.kind == k.ProcedureKind.Getter &&
+        (function.asyncMarker == k.AsyncMarker.SyncStar ||
+            function.asyncMarker == k.AsyncMarker.AsyncStar)) {
+      final generatorKeyword = function.asyncMarker == k.AsyncMarker.AsyncStar
+          ? 'async function*'
+          : 'function*';
+      _withFunctionNameScope(() {
+        writeln('${staticPrefix}get $name() {');
+        _indent++;
+        writeln('return ($generatorKeyword() {');
+        _indent++;
+        final body = function.body;
+        if (body == null) {
+          throw UnsupportedKernelNode(function, 'generator getter body');
+        }
+        _emitFunctionBody(body);
+        _indent--;
+        writeln('}).call(this);');
+        _indent--;
+        writeln('}');
+      });
+      return;
+    }
     final prefix = switch (procedure.kind) {
       k.ProcedureKind.Method ||
       k.ProcedureKind.Operator => '$staticPrefix$asyncPrefix$name',
@@ -1795,7 +1892,7 @@ final class _EsmEmitter {
     if (klass == null || procedure.name.text.isNotEmpty) {
       return null;
     }
-    if (klass.isAbstract || _jsInterfaceBaseClasses.contains(klass)) {
+    if (klass.isAbstract) {
       return _className(klass);
     }
     return null;
@@ -4004,6 +4101,10 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartCompare');
       return '((left, right) => __dartCompare(left, right))';
     }
+    final mathTearOff = _emitMathStaticTearOff(path);
+    if (mathTearOff != null) {
+      return mathTearOff;
+    }
     final target = reference.node;
     if (target is k.Procedure) {
       final extensionTypeMember = _extensionTypeDescriptors[target];
@@ -4023,6 +4124,29 @@ final class _EsmEmitter {
       );
     }
     throw UnsupportedKernelNode(node, 'static tear-off $path');
+  }
+
+  String? _emitMathStaticTearOff(String path) {
+    if (!path.startsWith('dart:math::@methods::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    return switch (name) {
+      'min' => '((left, right) => Math.min(left, right))',
+      'max' => '((left, right) => Math.max(left, right))',
+      'pow' => '((left, right) => Math.pow(left, right))',
+      'sqrt' => '((value) => Math.sqrt(value))',
+      'sin' => '((value) => Math.sin(value))',
+      'cos' => '((value) => Math.cos(value))',
+      'tan' => '((value) => Math.tan(value))',
+      'asin' => '((value) => Math.asin(value))',
+      'acos' => '((value) => Math.acos(value))',
+      'atan' => '((value) => Math.atan(value))',
+      'atan2' => '((left, right) => Math.atan2(left, right))',
+      'exp' => '((value) => Math.exp(value))',
+      'log' => '((value) => Math.log(value))',
+      _ => null,
+    };
   }
 
   void _emitConstructorTearOffFunctions() {
@@ -4564,22 +4688,22 @@ final class _EsmEmitter {
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2 &&
         (_isCoreMember(target, 'String', 'allMatches') ||
-            _isCoreMember(target, 'Pattern', 'allMatches') &&
-                _isStaticStringExpression(expression.receiver))) {
+            _isCoreMember(target, 'Pattern', 'allMatches'))) {
       _usedHelpers.add('__dartStringPattern');
+      _usedHelpers.add('__dartPatternAllMatches');
       final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
-      return '__dartStringAllMatches($left, ${positionalArgs[0]}, $start)';
+      return '__dartPatternAllMatches($left, ${positionalArgs[0]}, $start)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'matchAsPrefix' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2 &&
         (_isCoreMember(target, 'String', 'matchAsPrefix') ||
-            _isCoreMember(target, 'Pattern', 'matchAsPrefix') &&
-                _isStaticStringExpression(expression.receiver))) {
+            _isCoreMember(target, 'Pattern', 'matchAsPrefix'))) {
       _usedHelpers.add('__dartStringPattern');
+      _usedHelpers.add('__dartPatternMatchAsPrefix');
       final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
-      return '__dartStringMatchAsPrefix($left, ${positionalArgs[0]}, $start)';
+      return '__dartPatternMatchAsPrefix($left, ${positionalArgs[0]}, $start)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'split' &&
@@ -6760,20 +6884,6 @@ final class _EsmEmitter {
         arguments.positional[index] is k.StringLiteral;
   }
 
-  bool _isStaticStringExpression(k.Expression expression) {
-    return switch (expression) {
-      k.StringLiteral() || k.StringConcatenation() => true,
-      k.VariableGet(:final variable) => _isStringType(variable.type),
-      k.AsExpression(:final type) => _isStringType(type),
-      _ => false,
-    };
-  }
-
-  bool _isStringType(k.DartType type) {
-    type = type.unalias;
-    return type is k.InterfaceType && _interfaceTypeName(type) == 'String';
-  }
-
   String _emitArgumentsWithoutFirstPositional(k.Arguments arguments) {
     final args = arguments.positional.skip(1).map(emitExpression).toList();
     if (arguments.named.isNotEmpty) {
@@ -6890,6 +7000,10 @@ final class _EsmEmitter {
         'int' || 'double' || 'num' => 'typeof $operand === "number"',
         'bool' => 'typeof $operand === "boolean"',
         'Null' => '$operand === null',
+        'Pattern' =>
+          '(typeof $operand === "string" || $operand instanceof RegExp || ($operand != null && typeof $operand === "object" && typeof $operand.matchAsPrefix === "function"))',
+        'RegExp' =>
+          '($operand instanceof RegExp || ($operand != null && typeof $operand === "object" && typeof $operand.__dartRegExpMake === "function"))',
         'Expando' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Expando"',
         'WeakReference' || '_WeakReference' =>
@@ -7001,6 +7115,7 @@ final class _EsmEmitter {
         'UnsupportedError' ||
         'UnimplementedError' ||
         'Error' ||
+        'ReachabilityError' ||
         'NoSuchMethodError' ||
         'ConcurrentModificationError' ||
         'TypeError' => _emitCoreErrorTypeTest(operand, typeName),
@@ -9942,6 +10057,9 @@ final class _EsmEmitter {
 
   String? _coreErrorConstructorName(k.Reference reference) {
     final path = _referencePath(reference);
+    if (path.startsWith('dart:_internal::ReachabilityError::@constructors::')) {
+      return 'ReachabilityError';
+    }
     for (final name in _coreErrorTypeNames) {
       if (path.startsWith('dart:core::$name::@constructors::')) {
         return name;
@@ -10420,6 +10538,13 @@ final class _EsmEmitter {
     return _classNames.putIfAbsent(klass, () => _freshName(klass.name));
   }
 
+  String _interfaceMarkerName(k.Class klass) {
+    return _interfaceMarkerNames.putIfAbsent(
+      klass,
+      () => _freshName('\$${klass.name}_interface'),
+    );
+  }
+
   String _extensionTypeName(k.ExtensionTypeDeclaration declaration) {
     return _extensionTypeNames.putIfAbsent(
       declaration,
@@ -10837,6 +10962,46 @@ final class _EsmEmitter {
       helper.writeln('    return new RegExp(pattern.source, flags);');
       helper.writeln('  }');
       helper.writeln('  return null;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartPatternAllMatches(pattern, input, start = 0) {',
+      );
+      helper.writeln(
+        '  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.allMatches === "function") return pattern.allMatches(input, start);',
+      );
+      helper.writeln('  const text = String(input);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, true);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln('    const matches = [];');
+      helper.writeln('    regexp.lastIndex = start;');
+      helper.writeln('    let match;');
+      helper.writeln('    while ((match = regexp.exec(text)) !== null) {');
+      helper.writeln(
+        '      matches.push(__dartRegExpMatch(match, 0, text, pattern));',
+      );
+      helper.writeln('      if (match[0] === "") regexp.lastIndex++;');
+      helper.writeln('    }');
+      helper.writeln('    return matches;');
+      helper.writeln('  }');
+      helper.writeln('  return __dartStringAllMatches(pattern, text, start);');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartPatternMatchAsPrefix(pattern, input, start = 0) {',
+      );
+      helper.writeln(
+        '  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.matchAsPrefix === "function") return pattern.matchAsPrefix(input, start);',
+      );
+      helper.writeln('  const text = String(input);');
+      helper.writeln('  const regexp = __dartPatternRegExp(pattern, false);');
+      helper.writeln('  if (regexp != null) {');
+      helper.writeln('    const match = regexp.exec(text.slice(start));');
+      helper.writeln(
+        '    return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start, text, pattern);',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  return __dartStringMatchAsPrefix(pattern, text, start);',
+      );
       helper.writeln('}');
       helper.writeln(
         'function __dartStringContains(source, pattern, start = 0) {',
@@ -17048,6 +17213,8 @@ const _generatedGlobalNames = {
   '__dartObjectHash',
   '__dartObjectHashUnordered',
   '__dartObjectToString',
+  '__dartPatternAllMatches',
+  '__dartPatternMatchAsPrefix',
   '__dartPatternRegExp',
   '__dartParallelWaitError',
   '__dartPoint',
@@ -17217,6 +17384,7 @@ const _coreErrorTypeNames = {
   'UnsupportedError',
   'UnimplementedError',
   'Error',
+  'ReachabilityError',
   'NoSuchMethodError',
   'ConcurrentModificationError',
   'TypeError',

@@ -72,6 +72,7 @@ export class Accumulator {
   }
 }
 
+
 Object.defineProperty(Accumulator, "offset", { value: 3, enumerable: true });
 
 const $Accumulator_total = __dartLazyField("Accumulator.total", () => init("total", 10), true);
@@ -87,7 +88,6 @@ Object.defineProperty(Accumulator, "readonly", {
   set(value) { $Accumulator_readonly.set(value); },
   enumerable: true,
 });
-
 export let initCount = 0;
 
 export function init(name, value) {

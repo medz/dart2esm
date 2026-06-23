@@ -87,13 +87,13 @@ export class Holder {
   }
 }
 
+
 const $Holder_lazyStatic = __dartLazyField("Holder.lazyStatic", () => init("static", 20), true);
 Object.defineProperty(Holder, "lazyStatic", {
   get() { return $Holder_lazyStatic.get(); },
   set(value) { $Holder_lazyStatic.set(value); },
   enumerable: true,
 });
-
 export let initCount = 0;
 
 export let lazyTop;

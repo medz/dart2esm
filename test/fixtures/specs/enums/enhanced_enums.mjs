@@ -105,8 +105,8 @@ Object.defineProperties(Status, {
 });
 Object.defineProperty(Status, "values", { value: Object.freeze([Status.ready, Status.failed]), enumerable: true });
 
-Object.defineProperty(Status, "fallback", { value: Status.failed, enumerable: true });
 
+Object.defineProperty(Status, "fallback", { value: Status.failed, enumerable: true });
 export function main() {
   __dartPrint("entry " + __dartStr(Status.ready.name) + " " + __dartStr(Status.ready.index));
   __dartPrint("fields " + __dartStr(Status.failed.code) + " " + __dartStr(Status.failed.label));

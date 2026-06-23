@@ -289,7 +289,8 @@ final class _EsmEmitter {
     List<k.Library> libraries,
     Map<k.Library, Set<String>> exportNamesByLibrary,
   ) {
-    for (final klass in _classesInGlobalEmitOrder(libraries)) {
+    final classes = _classesInGlobalEmitOrder(libraries);
+    for (final klass in classes) {
       final exportNames = exportNamesByLibrary[klass.enclosingLibrary];
       _emitClass(klass, export: _shouldExport(klass.name, exportNames));
       writeln();
@@ -303,6 +304,9 @@ final class _EsmEmitter {
         );
         writeln();
       }
+    }
+    for (final klass in classes) {
+      _emitClassStaticFields(klass);
     }
   }
 
@@ -578,7 +582,6 @@ final class _EsmEmitter {
     _indent--;
     writeln('}');
     _emitNamedConstructorBodies(klass);
-    _emitClassStaticFields(klass);
     _currentClass = previousClass;
   }
 
@@ -665,13 +668,6 @@ final class _EsmEmitter {
     writeln(
       'Object.defineProperty($className, "values", { value: Object.freeze([${entries.map((entry) => '$className.${_memberName(entry.name.text)}').join(', ')}]), enumerable: true });',
     );
-    for (final field in klass.fields.where(
-      (field) =>
-          field.isStatic && !field.isEnumElement && field.name.text != 'values',
-    )) {
-      writeln();
-      _emitClassStaticField(klass, field);
-    }
     _currentClass = previousClass;
   }
 
@@ -1708,11 +1704,30 @@ final class _EsmEmitter {
     k.Procedure procedure,
     Set<String> abstractFields,
   ) {
+    final owner = procedure.enclosingClass?.name ?? '<library>';
+    final message = jsonEncode('Abstract member $owner.${procedure.name.text}');
     if (procedure.kind == k.ProcedureKind.Getter ||
         procedure.kind == k.ProcedureKind.Setter) {
       final name = _memberName(procedure.name.text);
-      if (abstractFields.add(name)) {
-        writeln('$name;');
+      final propertyKey = jsonEncode(name);
+      if (procedure.kind == k.ProcedureKind.Getter &&
+          abstractFields.add('get:$name')) {
+        _withFunctionNameScope(() {
+          writeln('get $name() {');
+          _indent++;
+          writeln('throw new TypeError($message);');
+          _indent--;
+          writeln('}');
+        });
+      }
+      if (abstractFields.add('set:$name')) {
+        writeln('set $name(value) {');
+        _indent++;
+        writeln(
+          'Object.defineProperty(this, $propertyKey, { value, writable: true, configurable: true, enumerable: true });',
+        );
+        _indent--;
+        writeln('}');
       }
       return;
     }
@@ -1724,10 +1739,6 @@ final class _EsmEmitter {
     _withFunctionNameScope(() {
       writeln('$staticPrefix$name(${_emitParameterList(function)}) {');
       _indent++;
-      final owner = procedure.enclosingClass?.name ?? '<library>';
-      final message = jsonEncode(
-        'Abstract member $owner.${procedure.name.text}',
-      );
       writeln('throw new TypeError($message);');
       _indent--;
       writeln('}');
@@ -1748,20 +1759,16 @@ final class _EsmEmitter {
         writeln('static ${_memberName(name)}($parameters) {');
       }
       _indent++;
+      final guardedConstructor = name.isEmpty
+          ? _factoryConstructorGuardClass(procedure)
+          : null;
+      if (guardedConstructor != null) {
+        writeln('if (new.target === $guardedConstructor) {');
+        _indent++;
+      }
       if (procedure.isRedirectingFactory) {
         final target = _emitRedirectingFactoryTarget(procedure);
-        if (name.isEmpty &&
-            _jsInterfaceBaseClasses.contains(procedure.enclosingClass)) {
-          writeln(
-            'if (new.target === ${_className(procedure.enclosingClass!)}) {',
-          );
-          _indent++;
-          writeln('return $target;');
-          _indent--;
-          writeln('}');
-        } else {
-          writeln('return $target;');
-        }
+        writeln('return $target;');
       } else {
         final body = function.body;
         if (body == null) {
@@ -1771,9 +1778,24 @@ final class _EsmEmitter {
           _emitFunctionBody(body);
         });
       }
+      if (guardedConstructor != null) {
+        _indent--;
+        writeln('}');
+      }
       _indent--;
       writeln('}');
     });
+  }
+
+  String? _factoryConstructorGuardClass(k.Procedure procedure) {
+    final klass = procedure.enclosingClass;
+    if (klass == null || procedure.name.text.isNotEmpty) {
+      return null;
+    }
+    if (klass.isAbstract || _jsInterfaceBaseClasses.contains(klass)) {
+      return _className(klass);
+    }
+    return null;
   }
 
   String _emitRedirectingFactoryTarget(k.Procedure procedure) {
@@ -1799,7 +1821,14 @@ final class _EsmEmitter {
   }
 
   void _emitClassStaticFields(k.Class klass) {
-    final fields = klass.fields.where((field) => field.isStatic).toList();
+    final fields = klass.fields
+        .where(
+          (field) =>
+              field.isStatic &&
+              !(klass.isEnum &&
+                  (field.isEnumElement || field.name.text == 'values')),
+        )
+        .toList();
     if (fields.isEmpty) {
       return;
     }
@@ -2544,13 +2573,32 @@ final class _EsmEmitter {
     }
     return _withFunctionNameScope(() {
       final parameters = _emitParameterList(function);
+      final capturesLexicalReceiver = _functionBodyUsesLexicalReceiver(body);
       final inlineBody = _emitInlineFunctionBody(body);
+      if (capturesLexicalReceiver &&
+          (function.asyncMarker == k.AsyncMarker.Sync ||
+              function.asyncMarker == k.AsyncMarker.Async)) {
+        final asyncPrefix = function.asyncMarker == k.AsyncMarker.Async
+            ? 'async '
+            : '';
+        if (inlineBody != null) {
+          return '$asyncPrefix($parameters) => { $inlineBody }';
+        }
+        final bodyCode = _captureFunctionBody(body);
+        return '$asyncPrefix($parameters) => {\n$bodyCode}';
+      }
       if (inlineBody != null) {
         return '$functionKeyword($parameters) { $inlineBody }';
       }
       final bodyCode = _captureFunctionBody(body);
       return '$functionKeyword($parameters) {\n$bodyCode}';
     });
+  }
+
+  bool _functionBodyUsesLexicalReceiver(k.Statement body) {
+    final visitor = _LexicalReceiverUseVisitor();
+    body.accept(visitor);
+    return visitor.found;
   }
 
   String? _emitInlineFunctionBody(k.Statement body) {
@@ -3277,6 +3325,32 @@ final class _EsmEmitter {
     return null;
   }
 
+  String? _emitStreamTransformerConstructorInvocation(
+    k.Reference reference,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(reference);
+    if (path.startsWith(
+          'dart:async::_StreamSubscriptionTransformer::@constructors::',
+        ) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartBoundSubscriptionStream');
+      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamListen');
+      return 'Object.freeze({ bind(stream) { return __dartBoundSubscriptionStream(stream, ${positionalArgs.single}); } })';
+    }
+    if (path.startsWith(
+          'dart:async::_BoundSubscriptionStream::@constructors::',
+        ) &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartBoundSubscriptionStream');
+      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamListen');
+      return '__dartBoundSubscriptionStream(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    return null;
+  }
+
   String _emitConstructorInvocation(k.ConstructorInvocation expression) {
     final positionalArgs = expression.arguments.positional
         .map(emitExpression)
@@ -3295,6 +3369,14 @@ final class _EsmEmitter {
     if (_isStreamIteratorConstructorReference(expression.targetReference)) {
       _usedHelpers.add('__dartStreamIterator');
       return '__dartStreamIterator(${_emitArguments(expression.arguments)})';
+    }
+    final streamTransformerConstructor =
+        _emitStreamTransformerConstructorInvocation(
+          expression.targetReference,
+          positionalArgs,
+        );
+    if (streamTransformerConstructor != null) {
+      return streamTransformerConstructor;
     }
     final internalIterableConstructor =
         _emitInternalIterableConstructorInvocation(expression, positionalArgs);
@@ -3715,6 +3797,13 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartNullCheck');
       return '__dartNullCheck(${positionalArgs[0]})';
+    }
+    if ((path == 'dart:_internal::BytesBuilder::@factories::' ||
+            path == 'dart:typed_data::BytesBuilder::@factories::') &&
+        positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartBytesBuilder');
+      final copy = _namedArgument(expression.arguments, 'copy') ?? 'true';
+      return '__dartBytesBuilder($copy)';
     }
     if (path == 'dart:_internal::Sort::@methods::sort' &&
         positionalArgs.length == 2) {
@@ -6822,6 +6911,16 @@ final class _EsmEmitter {
           '$operand != null && typeof $operand === "object" && typeof $operand.add === "function" && typeof $operand.close === "function" && $operand.stream != null',
         'StreamSubscription' =>
           '$operand != null && typeof $operand === "object" && typeof $operand.pause === "function" && typeof $operand.resume === "function" && typeof $operand.cancel === "function"',
+        'StreamTransformer' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.bind === "function"',
+        'StreamConsumer' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.addStream === "function" && typeof $operand.close === "function"',
+        'Sink' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.add === "function" && typeof $operand.close === "function"',
+        'EventSink' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.add === "function" && typeof $operand.addError === "function" && typeof $operand.close === "function"',
+        'StreamSink' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.add === "function" && typeof $operand.addError === "function" && typeof $operand.close === "function"',
         'Timer' =>
           '$operand != null && typeof $operand === "object" && typeof $operand.cancel === "function" && "isActive" in $operand && "tick" in $operand',
         'JSAny' => '$operand != null',
@@ -6863,6 +6962,8 @@ final class _EsmEmitter {
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Pointer"',
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
+        'BytesBuilder' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "BytesBuilder"',
         'TypedData' => 'ArrayBuffer.isView($operand)',
         'Point' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Point"',
@@ -7982,6 +8083,11 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return 'new Promise((resolve, reject) => setTimeout(() => { try { resolve((${positionalArgs.single})()); } catch (error) { reject(error); } }, 0))';
     }
+    if (path == 'dart:async::StreamIterator::@factories::' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartStreamIterator');
+      return '__dartStreamIterator(${positionalArgs.single})';
+    }
     if (path == 'dart:async::Future::@factories::value') {
       final value = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return 'Promise.resolve($value)';
@@ -8001,6 +8107,10 @@ final class _EsmEmitter {
     if (path == 'dart:async::Future::@factories::microtask' &&
         positionalArgs.length == 1) {
       return 'Promise.resolve().then(() => (${positionalArgs.single})())';
+    }
+    if (path == 'dart:async::AsyncError::@methods::defaultStackTrace' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single}?.stack ?? new Error().stack ?? "<javascript stack unavailable>")';
     }
     if (path == 'dart:async::Future::@factories::delayed' &&
         positionalArgs.isNotEmpty) {
@@ -14491,6 +14601,45 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartBytesBuilder')) {
+      helper.writeln('function __dartBytesBuilder(copy = true) {');
+      helper.writeln('  let chunks = [];');
+      helper.writeln('  let length = 0;');
+      helper.writeln('  function asBytes(bytes) {');
+      helper.writeln(
+        '    if (bytes instanceof Uint8Array) return copy ? Uint8Array.from(bytes) : bytes;',
+      );
+      helper.writeln(
+        '    return Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255));',
+      );
+      helper.writeln('  }');
+      helper.writeln('  function collect(clear) {');
+      helper.writeln('    const result = new Uint8Array(length);');
+      helper.writeln('    let offset = 0;');
+      helper.writeln('    for (const chunk of chunks) {');
+      helper.writeln('      result.set(chunk, offset);');
+      helper.writeln('      offset += chunk.length;');
+      helper.writeln('    }');
+      helper.writeln('    if (clear) { chunks = []; length = 0; }');
+      helper.writeln('    return result;');
+      helper.writeln('  }');
+      helper.writeln('  return {');
+      helper.writeln('    __dartType: "BytesBuilder",');
+      helper.writeln(
+        '    add(bytes) { const chunk = asBytes(bytes); if (chunk.length !== 0) { chunks.push(chunk); length += chunk.length; } return null; },',
+      );
+      helper.writeln(
+        '    addByte(byte) { chunks.push(Uint8Array.of(Number(byte) & 255)); length++; return null; },',
+      );
+      helper.writeln('    takeBytes() { return collect(true); },');
+      helper.writeln('    toBytes() { return collect(false); },');
+      helper.writeln('    clear() { chunks = []; length = 0; return null; },');
+      helper.writeln('    get length() { return length; },');
+      helper.writeln('    get isEmpty() { return length === 0; },');
+      helper.writeln('    get isNotEmpty() { return length !== 0; },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListSetRange')) {
       helper.writeln(
         'function __dartListSetRange(target, start, end, source, skipCount = 0) {',
@@ -15204,6 +15353,55 @@ final class _EsmEmitter {
       helper.writeln('    },');
       helper.writeln('  };');
       helper.writeln('  return controller;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartBoundSubscriptionStream')) {
+      helper.writeln(
+        'function __dartBoundSubscriptionStream(source, onListen) {',
+      );
+      helper.writeln('  const stream = {');
+      helper.writeln(
+        '    get isBroadcast() { return source?.isBroadcast === true; },',
+      );
+      helper.writeln('    listen(onData, options = {}) {');
+      helper.writeln(
+        '      const subscription = onListen(source, options.cancelOnError ?? false);',
+      );
+      helper.writeln(
+        '      if (typeof subscription.onData === "function") subscription.onData(onData);',
+      );
+      helper.writeln(
+        '      if (typeof subscription.onError === "function") subscription.onError(options.onError ?? null);',
+      );
+      helper.writeln(
+        '      if (typeof subscription.onDone === "function") subscription.onDone(options.onDone ?? null);',
+      );
+      helper.writeln('      return subscription;');
+      helper.writeln('    },');
+      helper.writeln('    [Symbol.asyncIterator]() {');
+      helper.writeln('      const controller = __dartStreamController(false);');
+      helper.writeln(
+        '      const subscription = stream.listen((value) => controller.add(value), { onError: (error) => controller.addError(error), onDone: () => controller.close(), cancelOnError: false });',
+      );
+      helper.writeln(
+        '      const iterator = controller.stream[Symbol.asyncIterator]();',
+      );
+      helper.writeln('      return {');
+      helper.writeln('        next() { return iterator.next(); },');
+      helper.writeln('        return() {');
+      helper.writeln(
+        '          return Promise.resolve(subscription.cancel()).then(() => {',
+      );
+      helper.writeln(
+        '            if (typeof iterator.return === "function") return iterator.return();',
+      );
+      helper.writeln('            return { done: true };');
+      helper.writeln('          });');
+      helper.writeln('        },');
+      helper.writeln('      };');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('  return stream;');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartSendPort')) {
@@ -15956,7 +16154,20 @@ final class _EsmEmitter {
       helper.writeln(
         'function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {',
       );
-      helper.writeln('  const iterator = stream[Symbol.asyncIterator]();');
+      helper.writeln(
+        '  if (stream != null && typeof stream.listen === "function" && typeof stream[Symbol.asyncIterator] !== "function") {',
+      );
+      helper.writeln(
+        '    return stream.listen(onData, { onError, onDone, cancelOnError });',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  const iteratorFactory = stream?.[Symbol.asyncIterator];',
+      );
+      helper.writeln(
+        '  if (typeof iteratorFactory !== "function") throw new TypeError("Object is not a Stream");',
+      );
+      helper.writeln('  const iterator = iteratorFactory.call(stream);');
       helper.writeln('  let canceled = false;');
       helper.writeln('  let paused = false;');
       helper.writeln('  let resumeWaiter = null;');
@@ -16397,6 +16608,128 @@ final class _ContinueSwitchTarget {
   final int caseIndex;
 }
 
+final class _LexicalReceiverUseVisitor extends k.RecursiveVisitor {
+  bool found = false;
+
+  @override
+  void defaultDartType(k.DartType node) {}
+
+  @override
+  void visitSuperMethodInvocation(k.SuperMethodInvocation node) {
+    found = true;
+  }
+
+  @override
+  void visitAbstractSuperMethodInvocation(
+    k.AbstractSuperMethodInvocation node,
+  ) {
+    found = true;
+  }
+
+  @override
+  void visitSuperPropertyGet(k.SuperPropertyGet node) {
+    found = true;
+  }
+
+  @override
+  void visitSuperPropertySet(k.SuperPropertySet node) {
+    found = true;
+  }
+
+  @override
+  void visitAbstractSuperPropertyGet(k.AbstractSuperPropertyGet node) {
+    found = true;
+  }
+
+  @override
+  void visitAbstractSuperPropertySet(k.AbstractSuperPropertySet node) {
+    found = true;
+  }
+
+  @override
+  void visitThisExpression(k.ThisExpression node) {
+    found = true;
+  }
+
+  @override
+  void visitInstanceInvocation(k.InstanceInvocation node) {
+    node.receiver.accept(this);
+    _visitArguments(node.arguments);
+  }
+
+  @override
+  void visitInstanceGetterInvocation(k.InstanceGetterInvocation node) {
+    node.receiver.accept(this);
+    _visitArguments(node.arguments);
+  }
+
+  @override
+  void visitInstanceGet(k.InstanceGet node) {
+    node.receiver.accept(this);
+  }
+
+  @override
+  void visitInstanceSet(k.InstanceSet node) {
+    node.receiver.accept(this);
+    node.value.accept(this);
+  }
+
+  @override
+  void visitInstanceTearOff(k.InstanceTearOff node) {
+    node.receiver.accept(this);
+  }
+
+  @override
+  void visitEqualsCall(k.EqualsCall node) {
+    node.left.accept(this);
+    node.right.accept(this);
+  }
+
+  @override
+  void visitStaticInvocation(k.StaticInvocation node) {
+    _visitArguments(node.arguments);
+  }
+
+  @override
+  void visitConstructorInvocation(k.ConstructorInvocation node) {
+    _visitArguments(node.arguments);
+  }
+
+  @override
+  void visitStaticGet(k.StaticGet node) {}
+
+  @override
+  void visitStaticSet(k.StaticSet node) {
+    node.value.accept(this);
+  }
+
+  @override
+  void visitStaticTearOff(k.StaticTearOff node) {}
+
+  @override
+  void visitConstructorTearOff(k.ConstructorTearOff node) {}
+
+  @override
+  void visitLocalFunctionInvocation(k.LocalFunctionInvocation node) {
+    _visitArguments(node.arguments);
+  }
+
+  @override
+  void visitFunctionDeclaration(k.FunctionDeclaration node) {}
+
+  @override
+  void visitFunctionExpression(k.FunctionExpression node) {}
+
+  void _visitArguments(k.Arguments arguments) {
+    for (final positional in arguments.positional) {
+      positional.accept(this);
+    }
+    for (final named in arguments.named) {
+      named.value.accept(this);
+    }
+  }
+}
+
 const _binaryOperators = {
   '+',
   '-',
@@ -16436,12 +16769,19 @@ const _reservedNames = {
   'for',
   'function',
   'if',
+  'implements',
   'import',
   'in',
   'instanceof',
+  'interface',
   'let',
   'new',
+  'package',
+  'private',
+  'protected',
+  'public',
   'return',
+  'static',
   'super',
   'switch',
   'this',
@@ -16472,6 +16812,8 @@ const _generatedGlobalNames = {
   '__dartBind',
   '__dartBigIntBitLength',
   '__dartBigIntParse',
+  '__dartBoundSubscriptionStream',
+  '__dartBytesBuilder',
   '__dartByteConversionSink',
   '__dartByteConversionSinkFrom',
   '__dartCall',

@@ -769,15 +769,45 @@ class Style {
     }
     return Style.posix;
   }
-  name;
+  get name() {
+    throw new TypeError("Abstract member Style.name");
+  }
+  set name(value) {
+    Object.defineProperty(this, "name", { value, writable: true, configurable: true, enumerable: true });
+  }
   get context() {
     return new Context({ style: this });
   }
-  separator;
-  separatorPattern;
-  needsSeparatorPattern;
-  rootPattern;
-  relativeRootPattern;
+  get separator() {
+    throw new TypeError("Abstract member Style.separator");
+  }
+  set separator(value) {
+    Object.defineProperty(this, "separator", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get separatorPattern() {
+    throw new TypeError("Abstract member Style.separatorPattern");
+  }
+  set separatorPattern(value) {
+    Object.defineProperty(this, "separatorPattern", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get needsSeparatorPattern() {
+    throw new TypeError("Abstract member Style.needsSeparatorPattern");
+  }
+  set needsSeparatorPattern(value) {
+    Object.defineProperty(this, "needsSeparatorPattern", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get rootPattern() {
+    throw new TypeError("Abstract member Style.rootPattern");
+  }
+  set rootPattern(value) {
+    Object.defineProperty(this, "rootPattern", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get relativeRootPattern() {
+    throw new TypeError("Abstract member Style.relativeRootPattern");
+  }
+  set relativeRootPattern(value) {
+    Object.defineProperty(this, "relativeRootPattern", { value, writable: true, configurable: true, enumerable: true });
+  }
   getRoot(path) {
     throw new TypeError("Abstract member Style.getRoot");
   }
@@ -798,39 +828,16 @@ class Style {
   }
 }
 
-const $Style_posix = __dartLazyField("Style.posix", () => new PosixStyle(), false);
-Object.defineProperty(Style, "posix", {
-  get() { return $Style_posix.get(); },
-  set(value) { $Style_posix.set(value); },
-  enumerable: true,
-});
-
-const $Style_windows = __dartLazyField("Style.windows", () => new WindowsStyle(), false);
-Object.defineProperty(Style, "windows", {
-  get() { return $Style_windows.get(); },
-  set(value) { $Style_windows.set(value); },
-  enumerable: true,
-});
-
-const $Style_url = __dartLazyField("Style.url", () => new UrlStyle(), false);
-Object.defineProperty(Style, "url", {
-  get() { return $Style_url.get(); },
-  set(value) { $Style_url.set(value); },
-  enumerable: true,
-});
-
-const $Style_platform = __dartLazyField("Style.platform", () => Style._getPlatformStyle(), false);
-Object.defineProperty(Style, "platform", {
-  get() { return $Style_platform.get(); },
-  set(value) { $Style_platform.set(value); },
-  enumerable: true,
-});
-
 class InternalStyle extends Style {
   constructor() {
     super();
   }
-  separator;
+  get separator() {
+    throw new TypeError("Abstract member InternalStyle.separator");
+  }
+  set separator(value) {
+    Object.defineProperty(this, "separator", { value, writable: true, configurable: true, enumerable: true });
+  }
   containsSeparator(path) {
     throw new TypeError("Abstract member InternalStyle.containsSeparator");
   }
@@ -1909,14 +1916,6 @@ class _PathDirection {
   }
 }
 
-Object.defineProperty(_PathDirection, "aboveRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"above root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" }))), enumerable: true });
-
-Object.defineProperty(_PathDirection, "atRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"at root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))), enumerable: true });
-
-Object.defineProperty(_PathDirection, "reachesRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"reaches root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "reaches root" }))), enumerable: true });
-
-Object.defineProperty(_PathDirection, "belowRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"below root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" }))), enumerable: true });
-
 class _PathRelation {
   constructor(name) {
     this.name = name;
@@ -1925,14 +1924,6 @@ class _PathRelation {
     return this.name;
   }
 }
-
-Object.defineProperty(_PathRelation, "within", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"within\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))), enumerable: true });
-
-Object.defineProperty(_PathRelation, "equal", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"equal\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" }))), enumerable: true });
-
-Object.defineProperty(_PathRelation, "different", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"different\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))), enumerable: true });
-
-Object.defineProperty(_PathRelation, "inconclusive", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"inconclusive\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))), enumerable: true });
 
 class PathMap {
   constructor({ context: context_1 = null } = {}) {
@@ -2027,6 +2018,50 @@ function $PathSet_of($newTarget, other, { context: context_1 = null } = {}) {
   return $self;
 }
 
+
+const $Style_posix = __dartLazyField("Style.posix", () => new PosixStyle(), false);
+Object.defineProperty(Style, "posix", {
+  get() { return $Style_posix.get(); },
+  set(value) { $Style_posix.set(value); },
+  enumerable: true,
+});
+
+const $Style_windows = __dartLazyField("Style.windows", () => new WindowsStyle(), false);
+Object.defineProperty(Style, "windows", {
+  get() { return $Style_windows.get(); },
+  set(value) { $Style_windows.set(value); },
+  enumerable: true,
+});
+
+const $Style_url = __dartLazyField("Style.url", () => new UrlStyle(), false);
+Object.defineProperty(Style, "url", {
+  get() { return $Style_url.get(); },
+  set(value) { $Style_url.set(value); },
+  enumerable: true,
+});
+
+const $Style_platform = __dartLazyField("Style.platform", () => Style._getPlatformStyle(), false);
+Object.defineProperty(Style, "platform", {
+  get() { return $Style_platform.get(); },
+  set(value) { $Style_platform.set(value); },
+  enumerable: true,
+});
+
+Object.defineProperty(_PathDirection, "aboveRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"above root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" }))), enumerable: true });
+
+Object.defineProperty(_PathDirection, "atRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"at root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))), enumerable: true });
+
+Object.defineProperty(_PathDirection, "reachesRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"reaches root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "reaches root" }))), enumerable: true });
+
+Object.defineProperty(_PathDirection, "belowRoot", { value: __dartConst("[\"instance\",\"class:_PathDirection\",[\"field\",\"field:_PathDirection.name\",[\"string\",\"below root\"]]]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" }))), enumerable: true });
+
+Object.defineProperty(_PathRelation, "within", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"within\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))), enumerable: true });
+
+Object.defineProperty(_PathRelation, "equal", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"equal\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" }))), enumerable: true });
+
+Object.defineProperty(_PathRelation, "different", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"different\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))), enumerable: true });
+
+Object.defineProperty(_PathRelation, "inconclusive", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"inconclusive\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))), enumerable: true });
 const plus = 43;
 
 const minus = 45;

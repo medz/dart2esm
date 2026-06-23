@@ -33,7 +33,12 @@ export class Box {
 }
 
 export class Named {
-  name;
+  get name() {
+    throw new TypeError("Abstract member Named.name");
+  }
+  set name(value) {
+    Object.defineProperty(this, "name", { value, writable: true, configurable: true, enumerable: true });
+  }
   label() {
     return "name:" + __dartStr(this.name);
   }
@@ -43,7 +48,12 @@ class _User_Object_Named extends Named {
   constructor() {
     super();
   }
-  name;
+  get name() {
+    throw new TypeError("Abstract member _User&Object&Named.name");
+  }
+  set name(value) {
+    Object.defineProperty(this, "name", { value, writable: true, configurable: true, enumerable: true });
+  }
   label() {
     return "name:" + __dartStr(this.name);
   }

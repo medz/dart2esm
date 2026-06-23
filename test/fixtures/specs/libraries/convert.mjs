@@ -1220,7 +1220,12 @@ async function __dartStreamPipe(stream, consumer) {
   return typeof consumer.close === "function" ? await consumer.close() : null;
 }
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
-  const iterator = stream[Symbol.asyncIterator]();
+  if (stream != null && typeof stream.listen === "function" && typeof stream[Symbol.asyncIterator] !== "function") {
+    return stream.listen(onData, { onError, onDone, cancelOnError });
+  }
+  const iteratorFactory = stream?.[Symbol.asyncIterator];
+  if (typeof iteratorFactory !== "function") throw new TypeError("Object is not a Stream");
+  const iterator = iteratorFactory.call(stream);
   let canceled = false;
   let paused = false;
   let resumeWaiter = null;

@@ -594,7 +594,13 @@ final class _EsmEmitter {
       }
     }
     final abstractFields = <String>{};
+    final declaredInstanceMembers = <String>{};
     for (final procedure in klass.procedures) {
+      if (!procedure.isStatic &&
+          procedure.kind != k.ProcedureKind.Factory &&
+          !procedure.isNoSuchMethodForwarder) {
+        declaredInstanceMembers.add(procedure.name.text);
+      }
       if (procedure.isNoSuchMethodForwarder) {
         continue;
       }
@@ -606,11 +612,80 @@ final class _EsmEmitter {
       }
       _emitMethod(procedure);
     }
+    _emitDartConvertSuperclassBridges(klass, declaredInstanceMembers);
     _indent--;
     writeln('}');
     _emitInterfaceHasInstance(klass);
     _emitNamedConstructorBodies(klass);
     _currentClass = previousClass;
+  }
+
+  void _emitDartConvertSuperclassBridges(
+    k.Class klass,
+    Set<String> declaredInstanceMembers,
+  ) {
+    if (_hasDartConvertBase(klass, const {'Codec', 'Encoding'})) {
+      if (!declaredInstanceMembers.contains('encode')) {
+        writeln('encode(input) { return this.encoder.convert(input); }');
+      }
+      if (!declaredInstanceMembers.contains('decode')) {
+        writeln('decode(encoded) { return this.decoder.convert(encoded); }');
+      }
+      if (!declaredInstanceMembers.contains('fuse')) {
+        _usedHelpers.add('__dartConverterFuse');
+        writeln('fuse(other) { return __dartConverterFuse(this, other); }');
+      }
+    }
+    if (_hasDartConvertBase(klass, const {'Converter'})) {
+      if (!declaredInstanceMembers.contains('bind')) {
+        _usedHelpers.add('__dartConverterBind');
+        writeln('bind(stream) { return __dartConverterBind(this, stream); }');
+      }
+      if (!declaredInstanceMembers.contains('fuse')) {
+        _usedHelpers.add('__dartConverterFuse');
+        writeln('fuse(next) { return __dartConverterFuse(this, next); }');
+      }
+      if (!declaredInstanceMembers.contains('startChunkedConversion')) {
+        _usedHelpers.add('__dartConverterStartChunked');
+        writeln(
+          'startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); }',
+        );
+      }
+    }
+    if (_hasDartConvertBase(klass, const {
+      'StringConversionSink',
+      'StringConversionSinkBase',
+    })) {
+      if (!declaredInstanceMembers.contains('add')) {
+        writeln(
+          'add(string) { return this.addSlice(string, 0, string.length, false); }',
+        );
+      }
+      if (!declaredInstanceMembers.contains('asUtf8Sink')) {
+        _usedHelpers.add('__dartStringConversionSinkAsUtf8Sink');
+        writeln(
+          'asUtf8Sink(allowMalformed) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); }',
+        );
+      }
+    }
+    if (_hasDartConvertBase(klass, const {
+      'ByteConversionSink',
+      'ByteConversionSinkBase',
+    })) {
+      if (!declaredInstanceMembers.contains('add')) {
+        writeln(
+          'add(chunk) { return this.addSlice(chunk, 0, chunk.length, false); }',
+        );
+      }
+      if (!declaredInstanceMembers.contains('addSlice')) {
+        writeln(
+          'addSlice(chunk, start, end, isLast) { this.add(Array.from(chunk).slice(start, end)); if (isLast) this.close(); }',
+        );
+      }
+      if (!declaredInstanceMembers.contains('addByte')) {
+        writeln('addByte(byte) { return this.add([byte]); }');
+      }
+    }
   }
 
   void _emitEnumClass(k.Class klass, {required bool export}) {
@@ -8443,6 +8518,13 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       return 'Object.freeze({ key: ${positionalArgs[0]}, value: ${positionalArgs[1]} })';
     }
+    if (path.startsWith(
+          'dart:collection::UnmodifiableListView::@constructors::',
+        ) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartUnmodifiableListView');
+      return '__dartUnmodifiableListView(${positionalArgs.single})';
+    }
     if (path.startsWith('dart:collection::SplayTreeSet::@constructors::') &&
         positionalArgs.length <= 2) {
       _usedHelpers.add('__dartSplayTreeSet');
@@ -9934,6 +10016,21 @@ final class _EsmEmitter {
     return _referencePath(reference) == 'dart:core::$name';
   }
 
+  bool _hasDartConvertBase(k.Class klass, Set<String> names) {
+    bool matches(k.Supertype? supertype) {
+      if (supertype == null) {
+        return false;
+      }
+      final path = _referencePath(supertype.className);
+      return names.any((name) => path == 'dart:convert::$name');
+    }
+
+    if (matches(klass.supertype) || matches(klass.mixedInType)) {
+      return true;
+    }
+    return klass.implementedTypes.any(matches);
+  }
+
   bool _isCompactHashSetConstructorReference(k.Reference reference) {
     return _referencePath(
       reference,
@@ -10793,6 +10890,8 @@ final class _EsmEmitter {
         _usedHelpers.contains('__dartLineSplitter') ||
         _usedHelpers.contains('__dartHtmlEscape') ||
         _usedHelpers.contains('__dartConverterBind') ||
+        _usedHelpers.contains('__dartConverterFuse') ||
+        _usedHelpers.contains('__dartConverterStartChunked') ||
         _usedHelpers.contains('__dartByteConversionSink') ||
         _usedHelpers.contains('__dartByteConversionSinkFrom') ||
         _usedHelpers.contains('__dartChunkedConversionSink') ||
@@ -11518,7 +11617,9 @@ final class _EsmEmitter {
       helper.writeln(
         '  const millis = isUtc ? Date.UTC(year, month - 1, day, hour, minute, second, millisecond) : new Date(year, month - 1, day, hour, minute, second, millisecond).getTime();',
       );
-      helper.writeln('  return __dartDateTime(millis, isUtc, microsecond);');
+      helper.writeln(
+        '  return __dartDateTimeFromMicros(millis * 1000 + microsecond, isUtc);',
+      );
       helper.writeln('}');
       helper.writeln('function __dartDateTimeFromMicros(micros, isUtc) {');
       helper.writeln('  const millis = Math.floor(micros / 1000);');
@@ -14458,6 +14559,33 @@ final class _EsmEmitter {
       helper.writeln('  return null;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartUnmodifiableListView')) {
+      helper.writeln('function __dartUnmodifiableListView(source) {');
+      helper.writeln(
+        '  const list = Array.isArray(source) ? source : Array.from(source);',
+      );
+      helper.writeln(
+        '  const readonly = new Set(["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"]);',
+      );
+      helper.writeln('  return new Proxy(list, {');
+      helper.writeln('    get(target, property, receiver) {');
+      helper.writeln(
+        '      if (readonly.has(property)) return () => { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); };',
+      );
+      helper.writeln('      return Reflect.get(target, property, receiver);');
+      helper.writeln('    },');
+      helper.writeln(
+        '    set() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },',
+      );
+      helper.writeln(
+        '    deleteProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },',
+      );
+      helper.writeln(
+        '    defineProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },',
+      );
+      helper.writeln('  });');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartListSort')) {
       helper.writeln('function __dartListSort(list, compare = null) {');
       helper.writeln('  if (typeof compare === "function") {');
@@ -17255,6 +17383,7 @@ const _generatedGlobalNames = {
   '__dartListSort',
   '__dartListWhereMutate',
   '__dartListWriteIterable',
+  '__dartUnmodifiableListView',
   '__dartMapAddAll',
   '__dartMapAddEntries',
   '__dartMapContainsKey',
@@ -17454,6 +17583,7 @@ const _coreErrorTypeNames = {
   'UnsupportedError',
   'UnimplementedError',
   'Error',
+  'AssertionError',
   'ReachabilityError',
   'NoSuchMethodError',
   'ConcurrentModificationError',

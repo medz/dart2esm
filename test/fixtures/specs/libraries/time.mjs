@@ -50,7 +50,7 @@ function __dartDuration(options = {}) {
 }
 function __dartDateTimeFromParts(isUtc, year, month = 1, day = 1, hour = 0, minute = 0, second = 0, millisecond = 0, microsecond = 0) {
   const millis = isUtc ? Date.UTC(year, month - 1, day, hour, minute, second, millisecond) : new Date(year, month - 1, day, hour, minute, second, millisecond).getTime();
-  return __dartDateTime(millis, isUtc, microsecond);
+  return __dartDateTimeFromMicros(millis * 1000 + microsecond, isUtc);
 }
 function __dartDateTimeFromMicros(micros, isUtc) {
   const millis = Math.floor(micros / 1000);

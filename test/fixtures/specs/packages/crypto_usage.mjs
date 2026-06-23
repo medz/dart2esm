@@ -395,6 +395,8 @@ class Hash {
   startChunkedConversion(sink) {
     throw new TypeError("Abstract member Hash.startChunkedConversion");
   }
+  bind(stream) { return __dartConverterBind(this, stream); }
+  fuse(next) { return __dartConverterFuse(this, next); }
 }
 
 class Hmac {
@@ -416,6 +418,8 @@ class Hmac {
   startChunkedConversion(sink) {
     return new _HmacSink(sink, this._hash, this._key);
   }
+  bind(stream) { return __dartConverterBind(this, stream); }
+  fuse(next) { return __dartConverterFuse(this, next); }
 }
 
 class _HmacSink {
@@ -465,6 +469,7 @@ class _HmacSink {
     this._outerSink.add(this._innerResultSink.value.bytes);
     this._outerSink.close();
   }
+  addByte(byte) { return this.add([byte]); }
 }
 
 class HashSink {

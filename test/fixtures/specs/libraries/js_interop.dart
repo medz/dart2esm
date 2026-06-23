@@ -7,6 +7,18 @@ import 'dart:js_util' as js_util;
 @JS('globalThis')
 external JSObject get jsGlobalThis;
 
+@JS('Math.max')
+external JSNumber jsMathMax(JSNumber left, JSNumber right);
+
+@JS('Math.PI')
+external JSNumber get jsMathPi;
+
+@JS('Date')
+extension type JsDate._(JSObject _) implements JSObject {
+  external factory JsDate(JSNumber value);
+  external JSNumber getUTCFullYear();
+}
+
 void main() {
   Object? hiddenGlobal = jsGlobalThis;
   final math = js_util.getProperty<Object?>(jsGlobalThis, 'Math');
@@ -62,5 +74,13 @@ void main() {
     '$missingIsUndefined $nothingIsNull $stringTypeof '
     '$arrayInstanceOf $isArray ${dartified['a']} '
     '$shortcut $hasShortcut $dateYear',
+  );
+
+  final externalMax = jsMathMax(3.toJS, 8.toJS).toDartInt;
+  final externalPi = jsMathPi.toDartDouble.floor();
+  final externalDate = JsDate(0.toJS);
+  print(
+    'jsExternal $externalMax $externalPi '
+    '${externalDate.getUTCFullYear().toDartInt}',
   );
 }

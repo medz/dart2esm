@@ -3116,6 +3116,40 @@ final class _EsmEmitter {
     return _emitFactoryTargetCall(target, _emitArguments(arguments));
   }
 
+  String? _emitLegacyJsFactoryInvocation(
+    k.Procedure target,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(target.reference);
+    if (path == 'dart:js::JsObject::@factories::' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      final args = positionalArgs.length == 2 ? positionalArgs[1] : '[]';
+      return 'new ${positionalArgs[0]}(...Array.from($args ?? []))';
+    }
+    if (path == 'dart:js::JsObject::@factories::fromBrowserObject' &&
+        positionalArgs.length == 1) {
+      return positionalArgs.single;
+    }
+    if (path == 'dart:js::JsObject::@factories::jsify' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartJsify');
+      return '__dartJsify(${positionalArgs.single})';
+    }
+    if (path == 'dart:js::JsArray::@factories::' && positionalArgs.isEmpty) {
+      return '[]';
+    }
+    if (path == 'dart:js::JsArray::@factories::from' &&
+        positionalArgs.length == 1) {
+      return 'Array.from(${positionalArgs.single})';
+    }
+    if (path == 'dart:js::JsFunction::@factories::withThis' &&
+        positionalArgs.length == 1) {
+      return '(function(...args) { return (${positionalArgs.single})(this, ...args); })';
+    }
+    return null;
+  }
+
   String _emitFactoryTargetCall(k.Procedure target, String args) {
     if (target.name.text.isEmpty) {
       return 'new ${_className(target.enclosingClass!)}($args)';
@@ -3323,6 +3357,13 @@ final class _EsmEmitter {
         expression.arguments,
         expression,
       );
+    }
+    final legacyJsFactory = _emitLegacyJsFactoryInvocation(
+      target,
+      positionalArgs,
+    );
+    if (legacyJsFactory != null) {
+      return legacyJsFactory;
     }
     if (_procedureNames.containsKey(target)) {
       return '${_procedureName(target)}($args)';
@@ -3632,7 +3673,8 @@ final class _EsmEmitter {
   String? _emitJsInteropStaticGet(k.StaticGet expression) {
     final path = _referencePath(expression.targetReference);
     if (path == 'dart:_js_helper::@getters::staticInteropGlobalContext' ||
-        path == 'dart:js_interop::@getters::globalContext') {
+        path == 'dart:js_interop::@getters::globalContext' ||
+        path == 'dart:js::@getters::context') {
       return 'globalThis';
     }
     return null;
@@ -3748,6 +3790,16 @@ final class _EsmEmitter {
     );
     if (bigIntInvocation != null) {
       return bigIntInvocation;
+    }
+    final legacyJsInvocation = _emitLegacyJsInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments,
+    );
+    if (legacyJsInvocation != null) {
+      return legacyJsInvocation;
     }
     if (expression.arguments.named.isEmpty && positionalArgs.isEmpty) {
       if (name == 'unary-') {
@@ -5570,6 +5622,19 @@ final class _EsmEmitter {
   String _emitDynamicInvocation(k.DynamicInvocation expression) {
     final receiver = emitExpression(expression.receiver);
     final name = expression.name.text;
+    final positionalArgsList = expression.arguments.positional
+        .map(emitExpression)
+        .toList();
+    final legacyJsInvocation = _emitLegacyJsDynamicInvocation(
+      expression.receiver,
+      name,
+      receiver,
+      positionalArgsList,
+      expression.arguments,
+    );
+    if (legacyJsInvocation != null) {
+      return legacyJsInvocation;
+    }
     _usedHelpers.add('__dartCall');
     _usedHelpers.add('__dartNoSuchMethod');
     _usedHelpers.add('__dartSymbol');
@@ -5583,13 +5648,150 @@ final class _EsmEmitter {
     _usedHelpers.add('__dartSetAdd');
     _usedHelpers.add('__dartSetRemove');
     _usedHelpers.add('__dartStr');
-    final positionalArgs = expression.arguments.positional
-        .map(emitExpression)
-        .join(', ');
+    final positionalArgs = positionalArgsList.join(', ');
     final namedArgs = expression.arguments.named.isEmpty
         ? 'null'
         : '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }';
     return '__dartCall($receiver, ${jsonEncode(name)}, [$positionalArgs], $namedArgs)';
+  }
+
+  String? _emitLegacyJsDynamicInvocation(
+    k.Expression receiverExpression,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (!_isLegacyJsExpression(receiverExpression)) {
+      return null;
+    }
+    if (arguments.named.isEmpty &&
+        name == 'callMethod' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      final args = positionalArgs.length == 2 ? positionalArgs[1] : '[]';
+      return '$receiver[${positionalArgs[0]}](...Array.from($args ?? []))';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'hasProperty' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single} in $receiver)';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'deleteProperty' &&
+        positionalArgs.length == 1) {
+      return '(delete $receiver[${positionalArgs.single}], null)';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'instanceof' &&
+        positionalArgs.length == 1) {
+      return '$receiver instanceof ${positionalArgs.single}';
+    }
+    if (name == 'apply' &&
+        positionalArgs.length == 1 &&
+        _hasOnlyNamedArguments(arguments, {'thisArg'})) {
+      final thisArg = _namedArgument(arguments, 'thisArg') ?? 'undefined';
+      return '$receiver.apply($thisArg, Array.from(${positionalArgs.single}))';
+    }
+    return null;
+  }
+
+  String? _emitLegacyJsInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (!_isLegacyJsMember(target, name)) {
+      return null;
+    }
+    if (arguments.named.isEmpty && name == '[]' && positionalArgs.length == 1) {
+      return '$receiver[${positionalArgs.single}]';
+    }
+    if (arguments.named.isEmpty &&
+        name == '[]=' &&
+        positionalArgs.length == 2) {
+      return '($receiver[${positionalArgs[0]}] = ${positionalArgs[1]})';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'hasProperty' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single} in $receiver)';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'deleteProperty' &&
+        positionalArgs.length == 1) {
+      return '(delete $receiver[${positionalArgs.single}], null)';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'instanceof' &&
+        positionalArgs.length == 1) {
+      return '$receiver instanceof ${positionalArgs.single}';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'toString' &&
+        positionalArgs.isEmpty) {
+      return 'String($receiver)';
+    }
+    if (arguments.named.isEmpty &&
+        name == 'callMethod' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      final args = positionalArgs.length == 2 ? positionalArgs[1] : '[]';
+      return '$receiver[${positionalArgs[0]}](...Array.from($args ?? []))';
+    }
+    final jsArrayInvocation = _emitLegacyJsArrayInvocation(
+      target,
+      name,
+      receiver,
+      positionalArgs,
+      arguments,
+    );
+    if (jsArrayInvocation != null) {
+      return jsArrayInvocation;
+    }
+    if (name == 'apply' &&
+        _isLegacyJsClassMember(target, 'JsFunction', name) &&
+        positionalArgs.length == 1 &&
+        _hasOnlyNamedArguments(arguments, {'thisArg'})) {
+      final thisArg = _namedArgument(arguments, 'thisArg') ?? 'undefined';
+      return '$receiver.apply($thisArg, Array.from(${positionalArgs.single}))';
+    }
+    return null;
+  }
+
+  String? _emitLegacyJsArrayInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (!_isLegacyJsClassMember(target, 'JsArray', name) ||
+        arguments.named.isNotEmpty) {
+      return null;
+    }
+    return switch (name) {
+      'add' when positionalArgs.length == 1 =>
+        '($receiver.push(${positionalArgs.single}), null)',
+      'addAll' when positionalArgs.length == 1 =>
+        '($receiver.push(...Array.from(${positionalArgs.single})), null)',
+      'insert' when positionalArgs.length == 2 =>
+        '($receiver.splice(${positionalArgs[0]}, 0, ${positionalArgs[1]}), null)',
+      'removeAt' when positionalArgs.length == 1 =>
+        '$receiver.splice(${positionalArgs.single}, 1)[0]',
+      'removeLast' when positionalArgs.isEmpty => '$receiver.pop()',
+      'removeRange' when positionalArgs.length == 2 =>
+        '($receiver.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}), null)',
+      'setRange'
+          when positionalArgs.length >= 3 && positionalArgs.length <= 4 =>
+        '($receiver.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}, ...Array.from(${positionalArgs[2]}).slice(${positionalArgs.length == 4 ? positionalArgs[3] : '0'}, ${positionalArgs.length == 4 ? positionalArgs[3] : '0'} + (${positionalArgs[1]} - ${positionalArgs[0]}))), null)',
+      'sort' when positionalArgs.isEmpty => '($receiver.sort(), null)',
+      'sort' when positionalArgs.length == 1 =>
+        '($receiver.sort(${positionalArgs.single}), null)',
+      _ => null,
+    };
   }
 
   String _emitDynamicGet(k.DynamicGet expression) {
@@ -5764,6 +5966,10 @@ final class _EsmEmitter {
         'JSBoolean' => 'typeof $operand === "boolean"',
         'JSBigInt' => 'typeof $operand === "bigint"',
         'JSSymbol' => 'typeof $operand === "symbol"',
+        'JsObject' =>
+          '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
+        'JsFunction' => 'typeof $operand === "function"',
+        'JsArray' => 'Array.isArray($operand)',
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
         'TypedData' => 'ArrayBuffer.isView($operand)',
@@ -5984,10 +6190,17 @@ final class _EsmEmitter {
           positionalArgs.length == 3) {
         return '${positionalArgs[0]}[${positionalArgs[1]}](...Array.from(${positionalArgs[2]}))';
       }
+      if (name == 'callConstructor' && positionalArgs.length == 2) {
+        return 'new ${positionalArgs[0]}(...Array.from(${positionalArgs[1]} ?? []))';
+      }
       if ((name.startsWith('_callMethodUnchecked') ||
               name.startsWith('_callMethodUncheckedTrustType')) &&
           positionalArgs.length >= 2) {
         return '${positionalArgs[0]}[${positionalArgs[1]}](${positionalArgs.skip(2).join(', ')})';
+      }
+      if (name.startsWith('_callConstructorUnchecked') &&
+          positionalArgs.length >= 1) {
+        return 'new ${positionalArgs[0]}(${positionalArgs.skip(1).join(', ')})';
       }
     }
     return null;
@@ -7986,6 +8199,33 @@ final class _EsmEmitter {
         path.contains('::@getters::$name') ||
         path.contains('::@setters::$name') ||
         path.endsWith('::$name');
+  }
+
+  bool _isLegacyJsMember(k.Reference reference, String name) {
+    return _isLegacyJsClassMember(reference, 'JsObject', name) ||
+        _isLegacyJsClassMember(reference, 'JsFunction', name) ||
+        _isLegacyJsClassMember(reference, 'JsArray', name);
+  }
+
+  bool _isLegacyJsExpression(k.Expression expression) {
+    return switch (expression) {
+      k.StaticGet(:final targetReference) =>
+        _referencePath(targetReference) == 'dart:js::@getters::context',
+      k.InstanceInvocation(:final interfaceTargetReference, :final name) =>
+        _isLegacyJsMember(interfaceTargetReference, name.text),
+      k.AsExpression(:final operand) => _isLegacyJsExpression(operand),
+      _ => false,
+    };
+  }
+
+  bool _isLegacyJsClassMember(
+    k.Reference reference,
+    String className,
+    String name,
+  ) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:js::$className::') &&
+        _pathHasMember(path, name);
   }
 
   bool _isCoreNumberMember(k.Reference reference, String name) {

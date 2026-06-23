@@ -192,10 +192,11 @@ function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
     });
   });
 }
-function __dartAsyncError(error) {
+function __dartAsyncError(error, stackTrace = null) {
   return Object.freeze({
+    __dartType: "AsyncError",
     error,
-    stackTrace: error?.stack ?? "<javascript stack unavailable>",
+    stackTrace: stackTrace ?? error?.stack ?? "<javascript stack unavailable>",
     toString() { return "AsyncError: " + String(error); },
   });
 }
@@ -1139,6 +1140,21 @@ export async function main() {
     return (doWhileCount < 3);
 });
   __dartPrint("futureLoop " + __dartStr(forEachTotal) + " " + __dartStr(doWhileCount));
+  const microCompleter = __dartCompleter();
+  const microValues = new Array(0).fill(null);
+  (typeof queueMicrotask === "function" ? queueMicrotask(function() {
+    (microValues.push("micro"), null);
+    microCompleter.complete();
+}) : Promise.resolve().then(function() {
+    (microValues.push("micro"), null);
+    microCompleter.complete();
+}), null);
+  (Promise.resolve(null), null);
+  await microCompleter.future;
+  const asyncError = __dartAsyncError("async-error", (new Error().stack ?? "<javascript stack unavailable>"));
+  const asyncStackTrace = asyncError.stackTrace;
+  const asyncErrorObject = asyncError;
+  __dartPrint("asyncMisc " + __dartStr(__dartIterableJoin(microValues, ",")) + " " + __dartStr(asyncError.error) + " " + __dartStr(!((asyncStackTrace === null))) + " " + __dartStr(asyncErrorObject != null && typeof asyncErrorObject === "object" && asyncErrorObject.__dartType === "AsyncError") + " " + __dartStr(__dartStr(asyncError).includes("async-error")));
   const completer = __dartCompleter();
   Promise.resolve().then(() => (function() { return completer.complete(6); })());
   __dartPrint("complete " + __dartStr(await completer.future) + " " + __dartStr(completer.isCompleted));

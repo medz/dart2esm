@@ -97,6 +97,23 @@ Future<void> main() async {
   });
   print('futureLoop $forEachTotal $doWhileCount');
 
+  final microCompleter = Completer<void>();
+  final microValues = <String>[];
+  scheduleMicrotask(() {
+    microValues.add('micro');
+    microCompleter.complete();
+  });
+  unawaited(Future<void>.value());
+  await microCompleter.future;
+  final asyncError = AsyncError('async-error', StackTrace.current);
+  final Object? asyncStackTrace = asyncError.stackTrace;
+  final Object asyncErrorObject = asyncError;
+  print(
+    'asyncMisc ${microValues.join(',')} ${asyncError.error} '
+    '${asyncStackTrace != null} ${asyncErrorObject is AsyncError} '
+    '${asyncError.toString().contains('async-error')}',
+  );
+
   final completer = Completer<int>();
   Future.microtask(() => completer.complete(6));
   print('complete ${await completer.future} ${completer.isCompleted}');

@@ -2799,6 +2799,12 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStreamIterator');
       return '__dartStreamIterator(${_emitArguments(expression.arguments)})';
     }
+    if (_referencePath(expression.targetReference) ==
+            'dart:async::AsyncError::@constructors::' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartAsyncError');
+      return '__dartAsyncError(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
     if (_isCoreExpandoConstructorReference(expression.targetReference) &&
         positionalArgs.length <= 1) {
       _usedHelpers.add('__dartExpando');
@@ -5362,6 +5368,8 @@ final class _EsmEmitter {
         'Iterator' => '$operand != null && typeof $operand.next === "function"',
         'Function' => 'typeof $operand === "function"',
         'Record' => _emitRecordObjectTest(operand),
+        'AsyncError' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "AsyncError"',
         'ParallelWaitError' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "ParallelWaitError"',
         'Exception' ||
@@ -5635,6 +5643,14 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartFutureDoWhile');
       return '__dartFutureDoWhile(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::@methods::scheduleMicrotask' &&
+        positionalArgs.length == 1) {
+      return '(typeof queueMicrotask === "function" ? queueMicrotask(${positionalArgs.single}) : Promise.resolve().then(${positionalArgs.single}), null)';
+    }
+    if (path == 'dart:async::@methods::unawaited' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single}, null)';
     }
     if (path == 'dart:async::@methods::FutureExtensions|ignore' &&
         positionalArgs.length == 1) {
@@ -11005,13 +11021,15 @@ final class _EsmEmitter {
       helper.writeln('  });');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartFutureIterableWait') ||
+    if (_usedHelpers.contains('__dartAsyncError') ||
+        _usedHelpers.contains('__dartFutureIterableWait') ||
         _usedHelpers.contains('__dartFutureRecordWait')) {
-      helper.writeln('function __dartAsyncError(error) {');
+      helper.writeln('function __dartAsyncError(error, stackTrace = null) {');
       helper.writeln('  return Object.freeze({');
+      helper.writeln('    __dartType: "AsyncError",');
       helper.writeln('    error,');
       helper.writeln(
-        '    stackTrace: error?.stack ?? "<javascript stack unavailable>",',
+        '    stackTrace: stackTrace ?? error?.stack ?? "<javascript stack unavailable>",',
       );
       helper.writeln(
         '    toString() { return "AsyncError: " + String(error); },',

@@ -3281,6 +3281,10 @@ final class _EsmEmitter {
     if (developerGet != null) {
       return developerGet;
     }
+    final asyncGet = _emitAsyncStaticGet(expression);
+    if (asyncGet != null) {
+      return asyncGet;
+    }
     final coreGet = _emitCoreStaticGet(expression);
     if (coreGet != null) {
       return coreGet;
@@ -4092,6 +4096,12 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStringConversionSinkAsUtf8Sink');
       _usedHelpers.add('__dartUtf8Decode');
       return '$left.asUtf8Sink(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == '[]' &&
+        positionalArgs.length == 1 &&
+        _isAsyncZoneMember(target, name)) {
+      return '$left.get(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'bind' &&
@@ -5574,6 +5584,19 @@ final class _EsmEmitter {
     return null;
   }
 
+  String? _emitAsyncStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:async::Zone::@getters::current') {
+      _usedHelpers.add('__dartZone');
+      return '__dartCurrentZone';
+    }
+    if (path == 'dart:async::Zone::@getters::root') {
+      _usedHelpers.add('__dartZone');
+      return '__dartRootZone';
+    }
+    return null;
+  }
+
   String? _emitAsyncStaticInvocation(
     k.StaticInvocation expression,
     List<String> positionalArgs,
@@ -5651,6 +5674,19 @@ final class _EsmEmitter {
     if (path == 'dart:async::@methods::unawaited' &&
         positionalArgs.length == 1) {
       return '(${positionalArgs.single}, null)';
+    }
+    if (path == 'dart:async::@methods::runZoned' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartZone');
+      final zoneValues = _namedArgument(expression.arguments, 'zoneValues');
+      final onError = _namedArgument(expression.arguments, 'onError');
+      return '__dartRunZoned(${positionalArgs.single}, { zoneValues: ${zoneValues ?? 'null'}, onError: ${onError ?? 'null'} })';
+    }
+    if (path == 'dart:async::@methods::runZonedGuarded' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartZone');
+      final zoneValues = _namedArgument(expression.arguments, 'zoneValues');
+      return '__dartRunZonedGuarded(${positionalArgs[0]}, ${positionalArgs[1]}, { zoneValues: ${zoneValues ?? 'null'} })';
     }
     if (path == 'dart:async::@methods::FutureExtensions|ignore' &&
         positionalArgs.length == 1) {
@@ -7236,6 +7272,15 @@ final class _EsmEmitter {
     return path == 'dart:async::Future::@methods::$name' ||
         path == 'dart:async::Future::@getters::$name' ||
         path == 'dart:async::Future::$name';
+  }
+
+  bool _isAsyncZoneMember(k.Reference reference, String name) {
+    final path = _referencePath(reference);
+    final hasMember =
+        path.contains('::@methods::$name') ||
+        path.contains('::@getters::$name') ||
+        path.endsWith('::$name');
+    return hasMember && path.startsWith('dart:async::Zone::');
   }
 
   bool _isConvertStringConversionSinkMember(k.Reference reference, String name) {
@@ -10944,6 +10989,69 @@ final class _EsmEmitter {
       helper.writeln('  return timer;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartZone')) {
+      helper.writeln('function __dartCreateZone(parent = null, values = null) {');
+      helper.writeln('  const zoneValues = values instanceof Map ? values : new Map();');
+      helper.writeln('  const zone = {');
+      helper.writeln('    __dartType: "Zone",');
+      helper.writeln('    parent,');
+      helper.writeln('    get(key) {');
+      helper.writeln('      if (zoneValues.has(key)) return zoneValues.get(key);');
+      helper.writeln('      return parent == null ? null : parent.get(key);');
+      helper.writeln('    },');
+      helper.writeln('    "[]"(key) { return this.get(key); },');
+      helper.writeln('    run(body) { return __dartRunZoned(body, { zoneValues: null, parentZone: zone }); },');
+      helper.writeln('    runGuarded(body) { return __dartRunZonedGuarded(body, (error) => { throw error; }, { zoneValues: null, parentZone: zone }); },');
+      helper.writeln('    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },');
+      helper.writeln('    toString() { return "Zone"; },');
+      helper.writeln('  };');
+      helper.writeln('  return Object.freeze(zone);');
+      helper.writeln('}');
+      helper.writeln('const __dartRootZone = __dartCreateZone(null, new Map());');
+      helper.writeln('let __dartCurrentZone = __dartRootZone;');
+      helper.writeln('function __dartZoneValuesMap(zoneValues) {');
+      helper.writeln('  if (zoneValues == null) return new Map();');
+      helper.writeln('  if (zoneValues instanceof Map) return zoneValues;');
+      helper.writeln('  return new Map(Array.from(zoneValues));');
+      helper.writeln('}');
+      helper.writeln('function __dartRunInZone(zone, body) {');
+      helper.writeln('  const previous = __dartCurrentZone;');
+      helper.writeln('  __dartCurrentZone = zone;');
+      helper.writeln('  try {');
+      helper.writeln('    const result = body();');
+      helper.writeln('    if (result != null && typeof result.then === "function") {');
+      helper.writeln('      return result.finally(() => { __dartCurrentZone = previous; });');
+      helper.writeln('    }');
+      helper.writeln('    __dartCurrentZone = previous;');
+      helper.writeln('    return result;');
+      helper.writeln('  } catch (error) {');
+      helper.writeln('    __dartCurrentZone = previous;');
+      helper.writeln('    throw error;');
+      helper.writeln('  }');
+      helper.writeln('}');
+      helper.writeln('function __dartRunZoned(body, options = {}) {');
+      helper.writeln('  const parent = options.parentZone ?? __dartCurrentZone;');
+      helper.writeln('  const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));');
+      helper.writeln('  try {');
+      helper.writeln('    return __dartRunInZone(zone, body);');
+      helper.writeln('  } catch (error) {');
+      helper.writeln('    if (typeof options.onError === "function") return options.onError(error, error?.stack ?? "<javascript stack unavailable>");');
+      helper.writeln('    throw error;');
+      helper.writeln('  }');
+      helper.writeln('}');
+      helper.writeln('function __dartRunZonedGuarded(body, onError, options = {}) {');
+      helper.writeln('  try {');
+      helper.writeln('    const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });');
+      helper.writeln('    if (result != null && typeof result.then === "function") {');
+      helper.writeln('      return result.catch((error) => { onError(error, error?.stack ?? "<javascript stack unavailable>"); return null; });');
+      helper.writeln('    }');
+      helper.writeln('    return result;');
+      helper.writeln('  } catch (error) {');
+      helper.writeln('    onError(error, error?.stack ?? "<javascript stack unavailable>");');
+      helper.writeln('    return null;');
+      helper.writeln('  }');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartFutureAsStream')) {
       helper.writeln('function __dartFutureAsStream(future) {');
       helper.writeln('  return (async function*() {');
@@ -12550,6 +12658,8 @@ const _generatedGlobalNames = {
   '__dartConverterFuse',
   '__dartConverterStartChunked',
   '__dartCoreError',
+  '__dartCreateZone',
+  '__dartCurrentZone',
   '__dartDateTime',
   '__dartDateTimeCopyWith',
   '__dartDateTimeFromMicros',
@@ -12683,7 +12793,11 @@ const _generatedGlobalNames = {
   '__dartRectangle',
   '__dartRectangleFromPoints',
   '__dartRuntimeType',
+  '__dartRootZone',
   '__dartRoundToInt',
+  '__dartRunInZone',
+  '__dartRunZoned',
+  '__dartRunZonedGuarded',
   '__dartSafeToString',
   '__dartSetAdd',
   '__dartSetAddAll',
@@ -12809,6 +12923,7 @@ const _generatedGlobalNames = {
   '__dartUtf8Decoder',
   '__dartUtf8Encode',
   '__dartUtf8Encoder',
+  '__dartZoneValuesMap',
 };
 
 const _coreErrorTypeNames = {

@@ -113,6 +113,23 @@ Future<void> main() async {
     '${asyncStackTrace != null} ${asyncErrorObject is AsyncError} '
     '${asyncError.toString().contains('async-error')}',
   );
+  final zoneValue = runZoned(
+    () => Zone.current[#answer],
+    zoneValues: {#answer: 7},
+  );
+  var guardedError = '';
+  final guardedResult = runZonedGuarded(
+    () {
+      throw 'zone-error';
+    },
+    (error, stackTrace) {
+      guardedError = '$error:${stackTrace.toString().isNotEmpty}';
+    },
+  );
+  print(
+    'zone $zoneValue $guardedResult $guardedError '
+    '${Zone.current[#missing] == null}',
+  );
 
   final completer = Completer<int>();
   Future.microtask(() => completer.complete(6));

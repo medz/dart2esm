@@ -52,6 +52,16 @@ function __dartDuration(options = {}) {
     toString() { return __dartDurationToString(micros); },
   };
 }
+const __dartSymbolCache = new Map();
+function __dartSymbol(key, name) {
+  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
+  const value = Object.freeze({
+    name,
+    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },
+  });
+  __dartSymbolCache.set(key, value);
+  return value;
+}
 function __dartNullCheck(value) {
   if (value == null) {
     throw new TypeError("Null check operator used on a null value");
@@ -132,6 +142,67 @@ function __dartTimer(duration, callback, periodic) {
     }, delay);
   }
   return timer;
+}
+function __dartCreateZone(parent = null, values = null) {
+  const zoneValues = values instanceof Map ? values : new Map();
+  const zone = {
+    __dartType: "Zone",
+    parent,
+    get(key) {
+      if (zoneValues.has(key)) return zoneValues.get(key);
+      return parent == null ? null : parent.get(key);
+    },
+    "[]"(key) { return this.get(key); },
+    run(body) { return __dartRunZoned(body, { zoneValues: null, parentZone: zone }); },
+    runGuarded(body) { return __dartRunZonedGuarded(body, (error) => { throw error; }, { zoneValues: null, parentZone: zone }); },
+    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },
+    toString() { return "Zone"; },
+  };
+  return Object.freeze(zone);
+}
+const __dartRootZone = __dartCreateZone(null, new Map());
+let __dartCurrentZone = __dartRootZone;
+function __dartZoneValuesMap(zoneValues) {
+  if (zoneValues == null) return new Map();
+  if (zoneValues instanceof Map) return zoneValues;
+  return new Map(Array.from(zoneValues));
+}
+function __dartRunInZone(zone, body) {
+  const previous = __dartCurrentZone;
+  __dartCurrentZone = zone;
+  try {
+    const result = body();
+    if (result != null && typeof result.then === "function") {
+      return result.finally(() => { __dartCurrentZone = previous; });
+    }
+    __dartCurrentZone = previous;
+    return result;
+  } catch (error) {
+    __dartCurrentZone = previous;
+    throw error;
+  }
+}
+function __dartRunZoned(body, options = {}) {
+  const parent = options.parentZone ?? __dartCurrentZone;
+  const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));
+  try {
+    return __dartRunInZone(zone, body);
+  } catch (error) {
+    if (typeof options.onError === "function") return options.onError(error, error?.stack ?? "<javascript stack unavailable>");
+    throw error;
+  }
+}
+function __dartRunZonedGuarded(body, onError, options = {}) {
+  try {
+    const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });
+    if (result != null && typeof result.then === "function") {
+      return result.catch((error) => { onError(error, error?.stack ?? "<javascript stack unavailable>"); return null; });
+    }
+    return result;
+  } catch (error) {
+    onError(error, error?.stack ?? "<javascript stack unavailable>");
+    return null;
+  }
 }
 function __dartFutureAsStream(future) {
   return (async function*() {
@@ -1155,6 +1226,14 @@ export async function main() {
   const asyncStackTrace = asyncError.stackTrace;
   const asyncErrorObject = asyncError;
   __dartPrint("asyncMisc " + __dartStr(__dartIterableJoin(microValues, ",")) + " " + __dartStr(asyncError.error) + " " + __dartStr(!((asyncStackTrace === null))) + " " + __dartStr(asyncErrorObject != null && typeof asyncErrorObject === "object" && asyncErrorObject.__dartType === "AsyncError") + " " + __dartStr(__dartStr(asyncError).includes("async-error")));
+  const zoneValue = __dartRunZoned(function() { return __dartCurrentZone["[]"](__dartSymbol("answer", "answer")); }, { zoneValues: new Map([[__dartSymbol("answer", "answer"), 7]]), onError: null });
+  let guardedError = "";
+  const guardedResult = __dartRunZonedGuarded(function() {
+    (() => { throw "zone-error"; })();
+}, function(error, stackTrace) {
+    guardedError = __dartStr(error) + ":" + __dartStr(__dartStr(stackTrace).length !== 0);
+}, { zoneValues: null });
+  __dartPrint("zone " + __dartStr(zoneValue) + " " + __dartStr(guardedResult) + " " + __dartStr(guardedError) + " " + __dartStr((__dartCurrentZone["[]"](__dartSymbol("missing", "missing")) === null)));
   const completer = __dartCompleter();
   Promise.resolve().then(() => (function() { return completer.complete(6); })());
   __dartPrint("complete " + __dartStr(await completer.future) + " " + __dartStr(completer.isCompleted));

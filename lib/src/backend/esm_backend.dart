@@ -2087,9 +2087,6 @@ final class _EsmEmitter {
     }
     final stackTrace = catchNode.stackTrace;
     if (stackTrace != null) {
-      _diagnostics.add(
-        'Catch stack traces are currently lowered to JavaScript error.stack values.',
-      );
       _declareVariable(stackTrace);
       writeln(
         'const ${_variableName(stackTrace)} = $error?.stack ?? "<javascript stack unavailable>";',

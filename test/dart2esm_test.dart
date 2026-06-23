@@ -481,15 +481,43 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
   }
   if (fixture.id == 'libraries/html') {
     await _expectNodeOutputWithPrelude(output, '''
+class ElementStub {
+  constructor(tagName) {
+    this.tagName = tagName;
+    this.id = "";
+    this.textContent = "";
+    this.children = [];
+  }
+  append(node) {
+    this.children.push(node);
+    this.textContent += node.textContent ?? "";
+    return node;
+  }
+  appendChild(node) {
+    return this.append(node);
+  }
+}
 const store = new Map();
-globalThis.document = { title: "" };
+const elementsById = new Map();
+globalThis.document = {
+  title: "",
+  body: new ElementStub("body"),
+  createElement: tagName => new ElementStub(tagName),
+  querySelector: selector => selector.startsWith("#") ? elementsById.get(selector.slice(1)) ?? null : null,
+};
+const appendToBody = globalThis.document.body.append.bind(globalThis.document.body);
+globalThis.document.body.append = node => {
+  if (node.id) elementsById.set(node.id, node);
+  return appendToBody(node);
+};
+globalThis.document.body.appendChild = globalThis.document.body.append;
 globalThis.window = {
   localStorage: {
     getItem: key => store.has(String(key)) ? store.get(String(key)) : null,
     setItem: (key, value) => { store.set(String(key), String(value)); },
   },
 };
-''', 'html true ok\n');
+''', 'html true ok root hello child\n');
     return;
   }
   if (fixture.id == 'libraries/indexed_db') {

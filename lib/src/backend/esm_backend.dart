@@ -5711,7 +5711,26 @@ final class _EsmEmitter {
             receiverCollectionKind == 'Map')) {
       return 'Array.from($receiver, ([key, value]) => ({ key, value }))';
     }
+    final htmlGet = _emitHtmlInstanceGet(
+      expression.interfaceTargetReference,
+      name,
+      receiver,
+    );
+    if (htmlGet != null) {
+      return htmlGet;
+    }
     return _emitPropertyGet(receiver, _memberName(name));
+  }
+
+  String? _emitHtmlInstanceGet(
+    k.Reference target,
+    String name,
+    String receiver,
+  ) {
+    if (_isHtmlClassMember(target, 'Node', name) && name == 'text') {
+      return '$receiver.textContent';
+    }
+    return null;
   }
 
   String? _emitModernJsInteropInstanceGet(
@@ -5765,7 +5784,14 @@ final class _EsmEmitter {
   }
 
   String _emitInstanceSet(k.InstanceSet expression) {
-    return '${_emitPropertyGet(emitExpression(expression.receiver), _memberName(expression.name.text))} = ${emitExpression(expression.value)}';
+    final receiver = emitExpression(expression.receiver);
+    final name = expression.name.text;
+    final value = emitExpression(expression.value);
+    if (_isHtmlClassMember(expression.interfaceTargetReference, 'Node', name) &&
+        name == 'text') {
+      return '$receiver.textContent = $value';
+    }
+    return '${_emitPropertyGet(receiver, _memberName(name))} = $value';
   }
 
   String _emitInstanceTearOff(k.InstanceTearOff expression) {
@@ -5922,6 +5948,12 @@ final class _EsmEmitter {
       }
       return null;
     }
+    if (_isHtmlClassMember(target, 'Node', name) &&
+        name == 'append' &&
+        positionalArgs.length == 1 &&
+        arguments.named.isEmpty) {
+      return '$receiver.appendChild(${positionalArgs.single})';
+    }
     if (!_isHtmlClassMember(target, 'Storage', name) ||
         arguments.named.isNotEmpty) {
       return null;
@@ -5949,6 +5981,15 @@ final class _EsmEmitter {
     List<String> positionalArgs,
   ) {
     final path = _referencePath(expression.targetReference);
+    if ((path == 'dart:html::Element::@factories::tag' ||
+            path ==
+                'dart:html::_ElementFactoryProvider::@methods::createElement_tag') &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      return positionalArgs.length == 1 || positionalArgs[1] == 'null'
+          ? 'globalThis.document.createElement(${positionalArgs[0]})'
+          : 'globalThis.document.createElement(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
     if (path == 'dart:html::CanvasElement::@factories::' &&
         positionalArgs.isEmpty &&
         _hasOnlyNamedArguments(expression.arguments, {'width', 'height'})) {
@@ -6591,7 +6632,10 @@ final class _EsmEmitter {
         _isVariableGet(otherwise.receiver, variable)) {
       return _emitOptionalPropertyGet(
         receiver,
-        _memberName(otherwise.name.text),
+        _emitNullAwareInstancePropertyName(
+          otherwise.interfaceTargetReference,
+          otherwise.name.text,
+        ),
       );
     }
     if (otherwise is k.InstanceInvocation &&
@@ -6600,7 +6644,7 @@ final class _EsmEmitter {
       final args = otherwise.arguments.positional
           .map(emitExpression)
           .join(', ');
-      return '${_emitOptionalPropertyGet(receiver, _memberName(otherwise.name.text))}($args)';
+      return '${_emitOptionalPropertyGet(receiver, _emitNullAwareInstancePropertyName(otherwise.interfaceTargetReference, otherwise.name.text))}($args)';
     }
     if (otherwise is k.DynamicGet &&
         _isVariableGet(otherwise.receiver, variable)) {
@@ -6618,6 +6662,13 @@ final class _EsmEmitter {
       return '${_emitOptionalPropertyGet(receiver, _memberName(otherwise.name.text))}($args)';
     }
     return null;
+  }
+
+  String _emitNullAwareInstancePropertyName(k.Reference target, String name) {
+    if (_isHtmlClassMember(target, 'Node', name) && name == 'text') {
+      return 'textContent';
+    }
+    return _memberName(name);
   }
 
   String _emitOptionalPropertyGet(String receiver, String name) {

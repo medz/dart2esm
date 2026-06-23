@@ -20,12 +20,47 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+const __dartSymbolCache = new Map();
+function __dartSymbol(key, name) {
+  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
+  const value = Object.freeze({
+    name,
+    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },
+  });
+  __dartSymbolCache.set(key, value);
+  return value;
+}
 function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
 function __dartFixedList(list) {
   return Object.seal(list);
+}
+function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {
+  const named = new Map();
+  if (namedArguments != null) {
+    for (const [key, value] of Object.entries(namedArguments)) {
+      named.set(__dartSymbol(key, key), value);
+    }
+  }
+  return Object.freeze({
+    memberName: __dartSymbol(name, name),
+    positionalArguments: Array.from(positionalArguments),
+    namedArguments: named,
+    get isMethod() { return kind === "method"; },
+    get isGetter() { return kind === "getter"; },
+    get isSetter() { return kind === "setter"; },
+    get isAccessor() { return kind !== "method"; },
+    toString() { return "Invocation(" + kind + " " + name + ")"; },
+  });
+}
+function __dartNoSuchMethod(receiver, kind, name, positionalArguments = [], namedArguments = null) {
+  const noSuchMethod = receiver?.noSuchMethod;
+  if (typeof noSuchMethod === "function") {
+    return noSuchMethod.call(receiver, __dartInvocation(kind, name, positionalArguments, namedArguments));
+  }
+  throw new TypeError("No such method " + String(name));
 }
 function __dartGet(receiver, name) {
   if (Array.isArray(receiver)) {
@@ -43,14 +78,16 @@ function __dartGet(receiver, name) {
     if (name === "isEmpty") return receiver.length === 0;
     if (name === "isNotEmpty") return receiver.length !== 0;
   }
+  if (receiver != null && (typeof receiver === "object" || typeof receiver === "function") && !(name in receiver)) return __dartNoSuchMethod(receiver, "getter", name);
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
-function __dartCall(receiver, name, args) {
+function __dartCall(receiver, name, args, namedArgs = null) {
+  const callArgs = namedArgs == null ? args : [...args, namedArgs];
   if (name === "call") {
-    if (typeof receiver === "function") return receiver(...args);
+    if (typeof receiver === "function") return receiver(...callArgs);
     const call = receiver.call;
-    if (typeof call === "function") return call.apply(receiver, args);
+    if (typeof call === "function") return call.apply(receiver, callArgs);
   }
   if (Array.isArray(receiver)) {
     switch (name) {
@@ -104,8 +141,8 @@ function __dartCall(receiver, name, args) {
     }
   }
   const method = receiver[name];
-  if (typeof method === "function") return method.apply(receiver, args);
-  throw new TypeError("No such method " + String(name));
+  if (typeof method === "function") return method.apply(receiver, callArgs);
+  return __dartNoSuchMethod(receiver, "method", name, args, namedArgs);
 }
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
@@ -324,7 +361,7 @@ export function main() {
   const eqMapFixed = __dartConstMap(eqMapSource);
   __dartPrint("mapFixed " + __dartStr(eqMapFixed.size) + " " + __dartStr(__dartMapGet(eqMapFixed, new EqBox(1))) + " " + __dartStr(__dartMapContainsKey(eqMapFixed, new EqBox(1))));
   const entries = __dartMapFromEntries(Array.from([Object.freeze({ key: "three", value: 3 }), Object.freeze({ key: "four", value: 4 })], (entry) => [entry.key, entry.value]));
-  const iterable = __dartMapFromIterable(["aa", "bbb"], function(value) { return __dartAs(__dartGet(value, "length"), value => typeof value === "number", "int"); }, function(value) { return __dartAs(__dartCall(value, "toUpperCase", []), value => typeof value === "string", "String"); });
+  const iterable = __dartMapFromIterable(["aa", "bbb"], function(value) { return __dartAs(__dartGet(value, "length"), value => typeof value === "number", "int"); }, function(value) { return __dartAs(__dartCall(value, "toUpperCase", [], null), value => typeof value === "string", "String"); });
   const iterables = __dartMapFromIterables(["x", "y"], [10, 20]);
   const identity = __dartIdentityMap();
   const identityKey = [1];

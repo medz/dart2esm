@@ -5528,6 +5528,8 @@ final class _EsmEmitter {
     final receiver = emitExpression(expression.receiver);
     final name = expression.name.text;
     _usedHelpers.add('__dartCall');
+    _usedHelpers.add('__dartNoSuchMethod');
+    _usedHelpers.add('__dartSymbol');
     _usedHelpers.add('__dartEquals');
     _usedHelpers.add('__dartIterableContains');
     _usedHelpers.add('__dartMapContainsKey');
@@ -5538,21 +5540,27 @@ final class _EsmEmitter {
     _usedHelpers.add('__dartSetAdd');
     _usedHelpers.add('__dartSetRemove');
     _usedHelpers.add('__dartStr');
-    final args = [
-      ...expression.arguments.positional.map(emitExpression),
-      if (expression.arguments.named.isNotEmpty)
-        '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }',
-    ];
-    return '__dartCall($receiver, ${jsonEncode(name)}, [${args.join(', ')}])';
+    final positionalArgs = expression.arguments.positional
+        .map(emitExpression)
+        .join(', ');
+    final namedArgs = expression.arguments.named.isEmpty
+        ? 'null'
+        : '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }';
+    return '__dartCall($receiver, ${jsonEncode(name)}, [$positionalArgs], $namedArgs)';
   }
 
   String _emitDynamicGet(k.DynamicGet expression) {
     _usedHelpers.add('__dartGet');
+    _usedHelpers.add('__dartNoSuchMethod');
+    _usedHelpers.add('__dartSymbol');
     return '__dartGet(${emitExpression(expression.receiver)}, ${jsonEncode(expression.name.text)})';
   }
 
   String _emitDynamicSet(k.DynamicSet expression) {
-    return '${_emitPropertyGet(emitExpression(expression.receiver), expression.name.text)} = ${emitExpression(expression.value)}';
+    _usedHelpers.add('__dartSet');
+    _usedHelpers.add('__dartNoSuchMethod');
+    _usedHelpers.add('__dartSymbol');
+    return '__dartSet(${emitExpression(expression.receiver)}, ${jsonEncode(expression.name.text)}, ${emitExpression(expression.value)})';
   }
 
   String _emitClassStaticMemberGet(k.Class klass, String name) {
@@ -10690,6 +10698,47 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartNoSuchMethod')) {
+      helper.writeln(
+        'function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {',
+      );
+      helper.writeln('  const named = new Map();');
+      helper.writeln('  if (namedArguments != null) {');
+      helper.writeln(
+        '    for (const [key, value] of Object.entries(namedArguments)) {',
+      );
+      helper.writeln('      named.set(__dartSymbol(key, key), value);');
+      helper.writeln('    }');
+      helper.writeln('  }');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln('    memberName: __dartSymbol(name, name),');
+      helper.writeln(
+        '    positionalArguments: Array.from(positionalArguments),',
+      );
+      helper.writeln('    namedArguments: named,');
+      helper.writeln('    get isMethod() { return kind === "method"; },');
+      helper.writeln('    get isGetter() { return kind === "getter"; },');
+      helper.writeln('    get isSetter() { return kind === "setter"; },');
+      helper.writeln('    get isAccessor() { return kind !== "method"; },');
+      helper.writeln(
+        '    toString() { return "Invocation(" + kind + " " + name + ")"; },',
+      );
+      helper.writeln('  });');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartNoSuchMethod(receiver, kind, name, positionalArguments = [], namedArguments = null) {',
+      );
+      helper.writeln('  const noSuchMethod = receiver?.noSuchMethod;');
+      helper.writeln('  if (typeof noSuchMethod === "function") {');
+      helper.writeln(
+        '    return noSuchMethod.call(receiver, __dartInvocation(kind, name, positionalArguments, namedArguments));',
+      );
+      helper.writeln('  }');
+      helper.writeln(
+        '  throw new TypeError("No such method " + String(name));',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartGet')) {
       helper.writeln('function __dartGet(receiver, name) {');
       helper.writeln('  if (Array.isArray(receiver)) {');
@@ -10721,21 +10770,38 @@ final class _EsmEmitter {
         '    if (name === "isNotEmpty") return receiver.length !== 0;',
       );
       helper.writeln('  }');
+      helper.writeln(
+        '  if (receiver != null && (typeof receiver === "object" || typeof receiver === "function") && !(name in receiver)) return __dartNoSuchMethod(receiver, "getter", name);',
+      );
       helper.writeln('  const value = receiver[name];');
       helper.writeln(
         '  return typeof value === "function" ? value.bind(receiver) : value;',
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartSet')) {
+      helper.writeln('function __dartSet(receiver, name, value) {');
+      helper.writeln(
+        '  if (receiver != null && (typeof receiver === "object" || typeof receiver === "function") && !(name in receiver)) return __dartNoSuchMethod(receiver, "setter", name + "=", [value]);',
+      );
+      helper.writeln('  receiver[name] = value;');
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartCall')) {
-      helper.writeln('function __dartCall(receiver, name, args) {');
+      helper.writeln(
+        'function __dartCall(receiver, name, args, namedArgs = null) {',
+      );
+      helper.writeln(
+        '  const callArgs = namedArgs == null ? args : [...args, namedArgs];',
+      );
       helper.writeln('  if (name === "call") {');
       helper.writeln(
-        '    if (typeof receiver === "function") return receiver(...args);',
+        '    if (typeof receiver === "function") return receiver(...callArgs);',
       );
       helper.writeln('    const call = receiver.call;');
       helper.writeln(
-        '    if (typeof call === "function") return call.apply(receiver, args);',
+        '    if (typeof call === "function") return call.apply(receiver, callArgs);',
       );
       helper.writeln('  }');
       helper.writeln('  if (Array.isArray(receiver)) {');
@@ -10835,10 +10901,10 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  const method = receiver[name];');
       helper.writeln(
-        '  if (typeof method === "function") return method.apply(receiver, args);',
+        '  if (typeof method === "function") return method.apply(receiver, callArgs);',
       );
       helper.writeln(
-        '  throw new TypeError("No such method " + String(name));',
+        '  return __dartNoSuchMethod(receiver, "method", name, args, namedArgs);',
       );
       helper.writeln('}');
     }
@@ -13599,6 +13665,7 @@ const _generatedGlobalNames = {
   '__dartIntParse',
   '__dartIntToRadixString',
   '__dartIntTryParse',
+  '__dartInvocation',
   '__dartIterableContains',
   '__dartIterableElementAtOrNull',
   '__dartIterableFirst',
@@ -13678,6 +13745,7 @@ const _generatedGlobalNames = {
   '__dartMapSet',
   '__dartMapUpdate',
   '__dartMapUpdateAll',
+  '__dartNoSuchMethod',
   '__dartNullCheck',
   '__dartNumClamp',
   '__dartNumParse',
@@ -13710,6 +13778,7 @@ const _generatedGlobalNames = {
   '__dartScheduleMicrotask',
   '__dartSafeToString',
   '__dartSendPort',
+  '__dartSet',
   '__dartSetAdd',
   '__dartSetAddAll',
   '__dartSetAlgebra',

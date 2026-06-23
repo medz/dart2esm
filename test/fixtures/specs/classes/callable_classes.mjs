@@ -20,6 +20,16 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+const __dartSymbolCache = new Map();
+function __dartSymbol(key, name) {
+  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
+  const value = Object.freeze({
+    name,
+    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },
+  });
+  __dartSymbolCache.set(key, value);
+  return value;
+}
 function __dartBind(receiver, name) {
   if (Array.isArray(receiver) && name === "add") {
     return (value) => { receiver.push(value); return null; };
@@ -27,11 +37,37 @@ function __dartBind(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
-function __dartCall(receiver, name, args) {
+function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {
+  const named = new Map();
+  if (namedArguments != null) {
+    for (const [key, value] of Object.entries(namedArguments)) {
+      named.set(__dartSymbol(key, key), value);
+    }
+  }
+  return Object.freeze({
+    memberName: __dartSymbol(name, name),
+    positionalArguments: Array.from(positionalArguments),
+    namedArguments: named,
+    get isMethod() { return kind === "method"; },
+    get isGetter() { return kind === "getter"; },
+    get isSetter() { return kind === "setter"; },
+    get isAccessor() { return kind !== "method"; },
+    toString() { return "Invocation(" + kind + " " + name + ")"; },
+  });
+}
+function __dartNoSuchMethod(receiver, kind, name, positionalArguments = [], namedArguments = null) {
+  const noSuchMethod = receiver?.noSuchMethod;
+  if (typeof noSuchMethod === "function") {
+    return noSuchMethod.call(receiver, __dartInvocation(kind, name, positionalArguments, namedArguments));
+  }
+  throw new TypeError("No such method " + String(name));
+}
+function __dartCall(receiver, name, args, namedArgs = null) {
+  const callArgs = namedArgs == null ? args : [...args, namedArgs];
   if (name === "call") {
-    if (typeof receiver === "function") return receiver(...args);
+    if (typeof receiver === "function") return receiver(...callArgs);
     const call = receiver.call;
-    if (typeof call === "function") return call.apply(receiver, args);
+    if (typeof call === "function") return call.apply(receiver, callArgs);
   }
   if (Array.isArray(receiver)) {
     switch (name) {
@@ -85,8 +121,8 @@ function __dartCall(receiver, name, args) {
     }
   }
   const method = receiver[name];
-  if (typeof method === "function") return method.apply(receiver, args);
-  throw new TypeError("No such method " + String(name));
+  if (typeof method === "function") return method.apply(receiver, callArgs);
+  return __dartNoSuchMethod(receiver, "method", name, args, namedArgs);
 }
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
@@ -183,7 +219,7 @@ export function main() {
   let dynamicAdder = add3;
   let dynamicFunction = function(value) { return (value * 2); };
   __dartPrint(__dartStr(__dartConst("[\"instance\",\"class:Adder\",[\"field\",\"field:Adder.base\",[\"int\",\"2\"]]]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 }))).call(5)) + " " + __dartStr(add3.call(5)) + " " + __dartStr(apply(__dartBind(__dartConst("[\"instance\",\"class:Adder\",[\"field\",\"field:Adder.base\",[\"int\",\"2\"]]]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 }))), "call"), 6)));
-  __dartPrint(__dartStr(__dartCall(dynamicAdder, "call", [4])) + " " + __dartStr(__dartCall(dynamicFunction, "call", [4])));
+  __dartPrint(__dartStr(__dartCall(dynamicAdder, "call", [4], null)) + " " + __dartStr(__dartCall(dynamicFunction, "call", [4], null)));
 }
 
 main();

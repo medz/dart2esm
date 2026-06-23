@@ -1146,6 +1146,10 @@ function __dartTimer_1(value) {
   return "user:" + __dartStr(value);
 }
 
+export function hide(value) {
+  return value;
+}
+
 export async function main() {
   __dartPrint(__dartTimer_1("timer"));
   const first = await Promise.resolve(1);
@@ -1225,6 +1229,9 @@ export async function main() {
   const constructed = await new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 12; })()); } catch (error) { reject(error); } }, 0));
   const syncValue = await Promise.resolve(13);
   __dartPrint("futureConstruct " + __dartStr(constructed) + " " + __dartStr(syncValue));
+  const hiddenFuture = hide(Promise.resolve(15));
+  const castFuture = __dartAs(hiddenFuture, value => (value === null || value != null && typeof value.then === "function"), "Future<int>?");
+  __dartPrint("futureTypes " + __dartStr(hiddenFuture != null && typeof hiddenFuture.then === "function") + " " + __dartStr(!((castFuture === null))) + " " + __dartStr((typeof hide(15) === "number" || hide(15) != null && typeof hide(15).then === "function")) + " " + __dartStr((typeof hiddenFuture === "number" || hiddenFuture != null && typeof hiddenFuture.then === "function")));
   let forEachTotal = 0;
   await __dartFutureForEach([1, 2, 3], async function(value) {
     forEachTotal = (forEachTotal + value);
@@ -1277,6 +1284,8 @@ export async function main() {
   const syncCompleter = __dartCompleter();
   syncCompleter.complete("ok");
   __dartPrint("sync " + __dartStr(await syncCompleter.future));
+  const hiddenCompleter = hide(syncCompleter);
+  __dartPrint("completerType " + __dartStr(hiddenCompleter != null && typeof hiddenCompleter === "object" && typeof hiddenCompleter.complete === "function" && typeof hiddenCompleter.completeError === "function" && hiddenCompleter.future != null));
   const failed = __dartCompleter();
   failed.completeError("broken");
   try {
@@ -1298,6 +1307,7 @@ export async function main() {
     timerDone.complete("fired");
 }, false);
   __dartPrint("timer-start " + __dartStr(timer.isActive) + " " + __dartStr(timer.tick));
+  __dartPrint("timerType " + __dartStr(hide(timer) != null && typeof hide(timer) === "object" && typeof hide(timer).cancel === "function" && "isActive" in hide(timer) && "tick" in hide(timer)));
   __dartPrint("timer " + __dartStr(await timerDone.future) + " " + __dartStr(timer.isActive));
   let canceledFired = false;
   const canceled = __dartTimer(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"5000\"]]]", () => __dartDuration({ microseconds: 5000 })), function() {
@@ -1340,6 +1350,9 @@ export async function main() {
   const streamFromFutures = await __dartStreamToList(__dartStreamFromFutures([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 1; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"2000\"]]]", () => __dartDuration({ microseconds: 2000 })).inMilliseconds))), Promise.resolve(2)]));
   __dartListSort(streamFromFutures, null);
   __dartPrint("streamFuture " + __dartStr(streamFromFuture) + " " + __dartStr(__dartIterableJoin(streamFromFutures, ",")));
+  const hiddenStream = hide(__dartStreamFromIterable([30]));
+  const castStream = __dartAs(hiddenStream, value => (value === null || value != null && typeof value[Symbol.asyncIterator] === "function"), "Stream<int>?");
+  __dartPrint("streamTypes " + __dartStr(hiddenStream != null && typeof hiddenStream[Symbol.asyncIterator] === "function") + " " + __dartStr(!((castStream === null))));
   const streamMultiValues = await __dartStreamJoin(__dartStreamMulti(function(controller) {
     controller.add(3);
     controller.add(4);
@@ -1367,6 +1380,7 @@ export async function main() {
     }
   }
   const controller = __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null });
+  __dartPrint("controllerType " + __dartStr(hide(controller) != null && typeof hide(controller) === "object" && typeof hide(controller).add === "function" && typeof hide(controller).close === "function" && hide(controller).stream != null));
   const seenA = new Array(0).fill(null);
   const seenB = new Array(0).fill(null);
   const subA = __dartStreamListen(controller.stream, __dartAs(__dartBind(seenA, "add"), value => typeof value === "function", "void Function(int)"), null, null, false);

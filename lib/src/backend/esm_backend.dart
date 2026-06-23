@@ -6379,6 +6379,9 @@ final class _EsmEmitter {
     if (type is k.FunctionType) {
       return 'typeof $operand === "function"';
     }
+    if (type is k.FutureOrType) {
+      return '(${_emitTypeTest(operand, type.typeArgument, node)} || ${_emitFutureTypeTest(operand)})';
+    }
     if (type is k.RecordType) {
       return _emitRecordTypeTest(operand, type, node);
     }
@@ -6416,6 +6419,17 @@ final class _EsmEmitter {
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "RawReceivePort"',
         'Isolate' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Isolate"',
+        'Future' => _emitFutureTypeTest(operand),
+        'Stream' =>
+          '$operand != null && typeof $operand[Symbol.asyncIterator] === "function"',
+        'Completer' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.complete === "function" && typeof $operand.completeError === "function" && $operand.future != null',
+        'StreamController' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.add === "function" && typeof $operand.close === "function" && $operand.stream != null',
+        'StreamSubscription' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.pause === "function" && typeof $operand.resume === "function" && typeof $operand.cancel === "function"',
+        'Timer' =>
+          '$operand != null && typeof $operand === "object" && typeof $operand.cancel === "function" && "isActive" in $operand && "tick" in $operand',
         'JSAny' => '$operand != null',
         'JSObject' =>
           '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
@@ -6490,6 +6504,10 @@ final class _EsmEmitter {
       };
     }
     throw UnsupportedKernelNode(node, 'type test');
+  }
+
+  String _emitFutureTypeTest(String operand) {
+    return '$operand != null && typeof $operand.then === "function"';
   }
 
   String? _emitNativeSdkTypeTest(String operand, k.InterfaceType type) {

@@ -2,6 +2,8 @@ import 'dart:async';
 
 String __dartTimer(String value) => 'user:$value';
 
+Object? hide(Object? value) => value;
+
 Future<void> main() async {
   print(__dartTimer('timer'));
 
@@ -85,6 +87,12 @@ Future<void> main() async {
   // ignore: sdk_version_since
   final syncValue = await Future<int>.syncValue(13);
   print('futureConstruct $constructed $syncValue');
+  final hiddenFuture = hide(Future<int>.value(15));
+  final castFuture = hiddenFuture as Future<int>?;
+  print(
+    'futureTypes ${hiddenFuture is Future<int>} ${castFuture != null} '
+    '${hide(15) is FutureOr<int>} ${hiddenFuture is FutureOr<int>}',
+  );
 
   var forEachTotal = 0;
   await Future.forEach<int>([1, 2, 3], (value) async {
@@ -164,6 +172,8 @@ Future<void> main() async {
   final syncCompleter = Completer<String>.sync();
   syncCompleter.complete('ok');
   print('sync ${await syncCompleter.future}');
+  final hiddenCompleter = hide(syncCompleter);
+  print('completerType ${hiddenCompleter is Completer<String>}');
 
   final failed = Completer<void>();
   failed.completeError('broken');
@@ -178,6 +188,7 @@ Future<void> main() async {
     timerDone.complete('fired');
   });
   print('timer-start ${timer.isActive} ${timer.tick}');
+  print('timerType ${hide(timer) is Timer}');
   print('timer ${await timerDone.future} ${timer.isActive}');
 
   var canceledFired = false;
@@ -243,6 +254,9 @@ Future<void> main() async {
   ]).toList();
   streamFromFutures.sort();
   print('streamFuture $streamFromFuture ${streamFromFutures.join(',')}');
+  final hiddenStream = hide(Stream<int>.value(30));
+  final castStream = hiddenStream as Stream<int>?;
+  print('streamTypes ${hiddenStream is Stream<int>} ${castStream != null}');
 
   final streamMultiValues = await Stream<int>.multi((controller) {
     controller.add(3);
@@ -270,6 +284,7 @@ Future<void> main() async {
   }
 
   final controller = StreamController<int>.broadcast();
+  print('controllerType ${hide(controller) is StreamController<int>}');
   final seenA = <int>[];
   final seenB = <int>[];
   final subA = controller.stream.listen(seenA.add);

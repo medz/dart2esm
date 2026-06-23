@@ -6339,6 +6339,10 @@ final class _EsmEmitter {
           '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
         'JSArray' => 'Array.isArray($operand)',
         'JSFunction' => 'typeof $operand === "function"',
+        'JSExportedDartFunction' => () {
+          _usedHelpers.add('__dartIsJsExportedFunction');
+          return '__dartIsJsExportedFunction($operand)';
+        }(),
         'JSPromise' => '$operand instanceof Promise',
         'JSBoxedDartObject' => () {
           _usedHelpers.add('__dartIsJsBox');
@@ -6712,13 +6716,20 @@ final class _EsmEmitter {
       if (name == 'promiseToFuture' && positionalArgs.length == 1) {
         return 'Promise.resolve(${positionalArgs.single})';
       }
+      if (name == '_jsFunctionToDart' && positionalArgs.length == 1) {
+        _usedHelpers.add('__dartIsJsExportedFunction');
+        _usedHelpers.add('__dartJsExportedFunctionToDart');
+        return '__dartJsExportedFunctionToDart(${positionalArgs.single})';
+      }
       if (RegExp(r'^_functionToJS(?:[0-5]|N)$').hasMatch(name) &&
           positionalArgs.isNotEmpty) {
-        return positionalArgs.first;
+        _usedHelpers.add('__dartJsExportFunction');
+        return '__dartJsExportFunction(${positionalArgs.first})';
       }
       if (RegExp(r'^_functionToJSCaptureThis(?:[0-5]|N)$').hasMatch(name) &&
           positionalArgs.isNotEmpty) {
-        return '(function(...args) { return (${positionalArgs.first})(this, ...args); })';
+        _usedHelpers.add('__dartJsExportCaptureThis');
+        return '__dartJsExportCaptureThis(${positionalArgs.first})';
       }
       if ((name.startsWith('_callMethodUnchecked') ||
               name.startsWith('_callMethodUncheckedTrustType')) &&
@@ -6787,6 +6798,16 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartIsJsBox');
       final value = positionalArgs.single;
       return '($value == null || __dartIsJsBox($value))';
+    }
+    if (member == '_isJSExportedDartFunction' && positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIsJsExportedFunction');
+      return '__dartIsJsExportedFunction(${positionalArgs.single})';
+    }
+    if (member == '_isNullableJSExportedDartFunction' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIsJsExportedFunction');
+      final value = positionalArgs.single;
+      return '($value == null || __dartIsJsExportedFunction($value))';
     }
     if (member == 'JSSymbol|get#_keyFor' && positionalArgs.length == 1) {
       return '(Symbol.keyFor(${positionalArgs.single}) ?? null)';
@@ -6942,15 +6963,19 @@ final class _EsmEmitter {
     }
     if (member == 'JSExportedDartFunctionToFunction|get#toDart' &&
         positionalArgs.length == 1) {
-      return receiver;
+      _usedHelpers.add('__dartIsJsExportedFunction');
+      _usedHelpers.add('__dartJsExportedFunctionToDart');
+      return '__dartJsExportedFunctionToDart($receiver)';
     }
     if (member == 'FunctionToJSExportedDartFunction|get#toJS' &&
         positionalArgs.length == 1) {
-      return receiver;
+      _usedHelpers.add('__dartJsExportFunction');
+      return '__dartJsExportFunction($receiver)';
     }
     if (member == 'FunctionToJSExportedDartFunction|get#toJSCaptureThis' &&
         positionalArgs.length == 1) {
-      return '(function(...args) { return ($receiver)(this, ...args); })';
+      _usedHelpers.add('__dartJsExportCaptureThis');
+      return '__dartJsExportCaptureThis($receiver)';
     }
     return null;
   }
@@ -12137,6 +12162,50 @@ final class _EsmEmitter {
       helper.writeln('function __dartJsConstructOptional(constructor, args) {');
       helper.writeln(
         '  return new constructor(...__dartJsTrimOptionalArgs(args));',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsExportFunction') ||
+        _usedHelpers.contains('__dartJsExportCaptureThis') ||
+        _usedHelpers.contains('__dartJsExportedFunctionToDart') ||
+        _usedHelpers.contains('__dartIsJsExportedFunction')) {
+      helper.writeln(
+        'const __dartJsExportedFunctionProperty = Symbol("dart2esm.jsExportedDartFunction");',
+      );
+    }
+    if (_usedHelpers.contains('__dartJsExportFunction')) {
+      helper.writeln('function __dartJsExportFunction(fn) {');
+      helper.writeln(
+        '  Object.defineProperty(fn, __dartJsExportedFunctionProperty, { value: fn, configurable: true });',
+      );
+      helper.writeln('  return fn;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsExportCaptureThis')) {
+      helper.writeln('function __dartJsExportCaptureThis(fn) {');
+      helper.writeln(
+        '  const wrapper = function(...args) { return fn(this, ...args); };',
+      );
+      helper.writeln(
+        '  Object.defineProperty(wrapper, __dartJsExportedFunctionProperty, { value: fn, configurable: true });',
+      );
+      helper.writeln('  return wrapper;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsExportedFunctionToDart')) {
+      helper.writeln('function __dartJsExportedFunctionToDart(fn) {');
+      helper.writeln('  if (__dartIsJsExportedFunction(fn)) {');
+      helper.writeln('    return fn[__dartJsExportedFunctionProperty];');
+      helper.writeln('  }');
+      helper.writeln(
+        '  throw new TypeError("Expected a JS-exported Dart function");',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIsJsExportedFunction')) {
+      helper.writeln('function __dartIsJsExportedFunction(value) {');
+      helper.writeln(
+        '  return typeof value === "function" && Object.prototype.hasOwnProperty.call(value, __dartJsExportedFunctionProperty);',
       );
       helper.writeln('}');
     }

@@ -20,6 +20,25 @@ extension type JsDate._(JSObject _) implements JSObject {
   external JSNumber getUTCFullYear();
 }
 
+@JSExport()
+class JsExportedCounter {
+  JsExportedCounter(this.value);
+
+  int value;
+
+  @JSExport('incBy')
+  int increment(JSNumber amount) {
+    value += amount.toDartInt;
+    return value;
+  }
+
+  JSString get label => 'counter:$value'.toJS;
+
+  set label(JSString nextValue) {
+    value = int.parse(nextValue.toDart);
+  }
+}
+
 Future<void> main() async {
   Object? hiddenGlobal = jsGlobalThis;
   final math = js_util.getProperty<Object?>(jsGlobalThis, 'Math');
@@ -158,5 +177,37 @@ Future<void> main() async {
   print(
     'jsBox ${unboxed['answer']} ${unreferenced.single} '
     '${boxed.isA<JSBoxedDartObject>()}',
+  );
+
+  final exportedCounter = createJSInteropWrapper(JsExportedCounter(5));
+  final exportInc = exportedCounter
+      .callMethod<JSNumber>('incBy'.toJS, 4.toJS)
+      .toDartInt;
+  final exportLabel = exportedCounter
+      .getProperty<JSString>('label'.toJS)
+      .toDart;
+  exportedCounter.setProperty('label'.toJS, '13'.toJS);
+  final exportUpdated = exportedCounter
+      .callMethod<JSNumber>('incBy'.toJS, 2.toJS)
+      .toDartInt;
+  print('jsExport $exportInc $exportLabel $exportUpdated');
+
+  final exportedFunction = ((JSNumber value) => value.toDartInt + 1).toJS;
+  final exportedCall =
+      (exportedFunction.callAsFunction(null, 6.toJS) as JSNumber).toDartInt;
+  final exportedDartCall = (exportedFunction.toDart as int Function(JSNumber))(
+    7.toJS,
+  );
+  final thisObject = JSObject();
+  thisObject.setProperty('prefix'.toJS, 'this'.toJS);
+  final captureThis = ((JSObject self, JSString value) {
+    final prefix = self.getProperty<JSString>('prefix'.toJS).toDart;
+    return '$prefix:${value.toDart}'.toJS;
+  }).toJSCaptureThis;
+  final captured =
+      (captureThis.callAsFunction(thisObject, 'ok'.toJS) as JSString).toDart;
+  print(
+    'jsFunction $exportedCall $exportedDartCall '
+    '${exportedFunction.isA<JSExportedDartFunction>()} $captured',
   );
 }

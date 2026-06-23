@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart2esm/src/cli.dart';
@@ -474,6 +475,19 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
   );
   expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
   expect(output.readAsStringSync(), fixture.expectedEsm.readAsStringSync());
+  if (fixture.id == 'libraries/html') {
+    await _expectNodeOutputWithPrelude(output, '''
+const store = new Map();
+globalThis.document = { title: "" };
+globalThis.window = {
+  localStorage: {
+    getItem: key => store.has(String(key)) ? store.get(String(key)) : null,
+    setItem: (key, value) => { store.set(String(key), String(value)); },
+  },
+};
+''', 'html true ok\n');
+    return;
+  }
   if (fixture.id == 'libraries/js') {
     await _expectNodeOutput(output, 'jsLegacy 5 ok true 12 4 3\n');
     return;
@@ -493,6 +507,21 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
 Future<void> _expectNodeOutput(File output, String stdout) async {
   final nodeRun = await Process.run('node', [
     output.path,
+  ], workingDirectory: output.parent.path);
+  expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
+  expect(nodeRun.stdout, stdout);
+  expect(nodeRun.stderr, isEmpty);
+}
+
+Future<void> _expectNodeOutputWithPrelude(
+  File output,
+  String prelude,
+  String stdout,
+) async {
+  final nodeRun = await Process.run('node', [
+    '--input-type=module',
+    '-e',
+    '$prelude\nawait import(${jsonEncode(output.uri.toString())});',
   ], workingDirectory: output.parent.path);
   expect(nodeRun.exitCode, 0, reason: '${nodeRun.stdout}\n${nodeRun.stderr}');
   expect(nodeRun.stdout, stdout);

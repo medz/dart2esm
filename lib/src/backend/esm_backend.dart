@@ -3677,6 +3677,12 @@ final class _EsmEmitter {
         path == 'dart:js::@getters::context') {
       return 'globalThis';
     }
+    if (path == 'dart:html::@getters::window') {
+      return 'globalThis.window';
+    }
+    if (path == 'dart:html::@getters::document') {
+      return 'globalThis.document';
+    }
     return null;
   }
 
@@ -3790,6 +3796,16 @@ final class _EsmEmitter {
     );
     if (bigIntInvocation != null) {
       return bigIntInvocation;
+    }
+    final htmlInvocation = _emitHtmlInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments,
+    );
+    if (htmlInvocation != null) {
+      return htmlInvocation;
     }
     final legacyJsInvocation = _emitLegacyJsInstanceInvocation(
       target,
@@ -5692,6 +5708,35 @@ final class _EsmEmitter {
         _hasOnlyNamedArguments(arguments, {'thisArg'})) {
       final thisArg = _namedArgument(arguments, 'thisArg') ?? 'undefined';
       return '$receiver.apply($thisArg, Array.from(${positionalArgs.single}))';
+    }
+    return null;
+  }
+
+  String? _emitHtmlInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (!_isHtmlClassMember(target, 'Storage', name) ||
+        arguments.named.isNotEmpty) {
+      return null;
+    }
+    if (name == '[]' && positionalArgs.length == 1) {
+      return '(typeof $receiver.getItem === "function" ? $receiver.getItem(${positionalArgs.single}) : $receiver[${positionalArgs.single}])';
+    }
+    if (name == '[]=' && positionalArgs.length == 2) {
+      return '(typeof $receiver.setItem === "function" ? ($receiver.setItem(${positionalArgs[0]}, ${positionalArgs[1]}), null) : ($receiver[${positionalArgs[0]}] = ${positionalArgs[1]}, null))';
+    }
+    if (name == 'containsKey' && positionalArgs.length == 1) {
+      return '(typeof $receiver.getItem === "function" ? $receiver.getItem(${positionalArgs.single}) != null : ${positionalArgs.single} in $receiver)';
+    }
+    if (name == 'remove' && positionalArgs.length == 1) {
+      return '(typeof $receiver.removeItem === "function" ? ($receiver.removeItem(${positionalArgs.single}), null) : (delete $receiver[${positionalArgs.single}], null))';
+    }
+    if (name == 'clear' && positionalArgs.isEmpty) {
+      return '(typeof $receiver.clear === "function" ? ($receiver.clear(), null) : (Object.keys($receiver).forEach((key) => delete $receiver[key]), null))';
     }
     return null;
   }
@@ -8225,6 +8270,16 @@ final class _EsmEmitter {
   ) {
     final path = _referencePath(reference);
     return path.startsWith('dart:js::$className::') &&
+        _pathHasMember(path, name);
+  }
+
+  bool _isHtmlClassMember(
+    k.Reference reference,
+    String className,
+    String name,
+  ) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:html::$className::') &&
         _pathHasMember(path, name);
   }
 

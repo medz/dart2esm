@@ -38,21 +38,27 @@ function __dartBind(receiver, name) {
   return typeof value === "function" ? value.bind(receiver) : value;
 }
 function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {
+  const memberName = name != null && typeof name === "object" && "name" in name ? name : __dartSymbol(name, name);
+  const displayName = memberName?.name ?? String(name);
   const named = new Map();
-  if (namedArguments != null) {
+  if (namedArguments instanceof Map) {
+    for (const [key, value] of namedArguments) {
+      named.set(key, value);
+    }
+  } else if (namedArguments != null) {
     for (const [key, value] of Object.entries(namedArguments)) {
       named.set(__dartSymbol(key, key), value);
     }
   }
   return Object.freeze({
-    memberName: __dartSymbol(name, name),
+    memberName,
     positionalArguments: Array.from(positionalArguments),
     namedArguments: named,
     get isMethod() { return kind === "method"; },
     get isGetter() { return kind === "getter"; },
     get isSetter() { return kind === "setter"; },
     get isAccessor() { return kind !== "method"; },
-    toString() { return "Invocation(" + kind + " " + name + ")"; },
+    toString() { return "Invocation(" + kind + " " + displayName + ")"; },
   });
 }
 function __dartNoSuchMethod(receiver, kind, name, positionalArguments = [], namedArguments = null) {

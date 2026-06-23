@@ -2514,6 +2514,27 @@ final class _EsmEmitter {
     return variable.isLate ? '$name.set($valueCode)' : '$name = $valueCode';
   }
 
+  String _emitBinaryOperand(k.Expression expression, String emitted) {
+    return _isAssignmentExpression(expression) ? '($emitted)' : emitted;
+  }
+
+  String _emitNullCoalescingRight(k.Expression expression) {
+    final emitted = emitExpression(expression);
+    return _isAssignmentExpression(expression) ? '($emitted)' : emitted;
+  }
+
+  bool _isAssignmentExpression(k.Expression expression) {
+    return switch (expression) {
+      k.VariableSet() ||
+      k.StaticSet() ||
+      k.DynamicSet() ||
+      k.InstanceSet() ||
+      k.SuperPropertySet() ||
+      k.AbstractSuperPropertySet() => true,
+      _ => false,
+    };
+  }
+
   String _emitFunctionExpression(k.FunctionExpression expression) {
     final function = expression.function;
     final functionKeyword = _functionKeyword(function, 'function expression');
@@ -3160,6 +3181,102 @@ final class _EsmEmitter {
     return '{ ${fields.entries.map((entry) => '${_propertyKey(entry.key)}: ${_emitEsmConst(entry.value)}').join(', ')} }';
   }
 
+  String? _emitInvocationMirrorConstructor(
+    k.ConstructorInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path ==
+            'dart:core::_InvocationMirror::@constructors::dart:core::_withType' &&
+        positionalArgs.length == 5) {
+      _usedHelpers.add('__dartInvocation');
+      _usedHelpers.add('__dartSymbol');
+      return '__dartInvocation("method", ${positionalArgs[0]}, ${positionalArgs[3]}, ${positionalArgs[4]})';
+    }
+    if (path ==
+            'dart:core::_InvocationMirror::@constructors::dart:core::_withoutType' &&
+        positionalArgs.length >= 4) {
+      _usedHelpers.add('__dartInvocation');
+      _usedHelpers.add('__dartSymbol');
+      return '__dartInvocation("method", ${positionalArgs[0]}, ${positionalArgs[2]}, ${positionalArgs[3]})';
+    }
+    return null;
+  }
+
+  String? _emitInternalIterableConstructorInvocation(
+    k.ConstructorInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (_isListIteratorConstructorReference(expression.targetReference) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIterator');
+      return '__dartIterator(${positionalArgs.single})';
+    }
+    if (_isFollowedByIterableConstructorReference(expression.targetReference) &&
+        positionalArgs.length == 2) {
+      return 'Array.from(${positionalArgs[0]}).concat(Array.from(${positionalArgs[1]}))';
+    }
+    if (_isMappedIterableConstructorPath(path) && positionalArgs.length == 2) {
+      return 'Array.from(${positionalArgs[0]}, (value) => ${positionalArgs[1]}(value))';
+    }
+    if (_isWhereIterableConstructorPath(path) && positionalArgs.length == 2) {
+      return 'Array.from(${positionalArgs[0]}).filter((value) => ${positionalArgs[1]}(value))';
+    }
+    if (_isExpandIterableConstructorPath(path) && positionalArgs.length == 2) {
+      return 'Array.from(${positionalArgs[0]}).flatMap((value) => Array.from(${positionalArgs[1]}(value)))';
+    }
+    if (_isTakeIterableConstructorPath(path) && positionalArgs.length == 2) {
+      return 'Array.from(${positionalArgs[0]}).slice(0, ${positionalArgs[1]})';
+    }
+    if (_isSkipIterableConstructorPath(path) && positionalArgs.length == 2) {
+      return 'Array.from(${positionalArgs[0]}).slice(${positionalArgs[1]})';
+    }
+    if (_isSubListIterableConstructorPath(path) && positionalArgs.length == 3) {
+      return 'Array.from(${positionalArgs[0]}).slice(${positionalArgs[1]}, ${positionalArgs[2]} ?? undefined)';
+    }
+    if (_isTakeWhileIterableConstructorPath(path) &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartIterableTakeWhile');
+      return '__dartIterableTakeWhile(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (_isSkipWhileIterableConstructorPath(path) &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartIterableSkipWhile');
+      return '__dartIterableSkipWhile(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (_isWhereTypeIterableConstructorPath(path) &&
+        positionalArgs.length == 1 &&
+        expression.arguments.types.length == 1) {
+      final typeTest = _emitTypeTest(
+        'value',
+        expression.arguments.types.single,
+        expression,
+      );
+      return 'Array.from(${positionalArgs.single}).filter((value) => $typeTest)';
+    }
+    if (_isNonNullsIterableConstructorPath(path) &&
+        positionalArgs.length == 1) {
+      return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';
+    }
+    if (_isIndexedIterableConstructorPath(path) && positionalArgs.length == 2) {
+      _usedHelpers.add('__dartRecord');
+      return 'Array.from(${positionalArgs[0]}, (value, index) => __dartRecord([index + ${positionalArgs[1]}, value], {}))';
+    }
+    if (_isListMapViewConstructorPath(path) && positionalArgs.length == 1) {
+      return 'new Map(Array.from(${positionalArgs.single}, (value, index) => [index, value]))';
+    }
+    if (_isListIndicesIterableConstructorPath(path) &&
+        positionalArgs.length == 1) {
+      return 'Array.from(${positionalArgs.single}, (_value, index) => index)';
+    }
+    if (_isReversedListIterableConstructorPath(path) &&
+        positionalArgs.length == 1) {
+      return 'Array.from(${positionalArgs.single}).reverse()';
+    }
+    return null;
+  }
+
   String _emitConstructorInvocation(k.ConstructorInvocation expression) {
     final positionalArgs = expression.arguments.positional
         .map(emitExpression)
@@ -3179,6 +3296,11 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartStreamIterator');
       return '__dartStreamIterator(${_emitArguments(expression.arguments)})';
     }
+    final internalIterableConstructor =
+        _emitInternalIterableConstructorInvocation(expression, positionalArgs);
+    if (internalIterableConstructor != null) {
+      return internalIterableConstructor;
+    }
     if (_referencePath(expression.targetReference) ==
             'dart:async::AsyncError::@constructors::' &&
         positionalArgs.length == 2) {
@@ -3195,6 +3317,13 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartSymbol');
       return '__dartSymbol(${positionalArgs.single}, ${positionalArgs.single})';
+    }
+    final invocationMirrorConstructor = _emitInvocationMirrorConstructor(
+      expression,
+      positionalArgs,
+    );
+    if (invocationMirrorConstructor != null) {
+      return invocationMirrorConstructor;
     }
     final jsInteropConstructor = _emitJsInteropConstructorInvocation(
       expression.targetReference,
@@ -3492,6 +3621,27 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartIterableElementAtOrNull');
       return '__dartIterableElementAtOrNull(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
+    final internalIterableInvocation = _emitInternalIterableStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (internalIterableInvocation != null) {
+      return internalIterableInvocation;
+    }
+    final iterableElementError = _emitIterableElementErrorInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (iterableElementError != null) {
+      return iterableElementError;
+    }
+    final collectionBaseInvocation = _emitCollectionBaseStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (collectionBaseInvocation != null) {
+      return collectionBaseInvocation;
+    }
     final coreInvocation = _emitCoreStaticInvocation(
       expression,
       positionalArgs,
@@ -3554,6 +3704,82 @@ final class _EsmEmitter {
       expression,
       'static invocation ${_referencePath(expression.targetReference)}',
     );
+  }
+
+  String? _emitInternalIterableStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:_internal::@methods::checkNotNullable' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartNullCheck');
+      return '__dartNullCheck(${positionalArgs[0]})';
+    }
+    if (path == 'dart:_internal::Sort::@methods::sort' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartListSort');
+      return '__dartListSort(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (path == 'dart:_internal::Sort::@methods::sortRange' &&
+        positionalArgs.length == 4) {
+      _usedHelpers.add('__dartCoreError');
+      _usedHelpers.add('__dartListSortRange');
+      return '__dartListSortRange(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, ${positionalArgs[3]})';
+    }
+    if (path ==
+            'dart:_internal::FollowedByIterable::@factories::firstEfficient' &&
+        positionalArgs.length == 2) {
+      return 'Array.from(${positionalArgs[0]}).concat(Array.from(${positionalArgs[1]}))';
+    }
+    return null;
+  }
+
+  String? _emitIterableElementErrorInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    if (positionalArgs.isNotEmpty) {
+      return null;
+    }
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:_internal::IterableElementError::@methods::')) {
+      return null;
+    }
+    final message = switch (path.split('::').last) {
+      'noElement' => 'No element',
+      'tooMany' => 'Too many elements',
+      'tooFew' => 'Too few elements',
+      _ => null,
+    };
+    if (message == null) {
+      return null;
+    }
+    _usedHelpers.add('__dartCoreError');
+    return '__dartCoreError("StateError", ${jsonEncode(message)})';
+  }
+
+  String? _emitCollectionBaseStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    if (positionalArgs.length != 1) {
+      return null;
+    }
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:collection::ListBase::@methods::listToString') {
+      _usedHelpers.add('__dartStr');
+      return '("[" + Array.from(${positionalArgs.single}, (value) => __dartStr(value)).join(", ") + "]")';
+    }
+    if (path == 'dart:collection::SetBase::@methods::setToString') {
+      _usedHelpers.add('__dartStr');
+      return '("{" + Array.from(${positionalArgs.single}, (value) => __dartStr(value)).join(", ") + "}")';
+    }
+    if (path == 'dart:collection::MapBase::@methods::mapToString') {
+      _usedHelpers.add('__dartStr');
+      return '("{" + Array.from(${positionalArgs.single}, ([key, value]) => __dartStr(key) + ": " + __dartStr(value)).join(", ") + "}")';
+    }
+    return null;
   }
 
   String _emitExtensionTypeInvocation(
@@ -3680,6 +3906,12 @@ final class _EsmEmitter {
   }
 
   String _emitStaticTearOffReference(k.Reference reference, Object node) {
+    final path = _referencePath(reference);
+    if (path ==
+        'dart:collection::ListBase::@methods::dart:collection::_compareAny') {
+      _usedHelpers.add('__dartCompare');
+      return '((left, right) => __dartCompare(left, right))';
+    }
     final target = reference.node;
     if (target is k.Procedure) {
       final extensionTypeMember = _extensionTypeDescriptors[target];
@@ -3698,10 +3930,7 @@ final class _EsmEmitter {
         target.name.text,
       );
     }
-    throw UnsupportedKernelNode(
-      node,
-      'static tear-off ${_referencePath(reference)}',
-    );
+    throw UnsupportedKernelNode(node, 'static tear-off $path');
   }
 
   void _emitConstructorTearOffFunctions() {
@@ -4121,7 +4350,12 @@ final class _EsmEmitter {
       }
       final operator = name == '~/' ? null : name;
       if (operator != null) {
-        return '($left $operator ${positionalArgs.single})';
+        final leftOperand = _emitBinaryOperand(expression.receiver, left);
+        final rightOperand = _emitBinaryOperand(
+          expression.arguments.positional.single,
+          positionalArgs.single,
+        );
+        return '($leftOperand $operator $rightOperand)';
       }
       _usedHelpers.add('__dartTruncDiv');
       return '__dartTruncDiv($left, ${positionalArgs.single})';
@@ -4286,6 +4520,13 @@ final class _EsmEmitter {
         _isCoreMember(target, 'String', name)) {
       final method = name == 'trimLeft' ? 'trimStart' : 'trimEnd';
       return '$left.$method()';
+    }
+    if (expression.arguments.named.isEmpty &&
+        name == 'compareTo' &&
+        positionalArgs.length == 1 &&
+        _isCoreMember(target, 'Comparable', name)) {
+      _usedHelpers.add('__dartCompare');
+      return '__dartCompare($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'compareTo' &&
@@ -6633,8 +6874,14 @@ final class _EsmEmitter {
         'Map' => '$operand instanceof Map',
         'Iterable' =>
           '$operand != null && typeof $operand !== "string" && !($operand instanceof Map) && typeof $operand[Symbol.iterator] === "function"',
+        'EfficientLengthIterable' ||
+        'HideEfficientLengthIterable' ||
+        'ListIterable' =>
+          '$operand != null && typeof $operand !== "string" && typeof $operand.length === "number" && typeof $operand[Symbol.iterator] === "function"',
         'Iterator' => '$operand != null && typeof $operand.next === "function"',
         'Function' => 'typeof $operand === "function"',
+        'Comparable' =>
+          '$operand != null && (typeof $operand === "number" || typeof $operand === "string" || typeof $operand === "bigint" || typeof $operand.compareTo === "function")',
         'Record' => _emitRecordObjectTest(operand),
         'AsyncError' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "AsyncError"',
@@ -6649,6 +6896,8 @@ final class _EsmEmitter {
         'UnsupportedError' ||
         'UnimplementedError' ||
         'Error' ||
+        'NoSuchMethodError' ||
+        'ConcurrentModificationError' ||
         'TypeError' => _emitCoreErrorTypeTest(operand, typeName),
         _ =>
           _typedArrayConstructorName(typeName) != null
@@ -6842,7 +7091,7 @@ final class _EsmEmitter {
       final left = initializer is k.Let
           ? _emitNullAwareLetAccess(initializer) ?? emitExpression(initializer)
           : emitExpression(initializer);
-      return '($left ?? ${emitExpression(body.then)})';
+      return '($left ?? ${_emitNullCoalescingRight(body.then)})';
     }
     if (body.then is k.NullLiteral) {
       final access = _emitNullAwareLetAccess(expression);
@@ -8276,6 +8525,19 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartRegExpEscape');
       return '__dartRegExpEscape(${positionalArgs.single})';
     }
+    if ((path == 'dart:core::Iterable::@methods::iterableToFullString' ||
+            path == 'dart:core::Iterable::@methods::iterableToShortString') &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 3) {
+      _usedHelpers.add('__dartStr');
+      final leftDelimiter = positionalArgs.length >= 2
+          ? positionalArgs[1]
+          : '"("';
+      final rightDelimiter = positionalArgs.length >= 3
+          ? positionalArgs[2]
+          : '")"';
+      return '($leftDelimiter + Array.from(${positionalArgs[0]}, (value) => __dartStr(value)).join(", ") + $rightDelimiter)';
+    }
     if (path == 'dart:core::Error::@methods::safeToString' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartSafeToString');
@@ -8285,6 +8547,10 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartThrowWithStackTrace');
       return '__dartThrowWithStackTrace(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    final rangeCheck = _emitRangeErrorStaticInvocation(path, positionalArgs);
+    if (rangeCheck != null) {
+      return rangeCheck;
     }
     if (path == 'dart:core::DateTime::@methods::parse' &&
         positionalArgs.length == 1) {
@@ -8532,6 +8798,48 @@ final class _EsmEmitter {
     };
   }
 
+  String? _emitRangeErrorStaticInvocation(
+    String path,
+    List<String> positionalArgs,
+  ) {
+    if (!path.startsWith('dart:core::RangeError::@methods::check')) {
+      return null;
+    }
+    _usedHelpers.add('__dartRangeChecks');
+    _usedHelpers.add('__dartCoreError');
+    if (path == 'dart:core::RangeError::@methods::checkValueInInterval' &&
+        positionalArgs.length >= 3 &&
+        positionalArgs.length <= 5) {
+      final name = positionalArgs.length >= 4 ? positionalArgs[3] : 'null';
+      final message = positionalArgs.length >= 5 ? positionalArgs[4] : 'null';
+      return '__dartCheckValueInInterval(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, $name, $message)';
+    }
+    if (path == 'dart:core::RangeError::@methods::checkValidIndex' &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 5) {
+      final name = positionalArgs.length >= 3 ? positionalArgs[2] : 'null';
+      final length = positionalArgs.length >= 4 ? positionalArgs[3] : 'null';
+      final message = positionalArgs.length >= 5 ? positionalArgs[4] : 'null';
+      return '__dartCheckValidIndex(${positionalArgs[0]}, ${positionalArgs[1]}, $name, $length, $message)';
+    }
+    if (path == 'dart:core::RangeError::@methods::checkValidRange' &&
+        positionalArgs.length >= 3 &&
+        positionalArgs.length <= 6) {
+      final startName = positionalArgs.length >= 4 ? positionalArgs[3] : 'null';
+      final endName = positionalArgs.length >= 5 ? positionalArgs[4] : 'null';
+      final message = positionalArgs.length >= 6 ? positionalArgs[5] : 'null';
+      return '__dartCheckValidRange(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, $startName, $endName, $message)';
+    }
+    if (path == 'dart:core::RangeError::@methods::checkNotNegative' &&
+        positionalArgs.length >= 1 &&
+        positionalArgs.length <= 3) {
+      final name = positionalArgs.length >= 2 ? positionalArgs[1] : 'null';
+      final message = positionalArgs.length >= 3 ? positionalArgs[2] : 'null';
+      return '__dartCheckNotNegative(${positionalArgs[0]}, $name, $message)';
+    }
+    return null;
+  }
+
   String? _emitCoreBigIntStaticInvocation(
     k.StaticInvocation expression,
     List<String> positionalArgs,
@@ -8633,6 +8941,16 @@ final class _EsmEmitter {
     final name = path.split('::').last;
     final growable = _coreListFactoryGrowable(path, arguments);
     return switch (name) {
+      '' when positionalArgs.isEmpty => _emitMaybeFixedList(
+        '[]',
+        growable,
+        defaultGrowable: growable != 'false',
+      ),
+      '' when positionalArgs.length == 1 => _emitMaybeFixedList(
+        'new Array(${positionalArgs.single}).fill(null)',
+        growable,
+        defaultGrowable: growable != 'false',
+      ),
       'filled' when positionalArgs.length >= 2 => _emitMaybeFixedList(
         'new Array(${positionalArgs[0]}).fill(${positionalArgs[1]})',
         growable,
@@ -9306,6 +9624,103 @@ final class _EsmEmitter {
     return _referencePath(
       reference,
     ).startsWith('dart:async::_StreamIterator::@constructors::');
+  }
+
+  bool _isListIteratorConstructorReference(k.Reference reference) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:_internal::ListIterator::@constructors::') ||
+        path.startsWith('dart:collection::ListIterator::@constructors::');
+  }
+
+  bool _isFollowedByIterableConstructorReference(k.Reference reference) {
+    final path = _referencePath(reference);
+    return path.startsWith(
+          'dart:_internal::FollowedByIterable::@constructors::',
+        ) ||
+        path.startsWith(
+          'dart:_internal::EfficientLengthFollowedByIterable::@constructors::',
+        );
+  }
+
+  bool _isMappedIterableConstructorPath(String path) {
+    return path.startsWith('dart:_internal::MappedIterable::@constructors::') ||
+        path.startsWith(
+          'dart:_internal::EfficientLengthMappedIterable::@constructors::',
+        ) ||
+        path.startsWith('dart:_internal::MappedListIterable::@constructors::');
+  }
+
+  bool _isWhereIterableConstructorPath(String path) {
+    return path.startsWith('dart:_internal::WhereIterable::@constructors::');
+  }
+
+  bool _isExpandIterableConstructorPath(String path) {
+    return path.startsWith('dart:_internal::ExpandIterable::@constructors::');
+  }
+
+  bool _isTakeIterableConstructorPath(String path) {
+    return path.startsWith('dart:_internal::TakeIterable::@constructors::') ||
+        path.startsWith(
+          'dart:_internal::EfficientLengthTakeIterable::@constructors::',
+        );
+  }
+
+  bool _isSkipIterableConstructorPath(String path) {
+    return path.startsWith('dart:_internal::SkipIterable::@constructors::') ||
+        path.startsWith(
+          'dart:_internal::EfficientLengthSkipIterable::@constructors::',
+        );
+  }
+
+  bool _isSubListIterableConstructorPath(String path) {
+    return path.startsWith('dart:_internal::SubListIterable::@constructors::');
+  }
+
+  bool _isTakeWhileIterableConstructorPath(String path) {
+    return path.startsWith(
+      'dart:_internal::TakeWhileIterable::@constructors::',
+    );
+  }
+
+  bool _isSkipWhileIterableConstructorPath(String path) {
+    return path.startsWith(
+      'dart:_internal::SkipWhileIterable::@constructors::',
+    );
+  }
+
+  bool _isWhereTypeIterableConstructorPath(String path) {
+    return path.startsWith(
+      'dart:_internal::WhereTypeIterable::@constructors::',
+    );
+  }
+
+  bool _isNonNullsIterableConstructorPath(String path) {
+    return path.startsWith('dart:_internal::NonNullsIterable::@constructors::');
+  }
+
+  bool _isIndexedIterableConstructorPath(String path) {
+    return path.startsWith(
+          'dart:_internal::IndexedIterable::@constructors::',
+        ) ||
+        path.startsWith(
+          'dart:_internal::EfficientLengthIndexedIterable::@constructors::',
+        );
+  }
+
+  bool _isListMapViewConstructorPath(String path) {
+    return path.startsWith('dart:_internal::ListMapView::@constructors::');
+  }
+
+  bool _isListIndicesIterableConstructorPath(String path) {
+    return path.startsWith(
+      'dart:_internal::_ListIndicesIterable::@constructors::',
+    );
+  }
+
+  bool _isReversedListIterableConstructorPath(String path) {
+    return path.startsWith(
+      'dart:_internal::ReversedListIterable::@constructors::',
+    );
   }
 
   bool _isCoreExpandoConstructorReference(k.Reference reference) {
@@ -12913,6 +13328,45 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartRangeChecks')) {
+      helper.writeln(
+        'function __dartCheckValueInInterval(value, minValue, maxValue, name = null, message = null) {',
+      );
+      helper.writeln(
+        '  if (value < minValue || value > maxValue) throw __dartCoreError("RangeError", message ?? (String(name ?? "value") + " out of range"));',
+      );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartCheckValidIndex(index, indexable, name = null, length = null, message = null) {',
+      );
+      helper.writeln('  length ??= indexable.length;');
+      helper.writeln(
+        '  if (index < 0 || index >= length) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " out of range"));',
+      );
+      helper.writeln('  return index;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartCheckValidRange(start, end, length, startName = null, endName = null, message = null) {',
+      );
+      helper.writeln(
+        '  if (start < 0 || start > length) throw __dartCoreError("RangeError", message ?? (String(startName ?? "start") + " out of range"));',
+      );
+      helper.writeln('  if (end == null) return length;');
+      helper.writeln(
+        '  if (end < start || end > length) throw __dartCoreError("RangeError", message ?? (String(endName ?? "end") + " out of range"));',
+      );
+      helper.writeln('  return end;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartCheckNotNegative(value, name = null, message = null) {',
+      );
+      helper.writeln(
+        '  if (value < 0) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " must not be negative"));',
+      );
+      helper.writeln('  return value;');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartBind')) {
       helper.writeln('function __dartBind(receiver, name) {');
       helper.writeln('  if (Array.isArray(receiver) && name === "add") {');
@@ -12926,12 +13380,21 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartNoSuchMethod')) {
+    if (_usedHelpers.contains('__dartInvocation') ||
+        _usedHelpers.contains('__dartNoSuchMethod')) {
       helper.writeln(
         'function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {',
       );
+      helper.writeln(
+        '  const memberName = name != null && typeof name === "object" && "name" in name ? name : __dartSymbol(name, name);',
+      );
+      helper.writeln('  const displayName = memberName?.name ?? String(name);');
       helper.writeln('  const named = new Map();');
-      helper.writeln('  if (namedArguments != null) {');
+      helper.writeln('  if (namedArguments instanceof Map) {');
+      helper.writeln('    for (const [key, value] of namedArguments) {');
+      helper.writeln('      named.set(key, value);');
+      helper.writeln('    }');
+      helper.writeln('  } else if (namedArguments != null) {');
       helper.writeln(
         '    for (const [key, value] of Object.entries(namedArguments)) {',
       );
@@ -12939,7 +13402,7 @@ final class _EsmEmitter {
       helper.writeln('    }');
       helper.writeln('  }');
       helper.writeln('  return Object.freeze({');
-      helper.writeln('    memberName: __dartSymbol(name, name),');
+      helper.writeln('    memberName,');
       helper.writeln(
         '    positionalArguments: Array.from(positionalArguments),',
       );
@@ -12949,10 +13412,12 @@ final class _EsmEmitter {
       helper.writeln('    get isSetter() { return kind === "setter"; },');
       helper.writeln('    get isAccessor() { return kind !== "method"; },');
       helper.writeln(
-        '    toString() { return "Invocation(" + kind + " " + name + ")"; },',
+        '    toString() { return "Invocation(" + kind + " " + displayName + ")"; },',
       );
       helper.writeln('  });');
       helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartNoSuchMethod')) {
       helper.writeln(
         'function __dartNoSuchMethod(receiver, kind, name, positionalArguments = [], namedArguments = null) {',
       );
@@ -13163,6 +13628,7 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     final emitsDartCompare =
+        _usedHelpers.contains('__dartCompare') ||
         _usedHelpers.contains('__dartSplayTreeSet') ||
         _usedHelpers.contains('__dartSplayTreeMap') ||
         _usedHelpers.contains('__dartSetAdd') ||
@@ -13581,6 +14047,18 @@ final class _EsmEmitter {
         '    list.sort((left, right) => left < right ? -1 : (left > right ? 1 : 0));',
       );
       helper.writeln('  }');
+      helper.writeln('  return null;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartListSortRange')) {
+      helper.writeln('function __dartListSortRange(list, from, to, compare) {');
+      helper.writeln(
+        '  if (from < 0 || to > list.length || to < from) throw __dartCoreError("RangeError", "Out of range");',
+      );
+      helper.writeln(
+        '  const sorted = list.slice(from, to).sort((left, right) => compare(left, right));',
+      );
+      helper.writeln('  list.splice(from, to - from, ...sorted);');
       helper.writeln('  return null;');
       helper.writeln('}');
     }
@@ -16145,6 +16623,7 @@ const _generatedGlobalNames = {
   '__dartRandom',
   '__dartRecord',
   '__dartRecordShape',
+  '__dartRangeChecks',
   '__dartRegExp',
   '__dartRegExpEscape',
   '__dartRegExpMatch',
@@ -16306,5 +16785,7 @@ const _coreErrorTypeNames = {
   'UnsupportedError',
   'UnimplementedError',
   'Error',
+  'NoSuchMethodError',
+  'ConcurrentModificationError',
   'TypeError',
 };

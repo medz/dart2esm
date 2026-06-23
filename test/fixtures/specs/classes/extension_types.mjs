@@ -95,6 +95,9 @@ export class UserId {
   constructor(value) {
     this.value = UserId_constructor_(value);
   }
+  static zero() {
+    return new UserId(__dartExtensionTypeRep(UserId_constructor_zero(), "value"));
+  }
 }
 
 function UserId_parse(text) {
@@ -130,6 +133,14 @@ function UserId_constructor___new_tearOff(value) {
   return UserId_constructor_(value);
 }
 
+function UserId_constructor_zero() {
+  return UserId_constructor_(0);
+}
+
+function UserId_constructor___zero_tearOff() {
+  return UserId_constructor_zero();
+}
+
 export function hide(value) {
   return value;
 }
@@ -138,11 +149,12 @@ export function main() {
   const id = UserId_constructor_(5);
   const maybeId = hide(id);
   __dartPrint(__dartStr(__dartAs(__dartExtensionTypeRep(id, "value"), value => typeof value === "number", "int")) + " " + __dartStr(UserId_plus(id, 2)) + " " + __dartStr(typeof __dartExtensionTypeRep(maybeId, "value") === "number"));
-  __dartPrint(__dartStr(__dartAs(__dartExtensionTypeRep(UserId_parse("9"), "value"), value => typeof value === "number", "int")) + " " + __dartStr(UserId_zeroValue()) + " " + __dartStr(__dartAs(__dartExtensionTypeRep(UserId__(id, 3), "value"), value => typeof value === "number", "int")));
+  __dartPrint(__dartStr(__dartAs(__dartExtensionTypeRep(UserId_parse("9"), "value"), value => typeof value === "number", "int")) + " " + __dartStr(UserId_zeroValue()) + " " + __dartStr(__dartAs(__dartExtensionTypeRep(UserId__(id, 3), "value"), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs(__dartExtensionTypeRep(UserId_constructor_zero(), "value"), value => typeof value === "number", "int")));
   const make = $UserId__tearoff;
   const parse = UserId_parse;
+  const zero = UserId_constructor___zero_tearOff;
   const plus = UserId_get_plus(id);
-  __dartPrint(__dartStr(UserId_get_doubled(id)) + " " + __dartStr(__dartAs((make)(4), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((parse)("10"), value => typeof value === "number", "int")) + " " + __dartStr((plus)(6)));
+  __dartPrint(__dartStr(UserId_get_doubled(id)) + " " + __dartStr(__dartAs((make)(4), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((parse)("10"), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((zero)(), value => typeof value === "number", "int")) + " " + __dartStr((plus)(6)));
 }
 
 

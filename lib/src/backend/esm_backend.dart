@@ -520,8 +520,9 @@ final class _EsmEmitter {
             _emitExtensionTypeGetter(declaration, descriptor);
           }
         case k.ExtensionTypeMemberKind.Factory ||
-            k.ExtensionTypeMemberKind.RedirectingFactory ||
-            k.ExtensionTypeMemberKind.Field ||
+            k.ExtensionTypeMemberKind.RedirectingFactory:
+          _emitExtensionTypeStaticFactory(declaration, descriptor);
+        case k.ExtensionTypeMemberKind.Field ||
             k.ExtensionTypeMemberKind.Setter:
           throw UnsupportedKernelNode(
             declaration,
@@ -592,6 +593,27 @@ final class _EsmEmitter {
         member.function,
       );
       writeln('${_propertyKey(descriptor.name.text)}($parameters) {');
+      _indent++;
+      writeln(
+        'return ${_emitExtensionTypeFacadeReturn('${_procedureName(member)}($args)', member.function.returnType)};',
+      );
+      _indent--;
+      writeln('}');
+    });
+  }
+
+  void _emitExtensionTypeStaticFactory(
+    k.ExtensionTypeDeclaration declaration,
+    k.ExtensionTypeMemberDescriptor descriptor,
+  ) {
+    final member = descriptor.memberReference?.asMember;
+    if (member is! k.Procedure || !descriptor.isStatic) {
+      throw UnsupportedKernelNode(declaration, 'extension type factory');
+    }
+    _withFunctionNameScope(() {
+      final parameters = _emitParameterList(member.function);
+      final args = _emitParameterForwardingArguments(member.function);
+      writeln('static ${_propertyKey(descriptor.name.text)}($parameters) {');
       _indent++;
       writeln(
         'return ${_emitExtensionTypeFacadeReturn('${_procedureName(member)}($args)', member.function.returnType)};',
@@ -3100,9 +3122,9 @@ final class _EsmEmitter {
           node,
         );
       case k.ExtensionTypeMemberKind.Factory ||
-          k.ExtensionTypeMemberKind.RedirectingFactory ||
-          k.ExtensionTypeMemberKind.Field ||
-          k.ExtensionTypeMemberKind.Setter:
+          k.ExtensionTypeMemberKind.RedirectingFactory:
+        return '${_procedureName(target)}(${_emitArguments(arguments)})';
+      case k.ExtensionTypeMemberKind.Field || k.ExtensionTypeMemberKind.Setter:
         throw UnsupportedKernelNode(
           node,
           'extension type invocation ${descriptor.kind}',

@@ -1,3 +1,7 @@
+const __dartRecordShape = Symbol("dart.recordShape");
+function __dartIsRecord(value) {
+  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
+}
 function __dartStr(value) {
   if (value == null) return "null";
   if (Array.isArray(value)) {
@@ -47,6 +51,12 @@ function __dartDuration(options = {}) {
     abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },
     toString() { return __dartDurationToString(micros); },
   };
+}
+function __dartNullCheck(value) {
+  if (value == null) {
+    throw new TypeError("Null check operator used on a null value");
+  }
+  return value;
 }
 function __dartAs(value, test, typeName) {
   if (test(value)) return value;
@@ -181,6 +191,50 @@ function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
       );
     });
   });
+}
+function __dartAsyncError(error) {
+  return Object.freeze({
+    error,
+    stackTrace: error?.stack ?? "<javascript stack unavailable>",
+    toString() { return "AsyncError: " + String(error); },
+  });
+}
+function __dartParallelWaitError(values, errors, errorCount, defaultError) {
+  const suffix = errorCount > 1 ? "(" + errorCount + " errors)" : "";
+  const message = defaultError == null ? "ParallelWaitError" + suffix : "ParallelWaitError" + suffix + ": " + String(defaultError.error);
+  const error = new Error(message);
+  error.__dartType = "ParallelWaitError";
+  error.values = values;
+  error.errors = errors;
+  error.errorCount = errorCount;
+  error.defaultError = defaultError;
+  error.stackTrace = defaultError?.stackTrace ?? error.stack ?? null;
+  error.toString = function() { return message; };
+  return error;
+}
+async function __dartFutureWaitAllSettled(futures) {
+  const entries = Array.from(futures);
+  return Promise.all(entries.map((future) => Promise.resolve(future).then(
+    (value) => ({ value, asyncError: null }),
+    (error) => ({ value: null, asyncError: __dartAsyncError(error) }),
+  )));
+}
+async function __dartFutureIterableWait(futures) {
+  const results = await __dartFutureWaitAllSettled(futures);
+  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);
+  if (errorCount === 0) return results.map((result) => result.value);
+  const values = results.map((result) => result.value);
+  const errors = results.map((result) => result.asyncError);
+  throw __dartParallelWaitError(values, errors, errorCount, errors.find((error) => error != null));
+}
+async function __dartFutureRecordWait(record) {
+  const shape = Array.isArray(record?.[__dartRecordShape]) ? record[__dartRecordShape].filter((name) => /^\$\d+$/.test(name)) : Object.keys(record).filter((name) => /^\$\d+$/.test(name)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  const results = await __dartFutureWaitAllSettled(shape.map((name) => record[name]));
+  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);
+  if (errorCount === 0) return __dartRecord(results.map((result) => result.value), {});
+  const values = __dartRecord(results.map((result) => result.value), {});
+  const errors = __dartRecord(results.map((result) => result.asyncError), {});
+  throw __dartParallelWaitError(values, errors, errorCount, results.map((result) => result.asyncError).find((error) => error != null));
 }
 function __dartFutureTimeout(future, duration, onTimeout = null) {
   const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
@@ -945,8 +999,42 @@ function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
   if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
+  if (__dartIsRecord(left) && __dartIsRecord(right)) {
+    const leftShape = left[__dartRecordShape];
+    const rightShape = right[__dartRecordShape];
+    if (leftShape.length !== rightShape.length) return false;
+    for (let i = 0; i < leftShape.length; i++) {
+      const name = leftShape[i];
+      if (name !== rightShape[i]) return false;
+      if (!__dartEquals(left[name], right[name])) return false;
+    }
+    return true;
+  }
   const equals = left["=="];
   return typeof equals === "function" ? equals.call(left, right) : false;
+}
+function __dartRecord(positional, named) {
+  const record = {};
+  const shape = [];
+  for (let i = 0; i < positional.length; i++) {
+    const name = "$" + (i + 1);
+    shape.push(name);
+    Object.defineProperty(record, name, { value: positional[i], enumerable: true });
+  }
+  for (const name of Object.keys(named).sort()) {
+    shape.push(name);
+    Object.defineProperty(record, name, { value: named[name], enumerable: true });
+  }
+  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });
+  Object.defineProperty(record, "toString", {
+    value() {
+      return "(" + shape.map((name) => {
+        const value = String(record[name]);
+        return name.startsWith("$") ? value : name + ": " + value;
+      }).join(", ") + ")";
+    },
+  });
+  return Object.freeze(record);
 }
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
@@ -1004,6 +1092,37 @@ export async function main() {
       throw $error_1;
     }
   }
+  const iterableWait = await __dartFutureIterableWait([Promise.resolve(21), Promise.resolve(22)]);
+  const recordWait = await __dartFutureRecordWait(__dartRecord([Promise.resolve("r"), Promise.resolve(23)], {}));
+  __dartPrint("extensionWait " + __dartStr(__dartIterableJoin(iterableWait, ",")) + " " + __dartStr(recordWait.$1) + __dartStr(recordWait.$2));
+  try {
+    {
+      await __dartFutureIterableWait([Promise.resolve(24), Promise.reject("parallel-list")]);
+    }
+  } catch ($error_2) {
+    if ($error_2 != null && typeof $error_2 === "object" && $error_2.__dartType === "ParallelWaitError") {
+      const error_2 = $error_2;
+      {
+        __dartPrint("extensionWaitError " + __dartStr(__dartIterableJoin(error_2.values, ",")) + " " + __dartStr(__dartNullCheck(error_2.errors[1]).error) + " " + __dartStr(__dartStr(error_2).includes("parallel-list")));
+      }
+    } else {
+      throw $error_2;
+    }
+  }
+  try {
+    {
+      await __dartFutureRecordWait(__dartRecord([Promise.resolve("ok"), Promise.reject("parallel-record")], {}));
+    }
+  } catch ($error_3) {
+    if ($error_3 != null && typeof $error_3 === "object" && $error_3.__dartType === "ParallelWaitError") {
+      const error_3 = $error_3;
+      {
+        __dartPrint("recordWaitError " + __dartStr(error_3.values.$1) + " " + __dartStr((error_3.values.$2 === null)) + " " + __dartStr(__dartNullCheck(error_3.errors.$2).error) + " " + __dartStr(__dartStr(error_3).includes("parallel-record")));
+      }
+    } else {
+      throw $error_3;
+    }
+  }
   const microtask = await Promise.resolve().then(() => (function() { return 4; })());
   const any = await Promise.race(Array.from([new Promise((resolve, reject) => setTimeout(() => { try { resolve((function() { return 99; })()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"5000\"]]]", () => __dartDuration({ microseconds: 5000 })).inMilliseconds))), Promise.resolve(5)]));
   __dartPrint("more " + __dartStr(microtask) + " " + __dartStr(any));
@@ -1032,14 +1151,14 @@ export async function main() {
     {
       await failed.future;
     }
-  } catch ($error_2) {
-    if ($error_2 != null) {
-      const error_2 = $error_2;
+  } catch ($error_4) {
+    if ($error_4 != null) {
+      const error_4 = $error_4;
       {
-        __dartPrint("completeError " + __dartStr(error_2));
+        __dartPrint("completeError " + __dartStr(error_4));
       }
     } else {
-      throw $error_2;
+      throw $error_4;
     }
   }
   const timerDone = __dartCompleter();
@@ -1104,15 +1223,15 @@ export async function main() {
     {
       await __dartStreamFirst(__dartStreamError("stream-boom"));
     }
-  } catch ($error_3) {
-    if ($error_3 != null) {
-      const error_3 = $error_3;
+  } catch ($error_5) {
+    if ($error_5 != null) {
+      const error_5 = $error_5;
       {
         const periodicValues = await __dartStreamToList(__dartStreamTake(__dartStreamPeriodic(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"1000\"]]]", () => __dartDuration({ microseconds: 1000 })), function(tick) { return (tick + 1); }), 3));
-        __dartPrint("streamFactories " + __dartStr(streamValue) + " " + __dartStr(error_3) + " " + __dartStr(__dartIterableJoin(periodicValues, ",")));
+        __dartPrint("streamFactories " + __dartStr(streamValue) + " " + __dartStr(error_5) + " " + __dartStr(__dartIterableJoin(periodicValues, ",")));
       }
     } else {
-      throw $error_3;
+      throw $error_5;
     }
   }
   const controller = __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null });
@@ -1131,14 +1250,14 @@ export async function main() {
     {
       await Promise.reject("boom");
     }
-  } catch ($error_4) {
-    if ($error_4 != null) {
-      const error_4 = $error_4;
+  } catch ($error_6) {
+    if ($error_6 != null) {
+      const error_6 = $error_6;
       {
-        __dartPrint("caught " + __dartStr(error_4));
+        __dartPrint("caught " + __dartStr(error_6));
       }
     } else {
-      throw $error_4;
+      throw $error_6;
     }
   }
 }

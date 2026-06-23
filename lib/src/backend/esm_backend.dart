@@ -5362,6 +5362,8 @@ final class _EsmEmitter {
         'Iterator' => '$operand != null && typeof $operand.next === "function"',
         'Function' => 'typeof $operand === "function"',
         'Record' => _emitRecordObjectTest(operand),
+        'ParallelWaitError' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "ParallelWaitError"',
         'Exception' ||
         'FormatException' ||
         'ArgumentError' ||
@@ -5607,6 +5609,18 @@ final class _EsmEmitter {
           _namedArgument(expression.arguments, 'eagerError') ?? 'false';
       final cleanUp = _namedArgument(expression.arguments, 'cleanUp') ?? 'null';
       return '__dartFutureWait(${positionalArgs.single}, $eagerError, $cleanUp)';
+    }
+    if (path == 'dart:async::@methods::FutureIterable|get#wait' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartFutureIterableWait');
+      return '__dartFutureIterableWait(${positionalArgs.single})';
+    }
+    if (path.startsWith('dart:async::@methods::FutureRecord') &&
+        path.endsWith('|get#wait') &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartFutureRecordWait');
+      _usedHelpers.add('__dartRecord');
+      return '__dartFutureRecordWait(${positionalArgs.single})';
     }
     if (path == 'dart:async::Future::@methods::any' &&
         positionalArgs.length == 1) {
@@ -10991,6 +11005,97 @@ final class _EsmEmitter {
       helper.writeln('  });');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartFutureIterableWait') ||
+        _usedHelpers.contains('__dartFutureRecordWait')) {
+      helper.writeln('function __dartAsyncError(error) {');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln('    error,');
+      helper.writeln(
+        '    stackTrace: error?.stack ?? "<javascript stack unavailable>",',
+      );
+      helper.writeln(
+        '    toString() { return "AsyncError: " + String(error); },',
+      );
+      helper.writeln('  });');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartParallelWaitError(values, errors, errorCount, defaultError) {',
+      );
+      helper.writeln('  const suffix = errorCount > 1 ? "(" + errorCount + " errors)" : "";');
+      helper.writeln(
+        '  const message = defaultError == null ? "ParallelWaitError" + suffix : "ParallelWaitError" + suffix + ": " + String(defaultError.error);',
+      );
+      helper.writeln('  const error = new Error(message);');
+      helper.writeln('  error.__dartType = "ParallelWaitError";');
+      helper.writeln('  error.values = values;');
+      helper.writeln('  error.errors = errors;');
+      helper.writeln('  error.errorCount = errorCount;');
+      helper.writeln('  error.defaultError = defaultError;');
+      helper.writeln(
+        '  error.stackTrace = defaultError?.stackTrace ?? error.stack ?? null;',
+      );
+      helper.writeln('  error.toString = function() { return message; };');
+      helper.writeln('  return error;');
+      helper.writeln('}');
+      helper.writeln('async function __dartFutureWaitAllSettled(futures) {');
+      helper.writeln('  const entries = Array.from(futures);');
+      helper.writeln(
+        '  return Promise.all(entries.map((future) => Promise.resolve(future).then(',
+      );
+      helper.writeln(
+        '    (value) => ({ value, asyncError: null }),',
+      );
+      helper.writeln(
+        '    (error) => ({ value: null, asyncError: __dartAsyncError(error) }),',
+      );
+      helper.writeln('  )));');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartFutureIterableWait')) {
+      helper.writeln('async function __dartFutureIterableWait(futures) {');
+      helper.writeln(
+        '  const results = await __dartFutureWaitAllSettled(futures);',
+      );
+      helper.writeln(
+        '  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);',
+      );
+      helper.writeln(
+        '  if (errorCount === 0) return results.map((result) => result.value);',
+      );
+      helper.writeln('  const values = results.map((result) => result.value);');
+      helper.writeln(
+        '  const errors = results.map((result) => result.asyncError);',
+      );
+      helper.writeln(
+        '  throw __dartParallelWaitError(values, errors, errorCount, errors.find((error) => error != null));',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartFutureRecordWait')) {
+      helper.writeln('async function __dartFutureRecordWait(record) {');
+      helper.writeln(
+        r'  const shape = Array.isArray(record?.[__dartRecordShape]) ? record[__dartRecordShape].filter((name) => /^\$\d+$/.test(name)) : Object.keys(record).filter((name) => /^\$\d+$/.test(name)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));',
+      );
+      helper.writeln(
+        '  const results = await __dartFutureWaitAllSettled(shape.map((name) => record[name]));',
+      );
+      helper.writeln(
+        '  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);',
+      );
+      helper.writeln(
+        '  if (errorCount === 0) return __dartRecord(results.map((result) => result.value), {});',
+      );
+      helper.writeln(
+        '  const values = __dartRecord(results.map((result) => result.value), {});',
+      );
+      helper.writeln(
+        '  const errors = __dartRecord(results.map((result) => result.asyncError), {});',
+      );
+      helper.writeln(
+        '  throw __dartParallelWaitError(values, errors, errorCount, results.map((result) => result.asyncError).find((error) => error != null));',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartFutureTimeout')) {
       helper.writeln(
         'function __dartFutureTimeout(future, duration, onTimeout = null) {',
@@ -12399,6 +12504,7 @@ const _reservedNames = {
 
 const _generatedGlobalNames = {
   '__dartAs',
+  '__dartAsyncError',
   '__dartAsciiCodec',
   '__dartAsciiDecode',
   '__dartAsciiDecoder',
@@ -12448,7 +12554,10 @@ const _generatedGlobalNames = {
   '__dartFutureAsStream',
   '__dartFutureDoWhile',
   '__dartFutureForEach',
+  '__dartFutureIterableWait',
+  '__dartFutureRecordWait',
   '__dartFutureTimeout',
+  '__dartFutureWaitAllSettled',
   '__dartFutureWait',
   '__dartGet',
   '__dartIntGcd',
@@ -12544,6 +12653,7 @@ const _generatedGlobalNames = {
   '__dartObjectHashUnordered',
   '__dartObjectToString',
   '__dartPatternRegExp',
+  '__dartParallelWaitError',
   '__dartPoint',
   '__dartPrint',
   '__dartRandom',

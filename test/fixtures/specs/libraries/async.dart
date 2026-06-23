@@ -50,6 +50,30 @@ Future<void> main() async {
     print('waitEager $error ${eagerCleaned.join(',')}');
   }
 
+  final iterableWait = await [Future.value(21), Future.value(22)].wait;
+  final recordWait = await (Future.value('r'), Future.value(23)).wait;
+  print(
+    'extensionWait ${iterableWait.join(',')} ${recordWait.$1}${recordWait.$2}',
+  );
+  try {
+    await [Future.value(24), Future<int>.error('parallel-list')].wait;
+  } on ParallelWaitError<List<int?>, List<AsyncError?>> catch (error) {
+    print(
+      'extensionWaitError ${error.values.join(',')} '
+      '${error.errors[1]!.error} ${error.toString().contains('parallel-list')}',
+    );
+  }
+  try {
+    await (Future.value('ok'), Future<int>.error('parallel-record')).wait;
+  } on ParallelWaitError<(String?, int?), (AsyncError?, AsyncError?)> catch (
+    error
+  ) {
+    print(
+      'recordWaitError ${error.values.$1} ${error.values.$2 == null} '
+      '${error.errors.$2!.error} ${error.toString().contains('parallel-record')}',
+    );
+  }
+
   final microtask = await Future<int>.microtask(() => 4);
   final any = await Future.any<int>([
     Future<int>.delayed(const Duration(milliseconds: 5), () => 99),

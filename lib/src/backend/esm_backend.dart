@@ -3739,6 +3739,25 @@ final class _EsmEmitter {
     if (path == 'dart:indexed_db::IdbFactory::@getters::supported') {
       return '(!!(globalThis.window?.indexedDB || globalThis.window?.webkitIndexedDB || globalThis.window?.mozIndexedDB || globalThis.indexedDB))';
     }
+    if (path.startsWith('dart:js_interop::JSSymbol::@getters::')) {
+      final name = path.split('::').last;
+      return switch (name) {
+        'asyncIterator' => 'Symbol.asyncIterator',
+        'hasInstance' => 'Symbol.hasInstance',
+        'isConcatSpreadable' => 'Symbol.isConcatSpreadable',
+        'iterator' => 'Symbol.iterator',
+        'match' => 'Symbol.match',
+        'matchAll' => 'Symbol.matchAll',
+        'replace' => 'Symbol.replace',
+        'search' => 'Symbol.search',
+        'species' => 'Symbol.species',
+        'split' => 'Symbol.split',
+        'toPrimitive' => 'Symbol.toPrimitive',
+        'toStringTag' => 'Symbol.toStringTag',
+        'unscopables' => 'Symbol.unscopables',
+        _ => null,
+      };
+    }
     return null;
   }
 
@@ -5422,11 +5441,19 @@ final class _EsmEmitter {
 
   String _emitInstanceGet(k.InstanceGet expression) {
     final name = expression.name.text;
+    final receiver = emitExpression(expression.receiver);
+    final jsInteropGet = _emitModernJsInteropInstanceGet(
+      expression.interfaceTargetReference,
+      name,
+      receiver,
+    );
+    if (jsInteropGet != null) {
+      return jsInteropGet;
+    }
     if (name == 'iterator') {
       _usedHelpers.add('__dartIterator');
-      return '__dartIterator(${emitExpression(expression.receiver)})';
+      return '__dartIterator($receiver)';
     }
-    final receiver = emitExpression(expression.receiver);
     if (name == 'first' &&
         _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
       _usedHelpers.add('__dartStream');
@@ -5681,6 +5708,36 @@ final class _EsmEmitter {
       return 'Array.from($receiver, ([key, value]) => ({ key, value }))';
     }
     return _emitPropertyGet(receiver, _memberName(name));
+  }
+
+  String? _emitModernJsInteropInstanceGet(
+    k.Reference target,
+    String name,
+    String receiver,
+  ) {
+    final path = _referencePath(target);
+    if (path.startsWith('dart:js_interop::JSSymbol::@getters::')) {
+      return switch (name) {
+        'description' => '($receiver.description ?? null)',
+        'key' => '(Symbol.keyFor($receiver) ?? null)',
+        _ => null,
+      };
+    }
+    if ((path.startsWith('dart:js_interop::JSIterableProtocol::@getters::') ||
+            path.startsWith('dart:js_interop::JSIterable::@getters::')) &&
+        name == 'iterator') {
+      return '$receiver[Symbol.iterator]()';
+    }
+    if (path.startsWith('dart:js_interop::JSIteratorResult::@getters::')) {
+      return switch (name) {
+        'isDone' => '($receiver.done === true)',
+        'value' => '($receiver.value ?? null)',
+        '_done' => '($receiver.done ?? null)',
+        '_value' => '($receiver.value ?? null)',
+        _ => null,
+      };
+    }
+    return null;
   }
 
   String? _emitNumberInstanceGet(
@@ -6288,6 +6345,14 @@ final class _EsmEmitter {
         'JSBoolean' => 'typeof $operand === "boolean"',
         'JSBigInt' => 'typeof $operand === "bigint"',
         'JSSymbol' => 'typeof $operand === "symbol"',
+        'JavaScriptString' => 'typeof $operand === "string"',
+        'JavaScriptNumber' => 'typeof $operand === "number"',
+        'JavaScriptBoolean' => 'typeof $operand === "boolean"',
+        'JavaScriptBigInt' => 'typeof $operand === "bigint"',
+        'JavaScriptSymbol' => 'typeof $operand === "symbol"',
+        'JavaScriptObject' =>
+          '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
+        'JavaScriptFunction' => 'typeof $operand === "function"',
         'JsObject' =>
           '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
         'JsFunction' => 'typeof $operand === "function"',
@@ -6695,8 +6760,29 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return 'new Array(${positionalArgs.single})';
     }
+    if (member == 'JSSymbol|constructor#' && positionalArgs.length <= 1) {
+      final description = positionalArgs.isEmpty ? '' : positionalArgs.single;
+      return 'Symbol($description)';
+    }
     if (member == 'JSPromise|constructor#' && positionalArgs.length == 1) {
       return 'new Promise(${positionalArgs.single})';
+    }
+    if (member == 'JSSymbol|forKey' && positionalArgs.length == 1) {
+      return 'Symbol.for(${positionalArgs.single})';
+    }
+    if (member == 'JSSymbol|get#_keyFor' && positionalArgs.length == 1) {
+      return '(Symbol.keyFor(${positionalArgs.single}) ?? null)';
+    }
+    if (member == 'JSIteratorResult|constructor#value' &&
+        positionalArgs.length == 1) {
+      return '({ value: ${positionalArgs.single}, done: false })';
+    }
+    if (member == 'JSIteratorResult|constructor#done' &&
+        positionalArgs.length <= 1) {
+      final value = positionalArgs.isEmpty
+          ? ''
+          : ' value: ${positionalArgs.single},';
+      return '({$value done: true })';
     }
     if (member == 'importModule' && positionalArgs.length == 1) {
       return 'import(${positionalArgs.single})';
@@ -6705,6 +6791,64 @@ final class _EsmEmitter {
       return null;
     }
     final receiver = positionalArgs.first;
+    if (member == 'IterableToJSIterable|get#toJSIterable' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIterator');
+      _usedHelpers.add('__dartJsIterableFromDartIterable');
+      return '__dartJsIterableFromDartIterable($receiver)';
+    }
+    if (member == 'JSIterableToIterable|get#toDartIterable' &&
+        positionalArgs.length == 1) {
+      return 'Array.from($receiver)';
+    }
+    if (member == 'IteratorToJSIterator|get#toJSIterator' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartJsIteratorFromDartIterator');
+      return '__dartJsIteratorFromDartIterator($receiver)';
+    }
+    if (member == 'JSIteratorToIterator|get#toDartIterator' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartJsIteratorToDartIterator');
+      return '__dartJsIteratorToDartIterator($receiver)';
+    }
+    if ((member == 'JSIterableProtocol|get#iterator' ||
+            member == 'JSIterable|get#iterator') &&
+        positionalArgs.length == 1) {
+      return '$receiver[Symbol.iterator]()';
+    }
+    if ((member == 'JSIteratorProtocol|next' ||
+            member == 'JSIteratorProtocol|_returnValue' ||
+            member == 'JSIteratorProtocol|_throwError' ||
+            member == 'JSIterator|drop' ||
+            member == 'JSIterator|take') &&
+        positionalArgs.isNotEmpty) {
+      final method = switch (member) {
+        'JSIteratorProtocol|_returnValue' => 'return',
+        'JSIteratorProtocol|_throwError' => 'throw',
+        'JSIterator|drop' => 'drop',
+        'JSIterator|take' => 'take',
+        _ => 'next',
+      };
+      return '$receiver[${jsonEncode(method)}](${positionalArgs.skip(1).join(', ')})';
+    }
+    if ((member == 'JSIteratorResult|get#isDone' ||
+            member == 'JSIteratorResult|get#_done') &&
+        positionalArgs.length == 1) {
+      return member.endsWith('isDone')
+          ? '($receiver.done === true)'
+          : '($receiver.done ?? null)';
+    }
+    if ((member == 'JSIteratorResult|get#value' ||
+            member == 'JSIteratorResult|get#_value') &&
+        positionalArgs.length == 1) {
+      return '($receiver.value ?? null)';
+    }
+    if (member == 'JSSymbol|get#description' && positionalArgs.length == 1) {
+      return '($receiver.description ?? null)';
+    }
+    if (member == 'JSSymbol|get#key' && positionalArgs.length == 1) {
+      return '(Symbol.keyFor($receiver) ?? null)';
+    }
     if ((member == 'JSPromiseToFuture|get#toDart' ||
             member == 'FutureOfJSAnyToJSPromise|get#toJS' ||
             member == 'FutureOfVoidToJSPromise|get#toJS') &&
@@ -11938,6 +12082,44 @@ final class _EsmEmitter {
       helper.writeln(
         '  return new constructor(...__dartJsTrimOptionalArgs(args));',
       );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsIteratorFromDartIterator') ||
+        _usedHelpers.contains('__dartJsIterableFromDartIterable')) {
+      helper.writeln('function __dartJsIteratorFromDartIterator(iterator) {');
+      helper.writeln('  return {');
+      helper.writeln('    next() {');
+      helper.writeln(
+        '      return iterator.moveNext() ? { value: iterator.current, done: false } : { done: true };',
+      );
+      helper.writeln('    },');
+      helper.writeln('    [Symbol.iterator]() { return this; },');
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsIterableFromDartIterable')) {
+      helper.writeln('function __dartJsIterableFromDartIterable(iterable) {');
+      helper.writeln('  return {');
+      helper.writeln(
+        '    [Symbol.iterator]() { return __dartJsIteratorFromDartIterator(__dartIterator(iterable)); },',
+      );
+      helper.writeln('  };');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsIteratorToDartIterator')) {
+      helper.writeln('function __dartJsIteratorToDartIterator(iterator) {');
+      helper.writeln('  return {');
+      helper.writeln('    current: undefined,');
+      helper.writeln('    moveNext() {');
+      helper.writeln('      const next = iterator.next();');
+      helper.writeln('      if (next.done === true) {');
+      helper.writeln('        this.current = undefined;');
+      helper.writeln('        return false;');
+      helper.writeln('      }');
+      helper.writeln('      this.current = next.value;');
+      helper.writeln('      return true;');
+      helper.writeln('    },');
+      helper.writeln('  };');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartJsify')) {

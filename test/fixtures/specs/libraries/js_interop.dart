@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, sdk_version_since, unnecessary_type_check
 
 import 'dart:async';
 import 'dart:js_interop';
@@ -108,5 +108,29 @@ Future<void> main() async {
     'jsPromise ${viaJsUtil.toDartInt} ${viaToDart.toDartInt} '
     '${viaFutureToJs.toDartInt} ${moduleAnswer.toDartInt} '
     '${(await constructedPromise).toDartInt}',
+  );
+
+  final uniqueSymbol = JSSymbol('unique');
+  final sharedSymbol = JSSymbol.forKey('dart2esm.shared');
+  final jsIterable = <JSNumber>[1.toJS, 2.toJS].toJSIterable;
+  final jsIterator = jsIterable.iterator;
+  final firstResult = jsIterator.next();
+  final secondResult = jsIterator.next();
+  final doneResult = jsIterator.next();
+  final dartValues = jsIterable.toDartIterable
+      .map((value) => value.toDartInt)
+      .join(',');
+  final dartIterator = <JSNumber>[3.toJS, 4.toJS].iterator.toJSIterator;
+  final dartIteratorFirst = dartIterator.next().value!.toDartInt;
+  final jsToDartIterator = <JSNumber>[5.toJS].toJS.iterator.toDartIterator;
+  final moved = jsToDartIterator.moveNext();
+  final manualValue = JSIteratorResult<JSNumber>.value(21.toJS);
+  final manualDone = JSIteratorResult<JSNumber>.done();
+  print(
+    'jsIterator ${uniqueSymbol.description} ${sharedSymbol.key} '
+    '${JSSymbol.iterator is JSSymbol} ${firstResult.value!.toDartInt} '
+    '${secondResult.value!.toDartInt} ${doneResult.isDone} $dartValues '
+    '$dartIteratorFirst $moved ${jsToDartIterator.current.toDartInt} '
+    '${manualValue.value!.toDartInt} ${manualDone.isDone}',
   );
 }

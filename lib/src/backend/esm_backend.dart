@@ -3247,6 +3247,13 @@ final class _EsmEmitter {
     if (htmlInvocation != null) {
       return htmlInvocation;
     }
+    final webAudioInvocation = _emitWebAudioStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (webAudioInvocation != null) {
+      return webAudioInvocation;
+    }
     final jsInteropInvocation = _emitJsInteropStaticInvocation(
       expression,
       positionalArgs,
@@ -3719,6 +3726,9 @@ final class _EsmEmitter {
     if (path == 'dart:web_gl::RenderingContext::@getters::supported') {
       return '(!!globalThis.window?.WebGLRenderingContext)';
     }
+    if (path == 'dart:web_audio::AudioContext::@getters::supported') {
+      return '(!!(globalThis.window?.AudioContext || globalThis.window?.webkitAudioContext || globalThis.AudioContext || globalThis.webkitAudioContext))';
+    }
     return null;
   }
 
@@ -3861,6 +3871,16 @@ final class _EsmEmitter {
     );
     if (concurrentInvocation != null) {
       return concurrentInvocation;
+    }
+    final webAudioInvocation = _emitWebAudioInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments,
+    );
+    if (webAudioInvocation != null) {
+      return webAudioInvocation;
     }
     final htmlInvocation = _emitHtmlInstanceInvocation(
       target,
@@ -5855,6 +5875,52 @@ final class _EsmEmitter {
       final width = _namedArgument(expression.arguments, 'width') ?? 'null';
       final height = _namedArgument(expression.arguments, 'height') ?? 'null';
       return '__dartCanvasElement($width, $height)';
+    }
+    return null;
+  }
+
+  String? _emitWebAudioStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:web_audio::AudioContext::@factories::' &&
+        positionalArgs.isEmpty &&
+        expression.arguments.named.isEmpty) {
+      return 'new (globalThis.window?.AudioContext ?? globalThis.window?.webkitAudioContext ?? globalThis.AudioContext ?? globalThis.webkitAudioContext)()';
+    }
+    return null;
+  }
+
+  String? _emitWebAudioInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (_isWebAudioClassMember(target, 'AudioNode', name) &&
+        arguments.named.isEmpty) {
+      if (name == 'connectNode' &&
+          positionalArgs.isNotEmpty &&
+          positionalArgs.length <= 3) {
+        final output = positionalArgs.length >= 2 ? positionalArgs[1] : '0';
+        final input = positionalArgs.length >= 3 ? positionalArgs[2] : '0';
+        return '($receiver.connect(${positionalArgs[0]}, $output, $input), null)';
+      }
+      if (name == 'connectParam' &&
+          positionalArgs.isNotEmpty &&
+          positionalArgs.length <= 2) {
+        final output = positionalArgs.length == 2 ? positionalArgs[1] : '0';
+        return '($receiver.connect(${positionalArgs[0]}, $output), null)';
+      }
+    }
+    if (_isWebAudioClassMember(target, 'AudioScheduledSourceNode', name) &&
+        name == 'start2' &&
+        arguments.named.isEmpty &&
+        positionalArgs.length <= 1) {
+      final args = positionalArgs.isEmpty ? '' : positionalArgs.single;
+      return '($receiver.start($args), null)';
     }
     return null;
   }
@@ -8557,6 +8623,16 @@ final class _EsmEmitter {
   bool _isFfiClassMember(k.Reference reference, String className, String name) {
     final path = _referencePath(reference);
     return path.startsWith('dart:ffi::$className::') &&
+        _pathHasMember(path, name);
+  }
+
+  bool _isWebAudioClassMember(
+    k.Reference reference,
+    String className,
+    String name,
+  ) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:web_audio::$className::') &&
         _pathHasMember(path, name);
   }
 

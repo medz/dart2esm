@@ -532,6 +532,25 @@ globalThis.document = {
 ''', 'webgl true 16388 16 8 true true\n');
     return;
   }
+  if (fixture.id == 'libraries/web_audio') {
+    await _expectNodeOutputWithPrelude(output, '''
+class AudioContext {
+  constructor() {
+    this.currentTime = 1.5;
+    this.destination = { connect() {} };
+  }
+  createGain() {
+    return { gain: { value: 0.75 }, connect() {} };
+  }
+  createOscillator() {
+    return { type: "sine", connect() {}, start() {}, stop() {} };
+  }
+}
+globalThis.AudioContext = AudioContext;
+globalThis.window = { AudioContext };
+''', 'webAudio true 1.5 0.75 sine true\n');
+    return;
+  }
   await _expectSameDartAndNodeOutput(fixture.source, output);
 }
 

@@ -7,6 +7,10 @@ extension type UserId(int value) {
 
   int get doubled => value * 2;
 
+  set observed(int amount) {
+    value + amount;
+  }
+
   int plus(int amount) => value + amount;
 
   UserId operator +(int amount) => UserId(value + amount);
@@ -26,6 +30,7 @@ void main() {
   final parse = UserId.parse;
   final zero = UserId.zero;
   final plus = id.plus;
+  id.observed = 1;
   print(
     '${id.doubled} ${make(4).value} ${parse('10').value} '
     '${zero().value} ${plus(6)}',

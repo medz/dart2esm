@@ -313,6 +313,8 @@ void main() {
         "console.log(id.value);\n"
         "console.log(id.plus(2));\n"
         "console.log(id.doubled);\n"
+        "id.observed = 1;\n"
+        "console.log(id.value);\n"
         "console.log(id instanceof UserId);\n"
         "const parsed = UserId.parse('9');\n"
         "console.log(parsed.value);\n"
@@ -342,6 +344,7 @@ void main() {
       '5\n'
       '7\n'
       '10\n'
+      '5\n'
       'true\n'
       '9\n'
       '0\n'

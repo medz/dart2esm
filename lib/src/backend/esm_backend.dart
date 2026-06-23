@@ -522,8 +522,9 @@ final class _EsmEmitter {
         case k.ExtensionTypeMemberKind.Factory ||
             k.ExtensionTypeMemberKind.RedirectingFactory:
           _emitExtensionTypeStaticFactory(declaration, descriptor);
-        case k.ExtensionTypeMemberKind.Field ||
-            k.ExtensionTypeMemberKind.Setter:
+        case k.ExtensionTypeMemberKind.Setter:
+          _emitExtensionTypeSetter(declaration, descriptor);
+        case k.ExtensionTypeMemberKind.Field:
           throw UnsupportedKernelNode(
             declaration,
             'extension type member ${descriptor.kind}',
@@ -596,6 +597,38 @@ final class _EsmEmitter {
       _indent++;
       writeln(
         'return ${_emitExtensionTypeFacadeReturn('${_procedureName(member)}($args)', member.function.returnType)};',
+      );
+      _indent--;
+      writeln('}');
+    });
+  }
+
+  void _emitExtensionTypeSetter(
+    k.ExtensionTypeDeclaration declaration,
+    k.ExtensionTypeMemberDescriptor descriptor,
+  ) {
+    final member = descriptor.memberReference?.asMember;
+    if (member is! k.Procedure) {
+      throw UnsupportedKernelNode(declaration, 'extension type setter');
+    }
+    _withFunctionNameScope(() {
+      final parameters = member.function.positionalParameters;
+      if (parameters.length != 2 ||
+          member.function.namedParameters.isNotEmpty) {
+        throw UnsupportedKernelNode(declaration, 'extension type setter');
+      }
+      final value = parameters[1];
+      _declareVariable(value);
+      writeln(
+        'set ${_memberName(descriptor.name.text)}(${_variableName(value)}) {',
+      );
+      _indent++;
+      final representation = _emitExtensionTypeRepresentation(
+        'this',
+        declaration,
+      );
+      writeln(
+        'return ${_procedureName(member)}($representation, ${_variableName(value)});',
       );
       _indent--;
       writeln('}');
@@ -3124,7 +3157,9 @@ final class _EsmEmitter {
       case k.ExtensionTypeMemberKind.Factory ||
           k.ExtensionTypeMemberKind.RedirectingFactory:
         return '${_procedureName(target)}(${_emitArguments(arguments)})';
-      case k.ExtensionTypeMemberKind.Field || k.ExtensionTypeMemberKind.Setter:
+      case k.ExtensionTypeMemberKind.Setter:
+        return '${_procedureName(target)}(${_emitArguments(arguments)})';
+      case k.ExtensionTypeMemberKind.Field:
         throw UnsupportedKernelNode(
           node,
           'extension type invocation ${descriptor.kind}',

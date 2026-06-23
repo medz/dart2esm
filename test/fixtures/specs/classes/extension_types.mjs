@@ -86,6 +86,9 @@ export class UserId {
   get doubled() {
     return UserId_get_doubled(__dartExtensionTypeRep(this, "value"));
   }
+  set observed(amount) {
+    return UserId_set_observed(__dartExtensionTypeRep(this, "value"), amount);
+  }
   plus(amount) {
     return UserId_plus(__dartExtensionTypeRep(this, "value"), amount);
   }
@@ -110,6 +113,10 @@ function UserId_zeroValue() {
 
 function UserId_get_doubled(_this) {
   return (__dartAs(__dartExtensionTypeRep(_this, "value"), value => typeof value === "number", "int") * 2);
+}
+
+function UserId_set_observed(_this, amount) {
+  (__dartAs(__dartExtensionTypeRep(_this, "value"), value => typeof value === "number", "int") + amount);
 }
 
 function UserId_plus(_this, amount) {
@@ -154,6 +161,7 @@ export function main() {
   const parse = UserId_parse;
   const zero = UserId_constructor___zero_tearOff;
   const plus = UserId_get_plus(id);
+  UserId_set_observed(id, 1);
   __dartPrint(__dartStr(UserId_get_doubled(id)) + " " + __dartStr(__dartAs((make)(4), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((parse)("10"), value => typeof value === "number", "int")) + " " + __dartStr(__dartAs((zero)(), value => typeof value === "number", "int")) + " " + __dartStr((plus)(6)));
 }
 

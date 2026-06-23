@@ -3721,8 +3721,12 @@ final class _EsmEmitter {
     final path = _referencePath(expression.targetReference);
     if (path == 'dart:_js_helper::@getters::staticInteropGlobalContext' ||
         path == 'dart:js_interop::@getters::globalContext' ||
+        path == 'dart:js_util::@getters::globalThis' ||
         path == 'dart:js::@getters::context') {
       return 'globalThis';
+    }
+    if (path == 'dart:js_util::@getters::objectPrototype') {
+      return 'Object.prototype';
     }
     if (path == 'dart:html::@getters::window') {
       return 'globalThis.window';
@@ -6699,12 +6703,22 @@ final class _EsmEmitter {
           positionalArgs.length == 2) {
         return '${positionalArgs[0]}[${positionalArgs[1]}]';
       }
+      if (name == 'newObject' && positionalArgs.isEmpty) {
+        return '({})';
+      }
       if ((name == 'setProperty' || name == '_setPropertyUnchecked') &&
           positionalArgs.length == 3) {
         return '(${positionalArgs[0]}[${positionalArgs[1]}] = ${positionalArgs[2]})';
       }
       if (name == 'hasProperty' && positionalArgs.length == 2) {
         return '(${positionalArgs[1]} in ${positionalArgs[0]})';
+      }
+      if (name == 'instanceof' && positionalArgs.length == 2) {
+        return '${positionalArgs[0]} instanceof ${positionalArgs[1]}';
+      }
+      if (name == 'instanceOfString' && positionalArgs.length == 2) {
+        _usedHelpers.add('__dartJsInstanceOfString');
+        return '__dartJsInstanceOfString(${positionalArgs[0]}, ${positionalArgs[1]})';
       }
       if ((name == 'callMethod' || name == '_callMethodTrustType') &&
           positionalArgs.length == 3) {
@@ -6713,8 +6727,66 @@ final class _EsmEmitter {
       if (name == 'callConstructor' && positionalArgs.length == 2) {
         return 'new ${positionalArgs[0]}(...Array.from(${positionalArgs[1]} ?? []))';
       }
+      if (name == 'jsify' && positionalArgs.length == 1) {
+        _usedHelpers.add('__dartJsify');
+        return '__dartJsify(${positionalArgs.single})';
+      }
+      if (name == 'dartify' && positionalArgs.length == 1) {
+        _usedHelpers.add('__dartJsDartify');
+        return '__dartJsDartify(${positionalArgs.single})';
+      }
       if (name == 'promiseToFuture' && positionalArgs.length == 1) {
         return 'Promise.resolve(${positionalArgs.single})';
+      }
+      if (name == 'objectGetPrototypeOf' && positionalArgs.length == 1) {
+        return 'Object.getPrototypeOf(${positionalArgs.single})';
+      }
+      if (name == 'objectKeys' && positionalArgs.length == 1) {
+        return 'Object.keys(${positionalArgs.single})';
+      }
+      if (name == 'isJavaScriptArray' && positionalArgs.length == 1) {
+        return 'Array.isArray(${positionalArgs.single})';
+      }
+      if (name == 'isJavaScriptSimpleObject' && positionalArgs.length == 1) {
+        final value = positionalArgs.single;
+        return '($value != null && typeof $value === "object" && (Object.getPrototypeOf($value) === Object.prototype || Object.getPrototypeOf($value) === null))';
+      }
+      if (name == 'typeofEquals' && positionalArgs.length == 2) {
+        return 'typeof ${positionalArgs[0]} === ${positionalArgs[1]}';
+      }
+      final binaryOperator = switch (name) {
+        'add' => '+',
+        'subtract' => '-',
+        'multiply' => '*',
+        'divide' => '/',
+        'exponentiate' => '**',
+        'modulo' => '%',
+        'equal' => '==',
+        'strictEqual' => '===',
+        'notEqual' => '!=',
+        'strictNotEqual' => '!==',
+        'greaterThan' => '>',
+        'greaterThanOrEqual' => '>=',
+        'lessThan' => '<',
+        'lessThanOrEqual' => '<=',
+        'or' => '||',
+        'and' => '&&',
+        _ => null,
+      };
+      if (binaryOperator != null && positionalArgs.length == 2) {
+        return '(${positionalArgs[0]} $binaryOperator ${positionalArgs[1]})';
+      }
+      if (name == 'not' && positionalArgs.length == 1) {
+        return '(!${positionalArgs.single})';
+      }
+      if (name == 'isTruthy' && positionalArgs.length == 1) {
+        return '(!!${positionalArgs.single})';
+      }
+      if (name == 'delete' && positionalArgs.length == 2) {
+        return '(delete ${positionalArgs[0]}[${positionalArgs[1]}])';
+      }
+      if (name == 'unsignedRightShift' && positionalArgs.length == 2) {
+        return '(${positionalArgs[0]} >>> ${positionalArgs[1]})';
       }
       if (name == '_jsFunctionToDart' && positionalArgs.length == 1) {
         _usedHelpers.add('__dartIsJsExportedFunction');

@@ -565,6 +565,7 @@ globalThis.window = { indexedDB };
       output,
       'jsInterop true true 7 ok true\n'
       'jsInteropModern hello true 2 42 true true 9 true true true true true 1 yes true 1970\n'
+      'jsUtil a2 5,12,4.5,8,1 true,false,true,true,true,true,true,true true true fallback,ok,2147483647 true,true,true,x,true,true,false,true,true\n'
       'jsExternal 8 3 1970\n'
       'jsPromise 11 11 13 17 19\n'
       'jsIterator unique dart2esm.shared true 1 2 true 1,2 3 true 5 21 true\n'

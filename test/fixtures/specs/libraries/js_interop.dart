@@ -96,6 +96,65 @@ Future<void> main() async {
     '$shortcut $hasShortcut $dateYear',
   );
 
+  final utilObject = js_util.newObject<Object>();
+  js_util.setProperty(utilObject, 'x', 3);
+  final utilAdd = js_util.add<Object?>('a', 2);
+  final utilMath = [
+    js_util.subtract<num>(9, 4),
+    js_util.multiply<num>(3, 4),
+    js_util.divide<num>(9, 2),
+    js_util.exponentiate<num>(2, 3),
+    js_util.modulo<num>(9, 4),
+  ].join(',');
+  final utilCompare = [
+    js_util.equal(1, '1'),
+    js_util.strictEqual(1, '1'),
+    js_util.notEqual(1, 2),
+    js_util.strictNotEqual(1, '1'),
+    js_util.greaterThan(3, 2),
+    js_util.greaterThanOrEqual(3, 3),
+    js_util.lessThan(2, 3),
+    js_util.lessThanOrEqual(3, 3),
+  ].join(',');
+  final utilTypeof = js_util.typeofEquals('x', 'string');
+  final utilTruthy =
+      js_util.isTruthy(1) && !js_util.isTruthy(0) && js_util.not<bool>(0);
+  final utilOr = js_util.or<Object?>(0, 'fallback');
+  final utilAnd = js_util.and<Object?>(1, 'ok');
+  final utilShift = js_util.unsignedRightShift(-1, 1);
+  final utilProtoSame = js_util.strictEqual(
+    js_util.objectGetPrototypeOf(utilObject),
+    js_util.objectPrototype,
+  );
+  final utilKeys = js_util.objectKeys(utilObject).join(',');
+  final utilArrayObject = js_util.jsify([1, 2]);
+  final utilArray = js_util.isJavaScriptArray(utilArrayObject);
+  final utilSimple = js_util.isJavaScriptSimpleObject(utilObject);
+  final utilDartified =
+      js_util.dartify(
+            js_util.jsify({
+              'k': [1],
+            }),
+          )
+          as Map<Object?, Object?>;
+  final utilDeleted = js_util.delete(utilObject, 'x');
+  final utilHasAfterDelete = js_util.hasProperty(utilObject, 'x');
+  final utilArrayConstructor = js_util.getProperty<Object>(
+    js_util.globalThis,
+    'Array',
+  );
+  final utilInstance = js_util.instanceof(
+    utilArrayObject,
+    utilArrayConstructor,
+  );
+  final utilInstanceString = js_util.instanceOfString(utilArrayObject, 'Array');
+  print(
+    'jsUtil $utilAdd $utilMath $utilCompare $utilTypeof $utilTruthy '
+    '$utilOr,$utilAnd,$utilShift $utilProtoSame,$utilArray,$utilSimple,'
+    '$utilKeys,${utilDartified['k'] is List},$utilDeleted,'
+    '$utilHasAfterDelete,$utilInstance,$utilInstanceString',
+  );
+
   final externalMax = jsMathMax(3.toJS, 8.toJS).toDartInt;
   final externalPi = jsMathPi.toDartDouble.floor();
   final externalDate = JsDate(0.toJS);

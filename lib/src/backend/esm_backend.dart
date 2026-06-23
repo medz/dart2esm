@@ -1798,11 +1798,9 @@ final class _EsmEmitter {
         writeln('${_labelName(statement)}:');
         emitStatement(statement.body);
       case k.AssertBlock():
-        for (final child in statement.statements) {
-          emitStatement(child);
-        }
+        break;
       case k.AssertStatement():
-        _diagnostics.add('AssertStatement is currently emitted as a no-op.');
+        break;
       default:
         throw UnsupportedKernelNode(statement, 'statement');
     }

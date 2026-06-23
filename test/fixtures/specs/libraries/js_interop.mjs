@@ -60,6 +60,21 @@ function __dartJsInstanceOfString(value, constructorName) {
 function __dartJsConstructOptional(constructor, args) {
   return new constructor(...__dartJsTrimOptionalArgs(args));
 }
+const __dartJsBoxedDartObjectProperty = Symbol("jsBoxedDartObjectProperty");
+function __dartJsBox(value) {
+  const box = {};
+  box[__dartJsBoxedDartObjectProperty] = value;
+  return box;
+}
+function __dartJsUnbox(value) {
+  if (__dartIsJsBox(value)) {
+    return value[__dartJsBoxedDartObjectProperty];
+  }
+  throw new TypeError("Expected a wrapped Dart object");
+}
+function __dartIsJsBox(value) {
+  return value != null && (typeof value === "object" || typeof value === "function") && Object.prototype.hasOwnProperty.call(value, __dartJsBoxedDartObjectProperty);
+}
 function __dartJsIteratorFromDartIterator(iterator) {
   return {
     next() {
@@ -137,6 +152,17 @@ function __dartMapGet(map, key) {
 }
 function __dartIterableJoin(iterable, separator = "") {
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+}
+function __dartIterableSingle(iterable) {
+  let found = false;
+  let single;
+  for (const value of iterable) {
+    if (found) throw new Error("Bad state: Too many elements");
+    found = true;
+    single = value;
+  }
+  if (!found) throw new RangeError("No element");
+  return single;
 }
 function __dartEquals(left, right) {
   if (left === right) return true;
@@ -273,6 +299,11 @@ export async function main() {
   const roundTripBytes = dartBytes;
   const bufferBytes = new globalThis["Uint8Array"](dartBuffer);
   __dartPrint("jsTyped " + __dartStr(dartBuffer.byteLength) + " " + __dartStr(dartView.getUint8(0)) + " " + __dartStr(__dartIterableJoin(roundTripBytes, ",")) + " " + __dartStr(bufferBytes[0]));
+  const boxed = __dartJsBox(new Map([["answer", 31]]));
+  const unboxed = __dartAs(__dartJsUnbox(boxed), value => value instanceof Map, "Map<String, int>");
+  const reference = ["dart-ref"];
+  const unreferenced = reference;
+  __dartPrint("jsBox " + __dartStr(__dartMapGet(unboxed, "answer")) + " " + __dartStr(__dartIterableSingle(unreferenced)) + " " + __dartStr(__dartIsJsBox(boxed)));
 }
 
 await main();

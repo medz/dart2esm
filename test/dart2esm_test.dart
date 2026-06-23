@@ -568,7 +568,8 @@ globalThis.window = { indexedDB };
       'jsExternal 8 3 1970\n'
       'jsPromise 11 11 13 17 19\n'
       'jsIterator unique dart2esm.shared true 1 2 true 1,2 3 true 5 21 true\n'
-      'jsTyped 4 23 7,8,9 23\n',
+      'jsTyped 4 23 7,8,9 23\n'
+      'jsBox 31 dart-ref true\n',
     );
     return;
   }

@@ -6340,6 +6340,10 @@ final class _EsmEmitter {
         'JSArray' => 'Array.isArray($operand)',
         'JSFunction' => 'typeof $operand === "function"',
         'JSPromise' => '$operand instanceof Promise',
+        'JSBoxedDartObject' => () {
+          _usedHelpers.add('__dartIsJsBox');
+          return '__dartIsJsBox($operand)';
+        }(),
         'JSString' => 'typeof $operand === "string"',
         'JSNumber' => 'typeof $operand === "number"',
         'JSBoolean' => 'typeof $operand === "boolean"',
@@ -6353,6 +6357,10 @@ final class _EsmEmitter {
         'JavaScriptObject' =>
           '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
         'JavaScriptFunction' => 'typeof $operand === "function"',
+        'JavaScriptBoxedDartObject' => () {
+          _usedHelpers.add('__dartIsJsBox');
+          return '__dartIsJsBox($operand)';
+        }(),
         'JsObject' =>
           '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
         'JsFunction' => 'typeof $operand === "function"',
@@ -6770,6 +6778,16 @@ final class _EsmEmitter {
     if (member == 'JSSymbol|forKey' && positionalArgs.length == 1) {
       return 'Symbol.for(${positionalArgs.single})';
     }
+    if (member == '_isJSBoxedDartObject' && positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIsJsBox');
+      return '__dartIsJsBox(${positionalArgs.single})';
+    }
+    if (member == '_isNullableJSBoxedDartObject' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIsJsBox');
+      final value = positionalArgs.single;
+      return '($value == null || __dartIsJsBox($value))';
+    }
     if (member == 'JSSymbol|get#_keyFor' && positionalArgs.length == 1) {
       return '(Symbol.keyFor(${positionalArgs.single}) ?? null)';
     }
@@ -6848,6 +6866,22 @@ final class _EsmEmitter {
     }
     if (member == 'JSSymbol|get#key' && positionalArgs.length == 1) {
       return '(Symbol.keyFor($receiver) ?? null)';
+    }
+    if (member == 'ObjectToJSBoxedDartObject|get#toJSBox' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartJsBox');
+      return '__dartJsBox($receiver)';
+    }
+    if (member == 'JSBoxedDartObjectToObject|get#toDart' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartIsJsBox');
+      _usedHelpers.add('__dartJsUnbox');
+      return '__dartJsUnbox($receiver)';
+    }
+    if ((member == 'ObjectToExternalDartReference|get#toExternalReference' ||
+            member == 'ExternalDartReferenceToObject|get#toDartObject') &&
+        positionalArgs.length == 1) {
+      return receiver;
     }
     if ((member == 'JSPromiseToFuture|get#toDart' ||
             member == 'FutureOfJSAnyToJSPromise|get#toJS' ||
@@ -12103,6 +12137,37 @@ final class _EsmEmitter {
       helper.writeln('function __dartJsConstructOptional(constructor, args) {');
       helper.writeln(
         '  return new constructor(...__dartJsTrimOptionalArgs(args));',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsBox') ||
+        _usedHelpers.contains('__dartJsUnbox') ||
+        _usedHelpers.contains('__dartIsJsBox')) {
+      helper.writeln(
+        'const __dartJsBoxedDartObjectProperty = Symbol("jsBoxedDartObjectProperty");',
+      );
+    }
+    if (_usedHelpers.contains('__dartJsBox')) {
+      helper.writeln('function __dartJsBox(value) {');
+      helper.writeln('  const box = {};');
+      helper.writeln('  box[__dartJsBoxedDartObjectProperty] = value;');
+      helper.writeln('  return box;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartJsUnbox')) {
+      helper.writeln('function __dartJsUnbox(value) {');
+      helper.writeln('  if (__dartIsJsBox(value)) {');
+      helper.writeln('    return value[__dartJsBoxedDartObjectProperty];');
+      helper.writeln('  }');
+      helper.writeln(
+        '  throw new TypeError("Expected a wrapped Dart object");',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIsJsBox')) {
+      helper.writeln('function __dartIsJsBox(value) {');
+      helper.writeln(
+        '  return value != null && (typeof value === "object" || typeof value === "function") && Object.prototype.hasOwnProperty.call(value, __dartJsBoxedDartObjectProperty);',
       );
       helper.writeln('}');
     }

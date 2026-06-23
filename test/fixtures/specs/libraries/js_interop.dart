@@ -150,4 +150,13 @@ Future<void> main() async {
     'jsTyped ${dartBuffer.lengthInBytes} ${dartView.toJS.toDart.getUint8(0)} '
     '${roundTripBytes.join(',')} ${bufferBytes[0]}',
   );
+
+  final boxed = {'answer': 31}.toJSBox;
+  final unboxed = boxed.toDart as Map<String, int>;
+  final reference = ['dart-ref'].toExternalReference;
+  final unreferenced = reference.toDartObject;
+  print(
+    'jsBox ${unboxed['answer']} ${unreferenced.single} '
+    '${boxed.isA<JSBoxedDartObject>()}',
+  );
 }

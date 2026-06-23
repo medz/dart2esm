@@ -70,6 +70,13 @@ void main() {
     'object ${hash is int} $stableHash '
     '${identical(plain, plain)} ${identical(plain, other)}',
   );
+  final dynamic identityHash = identityHashCode(plain);
+  print(
+    'identityHash ${identityHash is int} '
+    '${identityHash == identityHashCode(plain)} '
+    '${identityHashCode('x') == identityHashCode('x')} '
+    '${identityHashCode(null) == identityHashCode(null)}',
+  );
   print('runtime ${plain.runtimeType} ${1.runtimeType} ${1.5.runtimeType}');
   print(
     'objectString ${plain.toString().contains('PlainObject')} '

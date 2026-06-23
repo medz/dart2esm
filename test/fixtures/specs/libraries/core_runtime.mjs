@@ -598,6 +598,8 @@ export function main() {
   const hash = __dartHashValue(plain);
   const stableHash = __dartEquals(hash, __dartHashValue(plain));
   __dartPrint("object " + __dartStr(typeof hash === "number") + " " + __dartStr(stableHash) + " " + __dartStr(Object.is(plain, plain)) + " " + __dartStr(Object.is(plain, other)));
+  const identityHash = __dartHashValue(plain);
+  __dartPrint("identityHash " + __dartStr(typeof identityHash === "number") + " " + __dartStr(__dartEquals(identityHash, __dartHashValue(plain))) + " " + __dartStr(__dartEquals(__dartHashValue("x"), __dartHashValue("x"))) + " " + __dartStr(__dartEquals(__dartHashValue(null), __dartHashValue(null))));
   __dartPrint("runtime " + __dartStr(__dartRuntimeType(plain)) + " " + __dartStr(__dartRuntimeType(1)) + " " + __dartStr(__dartRuntimeType(1.5)));
   __dartPrint("objectString " + __dartStr(__dartObjectToString(plain).includes("PlainObject")) + " " + __dartStr(__dartObjectToString(object).includes("Object")));
   const constObject = __dartConst("[\"instance\",\"dart:core::Object\"]", () => Object.freeze({}));

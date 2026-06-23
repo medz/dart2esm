@@ -3208,6 +3208,15 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
+    if (_isCoreReference(
+          expression.targetReference,
+          '@methods',
+          'identityHashCode',
+        ) &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartObjectHash');
+      return '__dartHashValue(${positionalArgs.single})';
+    }
     if (_referencePath(expression.targetReference) ==
             'dart:core::Function::@methods::apply' &&
         positionalArgs.length >= 2 &&

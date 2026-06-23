@@ -3170,6 +3170,13 @@ final class _EsmEmitter {
     if (typedDataInvocation != null) {
       return typedDataInvocation;
     }
+    final isolateInvocation = _emitIsolateStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (isolateInvocation != null) {
+      return isolateInvocation;
+    }
     if (_isCoreReference(
           expression.targetReference,
           '@methods',
@@ -3556,6 +3563,10 @@ final class _EsmEmitter {
     final typedDataGet = _emitTypedDataStaticGet(expression);
     if (typedDataGet != null) {
       return typedDataGet;
+    }
+    final isolateGet = _emitIsolateStaticGet(expression);
+    if (isolateGet != null) {
+      return isolateGet;
     }
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
@@ -5683,6 +5694,14 @@ final class _EsmEmitter {
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "WeakReference"',
         'Finalizer' || '_FinalizerImpl' =>
           '$operand != null && typeof $operand === "object" && $operand.__dartType === "Finalizer"',
+        'SendPort' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "SendPort"',
+        'ReceivePort' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "ReceivePort"',
+        'RawReceivePort' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "RawReceivePort"',
+        'Isolate' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "Isolate"',
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
         'TypedData' => 'ArrayBuffer.isView($operand)',
@@ -5857,6 +5876,55 @@ final class _EsmEmitter {
       k.Nullability.nullable => '?',
       k.Nullability.nonNullable || k.Nullability.undetermined => '',
     };
+  }
+
+  String? _emitIsolateStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:isolate::ReceivePort::@factories::' &&
+        positionalArgs.length <= 1) {
+      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamListen');
+      _usedHelpers.add('__dartSendPort');
+      _usedHelpers.add('__dartReceivePort');
+      final debugName = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return '__dartReceivePort($debugName)';
+    }
+    if (path == 'dart:isolate::RawReceivePort::@factories::' &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartSendPort');
+      _usedHelpers.add('__dartRawReceivePort');
+      final handler = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+      final debugName = positionalArgs.length >= 2 ? positionalArgs[1] : 'null';
+      return '__dartRawReceivePort($handler, $debugName)';
+    }
+    if (path == 'dart:isolate::Isolate::@methods::spawn' &&
+        positionalArgs.length == 2) {
+      _usedHelpers.add('__dartIsolate');
+      _usedHelpers.add('__dartIsolateSpawn');
+      final paused = _namedArgument(expression.arguments, 'paused') ?? 'false';
+      final onExit = _namedArgument(expression.arguments, 'onExit') ?? 'null';
+      final onError = _namedArgument(expression.arguments, 'onError') ?? 'null';
+      final debugName =
+          _namedArgument(expression.arguments, 'debugName') ?? 'null';
+      final errorsAreFatal =
+          _namedArgument(expression.arguments, 'errorsAreFatal') ?? 'true';
+      return '__dartIsolateSpawn(${positionalArgs[0]}, ${positionalArgs[1]}, { paused: $paused, onExit: $onExit, onError: $onError, debugName: $debugName, errorsAreFatal: $errorsAreFatal })';
+    }
+    if (path == 'dart:isolate::Isolate::@methods::run' &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve().then(() => (${positionalArgs.single})())';
+    }
+    if (path == 'dart:isolate::Isolate::@methods::exit' &&
+        positionalArgs.length <= 2) {
+      final port = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+      final message = positionalArgs.length >= 2 ? positionalArgs[1] : 'null';
+      return '($port == null ? null : $port.send($message), null)';
+    }
+    return null;
   }
 
   String? _emitDeveloperStaticInvocation(
@@ -6987,6 +7055,15 @@ final class _EsmEmitter {
         'Array.from(${positionalArgs.single})',
       _ => null,
     };
+  }
+
+  String? _emitIsolateStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:isolate::Isolate::@getters::current') {
+      _usedHelpers.add('__dartIsolate');
+      return '__dartCurrentIsolate';
+    }
+    return null;
   }
 
   String? _emitDeveloperStaticGet(k.StaticGet expression) {
@@ -12209,6 +12286,129 @@ final class _EsmEmitter {
       helper.writeln('  return controller;');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartSendPort')) {
+      helper.writeln('function __dartSendPort(deliver, label = null) {');
+      helper.writeln('  const port = {');
+      helper.writeln(
+        '    send(message) { Promise.resolve().then(() => deliver(message)); return null; },',
+      );
+      helper.writeln(
+        '    toString() { return label == null ? "SendPort" : "SendPort(" + String(label) + ")"; },',
+      );
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(port, "__dartType", { value: "SendPort" });',
+      );
+      helper.writeln('  return Object.freeze(port);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartReceivePort')) {
+      helper.writeln('function __dartReceivePort(debugName = null) {');
+      helper.writeln('  const controller = __dartStreamController(false);');
+      helper.writeln(
+        '  const sendPort = __dartSendPort((message) => { if (!controller.isClosed) controller.add(message); }, debugName);',
+      );
+      helper.writeln('  const port = controller.stream;');
+      helper.writeln(
+        '  Object.defineProperty(port, "sendPort", { get() { return sendPort; } });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(port, "close", { value() { controller.close(); return null; } });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(port, "listen", { value(onData, options = {}) { return __dartStreamListen(port, onData, options.onError ?? null, options.onDone ?? null, options.cancelOnError ?? false); } });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(port, "__dartType", { value: "ReceivePort" });',
+      );
+      helper.writeln('  return port;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartRawReceivePort')) {
+      helper.writeln(
+        'function __dartRawReceivePort(handler = null, debugName = null) {',
+      );
+      helper.writeln('  let closed = false;');
+      helper.writeln('  let currentHandler = handler;');
+      helper.writeln(
+        '  const sendPort = __dartSendPort((message) => { if (!closed && typeof currentHandler === "function") currentHandler(message); }, debugName);',
+      );
+      helper.writeln('  const port = {');
+      helper.writeln('    get sendPort() { return sendPort; },');
+      helper.writeln('    get handler() { return currentHandler; },');
+      helper.writeln(
+        '    set handler(value) { currentHandler = value; return value; },',
+      );
+      helper.writeln('    close() { closed = true; return null; },');
+      helper.writeln('    toString() { return "RawReceivePort"; },');
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(port, "__dartType", { value: "RawReceivePort" });',
+      );
+      helper.writeln('  return port;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIsolate')) {
+      helper.writeln('function __dartIsolate(debugName = null) {');
+      helper.writeln('  const isolate = {');
+      helper.writeln('    _killed: false,');
+      helper.writeln('    _resume: null,');
+      helper.writeln(
+        '    kill(options = {}) { this._killed = true; return null; },',
+      );
+      helper.writeln('    pause() { return {}; },');
+      helper.writeln(
+        '    resume(capability = null) { const resume = this._resume; this._resume = null; if (typeof resume === "function") Promise.resolve().then(resume); return null; },',
+      );
+      helper.writeln(
+        '    addOnExitListener(port, response = null) { return null; },',
+      );
+      helper.writeln('    removeOnExitListener(port) { return null; },');
+      helper.writeln('    addErrorListener(port) { return null; },');
+      helper.writeln('    removeErrorListener(port) { return null; },');
+      helper.writeln(
+        '    setErrorsFatal(errorsAreFatal = true) { return null; },',
+      );
+      helper.writeln(
+        '    toString() { return debugName == null ? "Isolate" : "Isolate(" + String(debugName) + ")"; },',
+      );
+      helper.writeln('  };');
+      helper.writeln(
+        '  Object.defineProperty(isolate, "__dartType", { value: "Isolate" });',
+      );
+      helper.writeln('  return isolate;');
+      helper.writeln('}');
+      helper.writeln('const __dartCurrentIsolate = __dartIsolate("main");');
+    }
+    if (_usedHelpers.contains('__dartIsolateSpawn')) {
+      helper.writeln(
+        'function __dartIsolateSpawn(entryPoint, message, options = {}) {',
+      );
+      helper.writeln(
+        '  const isolate = __dartIsolate(options.debugName ?? null);',
+      );
+      helper.writeln('  const run = () => {');
+      helper.writeln('    if (isolate._killed) return null;');
+      helper.writeln('    try {');
+      helper.writeln(
+        '      return Promise.resolve(entryPoint(message)).then(() => { if (options.onExit != null) options.onExit.send(null); return null; }, (error) => { if (options.onError != null) { options.onError.send([error, error?.stack ?? "<javascript stack unavailable>"]); return null; } throw error; });',
+      );
+      helper.writeln('    } catch (error) {');
+      helper.writeln('      if (options.onError != null) {');
+      helper.writeln(
+        '        options.onError.send([error, error?.stack ?? "<javascript stack unavailable>"]);',
+      );
+      helper.writeln('        return null;');
+      helper.writeln('      }');
+      helper.writeln('      throw error;');
+      helper.writeln('    }');
+      helper.writeln('  };');
+      helper.writeln(
+        '  if (options.paused === true) isolate._resume = run; else Promise.resolve().then(run);',
+      );
+      helper.writeln('  return Promise.resolve(isolate);');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartStreamIterator')) {
       helper.writeln('function __dartStreamIterator(stream) {');
       helper.writeln('  const iterator = stream[Symbol.asyncIterator]();');
@@ -13428,6 +13628,8 @@ const _generatedGlobalNames = {
   '__dartIsCoreError',
   '__dartIsRecord',
   '__dartIterator',
+  '__dartIsolate',
+  '__dartIsolateSpawn',
   '__dartJsonCodec',
   '__dartJsonDecode',
   '__dartJsonDecoder',
@@ -13495,6 +13697,8 @@ const _generatedGlobalNames = {
   '__dartRegExp',
   '__dartRegExpEscape',
   '__dartRegExpMatch',
+  '__dartRawReceivePort',
+  '__dartReceivePort',
   '__dartRectangle',
   '__dartRectangleFromPoints',
   '__dartRuntimeType',
@@ -13505,6 +13709,7 @@ const _generatedGlobalNames = {
   '__dartRunZonedGuarded',
   '__dartScheduleMicrotask',
   '__dartSafeToString',
+  '__dartSendPort',
   '__dartSetAdd',
   '__dartSetAddAll',
   '__dartSetAlgebra',

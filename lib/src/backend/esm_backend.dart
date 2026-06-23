@@ -125,8 +125,8 @@ final class _EsmEmitter {
     return library.fileUri.toString();
   }
 
-  Map<k.Library, Set<String>?> _localExports(k.Library mainLibrary) {
-    final exports = <k.Library, Set<String>?>{};
+  Map<k.Library, Set<String>> _localExports(k.Library mainLibrary) {
+    final exports = <k.Library, Set<String>>{};
     for (final dependency in mainLibrary.dependencies) {
       if (!dependency.isExport) {
         continue;
@@ -135,60 +135,96 @@ final class _EsmEmitter {
       if (target.importUri.scheme == 'dart') {
         continue;
       }
-      final names = _exportedNames(target, dependency);
-      final existing = exports[target];
-      if (existing == null && exports.containsKey(target)) {
-        continue;
-      }
-      if (names == null) {
-        exports[target] = null;
-      } else {
-        exports.putIfAbsent(target, () => <String>{})?.addAll(names);
+      final scope = _exportScope(target, <k.Library>{});
+      for (final entry in scope.entries) {
+        final names = _applyExportCombinators(
+          entry.value,
+          dependency.combinators,
+        );
+        if (names.isEmpty) {
+          continue;
+        }
+        exports.putIfAbsent(entry.key, () => <String>{}).addAll(names);
       }
     }
     return exports;
   }
 
-  Set<String>? _exportedNames(
+  Map<k.Library, Set<String>> _exportScope(
     k.Library library,
-    k.LibraryDependency dependency,
+    Set<k.Library> visiting,
   ) {
-    if (dependency.combinators.isEmpty) {
-      return null;
+    if (library.importUri.scheme == 'dart' || !visiting.add(library)) {
+      return const <k.Library, Set<String>>{};
     }
-    final names = _libraryDeclarationNames(library).where((name) {
-      var visible = true;
-      for (final combinator in dependency.combinators) {
-        if (combinator.isShow) {
-          visible = combinator.names.contains(name);
-        } else if (combinator.names.contains(name)) {
-          visible = false;
-        }
+
+    final scope = <k.Library, Set<String>>{
+      library: _libraryDeclarationNames(library).toSet(),
+    };
+    for (final dependency in library.dependencies) {
+      if (!dependency.isExport) {
+        continue;
       }
-      return visible;
-    });
-    return names.toSet();
+      final targetScope = _exportScope(dependency.targetLibrary, visiting);
+      for (final entry in targetScope.entries) {
+        final names = _applyExportCombinators(
+          entry.value,
+          dependency.combinators,
+        );
+        if (names.isEmpty) {
+          continue;
+        }
+        scope.putIfAbsent(entry.key, () => <String>{}).addAll(names);
+      }
+    }
+    visiting.remove(library);
+    return scope;
+  }
+
+  Set<String> _applyExportCombinators(
+    Iterable<String> names,
+    List<k.Combinator> combinators,
+  ) {
+    var visible = names.toSet();
+    for (final combinator in combinators) {
+      if (combinator.isShow) {
+        visible = visible.intersection(combinator.names.toSet());
+      } else {
+        visible.removeAll(combinator.names);
+      }
+    }
+    return visible;
   }
 
   Iterable<String> _libraryDeclarationNames(k.Library library) sync* {
     for (final klass in library.classes) {
-      yield klass.name;
+      if (_isPublicDeclarationName(klass.name)) {
+        yield klass.name;
+      }
     }
     for (final extensionType in library.extensionTypeDeclarations) {
-      yield extensionType.name;
+      if (_isPublicDeclarationName(extensionType.name)) {
+        yield extensionType.name;
+      }
     }
     for (final field in library.fields) {
-      if (!field.isExtensionTypeMember) {
+      if (!field.isExtensionTypeMember &&
+          _isPublicDeclarationName(field.name.text)) {
         yield field.name.text;
       }
     }
     for (final procedure in library.procedures) {
       if (procedure.kind == k.ProcedureKind.Method &&
           !procedure.isExternal &&
-          !procedure.isExtensionTypeMember) {
+          !procedure.isExtensionTypeMember &&
+          _isPublicDeclarationName(procedure.name.text)) {
         yield procedure.name.text;
       }
     }
+  }
+
+  bool _isPublicDeclarationName(String name) {
+    return !name.startsWith('_');
   }
 
   void _prepareClassRuntime(List<k.Library> libraries) {

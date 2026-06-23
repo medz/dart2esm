@@ -492,6 +492,70 @@ globalThis.window = {
 ''', 'html true ok\n');
     return;
   }
+  if (fixture.id == 'libraries/indexed_db') {
+    await _expectNodeOutputWithPrelude(output, '''
+function makeRequest(result) {
+  const listeners = new Map();
+  return {
+    result,
+    error: null,
+    addEventListener(type, callback) { listeners.set(type, callback); },
+    dispatch(type) {
+      const event = { target: this };
+      listeners.get(type)?.(event);
+      this["on" + type]?.(event);
+    },
+  };
+}
+class MemoryObjectStore {
+  constructor() { this.data = new Map(); }
+  put(value, key) {
+    const request = makeRequest(key);
+    queueMicrotask(() => { this.data.set(key, value); request.dispatch("success"); });
+    return request;
+  }
+  get(key) {
+    const request = makeRequest(this.data.get(key));
+    queueMicrotask(() => request.dispatch("success"));
+    return request;
+  }
+}
+class MemoryDatabase {
+  constructor(name) {
+    this.name = name;
+    this.stores = new Map();
+  }
+  createObjectStore(name) {
+    const store = new MemoryObjectStore();
+    this.stores.set(name, store);
+    return store;
+  }
+  transaction() {
+    return { objectStore: name => this.stores.get(name) };
+  }
+  close() {}
+}
+const indexedDB = {
+  open(name) {
+    const db = new MemoryDatabase(name);
+    const request = makeRequest(db);
+    queueMicrotask(() => {
+      request.dispatch("upgradeneeded");
+      request.dispatch("success");
+    });
+    return request;
+  },
+  deleteDatabase() {
+    const request = makeRequest(null);
+    queueMicrotask(() => request.dispatch("success"));
+    return request;
+  },
+};
+globalThis.indexedDB = indexedDB;
+globalThis.window = { indexedDB };
+''', 'indexedDB true ok dart2esm\n');
+    return;
+  }
   if (fixture.id == 'libraries/js') {
     await _expectNodeOutput(output, 'jsLegacy 5 ok true 12 4 3\n');
     return;

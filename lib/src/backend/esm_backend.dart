@@ -3254,6 +3254,13 @@ final class _EsmEmitter {
     if (webAudioInvocation != null) {
       return webAudioInvocation;
     }
+    final indexedDbInvocation = _emitIndexedDbStaticInvocation(
+      expression,
+      positionalArgs,
+    );
+    if (indexedDbInvocation != null) {
+      return indexedDbInvocation;
+    }
     final jsInteropInvocation = _emitJsInteropStaticInvocation(
       expression,
       positionalArgs,
@@ -3729,6 +3736,9 @@ final class _EsmEmitter {
     if (path == 'dart:web_audio::AudioContext::@getters::supported') {
       return '(!!(globalThis.window?.AudioContext || globalThis.window?.webkitAudioContext || globalThis.AudioContext || globalThis.webkitAudioContext))';
     }
+    if (path == 'dart:indexed_db::IdbFactory::@getters::supported') {
+      return '(!!(globalThis.window?.indexedDB || globalThis.window?.webkitIndexedDB || globalThis.window?.mozIndexedDB || globalThis.indexedDB))';
+    }
     return null;
   }
 
@@ -3881,6 +3891,16 @@ final class _EsmEmitter {
     );
     if (webAudioInvocation != null) {
       return webAudioInvocation;
+    }
+    final indexedDbInvocation = _emitIndexedDbInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments,
+    );
+    if (indexedDbInvocation != null) {
+      return indexedDbInvocation;
     }
     final htmlInvocation = _emitHtmlInstanceInvocation(
       target,
@@ -5921,6 +5941,79 @@ final class _EsmEmitter {
         positionalArgs.length <= 1) {
       final args = positionalArgs.isEmpty ? '' : positionalArgs.single;
       return '($receiver.start($args), null)';
+    }
+    return null;
+  }
+
+  String? _emitIndexedDbStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:indexed_db::KeyRange::@factories::only' &&
+        positionalArgs.length == 1 &&
+        expression.arguments.named.isEmpty) {
+      return '(globalThis.window?.IDBKeyRange ?? globalThis.IDBKeyRange).only(${positionalArgs.single})';
+    }
+    return null;
+  }
+
+  String? _emitIndexedDbInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (_isIndexedDbClassMember(target, 'IdbFactory', name)) {
+      if (name == 'open' &&
+          positionalArgs.length == 1 &&
+          _hasOnlyNamedArguments(arguments, {
+            'version',
+            'onUpgradeNeeded',
+            'onBlocked',
+          })) {
+        _usedHelpers.add('__dartIdbOpen');
+        final version = _namedArgument(arguments, 'version') ?? 'null';
+        final onUpgradeNeeded =
+            _namedArgument(arguments, 'onUpgradeNeeded') ?? 'null';
+        final onBlocked = _namedArgument(arguments, 'onBlocked') ?? 'null';
+        return '__dartIdbOpen($receiver, ${positionalArgs.single}, $version, $onUpgradeNeeded, $onBlocked)';
+      }
+      if (name == 'deleteDatabase' &&
+          positionalArgs.length == 1 &&
+          _hasOnlyNamedArguments(arguments, {'onBlocked'})) {
+        _usedHelpers.add('__dartIdbDeleteDatabase');
+        final onBlocked = _namedArgument(arguments, 'onBlocked') ?? 'null';
+        return '__dartIdbDeleteDatabase($receiver, ${positionalArgs.single}, $onBlocked)';
+      }
+    }
+    if (_isIndexedDbClassMember(target, 'ObjectStore', name) &&
+        arguments.named.isEmpty) {
+      if ((name == 'put' || name == 'add') &&
+          positionalArgs.isNotEmpty &&
+          positionalArgs.length <= 2) {
+        _usedHelpers.add('__dartIdbStorePut');
+        final key = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
+        return '__dartIdbStorePut($receiver, ${jsonEncode(name)}, ${positionalArgs[0]}, $key)';
+      }
+      if (name == 'getObject' && positionalArgs.length == 1) {
+        _usedHelpers.add('__dartIdbStoreRequest');
+        return '__dartIdbStoreRequest($receiver, "get", [${positionalArgs.single}])';
+      }
+      if (name == 'clear' && positionalArgs.isEmpty) {
+        _usedHelpers.add('__dartIdbStoreRequest');
+        return '__dartIdbStoreRequest($receiver, "clear", [])';
+      }
+      if (name == 'delete' && positionalArgs.length == 1) {
+        _usedHelpers.add('__dartIdbStoreRequest');
+        return '__dartIdbStoreRequest($receiver, "delete", [${positionalArgs.single}])';
+      }
+      if (name == 'count' && positionalArgs.length <= 1) {
+        _usedHelpers.add('__dartIdbStoreRequest');
+        final args = positionalArgs.isEmpty ? '' : positionalArgs.single;
+        return '__dartIdbStoreRequest($receiver, "count", [$args])';
+      }
     }
     return null;
   }
@@ -8633,6 +8726,16 @@ final class _EsmEmitter {
   ) {
     final path = _referencePath(reference);
     return path.startsWith('dart:web_audio::$className::') &&
+        _pathHasMember(path, name);
+  }
+
+  bool _isIndexedDbClassMember(
+    k.Reference reference,
+    String className,
+    String name,
+  ) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:indexed_db::$className::') &&
         _pathHasMember(path, name);
   }
 
@@ -11770,6 +11873,74 @@ final class _EsmEmitter {
       helper.writeln(
         '  return context ?? canvas.getContext("experimental-webgl", options);',
       );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIdbRequestPromise') ||
+        _usedHelpers.contains('__dartIdbOpen') ||
+        _usedHelpers.contains('__dartIdbDeleteDatabase') ||
+        _usedHelpers.contains('__dartIdbStoreRequest') ||
+        _usedHelpers.contains('__dartIdbStorePut')) {
+      helper.writeln('function __dartIdbListen(target, type, callback) {');
+      helper.writeln(
+        '  if (typeof target.addEventListener === "function") target.addEventListener(type, callback, { once: true });',
+      );
+      helper.writeln('  else target["on" + type] = callback;');
+      helper.writeln('}');
+      helper.writeln(
+        'function __dartIdbRequestPromise(request, resolveValue = (request) => request.result) {',
+      );
+      helper.writeln('  return new Promise((resolve, reject) => {');
+      helper.writeln(
+        '    __dartIdbListen(request, "success", (event) => resolve(resolveValue(request, event)));',
+      );
+      helper.writeln(
+        '    __dartIdbListen(request, "error", (event) => reject(request.error ?? event));',
+      );
+      helper.writeln('  });');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIdbOpen')) {
+      helper.writeln(
+        'function __dartIdbOpen(factory, name, version, onUpgradeNeeded, onBlocked) {',
+      );
+      helper.writeln(
+        '  const request = version == null ? factory.open(name) : factory.open(name, version);',
+      );
+      helper.writeln(
+        '  if (onUpgradeNeeded != null) __dartIdbListen(request, "upgradeneeded", onUpgradeNeeded);',
+      );
+      helper.writeln(
+        '  if (onBlocked != null) __dartIdbListen(request, "blocked", onBlocked);',
+      );
+      helper.writeln('  return __dartIdbRequestPromise(request);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIdbDeleteDatabase')) {
+      helper.writeln(
+        'function __dartIdbDeleteDatabase(factory, name, onBlocked) {',
+      );
+      helper.writeln('  const request = factory.deleteDatabase(name);');
+      helper.writeln(
+        '  if (onBlocked != null) __dartIdbListen(request, "blocked", onBlocked);',
+      );
+      helper.writeln(
+        '  return __dartIdbRequestPromise(request, () => factory);',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIdbStoreRequest')) {
+      helper.writeln('function __dartIdbStoreRequest(store, method, args) {');
+      helper.writeln(
+        '  return __dartIdbRequestPromise(store[method](...args));',
+      );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIdbStorePut')) {
+      helper.writeln('function __dartIdbStorePut(store, method, value, key) {');
+      helper.writeln(
+        '  const request = key == null ? store[method](value) : store[method](value, key);',
+      );
+      helper.writeln('  return __dartIdbRequestPromise(request);');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartFfiPointer')) {

@@ -10,12 +10,16 @@ describe('variables/top_level_variables.mjs', () => {
         'init readFirst',
         'init assignFirst',
         'init finalValue',
+        'get computed',
+        'set computed 40',
         'initial 20',
         'assigned 99',
         'read 10',
         'read again 10',
         'final 30',
         'const 40',
+        'get computed',
+        'computed 6 41 backing 40',
         'count 3',
       ]);
       expect(module.assignFirst).toBe(99);

@@ -33,23 +33,38 @@ export const finalValue = init("finalValue", 30);
 
 export const constValue = 40;
 
+let _computedBacking = 5;
+
 export function init(name, value) {
   __dartPrint("init " + __dartStr(name));
   initCount = (initCount + 1);
   return value;
 }
 
+function _computedValue() {
+  __dartPrint("get computed");
+  return (_computedBacking + 1);
+}
+
+function _computedValue_1(value) {
+  __dartPrint("set computed " + __dartStr(value));
+  _computedBacking = value;
+}
+
 export function main() {
   const firstRead = readFirst;
   const firstAssign = assignFirst;
   const firstFinal = finalValue;
+  const firstComputed = _computedValue();
   assignFirst = 99;
+  _computedValue_1(40);
   __dartPrint("initial " + __dartStr(firstAssign));
   __dartPrint("assigned " + __dartStr(assignFirst));
   __dartPrint("read " + __dartStr(firstRead));
   __dartPrint("read again " + __dartStr(readFirst));
   __dartPrint("final " + __dartStr(firstFinal));
   __dartPrint("const 40");
+  __dartPrint("computed " + __dartStr(firstComputed) + " " + __dartStr(_computedValue()) + " backing " + __dartStr(_computedBacking));
   __dartPrint("count " + __dartStr(initCount));
 }
 

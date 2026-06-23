@@ -71,21 +71,21 @@ export class Square extends Shape {
 }
 
 function $Square_named($newTarget, size) {
-  const $self = Object.create($newTarget.prototype);
+  const $self = Reflect.construct(Shape, [], $newTarget);
   $self.size = size;
   $self.label = "named";
   return $self;
 }
 
 function $Square_withDefault($newTarget, size = 8) {
-  const $self = Object.create($newTarget.prototype);
+  const $self = Reflect.construct(Shape, [], $newTarget);
   $self.size = size;
   $self.label = "default";
   return $self;
 }
 
 function $Square_options($newTarget, { size = 9, label = "options" } = {}) {
-  const $self = Object.create($newTarget.prototype);
+  const $self = Reflect.construct(Shape, [], $newTarget);
   $self.size = size;
   $self.label = label;
   return $self;
@@ -119,7 +119,7 @@ export class Button extends Widget {
 }
 
 function $Button_named($newTarget, label) {
-  const $self = Object.create($newTarget.prototype);
+  const $self = Reflect.construct(Widget, [], $newTarget);
   $self.label = label;
   return $self;
 }

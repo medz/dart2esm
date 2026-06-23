@@ -94,6 +94,7 @@ function __dartUriParse(source, tryParse = false) {
     return map;
   }
   return Object.freeze({
+    __dartType: "Uri",
     get scheme() { return isRelative || isProtocolRelative ? "" : url.protocol.slice(0, -1); },
     get host() { return isRelative ? "" : url.hostname; },
     get authority() { return isRelative ? "" : (userInfo === "" ? url.host : userInfo + "@" + url.host); },

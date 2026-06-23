@@ -3232,6 +3232,10 @@ final class _EsmEmitter {
     if (mirrorsInvocation != null) {
       return mirrorsInvocation;
     }
+    final ffiInvocation = _emitFfiStaticInvocation(expression, positionalArgs);
+    if (ffiInvocation != null) {
+      return ffiInvocation;
+    }
     final jsInteropInvocation = _emitJsInteropStaticInvocation(
       expression,
       positionalArgs,
@@ -3637,6 +3641,10 @@ final class _EsmEmitter {
     if (typedDataGet != null) {
       return typedDataGet;
     }
+    final ffiGet = _emitFfiStaticGet(expression);
+    if (ffiGet != null) {
+      return ffiGet;
+    }
     final isolateGet = _emitIsolateStaticGet(expression);
     if (isolateGet != null) {
       return isolateGet;
@@ -3696,6 +3704,15 @@ final class _EsmEmitter {
     }
     if (path == 'dart:html::@getters::document') {
       return 'globalThis.document';
+    }
+    return null;
+  }
+
+  String? _emitFfiStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:ffi::@getters::nullptr') {
+      _usedHelpers.add('__dartFfiPointer');
+      return '__dartFfiPointer(0)';
     }
     return null;
   }
@@ -3810,6 +3827,16 @@ final class _EsmEmitter {
     );
     if (bigIntInvocation != null) {
       return bigIntInvocation;
+    }
+    final ffiInvocation = _emitFfiInstanceInvocation(
+      target,
+      name,
+      left,
+      positionalArgs,
+      expression.arguments,
+    );
+    if (ffiInvocation != null) {
+      return ffiInvocation;
     }
     final concurrentInvocation = _emitConcurrentInstanceInvocation(
       target,
@@ -5415,6 +5442,14 @@ final class _EsmEmitter {
     if (numberGet != null) {
       return numberGet;
     }
+    final ffiGet = _emitFfiInstanceGet(
+      expression.interfaceTargetReference,
+      name,
+      receiver,
+    );
+    if (ffiGet != null) {
+      return ffiGet;
+    }
     if (_isCoreMember(expression.interfaceTargetReference, 'Object', name)) {
       final objectGet = switch (name) {
         'hashCode' => () {
@@ -6039,6 +6074,8 @@ final class _EsmEmitter {
           '$operand != null && (typeof $operand === "object" || typeof $operand === "function")',
         'JsFunction' => 'typeof $operand === "function"',
         'JsArray' => 'Array.isArray($operand)',
+        'Pointer' =>
+          '$operand != null && typeof $operand === "object" && $operand.__dartType === "Pointer"',
         'ByteBuffer' => '$operand instanceof ArrayBuffer',
         'ByteData' => '$operand instanceof DataView',
         'TypedData' => 'ArrayBuffer.isView($operand)',
@@ -6206,6 +6243,21 @@ final class _EsmEmitter {
         '${type.parameter.name ?? 'T'}${_nullabilitySuffix(type.declaredNullability)}',
       _ => type.toStringInternal(),
     };
+  }
+
+  String _ffiTypeSize(k.DartType type, Object node) {
+    final unaliased = type.unalias;
+    if (unaliased is k.InterfaceType) {
+      final typeName = _interfaceTypeName(unaliased);
+      return switch (typeName) {
+        'Int8' || 'Uint8' || 'Bool' => '1',
+        'Int16' || 'Uint16' => '2',
+        'Int32' || 'Uint32' || 'Float' => '4',
+        'Int64' || 'Uint64' || 'Double' || 'Pointer' => '8',
+        _ => throw UnsupportedKernelNode(node, 'ffi sizeOf $typeName'),
+      };
+    }
+    throw UnsupportedKernelNode(node, 'ffi sizeOf');
   }
 
   String _nullabilitySuffix(k.Nullability nullability) {
@@ -6546,6 +6598,56 @@ final class _EsmEmitter {
         positionalArgs.length <= 2) {
       _usedHelpers.add('__dartSymbol');
       return '__dartSymbol(${positionalArgs[0]}, ${positionalArgs[0]})';
+    }
+    return null;
+  }
+
+  String? _emitFfiStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(expression.targetReference);
+    if (path == 'dart:ffi::Pointer::@factories::fromAddress' &&
+        positionalArgs.length == 1) {
+      _usedHelpers.add('__dartFfiPointer');
+      return '__dartFfiPointer(${positionalArgs.single})';
+    }
+    if (path == 'dart:ffi::@methods::sizeOf' &&
+        positionalArgs.isEmpty &&
+        expression.arguments.types.length == 1) {
+      return _ffiTypeSize(expression.arguments.types.single, expression);
+    }
+    return null;
+  }
+
+  String? _emitFfiInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (!_isFfiClassMember(target, 'Pointer', name) ||
+        arguments.named.isNotEmpty) {
+      return null;
+    }
+    if (name == 'cast' && positionalArgs.isEmpty) {
+      _usedHelpers.add('__dartFfiPointer');
+      return '__dartFfiPointer($receiver.address)';
+    }
+    if (name == '==' && positionalArgs.length == 1) {
+      return '($receiver?.__dartType === "Pointer" && ${positionalArgs.single}?.__dartType === "Pointer" && $receiver.address === ${positionalArgs.single}.address)';
+    }
+    return null;
+  }
+
+  String? _emitFfiInstanceGet(
+    k.Reference target,
+    String name,
+    String receiver,
+  ) {
+    if (_isFfiClassMember(target, 'Pointer', name) && name == 'address') {
+      return '$receiver.address';
     }
     return null;
   }
@@ -8378,6 +8480,12 @@ final class _EsmEmitter {
   ) {
     final path = _referencePath(reference);
     return path.startsWith('dart:concurrent::$className::') &&
+        _pathHasMember(path, name);
+  }
+
+  bool _isFfiClassMember(k.Reference reference, String className, String name) {
+    final path = _referencePath(reference);
+    return path.startsWith('dart:ffi::$className::') &&
         _pathHasMember(path, name);
   }
 
@@ -11495,6 +11603,18 @@ final class _EsmEmitter {
       helper.writeln('    return map;');
       helper.writeln('  }');
       helper.writeln('  return value;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartFfiPointer')) {
+      helper.writeln('function __dartFfiPointer(address) {');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln('    __dartType: "Pointer",');
+      helper.writeln('    address: Number(address),');
+      helper.writeln('    cast() { return __dartFfiPointer(this.address); },');
+      helper.writeln(
+        '    toString() { return "Pointer: address=0x" + Math.trunc(this.address).toString(16); },',
+      );
+      helper.writeln('  });');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartMutex')) {

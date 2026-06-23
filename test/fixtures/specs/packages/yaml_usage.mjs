@@ -12036,16 +12036,16 @@ class Parser {
     let anchor = null;
     let tagToken = null;
     let span = token.span.start.pointSpan();
-    function parseAnchor(token) {
+    const parseAnchor = (token) => {
       anchor = token.name;
       span = span.expand(token.span);
       return __dartNullCheck(this._scanner.advance());
-    }
-    function parseTag(token) {
+    };
+    const parseTag = (token) => {
       tagToken = token;
       span = span.expand(token.span);
       return __dartNullCheck(this._scanner.advance());
-    }
+    };
     if (token instanceof AnchorToken) {
       {
         token = parseAnchor(token);

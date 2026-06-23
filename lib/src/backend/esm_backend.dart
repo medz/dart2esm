@@ -2292,16 +2292,33 @@ final class _EsmEmitter {
   void _emitFunctionDeclaration(k.FunctionDeclaration statement) {
     _declareVariable(statement.variable);
     final function = statement.function;
-    final functionKeyword = _functionKeyword(function, 'local function');
+    final body = function.body;
+    if (body == null) {
+      throw UnsupportedKernelNode(function, 'local function body');
+    }
     _withFunctionNameScope(() {
+      if (_functionBodyUsesLexicalReceiver(body) &&
+          (function.asyncMarker == k.AsyncMarker.Sync ||
+              function.asyncMarker == k.AsyncMarker.Async)) {
+        final asyncPrefix = function.asyncMarker == k.AsyncMarker.Async
+            ? 'async '
+            : '';
+        writeln(
+          'const ${_variableName(statement.variable)} = $asyncPrefix(${_emitParameterList(function)}) => {',
+        );
+        _indent++;
+        _withEmptyReturnValue(null, () {
+          _emitFunctionBody(body);
+        });
+        _indent--;
+        writeln('};');
+        return;
+      }
+      final functionKeyword = _functionKeyword(function, 'local function');
       writeln(
         '$functionKeyword ${_variableName(statement.variable)}(${_emitParameterList(function)}) {',
       );
       _indent++;
-      final body = function.body;
-      if (body == null) {
-        throw UnsupportedKernelNode(function, 'local function body');
-      }
       _withEmptyReturnValue(null, () {
         _emitFunctionBody(body);
       });
@@ -3135,6 +3152,22 @@ final class _EsmEmitter {
           }
         }
         return 'false';
+      case 'dart:io::OSError':
+        _usedHelpers.add('__dartIoOSError');
+        return _emitCanonicalConst(
+          constant,
+          '__dartIoOSError(${_emitConstantFieldValue(constant, 'message') ?? '""'}, ${_emitConstantFieldValue(constant, 'errorCode') ?? '0'})',
+        );
+      case 'dart:io::FileSystemException':
+        _usedHelpers.add('__dartIoFileSystemException');
+        return _emitCanonicalConst(
+          constant,
+          '__dartIoFileSystemException(${_emitConstantFieldValue(constant, 'message') ?? '""'}, ${_emitConstantFieldValue(constant, 'path') ?? 'null'}, ${_emitConstantFieldValue(constant, 'osError') ?? 'null'})',
+        );
+    }
+    final ioEnum = _emitIoEnumInstanceConstant(constant);
+    if (ioEnum != null) {
+      return ioEnum;
     }
     if (classNode is k.Class &&
         classNode.enclosingLibrary.importUri.scheme != 'dart') {
@@ -3145,6 +3178,26 @@ final class _EsmEmitter {
     }
     final className = _referencePath(constant.classReference);
     throw UnsupportedKernelNode(constant, 'instance constant $className');
+  }
+
+  String? _emitIoEnumInstanceConstant(k.InstanceConstant constant) {
+    final path = _referencePath(constant.classReference);
+    if (!path.startsWith('dart:io::')) {
+      return null;
+    }
+    final typeName = path.substring('dart:io::'.length);
+    if (typeName != 'FileMode' &&
+        typeName != 'FileLock' &&
+        typeName != 'FileSystemEntityType') {
+      return null;
+    }
+    _usedHelpers.add('__dartIoEnum');
+    final name = _enumConstantName(constant);
+    final index = _enumConstantIndex(constant) ?? '0';
+    return _emitCanonicalConst(
+      constant,
+      '__dartIoEnum(${jsonEncode(typeName)}, ${jsonEncode(name ?? typeName)}, $index)',
+    );
   }
 
   String? _emitCoreErrorInstanceConstant(k.InstanceConstant constant) {
@@ -3629,6 +3682,13 @@ final class _EsmEmitter {
     if (streamTransformerConstructor != null) {
       return streamTransformerConstructor;
     }
+    final ioConstructor = _emitIoConstructorInvocation(
+      expression.targetReference,
+      positionalArgs,
+    );
+    if (ioConstructor != null) {
+      return ioConstructor;
+    }
     final internalIterableConstructor =
         _emitInternalIterableConstructorInvocation(expression, positionalArgs);
     if (internalIterableConstructor != null) {
@@ -3704,6 +3764,29 @@ final class _EsmEmitter {
       return '${_className(target.enclosingClass)}.${_memberName(target.name.text)}($args)';
     }
     return 'new ${_className(target.enclosingClass)}($args)';
+  }
+
+  String? _emitIoConstructorInvocation(
+    k.Reference reference,
+    List<String> positionalArgs,
+  ) {
+    final path = _referencePath(reference);
+    if (path == 'dart:io::OSError::@constructors::' &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartIoOSError');
+      final message = positionalArgs.isEmpty ? '""' : positionalArgs[0];
+      final errorCode = positionalArgs.length < 2 ? '0' : positionalArgs[1];
+      return '__dartIoOSError($message, $errorCode)';
+    }
+    if (path == 'dart:io::FileSystemException::@constructors::' &&
+        positionalArgs.length <= 3) {
+      _usedHelpers.add('__dartIoFileSystemException');
+      final message = positionalArgs.isEmpty ? '""' : positionalArgs[0];
+      final filePath = positionalArgs.length < 2 ? 'null' : positionalArgs[1];
+      final osError = positionalArgs.length < 3 ? 'null' : positionalArgs[2];
+      return '__dartIoFileSystemException($message, $filePath, $osError)';
+    }
+    return null;
   }
 
   String _emitFactoryInvocation(k.Procedure target, k.Arguments arguments) {
@@ -4402,6 +4485,10 @@ final class _EsmEmitter {
     if (isolateGet != null) {
       return isolateGet;
     }
+    final ioGet = _emitIoStaticGet(expression);
+    if (ioGet != null) {
+      return ioGet;
+    }
     final target = expression.targetReference.node;
     if (target is k.Field && _fieldNames.containsKey(target)) {
       return _emitStaticFieldRead(target);
@@ -4446,6 +4533,38 @@ final class _EsmEmitter {
       expression,
       'static get ${_referencePath(expression.targetReference)}',
     );
+  }
+
+  String? _emitIoStaticGet(k.StaticGet expression) {
+    final path = _referencePath(expression.targetReference);
+    if (!path.startsWith('dart:io::Platform::@getters::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    const operatingSystem =
+        '((globalThis.process?.platform === "win32") ? "windows" : (globalThis.process?.platform === "darwin") ? "macos" : (globalThis.process?.platform === "linux") ? "linux" : "browser")';
+    return switch (name) {
+      'operatingSystem' => operatingSystem,
+      'pathSeparator' => '($operatingSystem === "windows" ? "\\\\" : "/")',
+      'isWindows' => '($operatingSystem === "windows")',
+      'isLinux' => '($operatingSystem === "linux")',
+      'isMacOS' => '($operatingSystem === "macos")',
+      'isAndroid' => 'false',
+      'isIOS' => 'false',
+      'isFuchsia' => 'false',
+      'environment' => 'Object.freeze({})',
+      'localHostname' => '""',
+      'numberOfProcessors' => '1',
+      'script' =>
+        'new URL("file:///", globalThis.location?.href ?? "file:///")',
+      'resolvedExecutable' => 'globalThis.process?.execPath ?? ""',
+      'executable' => 'globalThis.process?.execPath ?? ""',
+      'executableArguments' => 'Object.freeze([])',
+      'packageConfig' => 'null',
+      'version' => '""',
+      'localeName' => 'globalThis.navigator?.language ?? "en"',
+      _ => null,
+    };
   }
 
   String? _emitJsInteropStaticGet(k.StaticGet expression) {
@@ -7178,12 +7297,20 @@ final class _EsmEmitter {
       if (classNode is k.Class && _classNames.containsKey(classNode)) {
         return '$operand instanceof ${_className(classNode)}';
       }
+      if (classNode is k.Class &&
+          classNode.enclosingLibrary.importUri.scheme != 'dart') {
+        return '$operand instanceof ${_className(classNode)}';
+      }
       if (_isCoreClass(classReference, 'Object')) {
         return '$operand != null';
       }
       final nativeSdkTypeTest = _emitNativeSdkTypeTest(operand, type);
       if (nativeSdkTypeTest != null) {
         return nativeSdkTypeTest;
+      }
+      final ioTypeTest = _emitIoTypeTest(operand, type);
+      if (ioTypeTest != null) {
+        return ioTypeTest;
       }
       final typeName = _interfaceTypeName(type);
       return switch (typeName) {
@@ -7339,6 +7466,38 @@ final class _EsmEmitter {
       return null;
     }
     return '(typeof $constructor === "function" && $operand instanceof $constructor)';
+  }
+
+  String? _emitIoTypeTest(String operand, k.InterfaceType type) {
+    final path = _referencePath(type.classReference);
+    if (!path.startsWith('dart:io::')) {
+      return null;
+    }
+    final name = path.split('::').last;
+    switch (name) {
+      case 'FileSystemEntity':
+      case 'File':
+      case 'Directory':
+      case 'Link':
+        return '$operand != null && typeof $operand === "object" && typeof $operand.path === "string"';
+      case 'FileSystemException':
+      case 'IOException':
+      case 'OSError':
+        return '$operand instanceof Error || ($operand != null && typeof $operand === "object" && "message" in $operand)';
+      case 'IOSink':
+        return '$operand != null && typeof $operand === "object" && typeof $operand.write === "function"';
+      case 'RandomAccessFile':
+        return '$operand != null && typeof $operand === "object" && typeof $operand.close === "function"';
+      case 'FileStat':
+        return '$operand != null && typeof $operand === "object" && "type" in $operand';
+      case 'FileSystemEvent':
+        return '$operand != null && typeof $operand === "object" && typeof $operand.path === "string"';
+      case 'FileMode':
+      case 'FileLock':
+      case 'FileSystemEntityType':
+        return '$operand != null && typeof $operand === "object" && $operand.__dartType === ${jsonEncode(name)}';
+    }
+    return null;
   }
 
   String? _nativeSdkConstructorExpression(k.Reference classReference) {
@@ -13986,6 +14145,66 @@ final class _EsmEmitter {
       helper.writeln(
         '  return typeName === "Error" && value instanceof Error;',
       );
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIoOSError')) {
+      helper.writeln('function __dartIoOSError(message = "", errorCode = 0) {');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln('    __dartType: "OSError",');
+      helper.writeln('    message,');
+      helper.writeln('    errorCode,');
+      helper.writeln(
+        '    toString() { return "OS Error: " + String(message) + ", errno = " + String(errorCode); },',
+      );
+      helper.writeln('  });');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIoFileSystemException')) {
+      helper.writeln(
+        'function __dartIoFileSystemException(message = "", path = null, osError = null) {',
+      );
+      helper.writeln('  const text = String(message ?? "");');
+      helper.writeln('  const error = new Error(text);');
+      helper.writeln('  error.name = "FileSystemException";');
+      helper.writeln(
+        '  Object.defineProperty(error, "__dartIoFileSystemException", { value: true });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(error, "__dartCoreErrorType", { value: "FileSystemException" });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(error, "message", { value: text });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(error, "path", { value: path });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(error, "osError", { value: osError });',
+      );
+      helper.writeln('  Object.defineProperty(error, "toString", { value() {');
+      helper.writeln(
+        '    const pathText = path == null ? "" : ", path = " + JSON.stringify(String(path));',
+      );
+      helper.writeln(
+        '    const osText = osError == null ? "" : " (" + String(osError) + ")";',
+      );
+      helper.writeln(
+        '    return "FileSystemException: " + text + pathText + osText;',
+      );
+      helper.writeln('  } });');
+      helper.writeln('  return error;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartIoEnum')) {
+      helper.writeln('function __dartIoEnum(typeName, name, index) {');
+      helper.writeln('  return Object.freeze({');
+      helper.writeln('    __dartType: typeName,');
+      helper.writeln('    name,');
+      helper.writeln('    index,');
+      helper.writeln(
+        '    toString() { return String(typeName) + "." + String(name); },',
+      );
+      helper.writeln('  });');
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartRangeChecks')) {

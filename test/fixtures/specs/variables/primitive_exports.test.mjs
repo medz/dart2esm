@@ -11,6 +11,7 @@ describe('variables/primitive_exports.mjs', () => {
         'a 1',
         'b 2',
         'c 1',
+        'private:9',
       ]);
 
       const importedBindings = await import('./primitive_exports_reassign_imports.mjs');
@@ -29,6 +30,8 @@ describe('variables/primitive_exports.mjs', () => {
         module.c = 4;
       }).toThrow(TypeError);
       expect([module.a, module.b, module.c]).toEqual([1, 2, 1]);
+      expect(module).not.toHaveProperty('_privateConst');
+      expect(module).not.toHaveProperty('_privateLabel');
       expect(Object.isFrozen(module.constList)).toBe(true);
       expect(() => {
         module.constList.push(3);

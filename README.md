@@ -37,8 +37,9 @@ dart2esm build/input.dill -o dist/input.mjs
    --embed-sources`.
 2. Kernel bytes are read with `package:kernel`.
 3. The backend walks the entry component and emits native `.mjs`.
-4. Entry-library declarations are exported as ESM bindings. Imported local Dart
-   libraries are bundled into the same output module as internal declarations.
+4. Public entry-library declarations are exported as ESM bindings. Imported
+   local Dart libraries are bundled into the same output module and only
+   re-exported when the Dart entry library exports them.
 
 ## Unsupported Libraries
 

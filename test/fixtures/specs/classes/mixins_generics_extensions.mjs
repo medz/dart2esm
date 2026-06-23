@@ -39,7 +39,7 @@ export class Named {
   }
 }
 
-export class _User_Object_Named extends Named {
+class _User_Object_Named extends Named {
   constructor() {
     super();
   }

@@ -4215,6 +4215,14 @@ final class _EsmEmitter {
       return '$left.get(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'scheduleMicrotask' &&
+        positionalArgs.length == 1 &&
+        _isAsyncZoneMember(target, name)) {
+      _usedHelpers.add('__dartZone');
+      _usedHelpers.add('__dartScheduleMicrotask');
+      return '$left.scheduleMicrotask(${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'bind' &&
         positionalArgs.length == 1 &&
         _isConvertConverterMember(target, name)) {
@@ -5788,7 +5796,9 @@ final class _EsmEmitter {
     }
     if (path == 'dart:async::@methods::scheduleMicrotask' &&
         positionalArgs.length == 1) {
-      return '(typeof queueMicrotask === "function" ? queueMicrotask(${positionalArgs.single}) : Promise.resolve().then(${positionalArgs.single}), null)';
+      _usedHelpers.add('__dartZone');
+      _usedHelpers.add('__dartScheduleMicrotask');
+      return '__dartScheduleMicrotask(${positionalArgs.single})';
     }
     if (path == 'dart:async::@methods::unawaited' &&
         positionalArgs.length == 1) {
@@ -11129,6 +11139,7 @@ final class _EsmEmitter {
       helper.writeln('  const zone = {');
       helper.writeln('    __dartType: "Zone",');
       helper.writeln('    parent,');
+      helper.writeln('    get errorZone() { return zone; },');
       helper.writeln('    get(key) {');
       helper.writeln(
         '      if (zoneValues.has(key)) return zoneValues.get(key);',
@@ -11137,13 +11148,64 @@ final class _EsmEmitter {
       helper.writeln('    },');
       helper.writeln('    "[]"(key) { return this.get(key); },');
       helper.writeln(
-        '    run(body) { return __dartRunZoned(body, { zoneValues: null, parentZone: zone }); },',
+        '    run(body) { return __dartRunInZone(zone, body); },',
       );
       helper.writeln(
-        '    runGuarded(body) { return __dartRunZonedGuarded(body, (error) => { throw error; }, { zoneValues: null, parentZone: zone }); },',
+        '    runUnary(body, argument) { return __dartRunInZone(zone, () => body(argument)); },',
+      );
+      helper.writeln(
+        '    runBinary(body, first, second) { return __dartRunInZone(zone, () => body(first, second)); },',
+      );
+      helper.writeln(
+        '    runGuarded(body) { try { return __dartRunInZone(zone, body); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },',
+      );
+      helper.writeln(
+        '    runUnaryGuarded(body, argument) { try { return __dartRunInZone(zone, () => body(argument)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },',
+      );
+      helper.writeln(
+        '    runBinaryGuarded(body, first, second) { try { return __dartRunInZone(zone, () => body(first, second)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },',
+      );
+      helper.writeln(
+        '    bindCallback(callback) { return () => zone.run(callback); },',
+      );
+      helper.writeln(
+        '    bindUnaryCallback(callback) { return argument => zone.runUnary(callback, argument); },',
+      );
+      helper.writeln(
+        '    bindBinaryCallback(callback) { return (first, second) => zone.runBinary(callback, first, second); },',
+      );
+      helper.writeln(
+        '    bindCallbackGuarded(callback) { return () => zone.runGuarded(callback); },',
+      );
+      helper.writeln(
+        '    bindUnaryCallbackGuarded(callback) { return argument => zone.runUnaryGuarded(callback, argument); },',
+      );
+      helper.writeln(
+        '    bindBinaryCallbackGuarded(callback) { return (first, second) => zone.runBinaryGuarded(callback, first, second); },',
+      );
+      helper.writeln(
+        '    registerCallback(callback) { return zone.bindCallback(callback); },',
+      );
+      helper.writeln(
+        '    registerUnaryCallback(callback) { return zone.bindUnaryCallback(callback); },',
+      );
+      helper.writeln(
+        '    registerBinaryCallback(callback) { return zone.bindBinaryCallback(callback); },',
       );
       helper.writeln(
         '    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },',
+      );
+      helper.writeln(
+        '    scheduleMicrotask(callback) { return __dartScheduleMicrotask(callback, zone); },',
+      );
+      helper.writeln(
+        '    handleUncaughtError(error, stackTrace = null) { throw error; },',
+      );
+      helper.writeln(
+        '    inSameErrorZone(other) { return true; },',
+      );
+      helper.writeln(
+        '    print(line) { console.log(String(line)); return null; },',
       );
       helper.writeln('    toString() { return "Zone"; },');
       helper.writeln('  };');
@@ -11158,6 +11220,20 @@ final class _EsmEmitter {
       helper.writeln('  if (zoneValues instanceof Map) return zoneValues;');
       helper.writeln('  return new Map(Array.from(zoneValues));');
       helper.writeln('}');
+      if (_usedHelpers.contains('__dartScheduleMicrotask')) {
+        helper.writeln(
+          'function __dartScheduleMicrotask(callback, zone = __dartCurrentZone) {',
+        );
+        helper.writeln(
+          '  const run = () => __dartRunInZone(zone, callback);',
+        );
+        helper.writeln(
+          '  if (typeof queueMicrotask === "function") queueMicrotask(run);',
+        );
+        helper.writeln('  else Promise.resolve().then(run);');
+        helper.writeln('  return null;');
+        helper.writeln('}');
+      }
       helper.writeln('function __dartRunInZone(zone, body) {');
       helper.writeln('  const previous = __dartCurrentZone;');
       helper.writeln('  __dartCurrentZone = zone;');
@@ -12963,6 +13039,7 @@ const _generatedGlobalNames = {
   '__dartRunInZone',
   '__dartRunZoned',
   '__dartRunZonedGuarded',
+  '__dartScheduleMicrotask',
   '__dartSafeToString',
   '__dartSetAdd',
   '__dartSetAddAll',

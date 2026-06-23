@@ -130,6 +130,32 @@ Future<void> main() async {
     'zone $zoneValue $guardedResult $guardedError '
     '${Zone.current[#missing] == null}',
   );
+  final nestedZone = Zone.current.fork(zoneValues: {#answer: 8});
+  final runValue = nestedZone.run(() => Zone.current[#answer]);
+  final unaryValue = nestedZone.runUnary(
+    (int value) => '${Zone.current[#answer]}:$value',
+    9,
+  );
+  final boundUnary = nestedZone.bindUnaryCallback(
+    (int value) => '${Zone.current[#answer]}:$value',
+  );
+  final boundBinary = nestedZone.bindBinaryCallback(
+    (int left, int right) => '${Zone.current[#answer]}:${left + right}',
+  );
+  final zoneMicrotask = Completer<Object?>();
+  nestedZone.scheduleMicrotask(() {
+    zoneMicrotask.complete(Zone.current[#answer]);
+  });
+  final runZonedMicrotask = Completer<Object?>();
+  runZoned(() {
+    scheduleMicrotask(() {
+      runZonedMicrotask.complete(Zone.current[#answer]);
+    });
+  }, zoneValues: {#answer: 9});
+  print(
+    'zoneRun $runValue $unaryValue ${boundUnary(10)} ${boundBinary(2, 3)} '
+    '${await zoneMicrotask.future} ${await runZonedMicrotask.future}',
+  );
 
   final completer = Completer<int>();
   Future.microtask(() => completer.complete(6));

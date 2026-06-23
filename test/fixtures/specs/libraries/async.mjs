@@ -148,14 +148,32 @@ function __dartCreateZone(parent = null, values = null) {
   const zone = {
     __dartType: "Zone",
     parent,
+    get errorZone() { return zone; },
     get(key) {
       if (zoneValues.has(key)) return zoneValues.get(key);
       return parent == null ? null : parent.get(key);
     },
     "[]"(key) { return this.get(key); },
-    run(body) { return __dartRunZoned(body, { zoneValues: null, parentZone: zone }); },
-    runGuarded(body) { return __dartRunZonedGuarded(body, (error) => { throw error; }, { zoneValues: null, parentZone: zone }); },
+    run(body) { return __dartRunInZone(zone, body); },
+    runUnary(body, argument) { return __dartRunInZone(zone, () => body(argument)); },
+    runBinary(body, first, second) { return __dartRunInZone(zone, () => body(first, second)); },
+    runGuarded(body) { try { return __dartRunInZone(zone, body); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
+    runUnaryGuarded(body, argument) { try { return __dartRunInZone(zone, () => body(argument)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
+    runBinaryGuarded(body, first, second) { try { return __dartRunInZone(zone, () => body(first, second)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
+    bindCallback(callback) { return () => zone.run(callback); },
+    bindUnaryCallback(callback) { return argument => zone.runUnary(callback, argument); },
+    bindBinaryCallback(callback) { return (first, second) => zone.runBinary(callback, first, second); },
+    bindCallbackGuarded(callback) { return () => zone.runGuarded(callback); },
+    bindUnaryCallbackGuarded(callback) { return argument => zone.runUnaryGuarded(callback, argument); },
+    bindBinaryCallbackGuarded(callback) { return (first, second) => zone.runBinaryGuarded(callback, first, second); },
+    registerCallback(callback) { return zone.bindCallback(callback); },
+    registerUnaryCallback(callback) { return zone.bindUnaryCallback(callback); },
+    registerBinaryCallback(callback) { return zone.bindBinaryCallback(callback); },
     fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },
+    scheduleMicrotask(callback) { return __dartScheduleMicrotask(callback, zone); },
+    handleUncaughtError(error, stackTrace = null) { throw error; },
+    inSameErrorZone(other) { return true; },
+    print(line) { console.log(String(line)); return null; },
     toString() { return "Zone"; },
   };
   return Object.freeze(zone);
@@ -166,6 +184,12 @@ function __dartZoneValuesMap(zoneValues) {
   if (zoneValues == null) return new Map();
   if (zoneValues instanceof Map) return zoneValues;
   return new Map(Array.from(zoneValues));
+}
+function __dartScheduleMicrotask(callback, zone = __dartCurrentZone) {
+  const run = () => __dartRunInZone(zone, callback);
+  if (typeof queueMicrotask === "function") queueMicrotask(run);
+  else Promise.resolve().then(run);
+  return null;
 }
 function __dartRunInZone(zone, body) {
   const previous = __dartCurrentZone;
@@ -1213,13 +1237,10 @@ export async function main() {
   __dartPrint("futureLoop " + __dartStr(forEachTotal) + " " + __dartStr(doWhileCount));
   const microCompleter = __dartCompleter();
   const microValues = new Array(0).fill(null);
-  (typeof queueMicrotask === "function" ? queueMicrotask(function() {
+  __dartScheduleMicrotask(function() {
     (microValues.push("micro"), null);
     microCompleter.complete();
-}) : Promise.resolve().then(function() {
-    (microValues.push("micro"), null);
-    microCompleter.complete();
-}), null);
+});
   (Promise.resolve(null), null);
   await microCompleter.future;
   const asyncError = __dartAsyncError("async-error", (new Error().stack ?? "<javascript stack unavailable>"));
@@ -1234,6 +1255,22 @@ export async function main() {
     guardedError = __dartStr(error) + ":" + __dartStr(__dartStr(stackTrace).length !== 0);
 }, { zoneValues: null });
   __dartPrint("zone " + __dartStr(zoneValue) + " " + __dartStr(guardedResult) + " " + __dartStr(guardedError) + " " + __dartStr((__dartCurrentZone["[]"](__dartSymbol("missing", "missing")) === null)));
+  const nestedZone = __dartCurrentZone.fork({ zoneValues: new Map([[__dartSymbol("answer", "answer"), 8]]) });
+  const runValue = nestedZone.run(function() { return __dartCurrentZone["[]"](__dartSymbol("answer", "answer")); });
+  const unaryValue = nestedZone.runUnary(function(value) { return __dartStr(__dartCurrentZone["[]"](__dartSymbol("answer", "answer"))) + ":" + __dartStr(value); }, 9);
+  const boundUnary = nestedZone.bindUnaryCallback(function(value) { return __dartStr(__dartCurrentZone["[]"](__dartSymbol("answer", "answer"))) + ":" + __dartStr(value); });
+  const boundBinary = nestedZone.bindBinaryCallback(function(left, right) { return __dartStr(__dartCurrentZone["[]"](__dartSymbol("answer", "answer"))) + ":" + __dartStr((left + right)); });
+  const zoneMicrotask = __dartCompleter();
+  nestedZone.scheduleMicrotask(function() {
+    zoneMicrotask.complete(__dartCurrentZone["[]"](__dartSymbol("answer", "answer")));
+});
+  const runZonedMicrotask = __dartCompleter();
+  __dartRunZoned(function() {
+    __dartScheduleMicrotask(function() {
+      runZonedMicrotask.complete(__dartCurrentZone["[]"](__dartSymbol("answer", "answer")));
+});
+}, { zoneValues: new Map([[__dartSymbol("answer", "answer"), 9]]), onError: null });
+  __dartPrint("zoneRun " + __dartStr(runValue) + " " + __dartStr(unaryValue) + " " + __dartStr((boundUnary)(10)) + " " + __dartStr((boundBinary)(2, 3)) + " " + __dartStr(await zoneMicrotask.future) + " " + __dartStr(await runZonedMicrotask.future));
   const completer = __dartCompleter();
   Promise.resolve().then(() => (function() { return completer.complete(6); })());
   __dartPrint("complete " + __dartStr(await completer.future) + " " + __dartStr(completer.isCompleted));

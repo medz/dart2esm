@@ -37,14 +37,14 @@ export class Box {
 }
 
 export function describe(maybe) {
-  const first = (() => { let v = (() => { let v_1 = maybe; return ((v_1 === null) ? null : v_1.value); })(); return ((v === null) ? (-1) : v); })();
-  const second = (() => { let v_2 = (() => { let v_3 = maybe; return ((v_3 === null) ? null : v_3.bump(2)); })(); return ((v_2 === null) ? (-2) : v_2); })();
+  const first = ((maybe)?.value ?? (-1));
+  const second = ((maybe)?.bump(2) ?? (-2));
   let assigned = maybe;
   ((assigned === null) ? assigned = new Box(7) : null);
-  const cascaded = (() => { let v_4 = new Box(1); return (() => {
-    v_4.value = 3;
-    v_4.bump(4);
-    return v_4;
+  const cascaded = (() => { let v = new Box(1); return (() => {
+    v.value = 3;
+    v.bump(4);
+    return v;
   })(); })();
   const bits = (~first);
   const truth = !((second < 0));

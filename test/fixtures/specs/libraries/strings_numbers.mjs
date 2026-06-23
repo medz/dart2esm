@@ -761,10 +761,10 @@ function __dartConst(key, create) {
 export function main() {
   const parsedInt = __dartIntParse("42", null);
   const parsedHex = __dartIntParse("ff", 16);
-  const maybeInt = (() => { let v = __dartIntTryParse("nope", null); return ((v === null) ? (-1) : v); })();
+  const maybeInt = (__dartIntTryParse("nope", null) ?? (-1));
   __dartPrint("ints " + __dartStr(parsedInt) + " " + __dartStr(parsedHex) + " " + __dartStr(maybeInt));
   const parsedDouble = __dartDoubleParse("3.5");
-  const maybeDouble = (() => { let v_1 = __dartDoubleTryParse("bad"); return ((v_1 === null) ? 1.25 : v_1); })();
+  const maybeDouble = (__dartDoubleTryParse("bad") ?? 1.25);
   const parsedNum = __dartNumParse("7.25");
   __dartPrint("nums " + __dartStr(parsedDouble) + " " + __dartStr(maybeDouble) + " " + __dartStr(parsedNum));
   const char = String.fromCodePoint(65);

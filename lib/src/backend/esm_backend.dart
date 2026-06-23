@@ -6435,11 +6435,115 @@ final class _EsmEmitter {
   }
 
   String _emitLetExpression(k.Let expression) {
+    final optimized = _emitOptimizedLetExpression(expression);
+    if (optimized != null) {
+      return optimized;
+    }
     _declareVariable(expression.variable);
     final initializer = expression.variable.initializer == null
         ? 'null'
         : emitExpression(expression.variable.initializer!);
     return '(() => { let ${_variableName(expression.variable)} = $initializer; return ${emitExpression(expression.body)}; })()';
+  }
+
+  String? _emitOptimizedLetExpression(k.Let expression) {
+    final initializer = expression.variable.initializer;
+    if (initializer == null) {
+      return null;
+    }
+    final body = expression.body;
+    if (body is! k.ConditionalExpression ||
+        !_isEqualsNullVariable(body.condition, expression.variable)) {
+      return null;
+    }
+    if (_isVariableGet(body.otherwise, expression.variable)) {
+      final left = initializer is k.Let
+          ? _emitNullAwareLetAccess(initializer) ?? emitExpression(initializer)
+          : emitExpression(initializer);
+      return '($left ?? ${emitExpression(body.then)})';
+    }
+    if (body.then is k.NullLiteral) {
+      final access = _emitNullAwareLetAccess(expression);
+      if (access != null) {
+        return '($access ?? null)';
+      }
+    }
+    return null;
+  }
+
+  bool _isEqualsNullVariable(
+    k.Expression expression,
+    k.VariableDeclaration variable,
+  ) {
+    return expression is k.EqualsNull &&
+        _isVariableGet(expression.expression, variable);
+  }
+
+  bool _isVariableGet(k.Expression expression, k.VariableDeclaration variable) {
+    return expression is k.VariableGet &&
+        identical(expression.variable, variable);
+  }
+
+  String? _emitNullAwareLetAccess(k.Let expression) {
+    final initializer = expression.variable.initializer;
+    final body = expression.body;
+    if (initializer == null ||
+        body is! k.ConditionalExpression ||
+        !_isEqualsNullVariable(body.condition, expression.variable) ||
+        body.then is! k.NullLiteral) {
+      return null;
+    }
+    return _emitNullAwareAccess(
+      expression.variable,
+      initializer,
+      body.otherwise,
+    );
+  }
+
+  String? _emitNullAwareAccess(
+    k.VariableDeclaration variable,
+    k.Expression initializer,
+    k.Expression otherwise,
+  ) {
+    final receiver = '(${emitExpression(initializer)})';
+    if (otherwise is k.InstanceGet &&
+        _isVariableGet(otherwise.receiver, variable)) {
+      return _emitOptionalPropertyGet(
+        receiver,
+        _memberName(otherwise.name.text),
+      );
+    }
+    if (otherwise is k.InstanceInvocation &&
+        _isVariableGet(otherwise.receiver, variable) &&
+        otherwise.arguments.named.isEmpty) {
+      final args = otherwise.arguments.positional
+          .map(emitExpression)
+          .join(', ');
+      return '${_emitOptionalPropertyGet(receiver, _memberName(otherwise.name.text))}($args)';
+    }
+    if (otherwise is k.DynamicGet &&
+        _isVariableGet(otherwise.receiver, variable)) {
+      return _emitOptionalPropertyGet(
+        receiver,
+        _memberName(otherwise.name.text),
+      );
+    }
+    if (otherwise is k.DynamicInvocation &&
+        _isVariableGet(otherwise.receiver, variable) &&
+        otherwise.arguments.named.isEmpty) {
+      final args = otherwise.arguments.positional
+          .map(emitExpression)
+          .join(', ');
+      return '${_emitOptionalPropertyGet(receiver, _memberName(otherwise.name.text))}($args)';
+    }
+    return null;
+  }
+
+  String _emitOptionalPropertyGet(String receiver, String name) {
+    if (_isIdentifier(name) && !_reservedNames.contains(name)) {
+      return '$receiver?.$name';
+    }
+    return '$receiver?.[${jsonEncode(name)}]';
   }
 
   String _emitSymbol(String name, {k.Reference? libraryReference}) {

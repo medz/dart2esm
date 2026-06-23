@@ -67,7 +67,7 @@ export function main() {
   const parsed = __dartBigIntParse("42", null, false);
   const prefixed = __dartBigIntParse("0xff", null, false);
   const hex = __dartBigIntParse("ff", 16, false);
-  const maybe = (() => { let v = __dartBigIntParse("nope", null, true); return ((v === null) ? BigInt(Math.trunc((-1))) : v); })();
+  const maybe = (__dartBigIntParse("nope", null, true) ?? BigInt(Math.trunc((-1))));
   const fromDouble = BigInt(Math.trunc(5.9));
   __dartPrint("parse " + __dartStr(parsed) + " " + __dartStr(prefixed) + " " + __dartStr(hex) + " " + __dartStr(maybe) + " " + __dartStr(fromDouble));
   const sum = (parsed + 2n);

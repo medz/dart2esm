@@ -39,8 +39,8 @@ export function main() {
   const canvas = __dartCanvasElement(16, 8);
   const generic = canvas.getContext("webgl");
   const context = __dartCanvasGetContext3d(canvas, { alpha: true, depth: true, stencil: false, antialias: true, premultipliedAlpha: true, preserveDrawingBuffer: false });
-  (() => { let v = context; return ((v === null) ? null : v.clearColor(0, 0, 0, 1)); })();
-  (() => { let v_1 = context; return ((v_1 === null) ? null : v_1.clear(16384.0)); })();
+  ((context)?.clearColor(0, 0, 0, 1) ?? null);
+  ((context)?.clear(16384.0) ?? null);
   const mask = (16384.0 | 4.0);
   __dartPrint("webgl " + __dartStr((!!globalThis.window?.WebGLRenderingContext)) + " " + __dartStr(mask) + " " + __dartStr(canvas.width) + " " + __dartStr(canvas.height) + " " + __dartStr(!((generic === null))) + " " + __dartStr(!((context === null))));
 }

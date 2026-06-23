@@ -38,7 +38,7 @@ export function main() {
   (gain.connect(__dartNullCheck(context.destination), 0, 0), null);
   (oscillator.start(), null);
   oscillator.stop(0.25);
-  __dartPrint("webAudio " + __dartStr(supported) + " " + __dartStr(context.currentTime) + " " + __dartStr((() => { let v = gain.gain; return ((v === null) ? null : v.value); })()) + " " + __dartStr(oscillator.type) + " " + __dartStr(!((context.destination === null))));
+  __dartPrint("webAudio " + __dartStr(supported) + " " + __dartStr(context.currentTime) + " " + __dartStr(((gain.gain)?.value ?? null)) + " " + __dartStr(oscillator.type) + " " + __dartStr(!((context.destination === null))));
 }
 
 main();

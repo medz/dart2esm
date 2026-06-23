@@ -109,7 +109,7 @@ export function describeFinalizer(token) {
 export function main() {
   const token = new PlainToken("dart");
   const weak = makeWeak(token);
-  __dartPrint("weak " + __dartStr(__dartEquals(weak.target, token)) + " " + __dartStr((() => { let v = weak.target; return ((v === null) ? null : v.name); })()));
+  __dartPrint("weak " + __dartStr(__dartEquals(weak.target, token)) + " " + __dartStr(((weak.target)?.name ?? null)));
   __dartPrint("weakType " + __dartStr(describeWeak(token)));
   __dartPrint("finalizer " + __dartStr(describeFinalizer(token)));
 }

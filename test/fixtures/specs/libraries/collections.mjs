@@ -738,7 +738,7 @@ export function main() {
   __dartMapAddEntries(transformSource, [Object.freeze({ key: "c", value: 3 })]);
   const transformed = __dartMapMap(transformSource, function(key, value) { return Object.freeze({ key: __dartStr(key) + __dartStr(value), value: (value + 10) }); });
   const transformedCast = new Map(Array.from(transformSource, ([key, value]) => [__dartAs(key, (key) => typeof key === "string", "InterfaceType(String)"), __dartAs(value, (value) => typeof value === "number", "InterfaceType(num)")]));
-  __dartPrint("map transforms " + __dartStr(__dartMapGet(transformSource, "c")) + " " + __dartStr(__dartMapGet(transformed, "b2")) + " " + __dartStr(((() => { let v = __dartMapGet(transformedCast, "a"); return ((v === null) ? 0 : v); })() + 1)));
+  __dartPrint("map transforms " + __dartStr(__dartMapGet(transformSource, "c")) + " " + __dartStr(__dartMapGet(transformed, "b2")) + " " + __dartStr(((__dartMapGet(transformedCast, "a") ?? 0) + 1)));
   const eqMap = new Map([]);
   __dartMapSet(eqMap, new EqBox(1), "one");
   __dartMapSet(eqMap, new EqBox(1), "uno");

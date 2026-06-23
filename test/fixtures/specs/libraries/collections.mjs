@@ -426,6 +426,11 @@ function __dartSetRetainAll(set, values) {
   return null;
 }
 function __dartIterableJoin(iterable, separator = "") {
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    const values = [];
+    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
+    return values.join(String(separator));
+  }
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
 function __dartIterableFirst(iterable) {

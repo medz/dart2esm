@@ -87,6 +87,11 @@ function __dartListAsMap(list) {
   })();
 }
 function __dartIterableJoin(iterable, separator = "") {
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    const values = [];
+    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
+    return values.join(String(separator));
+  }
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
 function __dartTypedDataSublistView(data, start, end, viewConstructor, bytesPerElement) {

@@ -82,16 +82,6 @@ function __dartType(name) {
   __dartTypeCache.set(name, value);
   return value;
 }
-const __dartSymbolCache = new Map();
-function __dartSymbol(key, name) {
-  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
-  const value = Object.freeze({
-    name,
-    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },
-  });
-  __dartSymbolCache.set(key, value);
-  return value;
-}
 function __dartNullCheck(value) {
   if (value == null) {
     throw new TypeError("Null check operator used on a null value");
@@ -151,30 +141,6 @@ function __dartBind(receiver, name) {
   }
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
-}
-function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {
-  const memberName = name != null && typeof name === "object" && "name" in name ? name : __dartSymbol(name, name);
-  const displayName = memberName?.name ?? String(name);
-  const named = new Map();
-  if (namedArguments instanceof Map) {
-    for (const [key, value] of namedArguments) {
-      named.set(key, value);
-    }
-  } else if (namedArguments != null) {
-    for (const [key, value] of Object.entries(namedArguments)) {
-      named.set(__dartSymbol(key, key), value);
-    }
-  }
-  return Object.freeze({
-    memberName,
-    positionalArguments: Array.from(positionalArguments),
-    namedArguments: named,
-    get isMethod() { return kind === "method"; },
-    get isGetter() { return kind === "getter"; },
-    get isSetter() { return kind === "setter"; },
-    get isAccessor() { return kind !== "method"; },
-    toString() { return "Invocation(" + kind + " " + displayName + ")"; },
-  });
 }
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
@@ -544,6 +510,11 @@ function __dartSetRetainAll(set, values) {
   return null;
 }
 function __dartIterableJoin(iterable, separator = "") {
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    const values = [];
+    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
+    return values.join(String(separator));
+  }
   return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
 function __dartIterableFirst(iterable) {
@@ -666,15 +637,6 @@ function __dartConst(key, create) {
     __dartConstValues.set(key, create());
   }
   return __dartConstValues.get(key);
-}
-function __dartConstMap(entries) {
-  const map = new Map();
-  for (const [key, value] of entries) __dartMapSet(map, key, value);
-  const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
-  Object.defineProperty(map, "set", { value: throwConst });
-  Object.defineProperty(map, "delete", { value: throwConst });
-  Object.defineProperty(map, "clear", { value: throwConst });
-  return Object.freeze(map);
 }
 function __dartLazyField(name, initialize, writable, publish) {
   let state = 0;
@@ -1515,9 +1477,6 @@ class EmptyUnmodifiableSet extends _EmptyUnmodifiableSet_IterableBase_Unmodifiab
       const v = new Set();
       return v;
     })();
-  }
-  get _base() {
-    return (() => { throw __dartCoreError("NoSuchMethodError", this); })();
   }
 }
 
@@ -2851,9 +2810,6 @@ class CombinedListView {
   }
   retainWhere(test) {
     CombinedListView._throw();
-  }
-  get _source() {
-    return (() => { throw __dartCoreError("NoSuchMethodError", this); })();
   }
 }
 

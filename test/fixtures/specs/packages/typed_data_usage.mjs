@@ -72,39 +72,6 @@ function __dartRandom(seed = null, secure = false) {
     nextBool() { return (nextUint32() & 1) === 1; },
   };
 }
-function __dartUtf8Encode(source, start = 0, end = null) {
-  const text = String(source);
-  return Array.from(new TextEncoder().encode(text.slice(start, end ?? undefined)));
-}
-function __dartUtf8Decode(bytes, allowMalformed = false, start = 0, end = null) {
-  const slice = Array.from(bytes).slice(start, end ?? undefined);
-  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(slice));
-}
-function __dartUtf8Encoder() {
-  return {
-    convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartUtf8Decoder(allowMalformed = false) {
-  return {
-    convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartUtf8Codec(allowMalformed = false) {
-  return {
-    encode(source) { return __dartUtf8Encode(source); },
-    convert(source) { return __dartUtf8Encode(source); },
-    decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },
-    get encoder() { return __dartUtf8Encoder(); },
-    get decoder() { return __dartUtf8Decoder(allowMalformed); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
 const __dartTypeCache = new Map();
 function __dartType(name) {
   if (__dartTypeCache.has(name)) return __dartTypeCache.get(name);
@@ -114,142 +81,6 @@ function __dartType(name) {
   });
   __dartTypeCache.set(name, value);
   return value;
-}
-function __dartSinkAdd(sink, value) {
-  if (sink != null && typeof sink.add === "function") return sink.add(value);
-  if (sink != null && typeof sink.write === "function") return sink.write(value);
-  if (Array.isArray(sink)) { sink.push(value); return null; }
-  throw new TypeError("Sink.add is not available");
-}
-function __dartSinkClose(sink) {
-  if (sink != null && typeof sink.close === "function") return sink.close();
-  return null;
-}
-function __dartConverterConvert(converter, value) {
-  if (converter != null && typeof converter.convert === "function") return converter.convert(value);
-  if (converter != null && typeof converter.encode === "function") return converter.encode(value);
-  throw new TypeError("Converter.convert is not available");
-}
-function __dartConverterBind(converter, stream) {
-  return (async function*() {
-    for await (const value of stream) {
-      yield __dartConverterConvert(converter, value);
-    }
-  })();
-}
-function __dartConverterFuse(first, second) {
-  const fused = {
-    convert(value) { return __dartConverterConvert(second, __dartConverterConvert(first, value)); },
-    fuse(next) { return __dartConverterFuse(fused, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(fused, sink); },
-    bind(stream) { return __dartConverterBind(fused, stream); },
-  };
-  if (typeof first?.encode === "function" && typeof first?.decode === "function" && typeof second?.encode === "function" && typeof second?.decode === "function") {
-    fused.encode = (value) => second.encode(first.encode(value));
-    fused.decode = (value) => first.decode(second.decode(value));
-    Object.defineProperty(fused, "encoder", { get() { return __dartConverterFuse(first.encoder, second.encoder); } });
-    Object.defineProperty(fused, "decoder", { get() { return __dartConverterFuse(second.decoder, first.decoder); } });
-  }
-  return fused;
-}
-function __dartConverterStartChunked(converter, sink) {
-  const chunks = [];
-  const input = {
-    add(value) { chunks.push(value); return null; },
-    addSlice(value, start, end, isLast = false) {
-      const slice = typeof value === "string" ? value.slice(start, end) : Array.from(value).slice(start, end);
-      chunks.push(slice);
-      if (isLast) this.close();
-      return null;
-    },
-    close() {
-      let value;
-      if (chunks.length === 0) value = "";
-      else if (chunks.every((chunk) => typeof chunk === "string")) value = chunks.join("");
-      else if (chunks.every((chunk) => Array.isArray(chunk) || ArrayBuffer.isView(chunk))) value = chunks.flatMap((chunk) => Array.from(chunk));
-      else value = chunks.length === 1 ? chunks[0] : chunks;
-      sink.add(__dartConverterConvert(converter, value));
-      if (typeof sink.close === "function") sink.close();
-      return null;
-    },
-  };
-  return input;
-}
-function __dartChunkedConversionSink(callback) {
-  const chunks = [];
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; chunks.push(chunk); return null; },
-    close() { if (closed) return null; closed = true; callback(chunks); return null; },
-  };
-}
-function __dartByteConversionSink(callback) {
-  const bytes = [];
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; bytes.push(...Array.from(chunk)); return null; },
-    addSlice(chunk, start, end, isLast = false) { if (closed) return null; bytes.push(...Array.from(chunk).slice(start, end)); if (isLast) this.close(); return null; },
-    close() { if (closed) return null; closed = true; callback(bytes); return null; },
-  };
-}
-function __dartByteConversionSinkFrom(sink) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, chunk); },
-    addSlice(chunk, start, end, isLast = false) {
-      if (closed) return null;
-      __dartSinkAdd(sink, Array.from(chunk).slice(start, end));
-      if (isLast) this.close();
-      return null;
-    },
-    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },
-  };
-}
-function __dartStringConversionSinkAsUtf8Sink(sink, allowMalformed = false) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed)); return null; },
-    addSlice(chunk, start, end, isLast = false) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed, start, end)); if (isLast) this.close(); return null; },
-    close() { if (closed) return null; closed = true; return typeof sink.close === "function" ? sink.close() : null; },
-  };
-}
-function __dartStringConversionSink(callback) {
-  let text = "";
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; text += String(chunk); return null; },
-    addSlice(chunk, start, end, isLast = false) { if (closed) return null; text += String(chunk).slice(start, end); if (isLast) this.close(); return null; },
-    close() { if (closed) return null; closed = true; callback(text); return null; },
-    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
-  };
-}
-function __dartStringConversionSinkFrom(sink) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },
-    addSlice(chunk, start, end, isLast = false) {
-      if (closed) return null;
-      __dartSinkAdd(sink, String(chunk).slice(start, end));
-      if (isLast) this.close();
-      return null;
-    },
-    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },
-    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
-  };
-}
-function __dartStringConversionSinkFromStringSink(sink) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },
-    addSlice(chunk, start, end, isLast = false) {
-      if (closed) return null;
-      __dartSinkAdd(sink, String(chunk).slice(start, end));
-      if (isLast) this.close();
-      return null;
-    },
-    close() { closed = true; return null; },
-    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
-  };
 }
 function __dartNullCheck(value) {
   if (value == null) {
@@ -740,1050 +571,12 @@ function __dartIterableSingleWhere(iterable, test, orElse = null) {
   }
   return found ? single : __dartIterableNoElement(orElse);
 }
-function __dartTypedDataSublistView(data, start, end, viewConstructor, bytesPerElement) {
-  const elementSize = data instanceof DataView ? 1 : data.BYTES_PER_ELEMENT;
-  const elementCount = Math.trunc(data.byteLength / elementSize);
-  const effectiveEnd = end == null ? elementCount : end;
-  const byteOffset = data.byteOffset + start * elementSize;
-  const byteLength = (effectiveEnd - start) * elementSize;
-  if (viewConstructor === DataView) return new DataView(data.buffer, byteOffset, byteLength);
-  return new viewConstructor(data.buffer, byteOffset, Math.trunc(byteLength / bytesPerElement));
-}
-function __dartBytesBuilder(copy = true) {
-  let chunks = [];
-  let length = 0;
-  function asBytes(bytes) {
-    if (bytes instanceof Uint8Array) return copy ? Uint8Array.from(bytes) : bytes;
-    return Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255));
-  }
-  function collect(clear) {
-    const result = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
-    if (clear) { chunks = []; length = 0; }
-    return result;
-  }
-  return {
-    __dartType: "BytesBuilder",
-    add(bytes) { const chunk = asBytes(bytes); if (chunk.length !== 0) { chunks.push(chunk); length += chunk.length; } return null; },
-    addByte(byte) { chunks.push(Uint8Array.of(Number(byte) & 255)); length++; return null; },
-    takeBytes() { return collect(true); },
-    toBytes() { return collect(false); },
-    clear() { chunks = []; length = 0; return null; },
-    get length() { return length; },
-    get isEmpty() { return length === 0; },
-    get isNotEmpty() { return length !== 0; },
-  };
-}
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const values = Array.from(source).slice(skipCount, skipCount + (end - start));
   for (let index = 0; index < values.length; index++) {
     target[start + index] = values[index];
   }
   return null;
-}
-function __dartCompleter() {
-  let completed = false;
-  let resolveFuture;
-  let rejectFuture;
-  const future = new Promise((resolve, reject) => { resolveFuture = resolve; rejectFuture = reject; });
-  return {
-    future,
-    get isCompleted() { return completed; },
-    complete(value = null) {
-      if (completed) throw new Error("Future already completed");
-      completed = true;
-      Promise.resolve(value).then(resolveFuture, rejectFuture);
-      return null;
-    },
-    completeError(error, stackTrace = null) {
-      if (completed) throw new Error("Future already completed");
-      completed = true;
-      rejectFuture(error);
-      return null;
-    },
-  };
-}
-function __dartTimer(duration, callback, periodic) {
-  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
-  let active = true;
-  let tick = 0;
-  let id;
-  const timer = {
-    get tick() { return tick; },
-    get isActive() { return active; },
-    cancel() {
-      if (!active) return null;
-      active = false;
-      periodic ? clearInterval(id) : clearTimeout(id);
-      return null;
-    },
-  };
-  if (periodic) {
-    id = setInterval(() => {
-      if (!active) return;
-      tick++;
-      callback(timer);
-    }, delay);
-  } else {
-    id = setTimeout(() => {
-      if (!active) return;
-      active = false;
-      tick = 1;
-      callback();
-    }, delay);
-  }
-  return timer;
-}
-function __dartCreateZone(parent = null, values = null) {
-  const zoneValues = values instanceof Map ? values : new Map();
-  const zone = {
-    __dartType: "Zone",
-    parent,
-    get errorZone() { return zone; },
-    get(key) {
-      if (zoneValues.has(key)) return zoneValues.get(key);
-      return parent == null ? null : parent.get(key);
-    },
-    "[]"(key) { return this.get(key); },
-    run(body) { return __dartRunInZone(zone, body); },
-    runUnary(body, argument) { return __dartRunInZone(zone, () => body(argument)); },
-    runBinary(body, first, second) { return __dartRunInZone(zone, () => body(first, second)); },
-    runGuarded(body) { try { return __dartRunInZone(zone, body); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
-    runUnaryGuarded(body, argument) { try { return __dartRunInZone(zone, () => body(argument)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
-    runBinaryGuarded(body, first, second) { try { return __dartRunInZone(zone, () => body(first, second)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
-    bindCallback(callback) { return () => zone.run(callback); },
-    bindUnaryCallback(callback) { return argument => zone.runUnary(callback, argument); },
-    bindBinaryCallback(callback) { return (first, second) => zone.runBinary(callback, first, second); },
-    bindCallbackGuarded(callback) { return () => zone.runGuarded(callback); },
-    bindUnaryCallbackGuarded(callback) { return argument => zone.runUnaryGuarded(callback, argument); },
-    bindBinaryCallbackGuarded(callback) { return (first, second) => zone.runBinaryGuarded(callback, first, second); },
-    registerCallback(callback) { return zone.bindCallback(callback); },
-    registerUnaryCallback(callback) { return zone.bindUnaryCallback(callback); },
-    registerBinaryCallback(callback) { return zone.bindBinaryCallback(callback); },
-    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },
-    scheduleMicrotask(callback) { return __dartScheduleMicrotask(callback, zone); },
-    handleUncaughtError(error, stackTrace = null) { throw error; },
-    inSameErrorZone(other) { return true; },
-    print(line) { console.log(String(line)); return null; },
-    toString() { return "Zone"; },
-  };
-  return Object.freeze(zone);
-}
-const __dartRootZone = __dartCreateZone(null, new Map());
-let __dartCurrentZone = __dartRootZone;
-function __dartZoneValuesMap(zoneValues) {
-  if (zoneValues == null) return new Map();
-  if (zoneValues instanceof Map) return zoneValues;
-  return new Map(Array.from(zoneValues));
-}
-function __dartScheduleMicrotask(callback, zone = __dartCurrentZone) {
-  const run = () => __dartRunInZone(zone, callback);
-  if (typeof queueMicrotask === "function") queueMicrotask(run);
-  else Promise.resolve().then(run);
-  return null;
-}
-function __dartRunInZone(zone, body) {
-  const previous = __dartCurrentZone;
-  __dartCurrentZone = zone;
-  try {
-    const result = body();
-    if (result != null && typeof result.then === "function") {
-      return result.finally(() => { __dartCurrentZone = previous; });
-    }
-    __dartCurrentZone = previous;
-    return result;
-  } catch (error) {
-    __dartCurrentZone = previous;
-    throw error;
-  }
-}
-function __dartRunZoned(body, options = {}) {
-  const parent = options.parentZone ?? __dartCurrentZone;
-  const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));
-  try {
-    return __dartRunInZone(zone, body);
-  } catch (error) {
-    if (typeof options.onError === "function") return options.onError(error, error?.stack ?? "<javascript stack unavailable>");
-    throw error;
-  }
-}
-function __dartRunZonedGuarded(body, onError, options = {}) {
-  try {
-    const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });
-    if (result != null && typeof result.then === "function") {
-      return result.catch((error) => { onError(error, error?.stack ?? "<javascript stack unavailable>"); return null; });
-    }
-    return result;
-  } catch (error) {
-    onError(error, error?.stack ?? "<javascript stack unavailable>");
-    return null;
-  }
-}
-function __dartFutureAsStream(future) {
-  return (async function*() {
-    yield await future;
-  })();
-}
-function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
-  const entries = Array.from(futures);
-  if (entries.length === 0) return Promise.resolve([]);
-  const values = new Array(entries.length);
-  const completed = new Array(entries.length).fill(false);
-  let remaining = entries.length;
-  let hasError = false;
-  let firstError;
-  let rejected = false;
-  function runCleanUp(value) {
-    if (value == null || typeof cleanUp !== "function") return;
-    Promise.resolve().then(() => cleanUp(value));
-  }
-  return new Promise((resolve, reject) => {
-    entries.forEach((future, index) => {
-      Promise.resolve(future).then(
-        (value) => {
-          values[index] = value;
-          completed[index] = true;
-          if (hasError) runCleanUp(value);
-          remaining--;
-          if (remaining === 0 && !rejected) {
-            rejected = hasError;
-            hasError ? reject(firstError) : resolve(values);
-          }
-        },
-        (error) => {
-          if (!hasError) {
-            hasError = true;
-            firstError = error;
-            for (let i = 0; i < values.length; i++) {
-              if (completed[i]) runCleanUp(values[i]);
-            }
-          }
-          remaining--;
-          if ((eagerError || remaining === 0) && !rejected) {
-            rejected = true;
-            reject(firstError);
-          }
-        },
-      );
-    });
-  });
-}
-function __dartFutureTimeout(future, duration, onTimeout = null) {
-  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const id = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        if (typeof onTimeout === "function") {
-          resolve(onTimeout());
-        } else {
-          reject(new Error("TimeoutException: Future not completed"));
-        }
-      } catch (error) {
-        reject(error);
-      }
-    }, delay);
-    Promise.resolve(future).then(
-      (value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(id);
-        resolve(value);
-      },
-      (error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(id);
-        reject(error);
-      },
-    );
-  });
-}
-function __dartStreamController(broadcast = false, options = {}) {
-  const onListen = options.onListen ?? null;
-  const onPause = options.onPause ?? null;
-  const onResume = options.onResume ?? null;
-  const onCancel = options.onCancel ?? null;
-  const listeners = new Set();
-  let closed = false;
-  let singleListened = false;
-  let activeSubscriptions = 0;
-  let resolveDone;
-  const done = new Promise((resolve) => { resolveDone = resolve; });
-  function makeState(bufferBeforeListen = false) {
-    return { queue: [], waiters: [], active: false, bufferBeforeListen, ended: false };
-  }
-  const singleState = makeState(true);
-  function subscriptionStarted() {
-    activeSubscriptions++;
-    if (activeSubscriptions === 1 && typeof onListen === "function") onListen();
-  }
-  function subscriptionEnded(canceled) {
-    if (activeSubscriptions > 0) activeSubscriptions--;
-    if (canceled && activeSubscriptions === 0 && typeof onCancel === "function") return onCancel();
-    return null;
-  }
-  function endState(state, canceled, remove) {
-    if (state.ended) return null;
-    state.ended = true;
-    if (remove) remove();
-    return subscriptionEnded(canceled);
-  }
-  function stateHasPending(state) {
-    return state.queue.length > 0 || state.waiters.length > 0;
-  }
-  function hasActiveListener() {
-    if (broadcast) return listeners.size > 0;
-    return singleState.active;
-  }
-  function maybeResolveDone() {
-    if (!closed) return;
-    if (broadcast) {
-      if (listeners.size > 0) return;
-      resolveDone(null);
-      return;
-    }
-    if (!singleState.active && !stateHasPending(singleState)) resolveDone(null);
-  }
-  function settle(waiter, item) {
-    if (item.done === true) waiter.resolve({ done: true });
-    else if ("error" in item) waiter.reject(item.error);
-    else waiter.resolve({ value: item.value, done: false });
-  }
-  function nextResult(item) {
-    if (item.done === true) return Promise.resolve({ done: true });
-    if ("error" in item) return Promise.reject(item.error);
-    return Promise.resolve({ value: item.value, done: false });
-  }
-  function enqueue(state, item) {
-    if (!state.active && !state.bufferBeforeListen) return;
-    const waiter = state.waiters.shift();
-    if (waiter) settle(waiter, item);
-    else state.queue.push(item);
-  }
-  function clearWaiters(state) {
-    while (state.waiters.length > 0) settle(state.waiters.shift(), { done: true });
-  }
-  function cancelState(state) {
-    state.active = false;
-    state.bufferBeforeListen = false;
-    state.queue.length = 0;
-    clearWaiters(state);
-    maybeResolveDone();
-  }
-  function deliver(item) {
-    if (closed) throw new Error("Cannot add event after closing");
-    if (broadcast) {
-      for (const listener of listeners) enqueue(listener, item);
-      return;
-    }
-    enqueue(singleState, item);
-  }
-  function closeQueue() {
-    if (closed) return;
-    closed = true;
-    if (broadcast) {
-      for (const listener of listeners) {
-        const remove = () => listeners.delete(listener);
-        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); endState(listener, false, remove); }
-      }
-    } else if (singleState.queue.length === 0) {
-      singleState.active = false;
-      clearWaiters(singleState);
-      endState(singleState, false, null);
-    }
-    maybeResolveDone();
-  }
-  function iteratorForState(state, remove) {
-    return {
-      next() {
-        const item = state.queue.shift();
-        if (item) {
-          const result = nextResult(item);
-          maybeResolveDone();
-          return result;
-        }
-        if (closed || !state.active) {
-          state.active = false;
-          state.bufferBeforeListen = false;
-          const endResult = endState(state, false, remove);
-          maybeResolveDone();
-          return Promise.resolve(endResult).then(() => ({ done: true }));
-        }
-        return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));
-      },
-      return() {
-        cancelState(state);
-        const endResult = endState(state, true, remove);
-        return Promise.resolve(endResult).then(() => ({ done: true }));
-      },
-    };
-  }
-  const controller = {
-    get stream() { return stream; },
-    get sink() { return controller; },
-    get done() { return done; },
-    get isClosed() { return closed; },
-    get isPaused() { return !hasActiveListener() && !closed; },
-    get hasListener() { return hasActiveListener(); },
-    add(value) { deliver({ value }); return null; },
-    addError(error, stackTrace = null) { deliver({ error }); return null; },
-    close() { closeQueue(); return done; },
-    async addStream(source, options = {}) {
-      const iterator = source?.[Symbol.asyncIterator]?.();
-      if (iterator == null) {
-        for (const value of Array.from(source ?? [])) deliver({ value });
-        return null;
-      }
-      while (true) {
-        let step;
-        try {
-          step = await iterator.next();
-        } catch (error) {
-          deliver({ error });
-          if (options.cancelOnError === true) {
-            if (typeof iterator.return === "function") await iterator.return();
-            return null;
-          }
-          continue;
-        }
-        if (step.done === true) return null;
-        deliver({ value: step.value });
-      }
-    },
-  };
-  const stream = {
-    isBroadcast: broadcast,
-    _onPause() { return typeof onPause === "function" ? onPause() : null; },
-    _onResume() { return typeof onResume === "function" ? onResume() : null; },
-    [Symbol.asyncIterator]() {
-      if (broadcast) {
-        const state = makeState();
-        state.active = true;
-        listeners.add(state);
-        subscriptionStarted();
-        return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });
-      }
-      if (singleListened) {
-        throw new Error("Bad state: Stream has already been listened to.");
-      }
-      singleListened = true;
-      singleState.active = true;
-      singleState.bufferBeforeListen = false;
-      subscriptionStarted();
-      return iteratorForState(singleState, null);
-    },
-  };
-  return controller;
-}
-function __dartBoundSubscriptionStream(source, onListen) {
-  const stream = {
-    get isBroadcast() { return source?.isBroadcast === true; },
-    listen(onData, options = {}) {
-      const subscription = onListen(source, options.cancelOnError ?? false);
-      if (typeof subscription.onData === "function") subscription.onData(onData);
-      if (typeof subscription.onError === "function") subscription.onError(options.onError ?? null);
-      if (typeof subscription.onDone === "function") subscription.onDone(options.onDone ?? null);
-      return subscription;
-    },
-    [Symbol.asyncIterator]() {
-      const controller = __dartStreamController(false);
-      const subscription = stream.listen((value) => controller.add(value), { onError: (error) => controller.addError(error), onDone: () => controller.close(), cancelOnError: false });
-      const iterator = controller.stream[Symbol.asyncIterator]();
-      return {
-        next() { return iterator.next(); },
-        return() {
-          return Promise.resolve(subscription.cancel()).then(() => {
-            if (typeof iterator.return === "function") return iterator.return();
-            return { done: true };
-          });
-        },
-      };
-    },
-  };
-  return stream;
-}
-function __dartStreamIterator(stream) {
-  const iterator = stream[Symbol.asyncIterator]();
-  return {
-    current: undefined,
-    _subscription: true,
-    async moveNext() {
-      const next = await iterator.next();
-      if (next.done) {
-        this.current = undefined;
-        this._subscription = null;
-        return false;
-      }
-      this.current = next.value;
-      return true;
-    },
-    async cancel() {
-      this._subscription = null;
-      if (typeof iterator.return === "function") await iterator.return();
-      return null;
-    },
-  };
-}
-function __dartStreamFromIterable(values, isBroadcast = false) {
-  let listened = false;
-  return {
-    isBroadcast,
-    [Symbol.asyncIterator]() {
-      if (!isBroadcast) {
-        if (listened) throw new Error("Bad state: Stream has already been listened to.");
-        listened = true;
-      }
-      return (async function*() {
-        for (const value of values) yield value;
-      })();
-    },
-  };
-}
-function __dartStreamFromFuture(future) {
-  return (async function*() {
-    yield await future;
-  })();
-}
-function __dartStreamFromFutures(futures) {
-  const controller = __dartStreamController(false);
-  const pending = Array.from(futures);
-  if (pending.length === 0) {
-    controller.close();
-    return controller.stream;
-  }
-  let remaining = pending.length;
-  for (const future of pending) {
-    Promise.resolve(future).then(
-      (value) => controller.add(value),
-      (error) => controller.addError(error),
-    ).finally(() => {
-      remaining--;
-      if (remaining === 0) controller.close();
-    });
-  }
-  return controller.stream;
-}
-function __dartStreamMulti(onListen, isBroadcast = false) {
-  let listened = false;
-  return {
-    isBroadcast,
-    [Symbol.asyncIterator]() {
-      if (!isBroadcast) {
-        if (listened) throw new Error("Bad state: Stream has already been listened to.");
-        listened = true;
-      }
-      const controller = __dartStreamController(false);
-      onListen(controller);
-      return controller.stream[Symbol.asyncIterator]();
-    },
-  };
-}
-function __dartStreamError(error) {
-  return (async function*() {
-    throw error;
-  })();
-}
-function __dartStreamPeriodic(period, computation = null) {
-  return (async function*() {
-    let tick = 0;
-    while (true) {
-      await new Promise((resolve) => setTimeout(resolve, Math.max(0, period.inMilliseconds)));
-      yield typeof computation === "function" ? computation(tick) : null;
-      tick++;
-    }
-  })();
-}
-function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null) {
-  const controller = __dartStreamController(true);
-  let started = false;
-  let canceled = false;
-  function makeSubscription() {
-    return {
-      pause() { return null; },
-      resume() { return null; },
-      cancel() { canceled = true; return controller.close(); },
-      get isPaused() { return false; },
-    };
-  }
-  async function pump() {
-    try {
-      for await (const value of stream) {
-        if (canceled) break;
-        controller.add(value);
-      }
-    } catch (error) {
-      if (!canceled) controller.addError(error);
-    } finally {
-      await controller.close();
-    }
-  }
-  return {
-    isBroadcast: true,
-    [Symbol.asyncIterator]() {
-      if (!started) {
-        started = true;
-        if (typeof onListen === "function") onListen(makeSubscription());
-        Promise.resolve().then(pump);
-      }
-      const iterator = controller.stream[Symbol.asyncIterator]();
-      return {
-        next() { return iterator.next(); },
-        return() {
-          if (typeof onCancel === "function") onCancel(makeSubscription());
-          if (typeof iterator.return === "function") return iterator.return();
-          return Promise.resolve({ done: true });
-        },
-      };
-    },
-  };
-}
-function __dartStreamMap(stream, convert) {
-  return (async function*() {
-    for await (const value of stream) {
-      yield convert(value);
-    }
-  })();
-}
-function __dartStreamWhere(stream, test) {
-  return (async function*() {
-    for await (const value of stream) {
-      if (test(value)) yield value;
-    }
-  })();
-}
-function __dartStreamAsyncMap(stream, convert) {
-  return (async function*() {
-    for await (const value of stream) {
-      yield await convert(value);
-    }
-  })();
-}
-function __dartStreamAsyncExpand(stream, convert) {
-  return (async function*() {
-    for await (const value of stream) {
-      const inner = convert(value);
-      if (inner == null) continue;
-      for await (const expanded of inner) yield expanded;
-    }
-  })();
-}
-function __dartStreamTransformerFromBind(bind) {
-  return { bind };
-}
-function __dartStreamTransformerFromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {
-  return {
-    bind(stream) {
-      const controller = __dartStreamController(false);
-      const sink = controller.sink;
-      (async () => {
-        let shouldClose = false;
-        try {
-          const iterator = stream[Symbol.asyncIterator]();
-          while (!controller.isClosed) {
-            let next;
-            try {
-              next = await iterator.next();
-            } catch (error) {
-              if (typeof handleError === "function") {
-                await handleError(error, error?.stack ?? "<javascript stack unavailable>", sink);
-                continue;
-              }
-              sink.addError(error);
-              continue;
-            }
-            if (next.done) {
-              if (typeof handleDone === "function") {
-                await handleDone(sink);
-              } else {
-                shouldClose = true;
-              }
-              break;
-            }
-            if (typeof handleData === "function") {
-              await handleData(next.value, sink);
-            } else {
-              sink.add(next.value);
-            }
-          }
-        } catch (error) {
-          if (!controller.isClosed) sink.addError(error);
-          shouldClose = true;
-        } finally {
-          if (shouldClose && !controller.isClosed) await controller.close();
-        }
-      })();
-      return controller.stream;
-    },
-  };
-}
-function __dartStreamTransformerBind(transformer, stream) {
-  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);
-  if (transformer != null && typeof transformer.convert === "function") return __dartConverterBind(transformer, stream);
-  if (typeof transformer === "function") return transformer(stream);
-  throw new TypeError("StreamTransformer.bind is not available");
-}
-function __dartStreamTransform(stream, transformer) {
-  return __dartStreamTransformerBind(transformer, stream);
-}
-function __dartStreamEventTransformed(stream, mapSink) {
-  const controller = __dartStreamController(stream?.isBroadcast === true);
-  const sink = mapSink(controller.sink);
-  (async () => {
-    try {
-      const iterator = stream[Symbol.asyncIterator]();
-      while (!controller.isClosed) {
-        let next;
-        try {
-          next = await iterator.next();
-        } catch (error) {
-          if (typeof sink.addError === "function") {
-            sink.addError(error, error?.stack ?? "<javascript stack unavailable>");
-          } else {
-            controller.addError(error);
-          }
-          continue;
-        }
-        if (next.done) break;
-        sink.add(next.value);
-      }
-      if (typeof sink.close === "function") {
-        await sink.close();
-      } else if (!controller.isClosed) {
-        await controller.close();
-      }
-    } catch (error) {
-      if (!controller.isClosed) controller.addError(error);
-      if (!controller.isClosed) await controller.close();
-    }
-  })();
-  return controller.stream;
-}
-function __dartStreamDistinct(stream, equals = null) {
-  return (async function*() {
-    let hasPrevious = false;
-    let previous;
-    for await (const value of stream) {
-      const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));
-      if (same) continue;
-      previous = value;
-      hasPrevious = true;
-      yield value;
-    }
-  })();
-}
-function __dartStreamHandleError(stream, onError, test = null) {
-  return (async function*() {
-    const iterator = stream[Symbol.asyncIterator]();
-    while (true) {
-      let next;
-      try {
-        next = await iterator.next();
-        if (next.done) break;
-        yield next.value;
-      } catch (error) {
-        if (typeof test === "function" && !test(error)) throw error;
-        if (typeof onError !== "function") continue;
-        const result = onError.length >= 2 ? onError(error, error?.stack ?? "<javascript stack unavailable>") : onError(error);
-        await result;
-      }
-    }
-  })();
-}
-function __dartStreamTake(stream, count) {
-  return (async function*() {
-    let remaining = Math.max(0, Math.trunc(count));
-    if (remaining === 0) return;
-    for await (const value of stream) {
-      yield value;
-      remaining--;
-      if (remaining === 0) break;
-    }
-  })();
-}
-function __dartStreamSkip(stream, count) {
-  return (async function*() {
-    let remaining = Math.max(0, Math.trunc(count));
-    for await (const value of stream) {
-      if (remaining > 0) {
-        remaining--;
-        continue;
-      }
-      yield value;
-    }
-  })();
-}
-function __dartStreamTimeout(stream, duration, onTimeout = null) {
-  const controller = __dartStreamController(false);
-  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
-  const iterator = stream[Symbol.asyncIterator]();
-  let pendingNext = null;
-  function nextEvent() {
-    pendingNext ??= Promise.resolve(iterator.next()).then((next) => ({ next }), (error) => ({ error }));
-    return pendingNext;
-  }
-  function timeoutEvent() {
-    return new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), delay));
-  }
-  (async () => {
-    try {
-      while (!controller.isClosed) {
-        const result = await Promise.race([nextEvent(), timeoutEvent()]);
-        if (result.timeout) {
-          if (typeof onTimeout === "function") {
-            onTimeout(controller.sink);
-          } else {
-            controller.addError(new Error("TimeoutException: Stream timeout"));
-          }
-          continue;
-        }
-        pendingNext = null;
-        if ("error" in result) {
-          controller.addError(result.error);
-          continue;
-        }
-        if (result.next.done) break;
-        controller.add(result.next.value);
-      }
-    } finally {
-      if (typeof iterator.return === "function") {
-        try { await iterator.return(); } catch (_) {}
-      }
-      await controller.close();
-    }
-  })();
-  return controller.stream;
-}
-function __dartStreamTakeWhile(stream, test) {
-  return (async function*() {
-    for await (const value of stream) {
-      if (!test(value)) break;
-      yield value;
-    }
-  })();
-}
-function __dartStreamSkipWhile(stream, test) {
-  return (async function*() {
-    let skipping = true;
-    for await (const value of stream) {
-      if (skipping && test(value)) continue;
-      skipping = false;
-      yield value;
-    }
-  })();
-}
-async function __dartStreamToList(stream) {
-  const values = [];
-  for await (const value of stream) values.push(value);
-  return values;
-}
-async function __dartStreamToSet(stream) {
-  const values = new Set();
-  for await (const value of stream) {
-    __dartSetAdd(values, value);
-  }
-  return values;
-}
-async function __dartStreamFold(stream, initialValue, combine) {
-  let result = initialValue;
-  for await (const value of stream) {
-    result = await combine(result, value);
-  }
-  return result;
-}
-async function __dartStreamReduce(stream, combine) {
-  let found = false;
-  let result;
-  for await (const value of stream) {
-    if (!found) {
-      found = true;
-      result = value;
-    } else {
-      result = await combine(result, value);
-    }
-  }
-  if (!found) throw new RangeError("No element");
-  return result;
-}
-async function __dartStreamForEach(stream, action) {
-  for await (const value of stream) await action(value);
-  return null;
-}
-function __dartStreamCast(stream, test, typeName) {
-  return (async function*() {
-    for await (const value of stream) {
-      yield __dartAs(value, test, typeName);
-    }
-  })();
-}
-async function __dartStreamFirst(stream) {
-  for await (const value of stream) return value;
-  throw new RangeError("No element");
-}
-async function __dartStreamLast(stream) {
-  let found = false;
-  let last;
-  for await (const value of stream) {
-    found = true;
-    last = value;
-  }
-  if (!found) throw new RangeError("No element");
-  return last;
-}
-async function __dartStreamSingle(stream) {
-  let found = false;
-  let single;
-  for await (const value of stream) {
-    if (found) throw new Error("Bad state: Too many elements");
-    found = true;
-    single = value;
-  }
-  if (!found) throw new RangeError("No element");
-  return single;
-}
-async function __dartStreamLength(stream) {
-  let count = 0;
-  for await (const _ of stream) count++;
-  return count;
-}
-async function __dartStreamIsEmpty(stream) {
-  for await (const _ of stream) return false;
-  return true;
-}
-async function __dartStreamAny(stream, test) {
-  for await (const value of stream) {
-    if (test(value)) return true;
-  }
-  return false;
-}
-async function __dartStreamEvery(stream, test) {
-  for await (const value of stream) {
-    if (!test(value)) return false;
-  }
-  return true;
-}
-async function __dartStreamFirstWhere(stream, test, orElse = null) {
-  for await (const value of stream) {
-    if (test(value)) return value;
-  }
-  if (typeof orElse === "function") return orElse();
-  throw new RangeError("No element");
-}
-async function __dartStreamLastWhere(stream, test, orElse = null) {
-  let found = false;
-  let last;
-  for await (const value of stream) {
-    if (test(value)) {
-      found = true;
-      last = value;
-    }
-  }
-  if (found) return last;
-  if (typeof orElse === "function") return orElse();
-  throw new RangeError("No element");
-}
-async function __dartStreamSingleWhere(stream, test, orElse = null) {
-  let found = false;
-  let single;
-  for await (const value of stream) {
-    if (!test(value)) continue;
-    if (found) throw new Error("Bad state: Too many elements");
-    found = true;
-    single = value;
-  }
-  if (found) return single;
-  if (typeof orElse === "function") return orElse();
-  throw new RangeError("No element");
-}
-async function __dartStreamContains(stream, needle) {
-  for await (const value of stream) {
-    if (__dartEquals(value, needle)) return true;
-  }
-  return false;
-}
-async function __dartStreamJoin(stream, separator = "") {
-  const values = [];
-  for await (const value of stream) values.push(__dartStr(value));
-  return values.join(String(separator));
-}
-async function __dartStreamDrain(stream, futureValue = null) {
-  for await (const _ of stream) {}
-  return futureValue;
-}
-async function __dartStreamPipe(stream, consumer) {
-  if (typeof consumer.addStream === "function") {
-    await consumer.addStream(stream);
-  } else {
-    for await (const value of stream) consumer.add(value);
-  }
-  return typeof consumer.close === "function" ? await consumer.close() : null;
-}
-function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
-  if (stream != null && typeof stream.listen === "function" && typeof stream[Symbol.asyncIterator] !== "function") {
-    return stream.listen(onData, { onError, onDone, cancelOnError });
-  }
-  const iteratorFactory = stream?.[Symbol.asyncIterator];
-  if (typeof iteratorFactory !== "function") throw new TypeError("Object is not a Stream");
-  const iterator = iteratorFactory.call(stream);
-  let canceled = false;
-  let paused = false;
-  let resumeWaiter = null;
-  function waitWhilePaused() {
-    if (!paused) return Promise.resolve();
-    return new Promise((resolve) => { resumeWaiter = resolve; });
-  }
-  const done = (async () => {
-      while (!canceled) {
-        await waitWhilePaused();
-        if (canceled) break;
-        let next;
-        try {
-          next = await iterator.next();
-        } catch (error) {
-          if (typeof onError === "function") onError(error);
-          else throw error;
-          if (cancelOnError) break;
-          continue;
-        }
-        if (next.done) break;
-        if (typeof onData === "function") onData(next.value);
-      }
-      if (!canceled && typeof onDone === "function") onDone();
-    return null;
-  })();
-  return {
-    get isPaused() { return paused; },
-    pause(resumeSignal = null) {
-      if (!paused) {
-        paused = true;
-        if (typeof stream._onPause === "function") stream._onPause();
-      }
-      if (resumeSignal != null) Promise.resolve(resumeSignal).then(() => this.resume());
-      return null;
-    },
-    resume() {
-      if (!paused) return null;
-      paused = false;
-      if (typeof stream._onResume === "function") stream._onResume();
-      if (resumeWaiter != null) {
-        const resolve = resumeWaiter;
-        resumeWaiter = null;
-        resolve();
-      }
-      return null;
-    },
-    onData(handleData) { onData = handleData; return null; },
-    onError(handleError) { onError = handleError; return null; },
-    onDone(handleDone) { onDone = handleDone; return null; },
-    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },
-    asFuture(value = null) { return done.then(() => value); },
-  };
 }
 function __dartEquals(left, right) {
   if (left === right) return true;
@@ -1896,2298 +689,6 @@ function __dartIterator(iterable) {
 }
 
 // Generated by dart2esm.
-
-class AsyncCache {
-  constructor(duration) {
-    this._cachedStreamSplitter = null;
-    this._cachedValueFuture = null;
-    this._stale = null;
-    this._duration = duration;
-  }
-  static ephemeral() {
-    return $AsyncCache_ephemeral(AsyncCache);
-  }
-  async fetch(callback) {
-    if (!((this._cachedStreamSplitter === null))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Previously used to cache via `fetchStream`"); })();
-      }
-    }
-    return (this._cachedValueFuture ?? (this._cachedValueFuture = (() => { let v = (callback)(); return (() => {
-      (v.finally(__dartBind(this, "_startStaleTimer")).catch(() => null), null);
-      return v;
-    })(); })()));
-  }
-  fetchStream(callback) {
-    if (!((this._cachedValueFuture === null))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Previously used to cache via `fetch`"); })();
-      }
-    }
-    let splitter = (this._cachedStreamSplitter ?? (this._cachedStreamSplitter = new StreamSplitter(__dartStreamTransform((callback)(), __dartStreamTransformerFromHandlers({ handleData: null, handleError: null, handleDone: (sink) => {
-      this._startStaleTimer();
-      sink.close();
-} })))));
-    return splitter.split();
-  }
-  invalidate() {
-    this._cachedValueFuture = null;
-    ((this._cachedStreamSplitter)?.close() ?? null);
-    this._cachedStreamSplitter = null;
-    ((this._stale)?.cancel() ?? null);
-    this._stale = null;
-  }
-  _startStaleTimer() {
-    let duration = this._duration;
-    if (!((duration === null))) {
-      {
-        this._stale = __dartTimer(duration, __dartBind(this, "invalidate"), false);
-      }
-    } else {
-      {
-        this.invalidate();
-      }
-    }
-  }
-}
-
-function $AsyncCache_ephemeral($newTarget) {
-  const $self = Object.create($newTarget.prototype);
-  $self._cachedStreamSplitter = null;
-  $self._cachedValueFuture = null;
-  $self._stale = null;
-  $self._duration = null;
-  return $self;
-}
-
-class AsyncMemoizer {
-  constructor() {
-    this._completer = __dartCompleter();
-  }
-  get future() {
-    return this._completer.future;
-  }
-  get hasRun() {
-    return this._completer.isCompleted;
-  }
-  runOnce(computation) {
-    if (!(this.hasRun)) {
-      this._completer.complete(Promise.resolve().then(() => (computation)()));
-    }
-    return this.future;
-  }
-}
-
-class CancelableOperation {
-  constructor() {
-    throw new TypeError("Class CancelableOperation has no unnamed constructor");
-  }
-  static _(_completer) {
-    return $CancelableOperation__(CancelableOperation, _completer);
-  }
-  static fromFuture(result, { onCancel = null } = {}) {
-    return (() => { let v = new CancelableCompleter({ onCancel: onCancel }); return (() => {
-      v.complete(result);
-      return v;
-    })(); })().operation;
-  }
-  static fromValue(value) {
-    return (() => { let v = new CancelableCompleter(); return (() => {
-      v.complete(value);
-      return v;
-    })(); })().operation;
-  }
-  static fromSubscription(subscription) {
-    let completer = new CancelableCompleter({ onCancel: __dartBind(subscription, "cancel") });
-    subscription.onDone(__dartAs(__dartBind(completer, "complete"), value => typeof value === "function", "void Function([FutureOr<void>?])"));
-    subscription.onError(function(error, stackTrace) {
-      subscription.cancel().finally(function() {
-        completer.completeError(error, stackTrace);
-});
-});
-    return completer.operation;
-  }
-  static race(operations) {
-    operations = Array.from(operations);
-    if (__dartIterableIsEmpty(operations)) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "May not be empty"); })();
-      }
-    }
-    let done = false;
-    function cancelAll() {
-      done = true;
-      return __dartFutureWait((() => {
-        const v = new Array(0).fill(null);
-        {
-          let _sync_for_iterator = __dartIterator(operations);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let operation = _sync_for_iterator.current;
-              if (!(operation.isCanceled)) {
-                (v.push(operation.cancel()), null);
-              }
-            }
-          }
-        }
-        return v;
-      })(), false, null);
-    }
-    let completer = new CancelableCompleter({ onCancel: cancelAll });
-    {
-      let _sync_for_iterator = __dartIterator(operations);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let operation = _sync_for_iterator.current;
-          {
-            operation.then(function(value) {
-              if (!(done)) {
-                cancelAll().finally(function() { return completer.complete(value); });
-              }
-}, { onError: function(error, stackTrace) {
-              if (!(done)) {
-                {
-                  cancelAll().finally(function() { return completer.completeError(error, stackTrace); });
-                }
-              }
-}, propagateCancel: false });
-          }
-        }
-      }
-    }
-    return completer.operation;
-  }
-  get value() {
-    return ((this._completer._inner)?.future ?? __dartCompleter().future);
-  }
-  asStream() {
-    let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: __dartBind(this._completer, "_cancel") });
-    (() => { let v = this._completer._inner; return ((v === null) ? null : v.future.then(function(value) {
-      controller.add(value);
-      controller.close();
-}, function(error, stackTrace) {
-      controller.addError(error, stackTrace);
-      controller.close();
-})); })();
-    return controller.stream;
-  }
-  valueOrCancellation(cancellationValue = null) {
-    let completer = __dartCompleter();
-    this.value.then(__dartAs(__dartBind(completer, "complete"), value => typeof value === "function", "void Function([FutureOr<CancelableOperation.T?>?])"), __dartBind(completer, "completeError"));
-    (() => { let v = this._completer._cancelCompleter; return ((v === null) ? null : v.future.then(function(_) {
-      completer.complete(cancellationValue);
-}, __dartBind(completer, "completeError"))); })();
-    return completer.future;
-  }
-  then(onValue, { onError = null, onCancel = null, propagateCancel = true } = {}) {
-    return this.thenOperation(function(value, completer) {
-      completer.complete((onValue)(value));
-}, { onError: ((onError === null) ? null : function(error, stackTrace, completer) {
-      completer.complete((onError)(error, stackTrace));
-}), onCancel: ((onCancel === null) ? null : function(completer) {
-      completer.complete((onCancel)());
-}), propagateCancel: propagateCancel });
-  }
-  thenOperation(onValue, { onError = null, onCancel = null, propagateCancel = true } = {}) {
-    const completer = new CancelableCompleter({ onCancel: (propagateCancel ? __dartBind(this, "_cancelIfNotCanceled") : null) });
-    (() => { let v = this._completer._inner; return ((v === null) ? null : v.future.then(async function(value) {
-      if (completer.isCanceled) {
-        return;
-      }
-      try {
-        {
-          await (onValue)(value, completer);
-        }
-      } catch ($error) {
-        if ($error != null) {
-          const error = $error;
-          const stack = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            completer.completeError(error, stack);
-          }
-        } else {
-          throw $error;
-        }
-      }
-}, ((onError === null) ? __dartBind(completer, "completeError") : async function(error, stack) {
-      if (completer.isCanceled) {
-        return;
-      }
-      try {
-        {
-          await (onError)(error, stack, completer);
-        }
-      } catch ($error) {
-        if ($error != null) {
-          const error2 = $error;
-          const stack2 = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            _extension_0_completeErrorIfPending(completer, error2, (Object.is(error, error2) ? stack : stack2));
-          }
-        } else {
-          throw $error;
-        }
-      }
-}))); })();
-    const cancelForwarder = new _CancelForwarder(completer, onCancel);
-    if (this._completer.isCanceled) {
-      {
-        cancelForwarder._forward();
-      }
-    } else {
-      {
-        ((() => { let v_1 = this._completer; return (v_1._cancelForwarders ?? (v_1._cancelForwarders = new Array(0).fill(null))); })().push(cancelForwarder), null);
-      }
-    }
-    return completer.operation;
-  }
-  cancel() {
-    return this._completer._cancel();
-  }
-  _cancelIfNotCanceled() {
-    return (this.isCanceled ? null : this.cancel());
-  }
-  get isCanceled() {
-    return this._completer._isCanceled;
-  }
-  get isCompleted() {
-    return this._completer._isCompleted;
-  }
-}
-
-function $CancelableOperation__($newTarget, _completer) {
-  const $self = Object.create($newTarget.prototype);
-  $self._completer = _completer;
-  return $self;
-}
-
-class CancelableCompleter {
-  constructor({ onCancel = null } = {}) {
-    this._inner = __dartCompleter();
-    this._cancelCompleter = __dartCompleter();
-    this._cancelForwarders = null;
-    this._mayComplete = true;
-    const $operation = __dartLazyField("CancelableCompleter.operation", () => CancelableOperation._(this), false);
-    Object.defineProperty(this, "operation", {
-      get() { return $operation.get(); },
-      set(value) { $operation.set(value); },
-      enumerable: true,
-    });
-    this._onCancel = onCancel;
-  }
-  get _isCompleted() {
-    return (this._cancelCompleter === null);
-  }
-  get _isCanceled() {
-    return (this._inner === null);
-  }
-  get isCompleted() {
-    return !(this._mayComplete);
-  }
-  get isCanceled() {
-    return this._isCanceled;
-  }
-  complete(value = null) {
-    if (!(this._mayComplete)) {
-      (() => { throw __dartCoreError("StateError", "Operation already completed"); })();
-    }
-    this._mayComplete = false;
-    if (!(value != null && typeof value.then === "function")) {
-      {
-        ((this._completeNow())?.complete(value) ?? null);
-        return;
-      }
-    }
-    if ((this._inner === null)) {
-      {
-        (value.catch(() => null), null);
-        return;
-      }
-    }
-    value.then((result) => {
-      ((this._completeNow())?.complete(result) ?? null);
-}, (error, stackTrace) => {
-      ((this._completeNow())?.completeError(error, stackTrace) ?? null);
-});
-  }
-  completeOperation(result, { propagateCancel = true } = {}) {
-    if (!(this._mayComplete)) {
-      (() => { throw __dartCoreError("StateError", "Already completed"); })();
-    }
-    this._mayComplete = false;
-    if (this.isCanceled) {
-      {
-        if (propagateCancel) {
-          result.cancel();
-        }
-        (result.value.catch(() => null), null);
-        return;
-      }
-    }
-    result.then((value) => {
-      ((this._inner)?.complete(value) ?? null);
-}, { onError: (error, stack) => {
-      ((this._inner)?.completeError(error, stack) ?? null);
-}, onCancel: () => {
-      this.operation.cancel();
-} });
-    if (propagateCancel) {
-      {
-        (() => { let v = this._cancelCompleter; return ((v === null) ? null : v.future.finally(__dartBind(result, "cancel"))); })();
-      }
-    }
-  }
-  _completeNow() {
-    let inner = this._inner;
-    if ((inner === null)) {
-      return null;
-    }
-    this._cancelCompleter = null;
-    return inner;
-  }
-  completeError(error, stackTrace = null) {
-    if (!(this._mayComplete)) {
-      (() => { throw __dartCoreError("StateError", "Operation already completed"); })();
-    }
-    this._mayComplete = false;
-    ((this._completeNow())?.completeError(error, stackTrace) ?? null);
-  }
-  _cancel() {
-    let cancelCompleter = this._cancelCompleter;
-    if ((cancelCompleter === null)) {
-      return Promise.resolve(null);
-    }
-    if (!((this._inner === null))) {
-      {
-        this._inner = null;
-        cancelCompleter.complete(this._invokeCancelCallbacks());
-      }
-    }
-    return cancelCompleter.future;
-  }
-  async _invokeCancelCallbacks() {
-    const toReturn = (() => { let v = this._onCancel; return ((v === null) ? null : (v)()); })();
-    const isFuture = toReturn != null && typeof toReturn.then === "function";
-    const cancelFutures = (() => {
-      const v = new Array(0).fill(null);
-      if (isFuture) {
-        (v.push(toReturn), null);
-      }
-      const v_1 = (() => { let v_2 = this._cancelForwarders; return ((v_2 === null) ? null : Array.from(Array.from(v_2, _forward)).filter((value) => value != null)); })();
-      if (!((v_1 === null))) {
-        (v.push(...Array.from(v_1)), null);
-      }
-      return v;
-    })();
-    const results = ((isFuture && __dartEquals(cancelFutures.length, 1)) ? [await toReturn] : (cancelFutures.length !== 0 ? await __dartFutureWait(cancelFutures, false, null) : __dartConst("[\"list\",\"DynamicType(dynamic)\"]", () => Object.freeze([]))));
-    return (isFuture ? results[0] : toReturn);
-  }
-}
-
-class _CancelForwarder {
-  constructor(completer, onCancel) {
-    this.completer = completer;
-    this.onCancel = onCancel;
-  }
-  _forward() {
-    if (this.completer.isCanceled) {
-      return null;
-    }
-    const onCancel = this.onCancel;
-    if ((onCancel === null)) {
-      return this.completer._cancel();
-    }
-    try {
-      {
-        const result = (onCancel)(this.completer);
-        if (result != null && typeof result.then === "function") {
-          {
-            return result.catch(_extension_0_get_completeErrorIfPending(this.completer));
-          }
-        }
-      }
-    } catch ($error) {
-      if ($error != null) {
-        const error = $error;
-        const stack = $error?.stack ?? "<javascript stack unavailable>";
-        {
-          _extension_0_completeErrorIfPending(this.completer, error, stack);
-        }
-      } else {
-        throw $error;
-      }
-    }
-    return null;
-  }
-}
-
-class ChunkedStreamReader {
-  static _(_input) {
-    return $ChunkedStreamReader__(ChunkedStreamReader, _input);
-  }
-  constructor(stream) {
-    return ChunkedStreamReader._(__dartStreamIterator(stream));
-  }
-  async readChunk(size) {
-    const result = new Array(0).fill(null);
-    {
-      let _stream = this.readStream(size);
-      let _for_iterator = __dartStreamIterator(_stream);
-      try {
-        while (await _for_iterator.moveNext()) {
-          {
-            const chunk = _for_iterator.current;
-            {
-              (result.push(...Array.from(chunk)), null);
-            }
-          }
-        }
-      } finally {
-        if (!((_for_iterator._subscription === null))) {
-          await _for_iterator.cancel();
-        }
-      }
-    }
-    return result;
-  }
-  readStream(size) {
-    __dartCheckNotNegative(size, "size", null);
-    if (this._reading) {
-      {
-        (() => { throw __dartCoreError("StateError", "Concurrent read operations are not allowed!"); })();
-      }
-    }
-    this._reading = true;
-    async function* substream() {
-      L:
-      while ((size > 0)) {
-        {
-          if (__dartEquals(this._offset, this._buffer.length)) {
-            {
-              if (!(await this._input.moveNext())) {
-                {
-                  size = 0;
-                  this._reading = false;
-                  break L;
-                }
-              }
-              this._buffer = this._input.current;
-              this._offset = 0;
-            }
-          }
-          const remainingBuffer = (this._buffer.length - this._offset);
-          if ((remainingBuffer > 0)) {
-            {
-              if ((remainingBuffer >= size)) {
-                {
-                  let output = null;
-                  if (this._buffer instanceof Uint8Array) {
-                    {
-                      output = __dartAs(__dartTypedDataSublistView(__dartAs(this._buffer, value => value instanceof Uint8Array, "Uint8List"), this._offset, (this._offset + size), Uint8Array, 1), value => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List<ChunkedStreamReader.T%>");
-                    }
-                  } else {
-                    {
-                      output = this._buffer.slice(this._offset, (this._offset + size));
-                    }
-                  }
-                  this._offset = (this._offset + size);
-                  size = 0;
-                  yield output;
-                  this._reading = false;
-                  break L;
-                }
-              }
-              const output_1 = (__dartEquals(this._offset, 0) ? this._buffer : this._buffer.slice(this._offset));
-              size = (size - remainingBuffer);
-              this._buffer = this._emptyList;
-              this._offset = 0;
-              yield output_1;
-            }
-          }
-        }
-      }
-    }
-    const c = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-    c.onListen = function() { return c.addStream(substream(), { cancelOnError: false }).finally(__dartBind(c, "close")); };
-    c.onCancel = async () => {
-      L:
-      while ((size > 0)) {
-        {
-          if (__dartEquals(this._buffer.length, this._offset)) {
-            {
-              if (!(await this._input.moveNext())) {
-                {
-                  size = 0;
-                  break L;
-                }
-              }
-              this._buffer = this._input.current;
-              this._offset = 0;
-            }
-          }
-          const remainingBuffer = (this._buffer.length - this._offset);
-          if ((remainingBuffer >= size)) {
-            {
-              this._offset = (this._offset + size);
-              size = 0;
-              break L;
-            }
-          }
-          size = (size - remainingBuffer);
-          this._buffer = this._emptyList;
-          this._offset = 0;
-        }
-      }
-      this._reading = false;
-};
-    return c.stream;
-  }
-  async cancel() {
-    return await this._input.cancel();
-  }
-}
-
-function $ChunkedStreamReader__($newTarget, _input) {
-  const $self = Object.create($newTarget.prototype);
-  $self._emptyList = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
-  $self._buffer = new Array(0).fill(null);
-  $self._offset = 0;
-  $self._reading = false;
-  $self._input = _input;
-  return $self;
-}
-
-class DelegatingEventSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  static _(_sink) {
-    return $DelegatingEventSink__(DelegatingEventSink, _sink);
-  }
-  static typed(sink) {
-    return (sink != null && typeof sink === "object" && typeof sink.add === "function" && typeof sink.addError === "function" && typeof sink.close === "function" ? sink : DelegatingEventSink._(sink));
-  }
-  add(data) {
-    this._sink.add(data);
-  }
-  addError(error, stackTrace = null) {
-    this._sink.addError(error, stackTrace);
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-function $DelegatingEventSink__($newTarget, _sink) {
-  const $self = Object.create($newTarget.prototype);
-  $self._sink = _sink;
-  return $self;
-}
-
-class DelegatingFuture {
-  constructor(_future) {
-    this._future = _future;
-  }
-  static typed(future) {
-    return (future != null && typeof future.then === "function" ? future : future.then(function(v) { return __dartAs(v, value => true, "T"); }));
-  }
-  asStream() {
-    return __dartFutureAsStream(this._future);
-  }
-  catchError(onError, { test = null } = {}) {
-    return this._future.catch((error) => (test)(error) ? (onError)(error) : Promise.reject(error));
-  }
-  then(onValue, { onError = null } = {}) {
-    return this._future.then(onValue, onError);
-  }
-  whenComplete(action) {
-    return this._future.finally(action);
-  }
-  timeout(timeLimit, { onTimeout = null } = {}) {
-    return __dartFutureTimeout(this._future, timeLimit, onTimeout);
-  }
-}
-
-class DelegatingSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  static _(_sink) {
-    return $DelegatingSink__(DelegatingSink, _sink);
-  }
-  static typed(sink) {
-    return (sink != null && typeof sink === "object" && typeof sink.add === "function" && typeof sink.close === "function" ? sink : DelegatingSink._(sink));
-  }
-  add(data) {
-    this._sink.add(data);
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-function $DelegatingSink__($newTarget, _sink) {
-  const $self = Object.create($newTarget.prototype);
-  $self._sink = _sink;
-  return $self;
-}
-
-class DelegatingStream {
-  constructor(stream) {
-  }
-  static typed(stream) {
-    return __dartStreamCast(stream, (value) => true, "TypeParameterType(DelegatingStream.typed.T%)");
-  }
-}
-
-class DelegatingStreamConsumer {
-  constructor(consumer) {
-    this._consumer = consumer;
-  }
-  static _(_consumer) {
-    return $DelegatingStreamConsumer__(DelegatingStreamConsumer, _consumer);
-  }
-  static typed(consumer) {
-    return (consumer != null && typeof consumer === "object" && typeof consumer.addStream === "function" && typeof consumer.close === "function" ? consumer : DelegatingStreamConsumer._(consumer));
-  }
-  addStream(stream) {
-    return this._consumer.addStream(stream, { cancelOnError: false });
-  }
-  close() {
-    return this._consumer.close();
-  }
-}
-
-function $DelegatingStreamConsumer__($newTarget, _consumer) {
-  const $self = Object.create($newTarget.prototype);
-  $self._consumer = _consumer;
-  return $self;
-}
-
-class DelegatingStreamSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  static _(_sink) {
-    return $DelegatingStreamSink__(DelegatingStreamSink, _sink);
-  }
-  get done() {
-    return this._sink.done;
-  }
-  static typed(sink) {
-    return (sink != null && typeof sink === "object" && typeof sink.add === "function" && typeof sink.addError === "function" && typeof sink.close === "function" ? sink : DelegatingStreamSink._(sink));
-  }
-  add(data) {
-    this._sink.add(data);
-  }
-  addError(error, stackTrace = null) {
-    this._sink.addError(error, stackTrace);
-  }
-  addStream(stream) {
-    return this._sink.addStream(stream, { cancelOnError: false });
-  }
-  close() {
-    return this._sink.close();
-  }
-}
-
-function $DelegatingStreamSink__($newTarget, _sink) {
-  const $self = Object.create($newTarget.prototype);
-  $self._sink = _sink;
-  return $self;
-}
-
-class TypeSafeStreamSubscription {
-  constructor(_subscription) {
-    this._subscription = _subscription;
-  }
-  get isPaused() {
-    return this._subscription.isPaused;
-  }
-  onData(handleData) {
-    if ((handleData === null)) {
-      return this._subscription.onData(null);
-    }
-    this._subscription.onData(function(data) { return (handleData)(__dartAs(data, value => true, "T")); });
-  }
-  onError(handleError) {
-    this._subscription.onError(handleError);
-  }
-  onDone(handleDone) {
-    this._subscription.onDone(handleDone);
-  }
-  pause(resumeFuture = null) {
-    this._subscription.pause(resumeFuture);
-  }
-  resume() {
-    this._subscription.resume();
-  }
-  cancel() {
-    return this._subscription.cancel();
-  }
-  asFuture(futureValue = null) {
-    return this._subscription.asFuture(futureValue);
-  }
-}
-
-class DelegatingStreamSubscription {
-  constructor(sourceSubscription) {
-    this._source = sourceSubscription;
-  }
-  static typed(subscription) {
-    return (subscription != null && typeof subscription === "object" && typeof subscription.pause === "function" && typeof subscription.resume === "function" && typeof subscription.cancel === "function" ? subscription : new TypeSafeStreamSubscription(subscription));
-  }
-  onData(handleData) {
-    this._source.onData(handleData);
-  }
-  onError(handleError) {
-    this._source.onError(handleError);
-  }
-  onDone(handleDone) {
-    this._source.onDone(handleDone);
-  }
-  pause(resumeFuture = null) {
-    this._source.pause(resumeFuture);
-  }
-  resume() {
-    this._source.resume();
-  }
-  cancel() {
-    return this._source.cancel();
-  }
-  asFuture(futureValue = null) {
-    return this._source.asFuture(futureValue);
-  }
-  get isPaused() {
-    return this._source.isPaused;
-  }
-}
-
-class FutureGroup {
-  constructor() {
-    this._pending = 0;
-    this._closed = false;
-    this._completer = __dartCompleter();
-    this._onIdleController = null;
-    this._values = new Array(0).fill(null);
-  }
-  get isClosed() {
-    return this._closed;
-  }
-  get future() {
-    return this._completer.future;
-  }
-  get isIdle() {
-    return __dartEquals(this._pending, 0);
-  }
-  get onIdle() {
-    return (this._onIdleController ?? (this._onIdleController = __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null }))).stream;
-  }
-  add(task) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "The FutureGroup is closed."); })();
-    }
-    let index = this._values.length;
-    (this._values.push(null), null);
-    this._pending = (this._pending + 1);
-    task.then((value) => {
-      if (this._completer.isCompleted) {
-        return null;
-      }
-      this._pending = (this._pending - 1);
-      this._values[index] = value;
-      if (!(__dartEquals(this._pending, 0))) {
-        return null;
-      }
-      let onIdleController = this._onIdleController;
-      if (!((onIdleController === null))) {
-        onIdleController.add(null);
-      }
-      if (!(this._closed)) {
-        return null;
-      }
-      if (!((onIdleController === null))) {
-        onIdleController.close();
-      }
-      this._completer.complete(Array.from(Array.from(this._values).filter((value) => true)));
-}).catch((error, stackTrace) => {
-      if (this._completer.isCompleted) {
-        return null;
-      }
-      this._completer.completeError(error, stackTrace);
-});
-  }
-  close() {
-    this._closed = true;
-    if (!(__dartEquals(this._pending, 0))) {
-      return;
-    }
-    if (this._completer.isCompleted) {
-      return;
-    }
-    this._completer.complete(Array.from(Array.from(this._values).filter((value) => true)));
-  }
-}
-
-class StreamCompleter {
-  constructor() {
-    this._stream = new _CompleterStream();
-  }
-  static fromFuture(streamFuture) {
-    let completer = new StreamCompleter();
-    streamFuture.then(__dartAs(__dartBind(completer, "setSourceStream"), value => typeof value === "function", "void Function(Stream<StreamCompleter.fromFuture.T%>)"), __dartBind(completer, "setError"));
-    return completer.stream;
-  }
-  get stream() {
-    return this._stream;
-  }
-  setSourceStream(sourceStream) {
-    if (this._stream._isSourceStreamSet) {
-      {
-        (() => { throw __dartCoreError("StateError", "Source stream already set"); })();
-      }
-    }
-    this._stream._setSourceStream(sourceStream);
-  }
-  setEmpty() {
-    if (this._stream._isSourceStreamSet) {
-      {
-        (() => { throw __dartCoreError("StateError", "Source stream already set"); })();
-      }
-    }
-    this._stream._setEmpty();
-  }
-  setError(error, stackTrace = null) {
-    this.setSourceStream(__dartStreamFromFuture(Promise.reject(error)));
-  }
-}
-
-class _CompleterStream {
-  constructor() {
-    this._controller = null;
-    this._sourceStream = null;
-  }
-  listen(onData, { onError = null, onDone = null, cancelOnError = null } = {}) {
-    if ((this._controller === null)) {
-      {
-        let sourceStream = this._sourceStream;
-        if ((!((sourceStream === null)) && !((sourceStream.isBroadcast === true)))) {
-          {
-            return __dartStreamListen(sourceStream, onData, onError, onDone, cancelOnError);
-          }
-        }
-        this._ensureController();
-        if (!((this._sourceStream === null))) {
-          {
-            this._linkStreamToController();
-          }
-        }
-      }
-    }
-    return __dartStreamListen(__dartNullCheck(this._controller).stream, onData, onError, onDone, cancelOnError);
-  }
-  get _isSourceStreamSet() {
-    return !((this._sourceStream === null));
-  }
-  _setSourceStream(sourceStream) {
-    this._sourceStream = sourceStream;
-    if (!((this._controller === null))) {
-      {
-        this._linkStreamToController();
-      }
-    }
-  }
-  _linkStreamToController() {
-    let controller = __dartNullCheck(this._controller);
-    controller.addStream(__dartNullCheck(this._sourceStream), { cancelOnError: false }).finally(__dartBind(controller, "close"));
-  }
-  _setEmpty() {
-    let controller = this._ensureController();
-    this._sourceStream = controller.stream;
-    controller.close();
-  }
-  _ensureController() {
-    return (this._controller ?? (this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null })));
-  }
-}
-
-class LazyStream {
-  constructor(callback) {
-    this._callback = callback;
-    if ((this._callback === null)) {
-      (() => { throw __dartCoreError("ArgumentError", "callback"); })();
-    }
-  }
-  listen(onData, { onError = null, onDone = null, cancelOnError = null } = {}) {
-    let callback = this._callback;
-    if ((callback === null)) {
-      {
-        (() => { throw __dartCoreError("StateError", "Stream has already been listened to."); })();
-      }
-    }
-    this._callback = null;
-    let result = (callback)();
-    let stream = null;
-    if (result != null && typeof result.then === "function") {
-      {
-        stream = StreamCompleter.fromFuture(result);
-      }
-    } else {
-      {
-        stream = result;
-      }
-    }
-    return __dartStreamListen(stream, onData, onError, onDone, cancelOnError);
-  }
-}
-
-class NullStreamSink {
-  constructor({ done = null } = {}) {
-    this._closed = false;
-    this._addingStream = false;
-    this.done = (done ?? Promise.resolve(null));
-  }
-  static error(error, stackTrace = null) {
-    return $NullStreamSink_error(NullStreamSink, error, stackTrace);
-  }
-  add(data) {
-    this._checkEventAllowed();
-  }
-  addError(error, stackTrace = null) {
-    this._checkEventAllowed();
-  }
-  addStream(stream) {
-    this._checkEventAllowed();
-    this._addingStream = true;
-    let future = __dartStreamListen(stream, null, null, null, false).cancel();
-    return future.finally(() => {
-      this._addingStream = false;
-});
-  }
-  _checkEventAllowed() {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add to a closed sink."); })();
-    }
-    if (this._addingStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add to a sink while adding a stream."); })();
-      }
-    }
-  }
-  close() {
-    this._closed = true;
-    return this.done;
-  }
-}
-
-function $NullStreamSink_error($newTarget, error, stackTrace = null) {
-  const $self = Object.create($newTarget.prototype);
-  $self._closed = false;
-  $self._addingStream = false;
-  $self.done = (() => { let v = Promise.reject(error); return (() => {
-    v.catch(function(_) {
-});
-    return v;
-  })(); })();
-  return $self;
-}
-
-class RestartableTimer {
-  constructor(_duration, _callback) {
-    this._duration = _duration;
-    this._callback = _callback;
-    this._timer = __dartTimer(_duration, _callback, false);
-  }
-  get isActive() {
-    return this._timer.isActive;
-  }
-  reset() {
-    this._timer.cancel();
-    this._timer = __dartTimer(this._duration, this._callback, false);
-  }
-  cancel() {
-    this._timer.cancel();
-  }
-  get tick() {
-    return this._timer.tick;
-  }
-}
-
-class CaptureSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  add(value) {
-    this._sink.add(new ValueResult(value));
-  }
-  addError(error, stackTrace = null) {
-    this._sink.add(Result.error(error, stackTrace));
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-class CaptureStreamTransformer {
-  bind(source) {
-    return __dartStreamEventTransformed(source, $CaptureSink_new_tearoff);
-  }
-}
-
-class ReleaseSink {
-  constructor(_sink) {
-    this._sink = _sink;
-  }
-  add(result) {
-    result.addTo(this._sink);
-  }
-  addError(error, stackTrace = null) {
-    this._sink.addError(error, stackTrace);
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-class ReleaseStreamTransformer {
-  bind(source) {
-    return __dartStreamEventTransformed(source, ReleaseStreamTransformer._createSink);
-  }
-  static _createSink(sink) {
-    return new ReleaseSink(sink);
-  }
-}
-
-class Result {
-  constructor(computation) {
-    if (new.target === Result) {
-      try {
-        {
-          return new ValueResult((computation)());
-        }
-      } catch ($error) {
-        if ($error != null) {
-          const e = $error;
-          const s = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            return new ErrorResult(e, s);
-          }
-        } else {
-          throw $error;
-        }
-      }
-    }
-  }
-  static value(value) {
-    return new ValueResult(value);
-  }
-  static error(error, stackTrace = null) {
-    return new ErrorResult(error, stackTrace);
-  }
-  static capture(future) {
-    return future.then($ValueResult_new_tearoff, $ErrorResult_new_tearoff);
-  }
-  static captureAll(elements) {
-    let results = new Array(0).fill(null);
-    let pending = 0;
-    const completer = __dartLazyField("completer", null, true, null);
-    {
-      let _sync_for_iterator = __dartIterator(elements);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let element = _sync_for_iterator.current;
-          {
-            if (element != null && typeof element.then === "function") {
-              {
-                let i = results.length;
-                (results.push(null), null);
-                pending = (pending + 1);
-                Result.capture(element).then(function(result) {
-                  results[i] = result;
-                  if (__dartEquals(pending = (pending - 1), 0)) {
-                    {
-                      completer.get().complete(Array.from(results));
-                    }
-                  }
-});
-              }
-            } else {
-              {
-                (results.push(new ValueResult(element)), null);
-              }
-            }
-          }
-        }
-      }
-    }
-    if (__dartEquals(pending, 0)) {
-      {
-        return Promise.resolve(Array.from(results));
-      }
-    }
-    completer.set(__dartCompleter());
-    return completer.get().future;
-  }
-  static release(future) {
-    return future.then(function(result) { return result.asFuture; });
-  }
-  static captureStream(source) {
-    return __dartStreamTransform(source, new CaptureStreamTransformer());
-  }
-  static releaseStream(source) {
-    return __dartStreamTransform(source, new ReleaseStreamTransformer());
-  }
-  static releaseSink(sink) {
-    return new ReleaseSink(sink);
-  }
-  static captureSink(sink) {
-    return new CaptureSink(sink);
-  }
-  static flatten(result) {
-    if (result.isValue) {
-      return __dartNullCheck(result.asValue).value;
-    }
-    return __dartNullCheck(result.asError);
-  }
-  static flattenAll(results) {
-    let values = new Array(0).fill(null);
-    {
-      let _sync_for_iterator = __dartIterator(results);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let result = _sync_for_iterator.current;
-          {
-            if (result.isValue) {
-              {
-                (values.push(__dartNullCheck(result.asValue).value), null);
-              }
-            } else {
-              {
-                return __dartNullCheck(result.asError);
-              }
-            }
-          }
-        }
-      }
-    }
-    return new ValueResult(values);
-  }
-  get isValue() {
-    throw new TypeError("Abstract member Result.isValue");
-  }
-  set isValue(value) {
-    Object.defineProperty(this, "isValue", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get isError() {
-    throw new TypeError("Abstract member Result.isError");
-  }
-  set isError(value) {
-    Object.defineProperty(this, "isError", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get asValue() {
-    throw new TypeError("Abstract member Result.asValue");
-  }
-  set asValue(value) {
-    Object.defineProperty(this, "asValue", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get asError() {
-    throw new TypeError("Abstract member Result.asError");
-  }
-  set asError(value) {
-    Object.defineProperty(this, "asError", { value, writable: true, configurable: true, enumerable: true });
-  }
-  complete(completer) {
-    throw new TypeError("Abstract member Result.complete");
-  }
-  addTo(sink) {
-    throw new TypeError("Abstract member Result.addTo");
-  }
-  get asFuture() {
-    throw new TypeError("Abstract member Result.asFuture");
-  }
-  set asFuture(value) {
-    Object.defineProperty(this, "asFuture", { value, writable: true, configurable: true, enumerable: true });
-  }
-}
-
-class ValueResult extends Result {
-  constructor(value) {
-    super();
-    this.value = value;
-  }
-  get isValue() {
-    return true;
-  }
-  get isError() {
-    return false;
-  }
-  get asValue() {
-    return this;
-  }
-  get asError() {
-    return null;
-  }
-  complete(completer) {
-    completer.complete(this.value);
-  }
-  addTo(sink) {
-    sink.add(this.value);
-  }
-  get asFuture() {
-    return Promise.resolve(this.value);
-  }
-  get hashCode() {
-    return (__dartHashValue(this.value) ^ 842997089);
-  }
-  "=="(other) {
-    return (other instanceof ValueResult && __dartEquals(this.value, other.value));
-  }
-}
-
-class StreamSinkTransformer {
-  constructor() {
-    if (new.target === StreamSinkTransformer) {
-      throw new TypeError("Class StreamSinkTransformer has no unnamed constructor");
-    }
-  }
-  static fromStreamTransformer(transformer) {
-    return new StreamTransformerWrapper(transformer);
-  }
-  static fromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {
-    return new HandlerTransformer(handleData, handleError, handleDone);
-  }
-  bind(sink) {
-    throw new TypeError("Abstract member StreamSinkTransformer.bind");
-  }
-  static typed(transformer) {
-    return (transformer instanceof StreamSinkTransformer ? transformer : new TypeSafeStreamSinkTransformer(transformer));
-  }
-}
-
-class HandlerTransformer extends StreamSinkTransformer {
-  constructor(_handleData, _handleError, _handleDone) {
-    super();
-    this._handleData = _handleData;
-    this._handleError = _handleError;
-    this._handleDone = _handleDone;
-  }
-  bind(sink) {
-    return new _HandlerSink(this, sink);
-  }
-}
-
-class _HandlerSink {
-  constructor(_transformer, inner) {
-    this._transformer = _transformer;
-    this._inner = inner;
-    this._safeCloseInner = new _SafeCloseSink(inner);
-  }
-  get done() {
-    return this._inner.done;
-  }
-  add(event) {
-    let handleData = __dartAs(this._transformer._handleData, value => (value === null || typeof value === "function"), "void Function(_HandlerSink.S%, EventSink<_HandlerSink.T%>)?");
-    if ((handleData === null)) {
-      {
-        this._inner.add(__dartAs(event, value => true, "T"));
-      }
-    } else {
-      {
-        (handleData)(event, this._safeCloseInner);
-      }
-    }
-  }
-  addError(error, stackTrace = null) {
-    let handleError = __dartAs(this._transformer._handleError, value => (value === null || typeof value === "function"), "void Function(Object, StackTrace, EventSink<_HandlerSink.T%>)?");
-    if ((handleError === null)) {
-      {
-        this._inner.addError(error, stackTrace);
-      }
-    } else {
-      {
-        (handleError)(error, (stackTrace ?? (error?.stack ?? new Error().stack ?? "<javascript stack unavailable>")), this._safeCloseInner);
-      }
-    }
-  }
-  addStream(stream) {
-    return this._inner.addStream(__dartStreamTransform(stream, __dartStreamTransformerFromHandlers({ handleData: __dartAs(this._transformer._handleData, value => (value === null || typeof value === "function"), "void Function(_HandlerSink.S%, EventSink<_HandlerSink.T%>)?"), handleError: __dartAs(this._transformer._handleError, value => (value === null || typeof value === "function"), "void Function(Object, StackTrace, EventSink<_HandlerSink.T%>)?"), handleDone: _closeSink })), { cancelOnError: false });
-  }
-  close() {
-    let handleDone = __dartAs(this._transformer._handleDone, value => (value === null || typeof value === "function"), "void Function(EventSink<_HandlerSink.T%>)?");
-    if ((handleDone === null)) {
-      return this._inner.close();
-    }
-    (handleDone)(this._safeCloseInner);
-    return this._inner.done;
-  }
-}
-
-class _SafeCloseSink extends DelegatingStreamSink {
-  constructor(inner) {
-    super(inner);
-  }
-  close() {
-    return super.close().catch(function(_) {
-});
-  }
-}
-
-class StreamTransformerWrapper extends StreamSinkTransformer {
-  constructor(_transformer) {
-    super();
-    this._transformer = _transformer;
-  }
-  bind(sink) {
-    return new _StreamTransformerWrapperSink(this._transformer, sink);
-  }
-}
-
-class _StreamTransformerWrapperSink {
-  constructor(transformer, _inner) {
-    this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-    this._inner = _inner;
-    __dartStreamListen(__dartStreamTransform(this._controller.stream, transformer), __dartAs(__dartBind(this._inner, "add"), value => typeof value === "function", "void Function(_StreamTransformerWrapperSink.T%)"), __dartBind(this._inner, "addError"), () => {
-      this._inner.close().catch(function(_) {
-});
-}, false);
-  }
-  get done() {
-    return this._inner.done;
-  }
-  add(event) {
-    this._controller.add(event);
-  }
-  addError(error, stackTrace = null) {
-    this._controller.addError(error, stackTrace);
-  }
-  addStream(stream) {
-    return this._controller.addStream(stream, { cancelOnError: false });
-  }
-  close() {
-    this._controller.close();
-    return this._inner.done;
-  }
-}
-
-class TypeSafeStreamSinkTransformer extends StreamSinkTransformer {
-  constructor(_inner) {
-    super();
-    this._inner = _inner;
-  }
-  bind(sink) {
-    return (() => { let v = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null }); return (() => {
-      __dartStreamPipe(__dartStreamCast(v.stream, (value) => true, "DynamicType(dynamic)"), this._inner.bind(sink));
-      return v;
-    })(); })();
-  }
-}
-
-class ErrorResult extends Result {
-  constructor(error, stackTrace = null) {
-    super();
-    this.error = error;
-    this.stackTrace = (stackTrace ?? (error?.stack ?? new Error().stack ?? "<javascript stack unavailable>"));
-  }
-  get isValue() {
-    return false;
-  }
-  get isError() {
-    return true;
-  }
-  get asValue() {
-    return null;
-  }
-  get asError() {
-    return this;
-  }
-  complete(completer) {
-    completer.completeError(this.error, this.stackTrace);
-  }
-  addTo(sink) {
-    sink.addError(this.error, this.stackTrace);
-  }
-  get asFuture() {
-    return Promise.reject(this.error);
-  }
-  handle(errorHandler) {
-    if (typeof errorHandler === "function") {
-      {
-        (errorHandler)(this.error, this.stackTrace);
-      }
-    } else {
-      if (typeof errorHandler === "function") {
-        {
-          (errorHandler)(this.error);
-        }
-      } else {
-        {
-          (() => { throw __dartCoreError("ArgumentError", "is neither Function(Object, StackTrace) nor Function(Object)"); })();
-        }
-      }
-    }
-  }
-  get hashCode() {
-    return ((__dartHashValue(this.error) ^ __dartHashValue(this.stackTrace)) ^ 492929599);
-  }
-  "=="(other) {
-    return ((other instanceof ErrorResult && __dartEquals(this.error, other.error)) && __dartEquals(this.stackTrace, other.stackTrace));
-  }
-}
-
-class ResultFuture extends DelegatingFuture {
-  constructor(future) {
-    super(future);
-    this._result = null;
-    Result.capture(future).then((result) => {
-      this._result = result;
-});
-  }
-  get isComplete() {
-    return !((this.result === null));
-  }
-  get result() {
-    return this._result;
-  }
-}
-
-class SingleSubscriptionTransformer {
-  bind(stream) {
-    const subscription = __dartLazyField("subscription", null, true, null);
-    let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: function() { return subscription.get().cancel(); } });
-    subscription.set(__dartStreamListen(stream, function(value) {
-      try {
-        {
-          controller.add(__dartAs(value, value => true, "T"));
-        }
-      } catch ($error) {
-        if (__dartIsCoreError($error, "TypeError")) {
-          const error = $error;
-          const stackTrace = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            controller.addError(error, stackTrace);
-          }
-        } else {
-          throw $error;
-        }
-      }
-}, __dartBind(controller, "addError"), __dartBind(controller, "close"), false));
-    return controller.stream;
-  }
-}
-
-class Target {
-  constructor(kinds) {
-    this.kinds = kinds;
-  }
-}
-
-class TargetKind {
-  constructor() {
-    throw new TypeError("Class TargetKind has no unnamed constructor");
-  }
-  static _(displayString, name) {
-    return $TargetKind__(TargetKind, displayString, name);
-  }
-  get index() {
-    return __dartListIndexOf(__dartConst("[\"list\",\"InterfaceType(TargetKind)\",[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]]", () => Object.freeze([__dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "classes", name: "classType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "constructors", name: "constructor" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "directives", name: "directive" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enums", name: "enumType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enum values", name: "enumValue" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "export directives", name: "exportDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extensions", name: "extension" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extension types", name: "extensionType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "fields", name: "field" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level functions", name: "function" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "libraries", name: "library" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "getters", name: "getter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "import directives", name: "importDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "methods", name: "method" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "mixins", name: "mixinType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "optional parameters", name: "optionalParameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "overridable members", name: "overridableMember" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "parameters", name: "parameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "\"part of\" directives", name: "partOfDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "setters", name: "setter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level variables", name: "topLevelVariable" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "types (classes, enums, mixins, or typedefs)", name: "type" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "typedefs", name: "typedefType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "type parameters", name: "typeParameter" })))])), this, 0);
-  }
-  toString() {
-    return "TargetKind." + __dartStr(this.name);
-  }
-}
-
-function $TargetKind__($newTarget, displayString, name) {
-  const $self = Object.create($newTarget.prototype);
-  $self.displayString = displayString;
-  $self.name = name;
-  return $self;
-}
-
-class Immutable {
-  constructor(reason = "") {
-    this.reason = reason;
-  }
-}
-
-class RecordUse {
-}
-
-class Required {
-  constructor(reason = "") {
-    this.reason = reason;
-  }
-}
-
-class UseResult {
-  constructor(reason = "") {
-    this.reason = reason;
-    this.parameterDefined = null;
-  }
-  static unless({ parameterDefined, reason = "" } = {}) {
-    return $UseResult_unless(UseResult, { parameterDefined: parameterDefined, reason: reason });
-  }
-}
-
-function $UseResult_unless($newTarget, { parameterDefined, reason = "" } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self.parameterDefined = parameterDefined;
-  $self.reason = reason;
-  return $self;
-}
-
-class _AlwaysThrows {
-}
-
-class _AwaitNotRequired {
-}
-
-class _Checked {
-}
-
-class _DoNotStore {
-}
-
-class _DoNotSubmit {
-}
-
-class _Experimental {
-}
-
-class _Factory {
-}
-
-class _Internal {
-}
-
-class _IsTest {
-}
-
-class _IsTestGroup {
-}
-
-class _Literal {
-}
-
-class _MustBeConst {
-}
-
-class _MustBeOverridden {
-}
-
-class _MustCallSuper {
-}
-
-class _NonVirtual {
-}
-
-class _OptionalTypeArgs {
-}
-
-class _Protected {
-}
-
-class _Redeclare {
-}
-
-class _Reopen {
-}
-
-class _Sealed {
-}
-
-class _Virtual {
-}
-
-class _VisibleForOverriding {
-}
-
-class _VisibleForTesting {
-}
-
-class EventSinkBase {
-  constructor() {
-    this._closeMemo = new AsyncMemoizer();
-  }
-  get _closed() {
-    return this._closeMemo.hasRun;
-  }
-  add(data) {
-    this._checkCanAddEvent();
-    this.onAdd(data);
-  }
-  onAdd(data) {
-    throw new TypeError("Abstract member EventSinkBase.onAdd");
-  }
-  addError(error, stackTrace = null) {
-    this._checkCanAddEvent();
-    this.onError(error, stackTrace);
-  }
-  onError(error, stackTrace = null) {
-    throw new TypeError("Abstract member EventSinkBase.onError");
-  }
-  close() {
-    return this._closeMemo.runOnce(__dartBind(this, "onClose"));
-  }
-  onClose() {
-    throw new TypeError("Abstract member EventSinkBase.onClose");
-  }
-  _checkCanAddEvent() {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add event after closing"); })();
-    }
-  }
-}
-
-class StreamSinkBase extends EventSinkBase {
-  constructor() {
-    super();
-    this._addingStream = false;
-  }
-  get done() {
-    return this._closeMemo.future;
-  }
-  addStream(stream) {
-    this._checkCanAddEvent();
-    this._addingStream = true;
-    let completer = __dartCompleter();
-    __dartStreamListen(stream, __dartBind(this, "onAdd"), __dartBind(this, "onError"), () => {
-      this._addingStream = false;
-      completer.complete();
-}, false);
-    return completer.future;
-  }
-  close() {
-    if (this._addingStream) {
-      (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
-    }
-    return super.close();
-  }
-  _checkCanAddEvent() {
-    super._checkCanAddEvent();
-    if (this._addingStream) {
-      (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
-    }
-  }
-}
-
-class IOSinkBase extends StreamSinkBase {
-  constructor(encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false))) {
-    super();
-    this.encoding = encoding;
-  }
-  flush() {
-    if (this._addingStream) {
-      (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
-    }
-    if (this._closed) {
-      return Promise.resolve(null);
-    }
-    this._addingStream = true;
-    return this.onFlush().finally(() => {
-      this._addingStream = false;
-});
-  }
-  onFlush() {
-    throw new TypeError("Abstract member IOSinkBase.onFlush");
-  }
-  write(object) {
-    let string = __dartObjectToString(object);
-    if (string.length === 0) {
-      return;
-    }
-    this.add(this.encoding.encode(string));
-  }
-  writeAll(objects, separator = "") {
-    let first = true;
-    {
-      let _sync_for_iterator = __dartIterator(objects);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let object = _sync_for_iterator.current;
-          {
-            if (first) {
-              {
-                first = false;
-              }
-            } else {
-              {
-                this.write(separator);
-              }
-            }
-            this.write(object);
-          }
-        }
-      }
-    }
-  }
-  writeln(object = "") {
-    this.write(object);
-    this.write("\n");
-  }
-  writeCharCode(charCode) {
-    this.write(String.fromCodePoint(charCode));
-  }
-}
-
-class StreamCloser {
-  constructor() {
-    this._subscriptions = (() => {
-      const v = new Set();
-      return v;
-    })();
-    this._controllers = (() => {
-      const v = new Set();
-      return v;
-    })();
-    this._closeFuture = null;
-  }
-  close() {
-    return (this._closeFuture ?? (this._closeFuture = (() => {
-      let futures = (() => {
-        const v = new Array(0).fill(null);
-        {
-          let _sync_for_iterator = __dartIterator(this._subscriptions);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let subscription = _sync_for_iterator.current;
-              (v.push(subscription.cancel()), null);
-            }
-          }
-        }
-        return v;
-      })();
-      this._subscriptions.clear();
-      let controllers = Array.from(this._controllers);
-      this._controllers.clear();
-      __dartScheduleMicrotask(function() {
-        {
-          let _sync_for_iterator = __dartIterator(controllers);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let controller = _sync_for_iterator.current;
-              {
-                __dartScheduleMicrotask(__dartBind(controller, "close"));
-              }
-            }
-          }
-        }
-});
-      return __dartFutureWait(futures, true, null);
-})()));
-  }
-  get isClosed() {
-    return !((this._closeFuture === null));
-  }
-  bind(stream) {
-    let controller = ((stream.isBroadcast === true) ? __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null }) : __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null }));
-    controller.onListen = () => {
-      if (this.isClosed) {
-        {
-          __dartStreamListen(stream, null, null, null, false).cancel().catch(function(_) {
-});
-          return;
-        }
-      }
-      let subscription = __dartStreamListen(stream, __dartAs(__dartBind(controller, "add"), value => typeof value === "function", "void Function(StreamCloser.T%)"), __dartBind(controller, "addError"), null, false);
-      subscription.onDone(() => {
-        __dartSetRemove(this._subscriptions, subscription);
-        __dartSetRemove(this._controllers, controller);
-        controller.close();
-});
-      __dartSetAdd(this._subscriptions, subscription);
-      if (!((stream.isBroadcast === true))) {
-        {
-          controller.onPause = __dartBind(subscription, "pause");
-          controller.onResume = __dartBind(subscription, "resume");
-        }
-      }
-      controller.onCancel = () => {
-        __dartSetRemove(this._controllers, controller);
-        if (__dartSetRemove(this._subscriptions, subscription)) {
-          return subscription.cancel();
-        }
-        return null;
-};
-};
-    if (this.isClosed) {
-      {
-        controller.close();
-      }
-    } else {
-      {
-        __dartSetAdd(this._controllers, controller);
-      }
-    }
-    return controller.stream;
-  }
-}
-
-class StreamGroup {
-  constructor() {
-    const $_controller = __dartLazyField("StreamGroup._controller", null, true);
-    Object.defineProperty(this, "_controller", {
-      get() { return $_controller.get(); },
-      set(value) { $_controller.set(value); },
-      enumerable: true,
-    });
-    this._closed = false;
-    this._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"dormant\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "dormant" })));
-    this._onIdleController = null;
-    this._subscriptions = new Map([]);
-    this._controller = __dartStreamController(false, { onListen: __dartBind(this, "_onListen"), onPause: __dartBind(this, "_onPause"), onResume: __dartBind(this, "_onResume"), onCancel: __dartBind(this, "_onCancel") });
-  }
-  static broadcast() {
-    return $StreamGroup_broadcast(StreamGroup);
-  }
-  get stream() {
-    return this._controller.stream;
-  }
-  get isClosed() {
-    return this._closed;
-  }
-  get isIdle() {
-    return this._subscriptions.size === 0;
-  }
-  get onIdle() {
-    return (this._onIdleController ?? (this._onIdleController = __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null }))).stream;
-  }
-  static merge(streams) {
-    let group = new StreamGroup();
-    (Array.from(streams).forEach(__dartAs(__dartBind(group, "add"), value => typeof value === "function", "Future<void>? Function(Stream<StreamGroup.merge.T%>)")), null);
-    group.close();
-    return group.stream;
-  }
-  static mergeBroadcast(streams) {
-    let group = StreamGroup.broadcast();
-    (Array.from(streams).forEach(__dartAs(__dartBind(group, "add"), value => typeof value === "function", "Future<void>? Function(Stream<StreamGroup.mergeBroadcast.T%>)")), null);
-    group.close();
-    return group.stream;
-  }
-  add(stream) {
-    if (this._closed) {
-      {
-        (() => { throw __dartCoreError("StateError", "Can't add a Stream to a closed StreamGroup."); })();
-      }
-    }
-    if (__dartEquals(this._state, __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"dormant\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "dormant" }))))) {
-      {
-        __dartMapPutIfAbsent(this._subscriptions, stream, function() { return null; });
-      }
-    } else {
-      if (__dartEquals(this._state, __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"canceled\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "canceled" }))))) {
-        {
-          return __dartStreamListen(stream, null, null, null, false).cancel();
-        }
-      } else {
-        {
-          __dartMapPutIfAbsent(this._subscriptions, stream, () => { return this._listenToStream(stream); });
-        }
-      }
-    }
-    return null;
-  }
-  remove(stream) {
-    let subscription = __dartMapRemove(this._subscriptions, stream);
-    let future = ((subscription)?.cancel() ?? null);
-    if (this._subscriptions.size === 0) {
-      {
-        ((this._onIdleController)?.add(null) ?? null);
-        if (this._closed) {
-          {
-            ((this._onIdleController)?.close() ?? null);
-            __dartScheduleMicrotask(__dartBind(this._controller, "close"));
-          }
-        }
-      }
-    }
-    return future;
-  }
-  _onListen() {
-    this._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"listening\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "listening" })));
-    {
-      let _sync_for_iterator = __dartIterator((() => {
-        const v = Array.from(Array.from(this._subscriptions, ([key, value]) => ({ key, value })));
-        return v;
-      })());
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let entry = _sync_for_iterator.current;
-          L:
-          {
-            if (!((entry.value === null))) {
-              break L;
-            }
-            let stream = entry.key;
-            try {
-              {
-                __dartMapSet(this._subscriptions, stream, this._listenToStream(stream));
-              }
-            } catch ($error) {
-              if ($error != null) {
-                const error = $error;
-                {
-                  ((this._onCancel())?.catchError(function(_) {
-}) ?? null);
-                  (() => { throw $error; })();
-                }
-              } else {
-                throw $error;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  _onPause() {
-    this._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"paused\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "paused" })));
-    {
-      let _sync_for_iterator = __dartIterator(Array.from(this._subscriptions.values()));
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let subscription = _sync_for_iterator.current;
-          {
-            __dartNullCheck(subscription).pause();
-          }
-        }
-      }
-    }
-  }
-  _onResume() {
-    this._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"listening\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "listening" })));
-    {
-      let _sync_for_iterator = __dartIterator(Array.from(this._subscriptions.values()));
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let subscription = _sync_for_iterator.current;
-          {
-            __dartNullCheck(subscription).resume();
-          }
-        }
-      }
-    }
-  }
-  _onCancel() {
-    this._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"canceled\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "canceled" })));
-    let futures = Array.from(Array.from(Array.from(Array.from(this._subscriptions, ([key, value]) => ({ key, value })), function(entry) {
-      let subscription = entry.value;
-      try {
-        {
-          if (!((subscription === null))) {
-            return subscription.cancel();
-          }
-          return __dartStreamListen(entry.key, null, null, null, false).cancel();
-        }
-      } catch ($error) {
-        if ($error != null) {
-          const _ = $error;
-          {
-            return null;
-          }
-        } else {
-          throw $error;
-        }
-      }
-})).filter((value) => value != null));
-    (this._subscriptions.clear(), null);
-    let onIdleController = this._onIdleController;
-    if ((!((onIdleController === null)) && !(onIdleController.isClosed))) {
-      {
-        onIdleController.add(null);
-        onIdleController.close();
-      }
-    }
-    return (futures.length === 0 ? null : __dartFutureWait(futures, false, null));
-  }
-  _onCancelBroadcast() {
-    this._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"dormant\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "dormant" })));
-    (this._subscriptions.forEach((value, key) => ((stream, subscription) => {
-      if (!((stream.isBroadcast === true))) {
-        return;
-      }
-      __dartNullCheck(subscription).cancel();
-      __dartMapSet(this._subscriptions, stream, null);
-})(key, value)), null);
-  }
-  _listenToStream(stream) {
-    let subscription = __dartStreamListen(stream, __dartAs(__dartBind(this._controller, "add"), value => typeof value === "function", "void Function(StreamGroup.T%)"), __dartBind(this._controller, "addError"), () => { return this.remove(stream); }, false);
-    if (__dartEquals(this._state, __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"paused\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "paused" }))))) {
-      subscription.pause();
-    }
-    return subscription;
-  }
-  close() {
-    if (this._closed) {
-      return this._controller.done;
-    }
-    this._closed = true;
-    if (this._subscriptions.size === 0) {
-      {
-        ((this._onIdleController)?.close() ?? null);
-        this._controller.close();
-        return this._controller.done;
-      }
-    }
-    if ((this._controller.stream.isBroadcast === true)) {
-      {
-        let streamsToRemove = null;
-        __dartMapUpdateAll(this._subscriptions, (stream, subscription) => {
-          if (!((subscription === null))) {
-            return subscription;
-          }
-          try {
-            {
-              return this._listenToStream(stream);
-            }
-          } catch ($error) {
-            if ($error != null) {
-              {
-                ((streamsToRemove ?? (streamsToRemove = new Array(0).fill(null))).push(stream), null);
-                return null;
-              }
-            } else {
-              throw $error;
-            }
-          }
-});
-        ((streamsToRemove)?.forEach(__dartBind(this._subscriptions, "remove")) ?? null);
-      }
-    }
-    return this._controller.done;
-  }
-}
-
-function $StreamGroup_broadcast($newTarget) {
-  const $self = Object.create($newTarget.prototype);
-  const $_controller = __dartLazyField("StreamGroup._controller", null, true);
-  Object.defineProperty($self, "_controller", {
-    get() { return $_controller.get(); },
-    set(value) { $_controller.set(value); },
-    enumerable: true,
-  });
-  $self._closed = false;
-  $self._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"dormant\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "dormant" })));
-  $self._onIdleController = null;
-  $self._subscriptions = new Map([]);
-  $self._controller = __dartStreamController(true, { onListen: __dartBind($self, "_onListen"), onPause: null, onResume: null, onCancel: __dartBind($self, "_onCancelBroadcast") });
-  return $self;
-}
-
-class _StreamGroupState {
-  constructor(name) {
-    this.name = name;
-  }
-  toString() {
-    return this.name;
-  }
-}
-
-class StreamSplitter {
-  constructor(_stream) {
-    this._subscription = null;
-    this._buffer = new Array(0).fill(null);
-    this._controllers = (() => {
-      const v = new Set();
-      return v;
-    })();
-    this._closeGroup = new FutureGroup();
-    this._isDone = false;
-    this._isClosed = false;
-    this._stream = _stream;
-  }
-  static splitFrom(stream, count = null) {
-    ((count === null) ? count = 2 : null);
-    let splitter = new StreamSplitter(stream);
-    let streams = Array.from({ length: count }, (_, index) => (function(_) { return splitter.split(); })(index));
-    splitter.close();
-    return streams;
-  }
-  split() {
-    if (this._isClosed) {
-      {
-        (() => { throw __dartCoreError("StateError", "Can't call split() on a closed StreamSplitter."); })();
-      }
-    }
-    let controller = __dartStreamController(false, { onListen: __dartBind(this, "_onListen"), onPause: __dartBind(this, "_onPause"), onResume: __dartBind(this, "_onResume"), onCancel: null });
-    controller.onCancel = () => { return this._onCancel(controller); };
-    {
-      let _sync_for_iterator = __dartIterator(this._buffer);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let result = _sync_for_iterator.current;
-          {
-            result.addTo(controller);
-          }
-        }
-      }
-    }
-    if (this._isDone) {
-      {
-        this._closeGroup.add(controller.close());
-      }
-    } else {
-      {
-        __dartSetAdd(this._controllers, controller);
-      }
-    }
-    return controller.stream;
-  }
-  close() {
-    if (this._isClosed) {
-      return this._closeGroup.future;
-    }
-    this._isClosed = true;
-    (this._buffer.length = 0, null);
-    if (__dartIterableIsEmpty(this._controllers)) {
-      this._cancelSubscription();
-    }
-    return this._closeGroup.future;
-  }
-  _cancelSubscription() {
-    let future = null;
-    if (!((this._subscription === null))) {
-      future = __dartNullCheck(this._subscription).cancel();
-    }
-    if (!((future === null))) {
-      this._closeGroup.add(future);
-    }
-    this._closeGroup.close();
-  }
-  _onListen() {
-    if (this._isDone) {
-      return;
-    }
-    if (!((this._subscription === null))) {
-      {
-        __dartNullCheck(this._subscription).resume();
-      }
-    } else {
-      {
-        this._subscription = __dartStreamListen(this._stream, __dartBind(this, "_onData"), __dartBind(this, "_onError"), __dartBind(this, "_onDone"), false);
-      }
-    }
-  }
-  _onPause() {
-    if (!(Array.from(this._controllers).every(function(controller) { return controller.isPaused; }))) {
-      return;
-    }
-    __dartNullCheck(this._subscription).pause();
-  }
-  _onResume() {
-    __dartNullCheck(this._subscription).resume();
-  }
-  _onCancel(controller) {
-    __dartSetRemove(this._controllers, controller);
-    if (!__dartIterableIsEmpty(this._controllers)) {
-      return;
-    }
-    if (this._isClosed) {
-      {
-        this._cancelSubscription();
-      }
-    } else {
-      {
-        __dartNullCheck(this._subscription).pause();
-      }
-    }
-  }
-  _onData(data) {
-    if (!(this._isClosed)) {
-      (this._buffer.push(new ValueResult(data)), null);
-    }
-    {
-      let _sync_for_iterator = __dartIterator(this._controllers);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let controller = _sync_for_iterator.current;
-          {
-            controller.add(data);
-          }
-        }
-      }
-    }
-  }
-  _onError(error, stackTrace) {
-    if (!(this._isClosed)) {
-      (this._buffer.push(Result.error(error, stackTrace)), null);
-    }
-    {
-      let _sync_for_iterator = __dartIterator(this._controllers);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let controller = _sync_for_iterator.current;
-          {
-            controller.addError(error, stackTrace);
-          }
-        }
-      }
-    }
-  }
-  _onDone() {
-    this._isDone = true;
-    {
-      let _sync_for_iterator = __dartIterator(this._controllers);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let controller = _sync_for_iterator.current;
-          {
-            this._closeGroup.add(controller.close());
-          }
-        }
-      }
-    }
-  }
-}
-
-class SubscriptionStream {
-  constructor(subscription) {
-    this._source = subscription;
-    let source = __dartNullCheck(this._source);
-    source.pause();
-    source.onData(null);
-    source.onError(null);
-    source.onDone(null);
-  }
-  listen(onData, { onError = null, onDone = null, cancelOnError = null } = {}) {
-    let subscription = this._source;
-    if ((subscription === null)) {
-      {
-        (() => { throw __dartCoreError("StateError", "Stream has already been listened to."); })();
-      }
-    }
-    cancelOnError = __dartEquals(true, cancelOnError);
-    this._source = null;
-    let result = (cancelOnError ? new _CancelOnErrorSubscriptionWrapper(subscription) : subscription);
-    result.onData(onData);
-    result.onError(onError);
-    result.onDone(onDone);
-    subscription.resume();
-    return result;
-  }
-}
-
-class _CancelOnErrorSubscriptionWrapper extends DelegatingStreamSubscription {
-  constructor(subscription) {
-    super(subscription);
-  }
-  onError(handleError) {
-    super.onError((error, stackTrace) => {
-      super.cancel().finally(function() {
-        if (typeof handleError === "function") {
-          {
-            (handleError)(error, stackTrace);
-          }
-        } else {
-          if (typeof handleError === "function") {
-            {
-              (handleError)(error);
-            }
-          }
-        }
-});
-});
-  }
-}
 
 class _DelegatingIterableBase {
   get _base() {
@@ -8510,1069 +5011,1643 @@ function $UnionSetController__($newTarget, _sets, disjoint) {
   return $self;
 }
 
-class StreamQueue {
-  static _(_source) {
-    return $StreamQueue__(StreamQueue, _source);
+class TypedDataBuffer {
+  constructor(buffer) {
+    this._buffer = buffer;
+    this._length = buffer.length;
   }
-  get eventsDispatched() {
-    return (this._eventsReceived - this._eventQueue.length);
+  get length() {
+    return this._length;
   }
-  constructor(source) {
-    return StreamQueue._(source);
+  "[]"(index) {
+    if ((index >= this.length)) {
+      (() => { throw __dartCoreError("IndexError", index); })();
+    }
+    return this._buffer[index];
   }
-  get hasNext() {
-    this._checkNotClosed();
-    let hasNextRequest = new _HasNextRequest();
-    this._addRequest(hasNextRequest);
-    return hasNextRequest.future;
+  "[]="(index, value) {
+    if ((index >= this.length)) {
+      (() => { throw __dartCoreError("IndexError", index); })();
+    }
+    this._buffer[index] = value;
   }
-  lookAhead(count) {
-    __dartCheckNotNegative(count, "count", null);
-    this._checkNotClosed();
-    let request = new _LookAheadRequest(count);
-    this._addRequest(request);
-    return request.future;
-  }
-  get next() {
-    this._checkNotClosed();
-    let nextRequest = new _NextRequest();
-    this._addRequest(nextRequest);
-    return nextRequest.future;
-  }
-  get peek() {
-    this._checkNotClosed();
-    let nextRequest = new _PeekRequest();
-    this._addRequest(nextRequest);
-    return nextRequest.future;
-  }
-  get rest() {
-    this._checkNotClosed();
-    let request = new _RestRequest(this);
-    this._isClosed = true;
-    this._addRequest(request);
-    return request.stream;
-  }
-  skip(count) {
-    __dartCheckNotNegative(count, "count", null);
-    this._checkNotClosed();
-    let request = new _SkipRequest(count);
-    this._addRequest(request);
-    return request.future;
-  }
-  take(count) {
-    __dartCheckNotNegative(count, "count", null);
-    this._checkNotClosed();
-    let request = new _TakeRequest(count);
-    this._addRequest(request);
-    return request.future;
-  }
-  startTransaction() {
-    this._checkNotClosed();
-    let request = new _TransactionRequest(this);
-    this._addRequest(request);
-    return request.transaction;
-  }
-  async withTransaction(callback) {
-    let transaction = this.startTransaction();
-    let queue = transaction.newQueue();
-    let result = null;
-    try {
+  set length(newLength) {
+    if ((newLength < this._length)) {
       {
-        result = await (callback)(queue);
+        let defaultValue = this._defaultValue;
+        for (let i = newLength; (i < this._length); i = (i + 1)) {
+          {
+            this._buffer[i] = defaultValue;
+          }
+        }
       }
-    } catch ($error) {
-      if ($error != null) {
-        const _ = $error;
+    } else {
+      if ((newLength > this._buffer.length)) {
         {
-          transaction.commit(queue);
-          (() => { throw $error; })();
-        }
-      } else {
-        throw $error;
-      }
-    }
-    if (result) {
-      {
-        transaction.commit(queue);
-      }
-    } else {
-      {
-        transaction.reject();
-      }
-    }
-    return result;
-  }
-  cancelable(callback) {
-    let transaction = this.startTransaction();
-    let completer = new CancelableCompleter({ onCancel: function() {
-      transaction.reject();
-} });
-    let queue = transaction.newQueue();
-    completer.complete((callback)(queue).finally(function() {
-      if (!(completer.isCanceled)) {
-        transaction.commit(queue);
-      }
-}));
-    return completer.operation;
-  }
-  cancel({ immediate = false } = {}) {
-    this._checkNotClosed();
-    this._isClosed = true;
-    if (!(immediate)) {
-      {
-        let request = new _CancelRequest(this);
-        this._addRequest(request);
-        return request.future;
-      }
-    }
-    if ((this._isDone && this._eventQueue.isEmpty)) {
-      return Promise.resolve(null);
-    }
-    return this._cancel();
-  }
-  _updateRequests() {
-    while (!__dartIterableIsEmpty(this._requestQueue)) {
-      {
-        if (__dartIterableFirst(this._requestQueue).update(this._eventQueue, this._isDone)) {
-          {
-            this._requestQueue.shift();
+          let newBuffer = null;
+          if (__dartIterableIsEmpty(this._buffer)) {
+            {
+              newBuffer = this._createBuffer(newLength);
+            }
+          } else {
+            {
+              newBuffer = this._createBiggerBuffer(newLength);
+            }
           }
-        } else {
-          {
-            return;
-          }
+          __dartListSetRange(newBuffer, 0, this._length, this._buffer, 0);
+          this._buffer = newBuffer;
         }
       }
     }
-    if (!(this._isDone)) {
+    this._length = newLength;
+  }
+  _add(value) {
+    if (__dartEquals(this._length, this._buffer.length)) {
+      this._grow(this._length);
+    }
+    this._buffer[(() => { let v = this._length; return (() => { let v_1 = this._length = (v + 1); return v; })(); })()] = value;
+  }
+  add(element) {
+    this._add(element);
+  }
+  addAll(values, start = 0, end = null) {
+    __dartCheckNotNegative(start, "start", null);
+    if ((!((end === null)) && (start > end))) {
       {
-        this._pause();
+        (() => { throw __dartCoreError("RangeError", end); })();
       }
     }
+    this._addAll(values, start, end);
   }
-  _extractStream() {
-    if (this._isDone) {
+  insertAll(index, values, start = 0, end = null) {
+    __dartCheckValidIndex(index, this, "index", (this._length + 1), null);
+    __dartCheckNotNegative(start, "start", null);
+    if (!((end === null))) {
       {
-        return __dartStreamFromIterable([], true);
-      }
-    }
-    this._isDone = true;
-    let subscription = this._subscription;
-    if ((subscription === null)) {
-      {
-        return this._source;
-      }
-    }
-    this._subscription = null;
-    let wasPaused = subscription.isPaused;
-    let result = new SubscriptionStream(subscription);
-    if (wasPaused) {
-      subscription.resume();
-    }
-    return result;
-  }
-  _pause() {
-    __dartNullCheck(this._subscription).pause();
-  }
-  _ensureListening() {
-    if (this._isDone) {
-      return;
-    }
-    if ((this._subscription === null)) {
-      {
-        this._subscription = __dartStreamListen(this._source, (data) => {
-          this._addResult(new ValueResult(data));
-}, (error, stackTrace) => {
-          this._addResult(Result.error(error, stackTrace));
-}, () => {
-          this._subscription = null;
-          this._close();
-}, false);
-      }
-    } else {
-      {
-        __dartNullCheck(this._subscription).resume();
-      }
-    }
-  }
-  _cancel() {
-    if (this._isDone) {
-      return null;
-    }
-    ((this._subscription === null) ? this._subscription = __dartStreamListen(this._source, null, null, null, false) : null);
-    let future = __dartNullCheck(this._subscription).cancel();
-    this._close();
-    return future;
-  }
-  _addResult(result) {
-    this._eventsReceived = (this._eventsReceived + 1);
-    this._eventQueue.add(result);
-    this._updateRequests();
-  }
-  _close() {
-    this._isDone = true;
-    this._updateRequests();
-  }
-  _checkNotClosed() {
-    if (this._isClosed) {
-      (() => { throw __dartCoreError("StateError", "Already cancelled"); })();
-    }
-  }
-  _addRequest(request) {
-    if (__dartIterableIsEmpty(this._requestQueue)) {
-      {
-        if (request.update(this._eventQueue, this._isDone)) {
+        if ((start > end)) {
+          {
+            (() => { throw __dartCoreError("RangeError", end); })();
+          }
+        }
+        if (__dartEquals(start, end)) {
           return;
         }
-        this._ensureListening();
       }
     }
-    (this._requestQueue.push(request), null);
-  }
-}
-
-function $StreamQueue__($newTarget, _source) {
-  const $self = Object.create($newTarget.prototype);
-  $self._subscription = null;
-  $self._isDone = false;
-  $self._isClosed = false;
-  $self._eventsReceived = 0;
-  $self._eventQueue = new QueueList();
-  $self._requestQueue = [];
-  $self._source = _source;
-  if (($self._source.isBroadcast === true)) {
-    {
-      $self._ensureListening();
-      $self._pause();
-    }
-  }
-  return $self;
-}
-
-class StreamQueueTransaction {
-  constructor() {
-    throw new TypeError("Class StreamQueueTransaction has no unnamed constructor");
-  }
-  static _(_parent, source) {
-    return $StreamQueueTransaction__(StreamQueueTransaction, _parent, source);
-  }
-  newQueue() {
-    let queue = new StreamQueue(this._splitter.split());
-    __dartSetAdd(this._queues, queue);
-    return queue;
-  }
-  commit(queue) {
-    this._assertActive();
-    if (!(__dartIterableContains(this._queues, queue))) {
+    if (__dartEquals(index, this._length)) {
       {
-        (() => { throw __dartCoreError("ArgumentError", "Queue doesn't belong to this transaction."); })();
-      }
-    } else {
-      if (!__dartIterableIsEmpty(queue._requestQueue)) {
-        {
-          (() => { throw __dartCoreError("StateError", "A queue with pending requests can't be committed."); })();
-        }
+        this._addAll(values, start, end);
+        return;
       }
     }
-    this._committed = true;
-    for (let j = 0; (j < queue.eventsDispatched); j = (j + 1)) {
+    if (((end === null) && (Array.isArray(values) || (ArrayBuffer.isView(values) && !(values instanceof DataView))))) {
       {
-        this._parent._eventQueue.removeFirst();
+        end = __dartIterableLength(values);
       }
     }
-    this._done();
-  }
-  reject() {
-    this._assertActive();
-    this._rejected = true;
-    this._done();
-  }
-  _done() {
-    this._splitter.close();
+    if (!((end === null))) {
+      {
+        this._insertKnownLength(index, values, start, end);
+        return;
+      }
+    }
+    let writeIndex = this._length;
+    let skipCount = start;
     {
-      let _sync_for_iterator = __dartIterator(this._queues);
+      let _sync_for_iterator = __dartIterator(values);
       for (; _sync_for_iterator.moveNext(); ) {
         {
-          let queue = _sync_for_iterator.current;
+          let value = _sync_for_iterator.current;
+          L:
           {
-            queue._cancel();
+            if ((skipCount > 0)) {
+              {
+                skipCount = (skipCount - 1);
+                break L;
+              }
+            }
+            if (__dartEquals(writeIndex, this._buffer.length)) {
+              {
+                this._grow(writeIndex);
+              }
+            }
+            this._buffer[(() => { let v = writeIndex; return (() => { let v_1 = writeIndex = (v + 1); return v; })(); })()] = value;
           }
         }
       }
     }
-    let currentRequest = __dartIterableFirst(this._parent._requestQueue);
-    if ((currentRequest instanceof _TransactionRequest && __dartEquals(currentRequest.transaction, this))) {
+    if ((skipCount > 0)) {
       {
-        this._parent._requestQueue.shift();
-        this._parent._updateRequests();
+        (() => { throw __dartCoreError("StateError", "Too few elements"); })();
+      }
+    }
+    if ((!((end === null)) && (writeIndex < end))) {
+      {
+        (() => { throw __dartCoreError("RangeError", end); })();
+      }
+    }
+    TypedDataBuffer._reverse(this._buffer, index, this._length);
+    TypedDataBuffer._reverse(this._buffer, this._length, writeIndex);
+    TypedDataBuffer._reverse(this._buffer, index, writeIndex);
+    this._length = writeIndex;
+    return;
+  }
+  static _reverse(buffer, start, end) {
+    end = (end - 1);
+    while ((start < end)) {
+      {
+        let first = buffer[start];
+        let last = buffer[end];
+        buffer[end] = first;
+        buffer[start] = last;
+        start = (start + 1);
+        end = (end - 1);
       }
     }
   }
-  _assertActive() {
-    if (this._committed) {
+  _addAll(values, start = 0, end = null) {
+    if ((Array.isArray(values) || (ArrayBuffer.isView(values) && !(values instanceof DataView)))) {
+      ((end === null) ? end = __dartIterableLength(values) : null);
+    }
+    if (!((end === null))) {
       {
-        (() => { throw __dartCoreError("StateError", "This transaction has already been accepted."); })();
+        this._insertKnownLength(this._length, values, start, end);
+        return;
       }
-    } else {
-      if (this._rejected) {
+    }
+    let i = 0;
+    {
+      let _sync_for_iterator = __dartIterator(values);
+      for (; _sync_for_iterator.moveNext(); ) {
         {
-          (() => { throw __dartCoreError("StateError", "This transaction has already been rejected."); })();
-        }
-      }
-    }
-  }
-}
-
-function $StreamQueueTransaction__($newTarget, _parent, source) {
-  const $self = Object.create($newTarget.prototype);
-  $self._queues = (() => {
-    const v = new Set();
-    return v;
-  })();
-  $self._committed = false;
-  $self._rejected = false;
-  $self._parent = _parent;
-  $self._splitter = new StreamSplitter(source);
-  return $self;
-}
-
-class _EventRequest {
-  update(events, isDone) {
-    throw new TypeError("Abstract member _EventRequest.update");
-  }
-}
-
-class _NextRequest extends _EventRequest {
-  constructor() {
-    super();
-    this._completer = __dartCompleter();
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (events.isNotEmpty) {
-      {
-        events.removeFirst().complete(this._completer);
-        return true;
-      }
-    }
-    if (isDone) {
-      {
-        this._completer.completeError(__dartCoreError("StateError", "No elements"), (new Error().stack ?? "<javascript stack unavailable>"));
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-class _PeekRequest extends _EventRequest {
-  constructor() {
-    super();
-    this._completer = __dartCompleter();
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (events.isNotEmpty) {
-      {
-        events.first.complete(this._completer);
-        return true;
-      }
-    }
-    if (isDone) {
-      {
-        this._completer.completeError(__dartCoreError("StateError", "No elements"), (new Error().stack ?? "<javascript stack unavailable>"));
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-class _SkipRequest extends _EventRequest {
-  constructor(_eventsToSkip) {
-    super();
-    this._completer = __dartCompleter();
-    this._eventsToSkip = _eventsToSkip;
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    L:
-    while ((this._eventsToSkip > 0)) {
-      {
-        if (events.isEmpty) {
+          let value = _sync_for_iterator.current;
           {
-            if (isDone) {
-              break L;
+            if ((i >= start)) {
+              this.add(value);
             }
-            return false;
-          }
-        }
-        this._eventsToSkip = (this._eventsToSkip - 1);
-        let event = events.removeFirst();
-        if (event.isError) {
-          {
-            this._completer.completeError(__dartNullCheck(event.asError).error, __dartNullCheck(event.asError).stackTrace);
-            return true;
+            i = (i + 1);
           }
         }
       }
     }
-    this._completer.complete(this._eventsToSkip);
-    return true;
+    if ((i < start)) {
+      (() => { throw __dartCoreError("StateError", "Too few elements"); })();
+    }
   }
-}
-
-class _ListRequest extends _EventRequest {
-  constructor(_eventsToTake) {
-    super();
-    this._completer = __dartCompleter();
-    this._list = new Array(0).fill(null);
-    this._eventsToTake = _eventsToTake;
-  }
-  get future() {
-    return this._completer.future;
-  }
-}
-
-class _TakeRequest extends _ListRequest {
-  constructor(eventsToTake) {
-    super(eventsToTake);
-  }
-  update(events, isDone) {
-    L:
-    while ((this._list.length < this._eventsToTake)) {
+  _insertKnownLength(index, values, start, end) {
+    if ((Array.isArray(values) || (ArrayBuffer.isView(values) && !(values instanceof DataView)))) {
       {
-        if (events.isEmpty) {
+        if (((start > __dartIterableLength(values)) || (end > __dartIterableLength(values)))) {
           {
-            if (isDone) {
-              break L;
-            }
-            return false;
+            (() => { throw __dartCoreError("StateError", "Too few elements"); })();
           }
         }
-        let event = events.removeFirst();
-        if (event.isError) {
-          {
-            __dartNullCheck(event.asError).complete(this._completer);
-            return true;
-          }
-        }
-        (this._list.push(__dartNullCheck(event.asValue).value), null);
       }
     }
-    this._completer.complete(this._list);
-    return true;
+    let valuesLength = (end - start);
+    let newLength = (this._length + valuesLength);
+    this._ensureCapacity(newLength);
+    __dartListSetRange(this._buffer, (index + valuesLength), (this._length + valuesLength), this._buffer, index);
+    __dartListSetRange(this._buffer, index, (index + valuesLength), values, start);
+    this._length = newLength;
   }
-}
-
-class _LookAheadRequest extends _ListRequest {
-  constructor(eventsToTake) {
-    super(eventsToTake);
-  }
-  update(events, isDone) {
-    L:
-    while ((this._list.length < this._eventsToTake)) {
+  insert(index, element) {
+    if (((index < 0) || (index > this._length))) {
       {
-        if (__dartEquals(events.length, this._list.length)) {
-          {
-            if (isDone) {
-              break L;
-            }
-            return false;
-          }
-        }
-        let event = Array.from(events)[this._list.length];
-        if (event.isError) {
-          {
-            __dartNullCheck(event.asError).complete(this._completer);
-            return true;
-          }
-        }
-        (this._list.push(__dartNullCheck(event.asValue).value), null);
+        (() => { throw __dartCoreError("RangeError", index); })();
       }
     }
-    this._completer.complete(this._list);
-    return true;
-  }
-}
-
-class _CancelRequest extends _EventRequest {
-  constructor(_streamQueue) {
-    super();
-    this._completer = __dartCompleter();
-    this._streamQueue = _streamQueue;
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (this._streamQueue._isDone) {
+    if ((this._length < this._buffer.length)) {
       {
-        this._completer.complete();
+        __dartListSetRange(this._buffer, (index + 1), (this._length + 1), this._buffer, index);
+        this._buffer[index] = element;
+        this._length = (this._length + 1);
+        return;
+      }
+    }
+    let newBuffer = this._createBiggerBuffer(null);
+    __dartListSetRange(newBuffer, 0, index, this._buffer, 0);
+    __dartListSetRange(newBuffer, (index + 1), (this._length + 1), this._buffer, index);
+    newBuffer[index] = element;
+    this._length = (this._length + 1);
+    this._buffer = newBuffer;
+  }
+  _ensureCapacity(requiredCapacity) {
+    if ((requiredCapacity <= this._buffer.length)) {
+      return;
+    }
+    let newBuffer = this._createBiggerBuffer(requiredCapacity);
+    __dartListSetRange(newBuffer, 0, this._length, this._buffer, 0);
+    this._buffer = newBuffer;
+  }
+  _createBiggerBuffer(requiredCapacity) {
+    let newLength = (this._buffer.length * 2);
+    if ((!((requiredCapacity === null)) && (newLength < requiredCapacity))) {
+      {
+        newLength = requiredCapacity;
+      }
+    } else {
+      if ((newLength < 8)) {
+        {
+          newLength = 8;
+        }
+      }
+    }
+    return this._createBuffer(newLength);
+  }
+  _grow(length) {
+    this._buffer = (() => { let v = this._createBiggerBuffer(null); return (() => {
+      __dartListSetRange(v, 0, length, this._buffer, 0);
+      return v;
+    })(); })();
+  }
+  setRange(start, end, iterable, skipCount = 0) {
+    if ((end > this._length)) {
+      (() => { throw __dartCoreError("RangeError", end); })();
+    }
+    this._setRange(start, end, iterable, skipCount);
+  }
+  _setRange(start, end, source, skipCount) {
+    if (source instanceof TypedDataBuffer) {
+      {
+        __dartListSetRange(this._buffer, start, end, source._buffer, skipCount);
       }
     } else {
       {
-        this._streamQueue._ensureListening();
-        this._completer.complete(__dartStreamListen(this._streamQueue._extractStream(), null, null, null, false).cancel());
+        __dartListSetRange(this._buffer, start, end, source, skipCount);
+      }
+    }
+  }
+  get elementSizeInBytes() {
+    return (this._buffer instanceof DataView ? 1 : this._buffer.BYTES_PER_ELEMENT);
+  }
+  get lengthInBytes() {
+    return (this._length * (this._buffer instanceof DataView ? 1 : this._buffer.BYTES_PER_ELEMENT));
+  }
+  get offsetInBytes() {
+    return this._buffer.byteOffset;
+  }
+  get buffer() {
+    return this._buffer.buffer;
+  }
+  get _defaultValue() {
+    throw new TypeError("Abstract member TypedDataBuffer._defaultValue");
+  }
+  set _defaultValue(value) {
+    Object.defineProperty(this, "_defaultValue", { value, writable: true, configurable: true, enumerable: true });
+  }
+  _createBuffer(size) {
+    throw new TypeError("Abstract member TypedDataBuffer._createBuffer");
+  }
+}
+
+class _IntBuffer extends TypedDataBuffer {
+  constructor(buffer) {
+    super(buffer);
+  }
+  get _defaultValue() {
+    return 0;
+  }
+}
+
+class _FloatBuffer extends TypedDataBuffer {
+  constructor(buffer) {
+    super(buffer);
+  }
+  get _defaultValue() {
+    return 0.0;
+  }
+}
+
+class Uint8Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint8Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Uint8Array(size);
+  }
+}
+
+class Int8Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Int8Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Int8Array(size);
+  }
+}
+
+class Uint8ClampedBuffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint8ClampedArray(initialLength));
+  }
+  _createBuffer(size) {
+    return new Uint8ClampedArray(size);
+  }
+}
+
+class Uint16Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint16Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Uint16Array(size);
+  }
+}
+
+class Int16Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Int16Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Int16Array(size);
+  }
+}
+
+class Uint32Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint32Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Uint32Array(size);
+  }
+}
+
+class Int32Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Int32Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Int32Array(size);
+  }
+}
+
+class Uint64Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new BigUint64Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new BigUint64Array(size);
+  }
+}
+
+class Int64Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new BigInt64Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new BigInt64Array(size);
+  }
+}
+
+class Float32Buffer extends _FloatBuffer {
+  constructor(initialLength = 0) {
+    super(new Float32Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Float32Array(size);
+  }
+}
+
+class Float64Buffer extends _FloatBuffer {
+  constructor(initialLength = 0) {
+    super(new Float64Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Float64Array(size);
+  }
+}
+
+class Int32x4Buffer extends TypedDataBuffer {
+  constructor(initialLength = 0) {
+    super(new Array(initialLength).fill(null));
+  }
+  get _defaultValue() {
+    return Int32x4Buffer._zero;
+  }
+  _createBuffer(size) {
+    return new Array(size).fill(null);
+  }
+}
+
+class Float32x4Buffer extends TypedDataBuffer {
+  constructor(initialLength = 0) {
+    super(new Array(initialLength).fill(null));
+  }
+  get _defaultValue() {
+    return Object.freeze({ __dartType: "Float32x4", x: 0, y: 0, z: 0, w: 0 });
+  }
+  _createBuffer(size) {
+    return new Array(size).fill(null);
+  }
+}
+
+class __TypedQueue_Object_ListMixin {
+  constructor() {
+  }
+  toList({ growable = true } = {}) {
+    if (this.isEmpty) {
+      return (growable ? [] : __dartFixedList([]));
+    }
+    let first = this[0];
+    let result = (growable ? new Array(this.length).fill(first) : __dartFixedList(new Array(this.length).fill(first)));
+    for (let i = 1; (i < this.length); i = (i + 1)) {
+      {
+        result[i] = this[i];
+      }
+    }
+    return result;
+  }
+  cast() {
+    return Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(__TypedQueue&Object&ListMixin.cast.R%)"));
+  }
+  removeLast() {
+    if (__dartEquals(this.length, 0)) {
+      {
+        (() => { throw __dartCoreError("StateError", "No element"); })();
+      }
+    }
+    let result = this[(this.length - 1)];
+    this.length = (this.length - 1);
+    return result;
+  }
+  add(element) {
+    this[(() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })()] = element;
+  }
+  removeRange(start, end) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    if ((end > start)) {
+      {
+        this._closeGap(start, end);
+      }
+    }
+  }
+  setRange(start, end, iterable, skipCount = 0) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    let length = (end - start);
+    if (__dartEquals(length, 0)) {
+      return;
+    }
+    __dartCheckNotNegative(skipCount, "skipCount", null);
+    let otherList = null;
+    let otherStart = null;
+    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
+      {
+        otherList = iterable;
+        otherStart = skipCount;
+      }
+    } else {
+      {
+        otherList = __dartFixedList(Array.from(Array.from(iterable).slice(skipCount)));
+        otherStart = 0;
+      }
+    }
+    if (((otherStart + length) > otherList.length)) {
+      {
+        (() => { throw __dartCoreError("StateError", "Too few elements"); })();
+      }
+    }
+    if ((otherStart < start)) {
+      {
+        for (let i = (length - 1); (i >= 0); i = (i - 1)) {
+          {
+            this[(start + i)] = otherList[(otherStart + i)];
+          }
+        }
+      }
+    } else {
+      {
+        for (let i_1 = 0; (i_1 < length); i_1 = (i_1 + 1)) {
+          {
+            this[(start + i_1)] = otherList[(otherStart + i_1)];
+          }
+        }
+      }
+    }
+  }
+  fillRange(start, end, fill = null) {
+    let value = (fill ?? (v ?? __dartAs(v_1, value => true, "E")));
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    for (let i = start; (i < end); i = (i + 1)) {
+      {
+        this[i] = value;
+      }
+    }
+  }
+  sublist(start, end = null) {
+    let listLength = this.length;
+    ((end === null) ? end = listLength : null);
+    __dartCheckValidRange(start, end, listLength, null, null, null);
+    return Array.from(this.getRange(start, end));
+  }
+  get first() {
+    if (__dartEquals(this.length, 0)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    return this[0];
+  }
+  set first(value) {
+    if (__dartEquals(this.length, 0)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    this[0] = value;
+  }
+  get last() {
+    if (__dartEquals(this.length, 0)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    return this[(this.length - 1)];
+  }
+  set last(value) {
+    if (__dartEquals(this.length, 0)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    this[(this.length - 1)] = value;
+  }
+  get iterator() {
+    return __dartIterator(this);
+  }
+  elementAt(index) {
+    return this[index];
+  }
+  followedBy(other) {
+    return Array.from(this).concat(Array.from(other));
+  }
+  forEach(action) {
+    let length = this.length;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        (action)(this[i]);
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+  }
+  get isEmpty() {
+    return __dartEquals(this.length, 0);
+  }
+  get isNotEmpty() {
+    return !(this.isEmpty);
+  }
+  get single() {
+    if (__dartEquals(this.length, 0)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    if ((this.length > 1)) {
+      (() => { throw __dartCoreError("StateError", "Too many elements"); })();
+    }
+    return this[0];
+  }
+  contains(element) {
+    let length = this.length;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        if (__dartEquals(this[i], element)) {
+          return true;
+        }
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    return false;
+  }
+  every(test) {
+    let length = this.length;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        if (!((test)(this[i]))) {
+          return false;
+        }
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
       }
     }
     return true;
   }
+  any(test) {
+    let length = this.length;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        if ((test)(this[i])) {
+          return true;
+        }
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    return false;
+  }
+  firstWhere(test, { orElse = null } = {}) {
+    let length = this.length;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        let element = this[i];
+        if ((test)(element)) {
+          return element;
+        }
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    if (!((orElse === null))) {
+      return (orElse)();
+    }
+    (() => { throw __dartCoreError("StateError", "No element"); })();
+  }
+  lastWhere(test, { orElse = null } = {}) {
+    let length = this.length;
+    for (let i = (length - 1); (i >= 0); i = (i - 1)) {
+      {
+        let element = this[i];
+        if ((test)(element)) {
+          return element;
+        }
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    if (!((orElse === null))) {
+      return (orElse)();
+    }
+    (() => { throw __dartCoreError("StateError", "No element"); })();
+  }
+  singleWhere(test, { orElse = null } = {}) {
+    let length = this.length;
+    const match = __dartLazyField("match", null, true, null);
+    let matchFound = false;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        let element = this[i];
+        if ((test)(element)) {
+          {
+            if (matchFound) {
+              {
+                (() => { throw __dartCoreError("StateError", "Too many elements"); })();
+              }
+            }
+            matchFound = true;
+            match.set(element);
+          }
+        }
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    if (matchFound) {
+      return match.get();
+    }
+    if (!((orElse === null))) {
+      return (orElse)();
+    }
+    (() => { throw __dartCoreError("StateError", "No element"); })();
+  }
+  join(separator = "") {
+    if (__dartEquals(this.length, 0)) {
+      return "";
+    }
+    let buffer = (() => { let v = __dartStringBuffer(""); return (() => {
+      v.writeAll(this, separator);
+      return v;
+    })(); })();
+    return __dartStr(buffer);
+  }
+  where(test) {
+    return Array.from(this).filter((value) => test(value));
+  }
+  whereType() {
+    return Array.from(this).filter((value) => true);
+  }
+  map(f) {
+    return Array.from(this, (value) => f(value));
+  }
+  expand(f) {
+    return Array.from(this).flatMap((value) => Array.from(f(value)));
+  }
+  reduce(combine) {
+    let length = this.length;
+    if (__dartEquals(length, 0)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    let value = this[0];
+    for (let i = 1; (i < length); i = (i + 1)) {
+      {
+        value = (combine)(value, this[i]);
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    return value;
+  }
+  fold(initialValue, combine) {
+    let value = initialValue;
+    let length = this.length;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        value = (combine)(value, this[i]);
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    return value;
+  }
+  skip(count) {
+    return Array.from(this).slice(count, null ?? undefined);
+  }
+  skipWhile(test) {
+    return __dartIterableSkipWhile(this, test);
+  }
+  take(count) {
+    return Array.from(this).slice(0, __dartNullCheck(count) ?? undefined);
+  }
+  takeWhile(test) {
+    return __dartIterableTakeWhile(this, test);
+  }
+  toSet() {
+    let result = new Set();
+    for (let i = 0; (i < this.length); i = (i + 1)) {
+      {
+        __dartSetAdd(result, this[i]);
+      }
+    }
+    return result;
+  }
+  addAll(iterable) {
+    let i = this.length;
+    {
+      let _sync_for_iterator = __dartIterator(iterable);
+      for (; _sync_for_iterator.moveNext(); ) {
+        {
+          let element = _sync_for_iterator.current;
+          {
+            this.add(element);
+            i = (i + 1);
+          }
+        }
+      }
+    }
+  }
+  remove(element) {
+    for (let i = 0; (i < this.length); i = (i + 1)) {
+      {
+        if (__dartEquals(this[i], element)) {
+          {
+            this._closeGap(i, (i + 1));
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+  _closeGap(start, end) {
+    let length = this.length;
+    let size = (end - start);
+    for (let i = end; (i < length); i = (i + 1)) {
+      {
+        this[(i - size)] = this[i];
+      }
+    }
+    this.length = (length - size);
+  }
+  removeWhere(test) {
+    this._filter(test, false);
+  }
+  retainWhere(test) {
+    this._filter(test, true);
+  }
+  _filter(test, retainMatching) {
+    let retained = new Array(0).fill(null);
+    let length = this.length;
+    for (let i = 0; (i < length); i = (i + 1)) {
+      {
+        let element = this[i];
+        if (__dartEquals((test)(element), retainMatching)) {
+          {
+            (retained.push(element), null);
+          }
+        }
+        if (!(__dartEquals(length, this.length))) {
+          {
+            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
+          }
+        }
+      }
+    }
+    if (!(__dartEquals(retained.length, this.length))) {
+      {
+        this.setRange(0, retained.length, retained);
+        this.length = retained.length;
+      }
+    }
+  }
+  clear() {
+    this.length = 0;
+  }
+  sort(compare = null) {
+    __dartListSort(this, (compare ?? ((left, right) => __dartCompare(left, right))));
+  }
+  shuffle(random = null) {
+    ((random === null) ? random = __dartRandom(null, false) : null);
+    let length = this.length;
+    while ((length > 1)) {
+      {
+        let pos = random.nextInt(length);
+        length = (length - 1);
+        let tmp = this[length];
+        this[length] = this[pos];
+        this[pos] = tmp;
+      }
+    }
+  }
+  asMap() {
+    return new Map(Array.from(this, (value, index) => [index, value]));
+  }
+  "+"(other) {
+    return (() => {
+      const v = Array.from(this);
+      (v.push(...Array.from(other)), null);
+      return v;
+    })();
+  }
+  getRange(start, end) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    return Array.from(this).slice(start, end ?? undefined);
+  }
+  replaceRange(start, end, newContents) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    if (__dartEquals(start, this.length)) {
+      {
+        this.addAll(newContents);
+        return;
+      }
+    }
+    if (!(newContents != null && typeof newContents !== "string" && typeof newContents.length === "number" && typeof newContents[Symbol.iterator] === "function")) {
+      {
+        newContents = Array.from(newContents);
+      }
+    }
+    let removeLength = (end - start);
+    let insertLength = __dartIterableLength(newContents);
+    if ((removeLength >= insertLength)) {
+      {
+        let insertEnd = (start + insertLength);
+        this.setRange(start, insertEnd, newContents);
+        if ((removeLength > insertLength)) {
+          {
+            this._closeGap(insertEnd, end);
+          }
+        }
+      }
+    } else {
+      if (__dartEquals(end, this.length)) {
+        {
+          let i = start;
+          {
+            let _sync_for_iterator = __dartIterator(newContents);
+            for (; _sync_for_iterator.moveNext(); ) {
+              {
+                let element = _sync_for_iterator.current;
+                {
+                  if ((i < end)) {
+                    {
+                      this[i] = element;
+                    }
+                  } else {
+                    {
+                      this.add(element);
+                    }
+                  }
+                  i = (i + 1);
+                }
+              }
+            }
+          }
+        }
+      } else {
+        {
+          let delta = (insertLength - removeLength);
+          let oldLength = this.length;
+          let insertEnd_1 = (start + insertLength);
+          for (let i_1 = (oldLength - delta); (i_1 < oldLength); i_1 = (i_1 + 1)) {
+            {
+              this.add(this[((i_1 > 0) ? i_1 : 0)]);
+            }
+          }
+          if ((insertEnd_1 < oldLength)) {
+            {
+              this.setRange(insertEnd_1, oldLength, this, end);
+            }
+          }
+          this.setRange(start, insertEnd_1, newContents);
+        }
+      }
+    }
+  }
+  indexOf(element, start = 0) {
+    if ((start < 0)) {
+      start = 0;
+    }
+    for (let i = start; (i < this.length); i = (i + 1)) {
+      {
+        if (__dartEquals(this[i], element)) {
+          return i;
+        }
+      }
+    }
+    return (-1);
+  }
+  indexWhere(test, start = 0) {
+    if ((start < 0)) {
+      start = 0;
+    }
+    for (let i = start; (i < this.length); i = (i + 1)) {
+      {
+        if ((test)(this[i])) {
+          return i;
+        }
+      }
+    }
+    return (-1);
+  }
+  lastIndexOf(element, start = null) {
+    if (((start === null) || (start >= this.length))) {
+      start = (this.length - 1);
+    }
+    for (let i = start; (i >= 0); i = (i - 1)) {
+      {
+        if (__dartEquals(this[i], element)) {
+          return i;
+        }
+      }
+    }
+    return (-1);
+  }
+  lastIndexWhere(test, start = null) {
+    if (((start === null) || (start >= this.length))) {
+      start = (this.length - 1);
+    }
+    for (let i = start; (i >= 0); i = (i - 1)) {
+      {
+        if ((test)(this[i])) {
+          return i;
+        }
+      }
+    }
+    return (-1);
+  }
+  insert(index, element) {
+    __dartNullCheck(index);
+    let length = this.length;
+    __dartCheckValueInInterval(index, 0, length, "index", null);
+    this.add(element);
+    if (!(__dartEquals(index, length))) {
+      {
+        this.setRange((index + 1), (length + 1), this, index);
+        this[index] = element;
+      }
+    }
+  }
+  removeAt(index) {
+    let result = this[index];
+    this._closeGap(index, (index + 1));
+    return result;
+  }
+  insertAll(index, iterable) {
+    __dartCheckValueInInterval(index, 0, this.length, "index", null);
+    if (__dartEquals(index, this.length)) {
+      {
+        this.addAll(iterable);
+        return;
+      }
+    }
+    if ((!(iterable != null && typeof iterable !== "string" && typeof iterable.length === "number" && typeof iterable[Symbol.iterator] === "function") || Object.is(iterable, this))) {
+      {
+        iterable = Array.from(iterable);
+      }
+    }
+    let insertionLength = __dartIterableLength(iterable);
+    if (__dartEquals(insertionLength, 0)) {
+      {
+        return;
+      }
+    }
+    let oldLength = this.length;
+    for (let i = (oldLength - insertionLength); (i < oldLength); i = (i + 1)) {
+      {
+        this.add(this[((i > 0) ? i : 0)]);
+      }
+    }
+    if (!(__dartEquals(__dartIterableLength(iterable), insertionLength))) {
+      {
+        this.length = (this.length - insertionLength);
+        (() => { throw __dartCoreError("ConcurrentModificationError", iterable); })();
+      }
+    }
+    let oldCopyStart = (index + insertionLength);
+    if ((oldCopyStart < oldLength)) {
+      {
+        this.setRange(oldCopyStart, oldLength, this, index);
+      }
+    }
+    this.setAll(index, iterable);
+  }
+  setAll(index, iterable) {
+    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
+      {
+        this.setRange(index, (index + __dartIterableLength(iterable)), iterable);
+      }
+    } else {
+      {
+        {
+          let _sync_for_iterator = __dartIterator(iterable);
+          for (; _sync_for_iterator.moveNext(); ) {
+            {
+              let element = _sync_for_iterator.current;
+              {
+                this[(() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })()] = element;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  get reversed() {
+    return Array.from(this).reverse();
+  }
+  toString() {
+    return ("[" + Array.from(this, (value) => __dartStr(value)).join(", ") + "]");
+  }
 }
 
-class _RestRequest extends _EventRequest {
-  constructor(_streamQueue) {
+class _TypedQueue extends __TypedQueue_Object_ListMixin {
+  constructor(_table) {
     super();
-    this._completer = new StreamCompleter();
-    this._streamQueue = _streamQueue;
+    this._table = _table;
+    this._head = 0;
+    this._tail = 0;
   }
-  get stream() {
-    return this._completer.stream;
+  get length() {
+    return ((this._tail - this._head) & (this._table.length - 1));
   }
-  update(events, isDone) {
-    if (events.isEmpty) {
+  toList({ growable = true } = {}) {
+    let list = (growable ? this._createBuffer(this.length) : this._createList(this.length));
+    this._writeToList(list);
+    return list;
+  }
+  cast() {
+    if (this instanceof QueueList) {
+      return __dartAs(this, value => value instanceof QueueList, "QueueList<_TypedQueue.cast.T%>");
+    }
+    (() => { throw __dartCoreError("UnsupportedError", __dartStr(this) + " cannot be cast to the desired type."); })();
+  }
+  retype() {
+    return this.cast();
+  }
+  addLast(value) {
+    this._table[this._tail] = value;
+    this._tail = ((this._tail + 1) & (this._table.length - 1));
+    if (__dartEquals(this._head, this._tail)) {
+      this._growAtCapacity();
+    }
+  }
+  addFirst(value) {
+    this._head = ((this._head - 1) & (this._table.length - 1));
+    this._table[this._head] = value;
+    if (__dartEquals(this._head, this._tail)) {
+      this._growAtCapacity();
+    }
+  }
+  removeFirst() {
+    if (__dartEquals(this._head, this._tail)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    let result = this._table[this._head];
+    this._head = ((this._head + 1) & (this._table.length - 1));
+    return result;
+  }
+  removeLast() {
+    if (__dartEquals(this._head, this._tail)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    this._tail = ((this._tail - 1) & (this._table.length - 1));
+    return this._table[this._tail];
+  }
+  add(value) {
+    return this.addLast(value);
+  }
+  set length(value) {
+    __dartCheckNotNegative(value, "length", null);
+    let delta = (value - this.length);
+    if ((delta >= 0)) {
       {
-        if (this._streamQueue._isDone) {
+        let needsToGrow = (this._table.length <= value);
+        if (needsToGrow) {
+          this._growTo(value);
+        }
+        this._tail = ((this._tail + delta) & (this._table.length - 1));
+        if (!(needsToGrow)) {
+          this.fillRange((value - delta), value, this._defaultValue);
+        }
+      }
+    } else {
+      {
+        this.removeRange(value, this.length);
+      }
+    }
+  }
+  "[]"(index) {
+    __dartCheckValidIndex(index, this, null, this.length, null);
+    return this._table[((this._head + index) & (this._table.length - 1))];
+  }
+  "[]="(index, value) {
+    __dartCheckValidIndex(index, this, null, null, null);
+    this._table[((this._head + index) & (this._table.length - 1))] = value;
+  }
+  removeRange(start, end) {
+    let length = this.length;
+    __dartCheckValidRange(start, end, length, null, null, null);
+    if (__dartEquals(start, 0)) {
+      {
+        this._head = ((this._head + end) & (this._table.length - 1));
+        return;
+      }
+    }
+    let elementsAfter = (length - end);
+    if (__dartEquals(elementsAfter, 0)) {
+      {
+        this._tail = ((this._head + start) & (this._table.length - 1));
+        return;
+      }
+    }
+    let removedElements = (end - start);
+    if ((start < elementsAfter)) {
+      {
+        this.setRange(removedElements, end, this);
+        this._head = ((this._head + removedElements) & (this._table.length - 1));
+      }
+    } else {
+      {
+        this.setRange(start, (length - removedElements), this, end);
+        this._tail = ((this._tail - removedElements) & (this._table.length - 1));
+      }
+    }
+  }
+  setRange(start, end, iterable, skipCount = 0) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    if (__dartEquals(start, end)) {
+      return;
+    }
+    let targetStart = ((this._head + start) & (this._table.length - 1));
+    let targetEnd = ((this._head + end) & (this._table.length - 1));
+    let targetIsContiguous = (targetStart < targetEnd);
+    if (Object.is(iterable, this)) {
+      {
+        let sourceStart = ((this._head + skipCount) & (this._table.length - 1));
+        let sourceEnd = ((sourceStart + (end - start)) & (this._table.length - 1));
+        if (__dartEquals(sourceStart, targetStart)) {
+          return;
+        }
+        let sourceIsContiguous = (sourceStart < sourceEnd);
+        if ((targetIsContiguous && sourceIsContiguous)) {
           {
-            this._completer.setEmpty();
+            __dartListSetRange(this._table, targetStart, targetEnd, this._table, sourceStart);
+          }
+        } else {
+          if ((!(targetIsContiguous) && !(sourceIsContiguous))) {
+            {
+              if ((sourceStart > targetStart)) {
+                {
+                  let startGap = (sourceStart - targetStart);
+                  let firstEnd = (this._table.length - startGap);
+                  __dartListSetRange(this._table, targetStart, firstEnd, this._table, sourceStart);
+                  __dartListSetRange(this._table, firstEnd, this._table.length, this._table, 0);
+                  __dartListSetRange(this._table, 0, targetEnd, this._table, startGap);
+                }
+              } else {
+                if ((sourceEnd < targetEnd)) {
+                  {
+                    let firstStart = (targetEnd - sourceEnd);
+                    __dartListSetRange(this._table, firstStart, targetEnd, this._table, 0);
+                    __dartListSetRange(this._table, 0, firstStart, this._table, (this._table.length - firstStart));
+                    __dartListSetRange(this._table, targetStart, this._table.length, this._table, sourceStart);
+                  }
+                }
+              }
+            }
+          } else {
+            if ((sourceStart < targetEnd)) {
+              {
+                if (sourceIsContiguous) {
+                  {
+                    __dartListSetRange(this._table, targetStart, this._table.length, this._table, sourceStart);
+                    __dartListSetRange(this._table, 0, targetEnd, this._table, (sourceStart + (this._table.length - targetStart)));
+                  }
+                } else {
+                  {
+                    let firstEnd_1 = (this._table.length - sourceStart);
+                    __dartListSetRange(this._table, targetStart, firstEnd_1, this._table, sourceStart);
+                    __dartListSetRange(this._table, firstEnd_1, targetEnd, this._table, 0);
+                  }
+                }
+              }
+            } else {
+              {
+                if (sourceIsContiguous) {
+                  {
+                    __dartListSetRange(this._table, 0, targetEnd, this._table, (sourceStart + (this._table.length - targetStart)));
+                    __dartListSetRange(this._table, targetStart, this._table.length, this._table, sourceStart);
+                  }
+                } else {
+                  {
+                    let firstStart_1 = (targetEnd - sourceEnd);
+                    __dartListSetRange(this._table, firstStart_1, targetEnd, this._table, 0);
+                    __dartListSetRange(this._table, targetStart, firstStart_1, this._table, sourceStart);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if (targetIsContiguous) {
+        {
+          __dartListSetRange(this._table, targetStart, targetEnd, iterable, skipCount);
+        }
+      } else {
+        if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
+          {
+            __dartListSetRange(this._table, targetStart, this._table.length, iterable, skipCount);
+            __dartListSetRange(this._table, 0, targetEnd, iterable, (skipCount + (this._table.length - targetStart)));
           }
         } else {
           {
-            this._completer.setSourceStream(this._streamQueue._extractStream());
+            super.setRange(start, end, iterable, skipCount);
           }
         }
+      }
+    }
+  }
+  fillRange(start, end, value = null) {
+    let startInTable = ((this._head + start) & (this._table.length - 1));
+    let endInTable = ((this._head + end) & (this._table.length - 1));
+    if ((startInTable <= endInTable)) {
+      {
+        (this._table.fill(value, startInTable, endInTable), null);
       }
     } else {
       {
-        let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-        {
-          let _sync_for_iterator = __dartIterator(events);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let event = _sync_for_iterator.current;
-              {
-                event.addTo(controller);
-              }
-            }
-          }
-        }
-        controller.addStream(this._streamQueue._extractStream(), { cancelOnError: false }).finally(__dartBind(controller, "close"));
-        this._completer.setSourceStream(controller.stream);
+        (this._table.fill(value, startInTable, this._table.length), null);
+        (this._table.fill(value, 0, endInTable), null);
       }
     }
-    return true;
   }
-}
-
-class _HasNextRequest extends _EventRequest {
-  constructor() {
-    super();
-    this._completer = __dartCompleter();
+  sublist(start, end = null) {
+    let length = this.length;
+    let nonNullEnd = __dartCheckValidRange(start, end, length, null, null, null);
+    let list = this._createList((nonNullEnd - start));
+    this._writeToList(list, start, nonNullEnd);
+    return list;
   }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (events.isNotEmpty) {
+  _writeToList(target, start = null, end = null) {
+    ((start === null) ? start = 0 : null);
+    ((end === null) ? end = this.length : null);
+    let elementsToWrite = (end - start);
+    let startInTable = ((this._head + start) & (this._table.length - 1));
+    let endInTable = ((this._head + end) & (this._table.length - 1));
+    if ((startInTable <= endInTable)) {
       {
-        this._completer.complete(true);
-        return true;
-      }
-    }
-    if (isDone) {
-      {
-        this._completer.complete(false);
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-class _TransactionRequest extends _EventRequest {
-  constructor(parent) {
-    super();
-    const $transaction = __dartLazyField("_TransactionRequest.transaction", null, "once");
-    Object.defineProperty(this, "transaction", {
-      get() { return $transaction.get(); },
-      set(value) { $transaction.set(value); },
-      enumerable: true,
-    });
-    this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-    this._eventsSent = 0;
-    this.transaction = StreamQueueTransaction._(parent, this._controller.stream);
-  }
-  update(events, isDone) {
-    while ((this._eventsSent < events.length)) {
-      {
-        events["[]"]((() => { let v = this._eventsSent; return (() => { let v_1 = this._eventsSent = (v + 1); return v; })(); })()).addTo(this._controller);
-      }
-    }
-    if ((isDone && !(this._controller.isClosed))) {
-      this._controller.close();
-    }
-    return (this.transaction._committed || this.transaction._rejected);
-  }
-}
-
-class StreamSinkCompleter {
-  constructor() {
-    this.sink = new _CompleterSink();
-  }
-  get _sink() {
-    return __dartAs(this.sink, value => value instanceof _CompleterSink, "_CompleterSink<StreamSinkCompleter.T%>");
-  }
-  static fromFuture(sinkFuture) {
-    let completer = new StreamSinkCompleter();
-    sinkFuture.then(__dartAs(__dartBind(completer, "setDestinationSink"), value => typeof value === "function", "void Function(StreamSink<StreamSinkCompleter.fromFuture.T%>)"), __dartBind(completer, "setError"));
-    return completer.sink;
-  }
-  setDestinationSink(destinationSink) {
-    if (!((this._sink._destinationSink === null))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Destination sink already set"); })();
-      }
-    }
-    this._sink._setDestinationSink(destinationSink);
-  }
-  setError(error, stackTrace = null) {
-    this.setDestinationSink(NullStreamSink.error(error, stackTrace));
-  }
-}
-
-class _CompleterSink {
-  constructor() {
-    this._controller = null;
-    this._doneCompleter = null;
-    this._destinationSink = null;
-  }
-  get _canSendDirectly() {
-    return ((this._controller === null) && !((this._destinationSink === null)));
-  }
-  get done() {
-    if (!((this._doneCompleter === null))) {
-      return __dartNullCheck(this._doneCompleter).future;
-    }
-    if ((this._destinationSink === null)) {
-      {
-        this._doneCompleter = __dartCompleter();
-        return __dartNullCheck(this._doneCompleter).future;
-      }
-    }
-    return __dartNullCheck(this._destinationSink).done;
-  }
-  add(event) {
-    if (this._canSendDirectly) {
-      {
-        __dartNullCheck(this._destinationSink).add(event);
+        __dartListSetRange(target, 0, elementsToWrite, this._table, startInTable);
       }
     } else {
       {
-        this._ensureController().add(event);
+        let firstPartSize = (this._table.length - startInTable);
+        __dartListSetRange(target, 0, firstPartSize, this._table, startInTable);
+        __dartListSetRange(target, firstPartSize, (firstPartSize + endInTable), this._table, 0);
       }
     }
+    return elementsToWrite;
   }
-  addError(error, stackTrace = null) {
-    if (this._canSendDirectly) {
+  _growAtCapacity() {
+    let newTable = this._createList((this._table.length * 2));
+    let partitionPoint = (this._table.length - this._head);
+    __dartListSetRange(newTable, 0, partitionPoint, this._table, this._head);
+    if (!(__dartEquals(partitionPoint, this._table.length))) {
       {
-        __dartNullCheck(this._destinationSink).addError(error, stackTrace);
-      }
-    } else {
-      {
-        this._ensureController().addError(error, stackTrace);
+        __dartListSetRange(newTable, partitionPoint, this._table.length, this._table, 0);
       }
     }
+    this._head = 0;
+    this._tail = this._table.length;
+    this._table = newTable;
   }
-  addStream(stream) {
-    if (this._canSendDirectly) {
-      return __dartNullCheck(this._destinationSink).addStream(stream, { cancelOnError: false });
-    }
-    return this._ensureController().addStream(stream, { cancelOnError: false });
+  _growTo(newElementCount) {
+    newElementCount = (newElementCount + (newElementCount >> 1));
+    let newTable = this._createList(_nextPowerOf2(newElementCount));
+    this._tail = this._writeToList(newTable);
+    this._table = newTable;
+    this._head = 0;
   }
-  close() {
-    if (this._canSendDirectly) {
-      {
-        __dartNullCheck(this._destinationSink).close();
-      }
-    } else {
-      {
-        this._ensureController().close();
-      }
-    }
-    return this.done;
+  _createList(size) {
+    throw new TypeError("Abstract member _TypedQueue._createList");
   }
-  _ensureController() {
-    return (this._controller ?? (this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null })));
+  _createBuffer(size) {
+    throw new TypeError("Abstract member _TypedQueue._createBuffer");
   }
-  _setDestinationSink(sink) {
-    this._destinationSink = sink;
-    if (!((this._controller === null))) {
-      {
-        sink.addStream(__dartNullCheck(this._controller).stream, { cancelOnError: false }).finally(__dartBind(sink, "close")).catch(function(_) {
-});
-      }
-    }
-    if (!((this._doneCompleter === null))) {
-      {
-        __dartNullCheck(this._doneCompleter).complete(sink.done);
-      }
-    }
+  get _defaultValue() {
+    throw new TypeError("Abstract member _TypedQueue._defaultValue");
+  }
+  set _defaultValue(value) {
+    Object.defineProperty(this, "_defaultValue", { value, writable: true, configurable: true, enumerable: true });
   }
 }
 
-class RejectErrorsSink {
-  constructor(_inner) {
-    this._doneCompleter = __dartCompleter();
-    this._closed = false;
-    this._addStreamSubscription = null;
-    this._addStreamCompleter = null;
-    this._inner = _inner;
-    this._inner.done.then((value) => {
-      this._cancelAddStream();
-      if (!(this._canceled)) {
-        this._doneCompleter.complete(value);
-      }
-}).catch((error) => ((error, stackTrace) => {
-      this._cancelAddStream();
-      if (!(this._canceled)) {
-        this._doneCompleter.completeError(error, stackTrace);
-      }
-})(error, error?.stack ?? "<javascript stack unavailable>"));
+class _IntQueue extends _TypedQueue {
+  constructor(queue) {
+    super(queue);
   }
-  get done() {
-    return this._doneCompleter.future;
-  }
-  get _inAddStream() {
-    return !((this._addStreamSubscription === null));
-  }
-  get _canceled() {
-    return this._doneCompleter.isCompleted;
-  }
-  add(data) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add event after closing."); })();
-    }
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add event while adding stream."); })();
-      }
-    }
-    if (this._canceled) {
-      return;
-    }
-    this._inner.add(data);
-  }
-  addError(error, stackTrace = null) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add event after closing."); })();
-    }
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add event while adding stream."); })();
-      }
-    }
-    if (this._canceled) {
-      return;
-    }
-    this._addError(error, stackTrace);
-  }
-  _addError(error, stackTrace = null) {
-    this._cancelAddStream();
-    this._doneCompleter.completeError(error, stackTrace);
-    this._inner.close().catch(function(_) {
-});
-  }
-  addStream(stream) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add stream after closing."); })();
-    }
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add stream while adding stream."); })();
-      }
-    }
-    if (this._canceled) {
-      return Promise.resolve(null);
-    }
-    let addStreamCompleter = this._addStreamCompleter = __dartCompleter();
-    this._addStreamSubscription = __dartStreamListen(stream, __dartAs(__dartBind(this._inner, "add"), value => typeof value === "function", "void Function(RejectErrorsSink.T%)"), __dartBind(this, "_addError"), __dartAs(__dartBind(addStreamCompleter, "complete"), value => typeof value === "function", "void Function([FutureOr<void>?])"), false);
-    return addStreamCompleter.future.then((_) => {
-      this._addStreamCompleter = null;
-      this._addStreamSubscription = null;
-});
-  }
-  close() {
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot close sink while adding stream."); })();
-      }
-    }
-    if (this._closed) {
-      return this.done;
-    }
-    this._closed = true;
-    if (!(this._canceled)) {
-      {
-        this._doneCompleter.complete(this._inner.close());
-      }
-    }
-    return this.done;
-  }
-  _cancelAddStream() {
-    if (!(this._inAddStream)) {
-      return;
-    }
-    __dartNullCheck(this._addStreamCompleter).complete(__dartNullCheck(this._addStreamSubscription).cancel());
-    this._addStreamCompleter = null;
-    this._addStreamSubscription = null;
+  get _defaultValue() {
+    return 0;
   }
 }
 
-class _TransformedSubscription {
-  constructor(_inner, _handleCancel, _handlePause, _handleResume) {
-    this._cancelMemoizer = new AsyncMemoizer();
-    this._inner = _inner;
-    this._handleCancel = _handleCancel;
-    this._handlePause = _handlePause;
-    this._handleResume = _handleResume;
+class _FloatQueue extends _TypedQueue {
+  constructor(queue) {
+    super(queue);
   }
-  get isPaused() {
-    return ((this._inner)?.isPaused ?? false);
-  }
-  onData(handleData) {
-    ((this._inner)?.onData(handleData) ?? null);
-  }
-  onError(handleError) {
-    ((this._inner)?.onError(handleError) ?? null);
-  }
-  onDone(handleDone) {
-    ((this._inner)?.onDone(handleDone) ?? null);
-  }
-  cancel() {
-    return this._cancelMemoizer.runOnce(() => {
-      let inner = __dartNullCheck(this._inner);
-      inner.onData(null);
-      inner.onDone(null);
-      inner.onError(function(_, __) {
-});
-      this._inner = null;
-      return (() => { let v = inner; return (this._handleCancel)(v); })();
-});
-  }
-  pause(resumeFuture = null) {
-    if (this._cancelMemoizer.hasRun) {
-      return;
-    }
-    if (!((resumeFuture === null))) {
-      resumeFuture.finally(__dartBind(this, "resume"));
-    }
-    (() => { let v = __dartNullCheck(this._inner); return (this._handlePause)(v); })();
-  }
-  resume() {
-    if (this._cancelMemoizer.hasRun) {
-      return;
-    }
-    (() => { let v = __dartNullCheck(this._inner); return (this._handleResume)(v); })();
-  }
-  asFuture(futureValue = null) {
-    return ((this._inner)?.asFuture(futureValue) ?? __dartCompleter().future);
+  get _defaultValue() {
+    return 0.0;
   }
 }
 
-class StreamZip {
-  constructor(streams) {
-    this._streams = streams;
+class Uint8Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint8Array(_chooseRealInitialCapacity(initialCapacity)));
   }
-  listen(onData, { onError = null, onDone = null, cancelOnError = null } = {}) {
-    cancelOnError = Object.is(true, cancelOnError);
-    let subscriptions = new Array(0).fill(null);
-    const controller = __dartLazyField("controller", null, true, null);
-    const current = __dartLazyField("current", null, true, null);
-    let dataCount = 0;
-    function handleData(index, data) {
-      current.get()[index] = data;
-      dataCount = (dataCount + 1);
-      if (__dartEquals(dataCount, subscriptions.length)) {
-        {
-          let data_1 = Array.from(current.get());
-          current.set(__dartFixedList(new Array(subscriptions.length).fill(null)));
-          dataCount = 0;
-          for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-            {
-              if (!(__dartEquals(i, index))) {
-                subscriptions[i].resume();
-              }
-            }
-          }
-          controller.get().add(data_1);
-        }
-      } else {
-        {
-          subscriptions[index].pause();
-        }
-      }
-    }
-    function handleError(error, stackTrace) {
-      controller.get().addError(error, stackTrace);
-    }
-    function handleErrorCancel(error, stackTrace) {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          subscriptions[i].cancel();
-        }
-      }
-      controller.get().addError(error, stackTrace);
-    }
-    function handleDone() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          subscriptions[i].cancel();
-        }
-      }
-      controller.get().close();
-    }
-    try {
-      {
-        {
-          let _sync_for_iterator = __dartIterator(this._streams);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let stream = _sync_for_iterator.current;
-              {
-                let index = subscriptions.length;
-                (subscriptions.push(__dartStreamListen(stream, function(data) {
-                  handleData(index, data);
-}, (cancelOnError ? handleError : handleErrorCancel), handleDone, cancelOnError)), null);
-              }
-            }
-          }
-        }
-      }
-    } catch ($error) {
-      if ($error != null) {
-        const e = $error;
-        {
-          for (let i = (subscriptions.length - 1); (i >= 0); i = (i - 1)) {
-            {
-              subscriptions[i].cancel();
-            }
-          }
-          (() => { throw $error; })();
-        }
-      } else {
-        throw $error;
-      }
-    }
-    current.set(__dartFixedList(new Array(subscriptions.length).fill(null)));
-    controller.set(__dartStreamController(false, { onListen: null, onPause: function() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          subscriptions[i].pause();
-        }
-      }
-}, onResume: function() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          subscriptions[i].resume();
-        }
-      }
-}, onCancel: function() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          subscriptions[i].cancel();
-        }
-      }
-} }));
-    if (subscriptions.length === 0) {
-      {
-        controller.get().close();
-      }
-    }
-    return __dartStreamListen(controller.get().stream, onData, onError, onDone, cancelOnError);
+  static fromList(elements) {
+    return (() => { let v = new Uint8Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Uint8Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint8Buffer(size);
   }
 }
 
-class _TypeSafeStreamTransformer {
-  constructor(_inner) {
-    this._inner = _inner;
+class Int8Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Int8Array(_chooseRealInitialCapacity(initialCapacity)));
   }
-  bind(stream) {
-    return __dartStreamCast(__dartStreamTransformerBind(this._inner, stream), (value) => true, "TypeParameterType(_TypeSafeStreamTransformer.T%)");
+  static fromList(elements) {
+    return (() => { let v = new Int8Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Int8Array(size);
+  }
+  _createBuffer(size) {
+    return new Int8Buffer(size);
   }
 }
 
+class Uint8ClampedQueue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint8ClampedArray(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint8ClampedQueue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Uint8ClampedArray(size);
+  }
+  _createBuffer(size) {
+    return new Uint8ClampedBuffer(size);
+  }
+}
 
-Object.defineProperty(Result, "captureStreamTransformer", { value: __dartConst("[\"instance\",\"class:CaptureStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(CaptureStreamTransformer.prototype))), enumerable: true });
+class Uint16Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint16Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint16Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Uint16Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint16Buffer(size);
+  }
+}
 
-Object.defineProperty(Result, "releaseStreamTransformer", { value: __dartConst("[\"instance\",\"class:ReleaseStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(ReleaseStreamTransformer.prototype))), enumerable: true });
+class Int16Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Int16Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int16Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Int16Array(size);
+  }
+  _createBuffer(size) {
+    return new Int16Buffer(size);
+  }
+}
 
-Object.defineProperty(Result, "captureSinkTransformer", { value: __dartConst("[\"instance\",\"class:StreamTransformerWrapper\",[\"typeArgument\",\"InterfaceType(Object)\"],[\"typeArgument\",\"InterfaceType(Result<Object>)\"],[\"field\",\"field:StreamTransformerWrapper._transformer\",[\"instance\",\"class:CaptureStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]]]", () => Object.freeze(Object.assign(Object.create(StreamTransformerWrapper.prototype), { _transformer: __dartConst("[\"instance\",\"class:CaptureStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(CaptureStreamTransformer.prototype))) }))), enumerable: true });
+class Uint32Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint32Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint32Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Uint32Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint32Buffer(size);
+  }
+}
 
-Object.defineProperty(Result, "releaseSinkTransformer", { value: __dartConst("[\"instance\",\"class:StreamTransformerWrapper\",[\"typeArgument\",\"InterfaceType(Result<Object>)\"],[\"typeArgument\",\"InterfaceType(Object)\"],[\"field\",\"field:StreamTransformerWrapper._transformer\",[\"instance\",\"class:ReleaseStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]]]", () => Object.freeze(Object.assign(Object.create(StreamTransformerWrapper.prototype), { _transformer: __dartConst("[\"instance\",\"class:ReleaseStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(ReleaseStreamTransformer.prototype))) }))), enumerable: true });
+class Int32Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Int32Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int32Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Int32Array(size);
+  }
+  _createBuffer(size) {
+    return new Int32Buffer(size);
+  }
+}
 
-Object.defineProperty(TargetKind, "classType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "classes", name: "classType" }))), enumerable: true });
+class Uint64Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new BigUint64Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint64Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new BigUint64Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint64Buffer(size);
+  }
+}
 
-Object.defineProperty(TargetKind, "constructor", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "constructors", name: "constructor" }))), enumerable: true });
+class Int64Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new BigInt64Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int64Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new BigInt64Array(size);
+  }
+  _createBuffer(size) {
+    return new Int64Buffer(size);
+  }
+}
 
-Object.defineProperty(TargetKind, "directive", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "directives", name: "directive" }))), enumerable: true });
+class Float32Queue extends _FloatQueue {
+  constructor(initialCapacity = null) {
+    super(new Float32Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Float32Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Float32Array(size);
+  }
+  _createBuffer(size) {
+    return new Float32Buffer(size);
+  }
+}
 
-Object.defineProperty(TargetKind, "enumType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enums", name: "enumType" }))), enumerable: true });
+class Float64Queue extends _FloatQueue {
+  constructor(initialCapacity = null) {
+    super(new Float64Array(_chooseRealInitialCapacity(initialCapacity)));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Float64Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Float64Array(size);
+  }
+  _createBuffer(size) {
+    return new Float64Buffer(size);
+  }
+}
 
-Object.defineProperty(TargetKind, "enumValue", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enum values", name: "enumValue" }))), enumerable: true });
+class Int32x4Queue extends _TypedQueue {
+  constructor(initialCapacity = null) {
+    super(new Array(_chooseRealInitialCapacity(initialCapacity)).fill(null));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int32x4Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Array(size).fill(null);
+  }
+  _createBuffer(size) {
+    return new Int32x4Buffer(size);
+  }
+  get _defaultValue() {
+    return Int32x4Queue._zero;
+  }
+}
 
-Object.defineProperty(TargetKind, "exportDirective", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "export directives", name: "exportDirective" }))), enumerable: true });
+class Float32x4Queue extends _TypedQueue {
+  constructor(initialCapacity = null) {
+    super(new Array(_chooseRealInitialCapacity(initialCapacity)).fill(null));
+  }
+  static fromList(elements) {
+    return (() => { let v = new Float32x4Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Array(size).fill(null);
+  }
+  _createBuffer(size) {
+    return new Float32x4Buffer(size);
+  }
+  get _defaultValue() {
+    return Object.freeze({ __dartType: "Float32x4", x: 0, y: 0, z: 0, w: 0 });
+  }
+}
 
-Object.defineProperty(TargetKind, "extension", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extensions", name: "extension" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "extensionType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extension types", name: "extensionType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "field", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "fields", name: "field" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "function", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level functions", name: "function" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "library", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "libraries", name: "library" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "getter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "getters", name: "getter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "importDirective", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "import directives", name: "importDirective" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "method", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "methods", name: "method" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "mixinType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "mixins", name: "mixinType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "optionalParameter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "optional parameters", name: "optionalParameter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "overridableMember", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "overridable members", name: "overridableMember" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "parameter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "parameters", name: "parameter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "partOfDirective", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "\"part of\" directives", name: "partOfDirective" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "setter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "setters", name: "setter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "topLevelVariable", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level variables", name: "topLevelVariable" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "type", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "types (classes, enums, mixins, or typedefs)", name: "type" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "typedefType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "typedefs", name: "typedefType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "typeParameter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "type parameters", name: "typeParameter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "values", { value: __dartConst("[\"list\",\"InterfaceType(TargetKind)\",[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]]", () => Object.freeze([__dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "classes", name: "classType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "constructors", name: "constructor" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "directives", name: "directive" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enums", name: "enumType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enum values", name: "enumValue" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "export directives", name: "exportDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extensions", name: "extension" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extension types", name: "extensionType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "fields", name: "field" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level functions", name: "function" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "libraries", name: "library" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "getters", name: "getter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "import directives", name: "importDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "methods", name: "method" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "mixins", name: "mixinType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "optional parameters", name: "optionalParameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "overridable members", name: "overridableMember" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "parameters", name: "parameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "\"part of\" directives", name: "partOfDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "setters", name: "setter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level variables", name: "topLevelVariable" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "types (classes, enums, mixins, or typedefs)", name: "type" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "typedefs", name: "typedefType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "type parameters", name: "typeParameter" })))])), enumerable: true });
-
-Object.defineProperty(_StreamGroupState, "dormant", { value: __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"dormant\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "dormant" }))), enumerable: true });
-
-Object.defineProperty(_StreamGroupState, "listening", { value: __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"listening\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "listening" }))), enumerable: true });
-
-Object.defineProperty(_StreamGroupState, "paused", { value: __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"paused\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "paused" }))), enumerable: true });
-
-Object.defineProperty(_StreamGroupState, "canceled", { value: __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"canceled\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "canceled" }))), enumerable: true });
 
 Object.defineProperty(BoolList, "_entryShift", { value: 5, enumerable: true });
 
@@ -9585,154 +6660,22 @@ Object.defineProperty(_GrowableBoolList, "_growthFactor", { value: 2, enumerable
 Object.defineProperty(HeapPriorityQueue, "_initialCapacity", { value: 7, enumerable: true });
 
 Object.defineProperty(QueueList, "_initialCapacity", { value: 8, enumerable: true });
-function _forward(forwarder) {
-  return forwarder._forward();
-}
 
-function _extension_0_completeErrorIfPending(_this, error, stackTrace) {
-  if (_this.isCompleted) {
-    return;
-  }
-  _this.completeError(error, stackTrace);
-}
+Object.defineProperty(TypedDataBuffer, "_initialLength", { value: 8, enumerable: true });
 
-function _extension_0_get_completeErrorIfPending(_this) {
-  return function(error, stackTrace) { return _extension_0_completeErrorIfPending(_this, error, stackTrace); };
-}
-
-function collectBytes(source) {
-  return _collectBytes(source, function(_, result) { return result; });
-}
-
-function collectBytesCancelable(source) {
-  return _collectBytes(source, function(subscription, result) { return CancelableOperation.fromFuture(result, { onCancel: __dartBind(subscription, "cancel") }); });
-}
-
-function _collectBytes(source, result) {
-  let bytes = __dartBytesBuilder(false);
-  let completer = __dartCompleter();
-  let subscription = __dartStreamListen(source, __dartBind(bytes, "add"), __dartBind(completer, "completeError"), function() {
-    completer.complete(bytes.takeBytes());
-}, true);
-  return (result)(subscription, completer.future);
-}
-
-async function ChunkedStreamReaderByteStreamExt_readBytes(_this, size) {
-  return await collectBytes(_this.readStream(size));
-}
-
-function ChunkedStreamReaderByteStreamExt_get_readBytes(_this) {
-  return function(size) { return ChunkedStreamReaderByteStreamExt_readBytes(_this, size); };
-}
-
-function _closeSink(sink) {
-  sink.close();
-}
-
-const alwaysThrows = __dartConst("[\"instance\",\"class:_AlwaysThrows\"]", () => Object.freeze(Object.create(_AlwaysThrows.prototype)));
-
-const awaitNotRequired = __dartConst("[\"instance\",\"class:_AwaitNotRequired\"]", () => Object.freeze(Object.create(_AwaitNotRequired.prototype)));
-
-const checked = __dartConst("[\"instance\",\"class:_Checked\"]", () => Object.freeze(Object.create(_Checked.prototype)));
-
-const doNotStore = __dartConst("[\"instance\",\"class:_DoNotStore\"]", () => Object.freeze(Object.create(_DoNotStore.prototype)));
-
-const doNotSubmit = __dartConst("[\"instance\",\"class:_DoNotSubmit\"]", () => Object.freeze(Object.create(_DoNotSubmit.prototype)));
-
-const experimental = __dartConst("[\"instance\",\"class:_Experimental\"]", () => Object.freeze(Object.create(_Experimental.prototype)));
-
-const factory = __dartConst("[\"instance\",\"class:_Factory\"]", () => Object.freeze(Object.create(_Factory.prototype)));
-
-const immutable = __dartConst("[\"instance\",\"class:Immutable\",[\"field\",\"field:Immutable.reason\",[\"string\",\"\"]]]", () => Object.freeze(Object.assign(Object.create(Immutable.prototype), { reason: "" })));
-
-const internal = __dartConst("[\"instance\",\"class:_Internal\"]", () => Object.freeze(Object.create(_Internal.prototype)));
-
-const isTest = __dartConst("[\"instance\",\"class:_IsTest\"]", () => Object.freeze(Object.create(_IsTest.prototype)));
-
-const isTestGroup = __dartConst("[\"instance\",\"class:_IsTestGroup\"]", () => Object.freeze(Object.create(_IsTestGroup.prototype)));
-
-const literal = __dartConst("[\"instance\",\"class:_Literal\"]", () => Object.freeze(Object.create(_Literal.prototype)));
-
-const mustBeConst = __dartConst("[\"instance\",\"class:_MustBeConst\"]", () => Object.freeze(Object.create(_MustBeConst.prototype)));
-
-const mustBeOverridden = __dartConst("[\"instance\",\"class:_MustBeOverridden\"]", () => Object.freeze(Object.create(_MustBeOverridden.prototype)));
-
-const mustCallSuper = __dartConst("[\"instance\",\"class:_MustCallSuper\"]", () => Object.freeze(Object.create(_MustCallSuper.prototype)));
-
-const nonVirtual = __dartConst("[\"instance\",\"class:_NonVirtual\"]", () => Object.freeze(Object.create(_NonVirtual.prototype)));
-
-const optionalTypeArgs = __dartConst("[\"instance\",\"class:_OptionalTypeArgs\"]", () => Object.freeze(Object.create(_OptionalTypeArgs.prototype)));
-
-const protected_1 = __dartConst("[\"instance\",\"class:_Protected\"]", () => Object.freeze(Object.create(_Protected.prototype)));
-
-const redeclare = __dartConst("[\"instance\",\"class:_Redeclare\"]", () => Object.freeze(Object.create(_Redeclare.prototype)));
-
-const reopen = __dartConst("[\"instance\",\"class:_Reopen\"]", () => Object.freeze(Object.create(_Reopen.prototype)));
-
-const required = __dartConst("[\"instance\",\"class:Required\",[\"field\",\"field:Required.reason\",[\"string\",\"\"]]]", () => Object.freeze(Object.assign(Object.create(Required.prototype), { reason: "" })));
-
-const sealed = __dartConst("[\"instance\",\"class:_Sealed\"]", () => Object.freeze(Object.create(_Sealed.prototype)));
-
-const useResult = __dartConst("[\"instance\",\"class:UseResult\",[\"field\",\"field:UseResult.parameterDefined\",[\"null\"]],[\"field\",\"field:UseResult.reason\",[\"string\",\"\"]]]", () => Object.freeze(Object.assign(Object.create(UseResult.prototype), { reason: "", parameterDefined: null })));
-
-const virtual = __dartConst("[\"instance\",\"class:_Virtual\"]", () => Object.freeze(Object.create(_Virtual.prototype)));
-
-const visibleForOverriding = __dartConst("[\"instance\",\"class:_VisibleForOverriding\"]", () => Object.freeze(Object.create(_VisibleForOverriding.prototype)));
-
-const visibleForTesting = __dartConst("[\"instance\",\"class:_VisibleForTesting\"]", () => Object.freeze(Object.create(_VisibleForTesting.prototype)));
-
-function StreamExtensions_slices(_this, length) {
-  if ((length < 1)) {
-    (() => { throw __dartCoreError("RangeError", length); })();
-  }
-  let slice = new Array(0).fill(null);
-  return __dartStreamTransform(_this, __dartStreamTransformerFromHandlers({ handleData: function(data, sink) {
-    (slice.push(data), null);
-    if (__dartEquals(slice.length, length)) {
-      {
-        sink.add(slice);
-        slice = new Array(0).fill(null);
-      }
-    }
-}, handleError: null, handleDone: function(sink) {
-    if (slice.length !== 0) {
-      sink.add(slice);
-    }
-    sink.close();
-} }));
-}
-
-function StreamExtensions_get_slices(_this) {
-  return function(length) { return StreamExtensions_slices(_this, length); };
-}
-
-function StreamExtensions_get_firstOrNull(_this) {
-  let completer = __dartCompleter();
-  const subscription = __dartStreamListen(_this, null, __dartBind(completer, "completeError"), __dartAs(__dartBind(completer, "complete"), value => typeof value === "function", "void Function([FutureOr<StreamExtensions|get#firstOrNull.T?>?])"), true);
-  subscription.onData(function(event) {
-    subscription.cancel().finally(function() {
-      completer.complete(event);
+const $Int32x4Buffer__zero = __dartLazyField("Int32x4Buffer._zero", () => Object.freeze({ __dartType: "Int32x4", x: 0, y: 0, z: 0, w: 0 }), false);
+Object.defineProperty(Int32x4Buffer, "_zero", {
+  get() { return $Int32x4Buffer__zero.get(); },
+  set(value) { $Int32x4Buffer__zero.set(value); },
+  enumerable: true,
 });
+
+const $Int32x4Queue__zero = __dartLazyField("Int32x4Queue._zero", () => Object.freeze({ __dartType: "Int32x4", x: 0, y: 0, z: 0, w: 0 }), false);
+Object.defineProperty(Int32x4Queue, "_zero", {
+  get() { return $Int32x4Queue__zero.get(); },
+  set(value) { $Int32x4Queue__zero.set(value); },
+  enumerable: true,
 });
-  return completer.future;
-}
-
-function StreamExtensions_listenAndBuffer(_this) {
-  let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-  let subscription = __dartStreamListen(_this, __dartAs(__dartBind(controller, "add"), value => typeof value === "function", "void Function(StreamExtensions|listenAndBuffer.T%)"), __dartBind(controller, "addError"), __dartBind(controller, "close"), false);
-  (() => { let v = controller; return (() => {
-    v.onPause = __dartBind(subscription, "pause");
-    v.onResume = __dartBind(subscription, "resume");
-    v.onCancel = __dartBind(subscription, "cancel");
-    return v;
-  })(); })();
-  return controller.stream;
-}
-
-function StreamExtensions_get_listenAndBuffer(_this) {
-  return function() { return StreamExtensions_listenAndBuffer(_this); };
-}
-
 function defaultCompare(value1, value2) {
   return __dartCompare(__dartAs(value1, value => value != null && (typeof value === "number" || typeof value === "string" || typeof value === "bigint" || typeof value.compareTo === "function"), "Comparable<Object?>"), value2);
 }
@@ -12253,61 +9196,62 @@ function ListComparableExtensions_get_sortRange(_this) {
   return function(start, end, compare = null) { return ListComparableExtensions_sortRange(_this, start, end, compare); };
 }
 
-function StreamSinkExtensions_transform(_this, transformer) {
-  return transformer.bind(_this);
+const _defaultInitialCapacity = 16;
+
+function _chooseRealInitialCapacity(initialCapacity) {
+  if (((initialCapacity === null) || (initialCapacity < 16))) {
+    {
+      return 16;
+    }
+  } else {
+    if (!(_isPowerOf2(initialCapacity))) {
+      {
+        return _nextPowerOf2(initialCapacity);
+      }
+    } else {
+      {
+        return initialCapacity;
+      }
+    }
+  }
 }
 
-function StreamSinkExtensions_get_transform(_this) {
-  return function(transformer) { return StreamSinkExtensions_transform(_this, transformer); };
+function _isPowerOf2(number) {
+  return __dartEquals((number & (number - 1)), 0);
 }
 
-function StreamSinkExtensions_rejectErrors(_this) {
-  return new RejectErrorsSink(_this);
+function _nextPowerOf2(number) {
+  number = ((number << 1) - 1);
+  for (; ; ) {
+    {
+      let nextNumber = (number & (number - 1));
+      if (__dartEquals(nextNumber, 0)) {
+        return number;
+      }
+      number = nextNumber;
+    }
+  }
 }
 
-function StreamSinkExtensions_get_rejectErrors(_this) {
-  return function() { return StreamSinkExtensions_rejectErrors(_this); };
+export function main() {
+  const buffer = (() => { let v = new Uint8Buffer(); return (() => {
+    v.add(1);
+    v.addAll([2, 3, 4]);
+    return v;
+  })(); })();
+  buffer["[]="](1, 9);
+  const bytes = Uint8Array.from(buffer);
+  const queue = Uint8Queue.fromList([10, 11]);
+  queue.add(12);
+  const first = queue.removeFirst();
+  queue.addFirst(8);
+  const last = queue.removeLast();
+  const floats = (() => { let v_1 = new Float64Buffer(); return (() => {
+    v_1.add(1.5);
+    v_1.add(2.25);
+    return v_1;
+  })(); })();
+  __dartPrint("typed_data " + __dartStr(__dartIterableJoin(buffer, ",")) + " " + __dartStr(first) + " " + __dartStr(last) + " " + __dartStr(__dartIterableJoin(queue, "|")) + " " + __dartStr((floats["[]"](0) + floats["[]"](1))) + " " + __dartStr(bytes.length));
 }
 
-function subscriptionTransformer({ handleCancel = null, handlePause = null, handleResume = null } = {}) {
-  return Object.freeze({ bind(stream) { return __dartBoundSubscriptionStream(stream, function(stream, cancelOnError) { return new _TransformedSubscription(__dartStreamListen(stream, null, null, null, cancelOnError), (handleCancel ?? function(inner) { return inner.cancel(); }), (handlePause ?? function(inner) {
-    inner.pause();
-}), (handleResume ?? function(inner) {
-    inner.resume();
-})); }); } });
-}
-
-function typedStreamTransformer(transformer) {
-  return (transformer != null && typeof transformer === "object" && typeof transformer.bind === "function" ? transformer : new _TypeSafeStreamTransformer(transformer));
-}
-
-export async function main() {
-  const result = await Result.capture(Promise.resolve(42));
-  const queue = new StreamQueue(__dartStreamFromIterable([1, 2, 3]));
-  const first = await queue.next;
-  await queue.skip(1);
-  const last = await queue.next;
-  await queue.cancel();
-  const group = new StreamGroup();
-  const groupedFuture = __dartStreamToList(group.stream);
-  group.add(__dartStreamFromIterable([4, 5]));
-  await group.close();
-  const grouped = await groupedFuture;
-  const cache = AsyncCache.ephemeral();
-  const cached = await cache.fetch(function() { return Promise.resolve("cached"); });
-  __dartPrint("async " + __dartStr(__dartNullCheck(result.asValue).value) + " " + __dartStr(first) + " " + __dartStr(last) + " " + __dartStr(__dartIterableJoin(grouped, "|")) + " " + __dartStr(cached));
-}
-
-
-function $CaptureSink_new_tearoff(sink) {
-  return new CaptureSink(sink);
-}
-
-function $ValueResult_new_tearoff(value) {
-  return new ValueResult(value);
-}
-
-function $ErrorResult_new_tearoff(error, stackTrace = null) {
-  return new ErrorResult(error, stackTrace);
-}
-await main();
+main();

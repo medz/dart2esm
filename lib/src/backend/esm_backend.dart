@@ -571,6 +571,9 @@ final class _EsmEmitter {
     }
     final abstractFields = <String>{};
     for (final procedure in klass.procedures) {
+      if (procedure.isNoSuchMethodForwarder) {
+        continue;
+      }
       if (procedure.isExternal || procedure.isAbstract) {
         if (!procedure.isExternal && procedure.isAbstract) {
           _emitAbstractMemberStub(procedure, abstractFields);
@@ -5343,7 +5346,8 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'removeLast' &&
         positionalArgs.isEmpty &&
-        isListInvocation) {
+        isListInvocation &&
+        _isCoreListMember(target, name)) {
       return '$left.pop()';
     }
     if (expression.arguments.named.isEmpty &&
@@ -9541,6 +9545,21 @@ final class _EsmEmitter {
     if (parts.length < 4 || parts[2] != '@factories') {
       return null;
     }
+    if (parts[1] == 'Int32x4' && parts.last.isEmpty) {
+      if (positionalArgs.length != 4) {
+        return null;
+      }
+      return 'Object.freeze({ __dartType: "Int32x4", x: ${positionalArgs[0]}, y: ${positionalArgs[1]}, z: ${positionalArgs[2]}, w: ${positionalArgs[3]} })';
+    }
+    if (parts[1] == 'Float32x4') {
+      if (parts.last == 'zero' && positionalArgs.isEmpty) {
+        return 'Object.freeze({ __dartType: "Float32x4", x: 0, y: 0, z: 0, w: 0 })';
+      }
+      if (parts.last.isEmpty && positionalArgs.length == 4) {
+        return 'Object.freeze({ __dartType: "Float32x4", x: ${positionalArgs[0]}, y: ${positionalArgs[1]}, z: ${positionalArgs[2]}, w: ${positionalArgs[3]} })';
+      }
+      return null;
+    }
     if (parts[1] == 'ByteData') {
       final factoryName = parts.last;
       if (factoryName.isEmpty && positionalArgs.length == 1) {
@@ -9555,6 +9574,16 @@ final class _EsmEmitter {
           bytesPerElement: 1,
           positionalArgs: positionalArgs,
         );
+      }
+      return null;
+    }
+    if (parts[1] == 'Int32x4List' || parts[1] == 'Float32x4List') {
+      final factoryName = parts.last;
+      if (factoryName == 'fromList' && positionalArgs.length == 1) {
+        return 'Array.from(${positionalArgs.single})';
+      }
+      if (factoryName.isEmpty && positionalArgs.length == 1) {
+        return 'new Array(${positionalArgs.single}).fill(null)';
       }
       return null;
     }
@@ -9669,6 +9698,8 @@ final class _EsmEmitter {
       'Uint16List' => 'Uint16Array',
       'Int32List' => 'Int32Array',
       'Uint32List' => 'Uint32Array',
+      'Int64List' => 'BigInt64Array',
+      'Uint64List' => 'BigUint64Array',
       'Float32List' => 'Float32Array',
       'Float64List' => 'Float64Array',
       _ => null,
@@ -9680,7 +9711,7 @@ final class _EsmEmitter {
       'Int8List' || 'Uint8List' || 'Uint8ClampedList' => 1,
       'Int16List' || 'Uint16List' => 2,
       'Int32List' || 'Uint32List' || 'Float32List' => 4,
-      'Float64List' => 8,
+      'Int64List' || 'Uint64List' || 'Float64List' => 8,
       _ => null,
     };
   }
@@ -10278,7 +10309,57 @@ final class _EsmEmitter {
     }
     final name = _interfaceTypeName(type);
     return switch (name) {
-      'List' || '_List' || '_GrowableList' => 'List',
+      'List' ||
+      '_List' ||
+      '_GrowableList' ||
+      'ListBase' ||
+      'ListMixin' ||
+      'TypedDataBuffer' ||
+      '_IntBuffer' ||
+      '_FloatBuffer' ||
+      'Uint8Buffer' ||
+      'Int8Buffer' ||
+      'Uint8ClampedBuffer' ||
+      'Uint16Buffer' ||
+      'Int16Buffer' ||
+      'Uint32Buffer' ||
+      'Int32Buffer' ||
+      'Uint64Buffer' ||
+      'Int64Buffer' ||
+      'Float32Buffer' ||
+      'Float64Buffer' ||
+      'Int32x4Buffer' ||
+      'Float32x4Buffer' ||
+      '_TypedQueue' ||
+      '_IntQueue' ||
+      '_FloatQueue' ||
+      'QueueList' ||
+      'Uint8Queue' ||
+      'Int8Queue' ||
+      'Uint8ClampedQueue' ||
+      'Uint16Queue' ||
+      'Int16Queue' ||
+      'Uint32Queue' ||
+      'Int32Queue' ||
+      'Uint64Queue' ||
+      'Int64Queue' ||
+      'Float32Queue' ||
+      'Float64Queue' ||
+      'Int32x4Queue' ||
+      'Float32x4Queue' ||
+      'Int8List' ||
+      'Uint8List' ||
+      'Uint8ClampedList' ||
+      'Int16List' ||
+      'Uint16List' ||
+      'Int32List' ||
+      'Uint32List' ||
+      'Int64List' ||
+      'Uint64List' ||
+      'Float32List' ||
+      'Float64List' ||
+      'Int32x4List' ||
+      'Float32x4List' => 'List',
       'Set' ||
       '_Set' ||
       'HashSet' ||
@@ -14449,6 +14530,15 @@ final class _EsmEmitter {
     }
     if (_usedHelpers.contains('__dartIterableJoin')) {
       helper.writeln('function __dartIterableJoin(iterable, separator = "") {');
+      helper.writeln(
+        '  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {',
+      );
+      helper.writeln('    const values = [];');
+      helper.writeln(
+        '    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));',
+      );
+      helper.writeln('    return values.join(String(separator));');
+      helper.writeln('  }');
       helper.writeln(
         '  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));',
       );

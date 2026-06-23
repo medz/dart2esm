@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:js_util' as js_util;
@@ -19,7 +20,7 @@ extension type JsDate._(JSObject _) implements JSObject {
   external JSNumber getUTCFullYear();
 }
 
-void main() {
+Future<void> main() async {
   Object? hiddenGlobal = jsGlobalThis;
   final math = js_util.getProperty<Object?>(jsGlobalThis, 'Math');
   Object? hiddenMath = math;
@@ -82,5 +83,30 @@ void main() {
   print(
     'jsExternal $externalMax $externalPi '
     '${externalDate.getUTCFullYear().toDartInt}',
+  );
+
+  final promiseConstructor = globalContext.getProperty<JSObject>(
+    'Promise'.toJS,
+  );
+  final resolvedPromise = promiseConstructor.callMethod<JSPromise<JSNumber>>(
+    'resolve'.toJS,
+    11.toJS,
+  );
+  final viaJsUtil = await js_util.promiseToFuture<JSNumber>(resolvedPromise);
+  final viaToDart = await resolvedPromise.toDart;
+  final viaFutureToJs = await Future<JSNumber>.value(13.toJS).toJS.toDart;
+  final constructedPromise = JSPromise<JSNumber>(
+    ((JSFunction resolve, JSFunction _reject) {
+      resolve.callAsFunction(resolve, 19.toJS);
+    }).toJS,
+  ).toDart;
+  final module = await importModule(
+    'data:text/javascript,export const answer=17'.toJS,
+  ).toDart;
+  final moduleAnswer = module.getProperty<JSNumber>('answer'.toJS);
+  print(
+    'jsPromise ${viaJsUtil.toDartInt} ${viaToDart.toDartInt} '
+    '${viaFutureToJs.toDartInt} ${moduleAnswer.toDartInt} '
+    '${(await constructedPromise).toDartInt}',
   );
 }

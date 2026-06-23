@@ -149,7 +149,7 @@ function JsDate_constructor___new_tearOff(value) {
   return new globalThis["Date"](value);
 }
 
-export function main() {
+export async function main() {
   let hiddenGlobal = globalThis["globalThis"];
   const math = globalThis["globalThis"]["Math"];
   let hiddenMath = math;
@@ -188,6 +188,17 @@ export function main() {
   const externalPi = Math.floor(globalThis["Math"]["PI"]);
   const externalDate = new globalThis["Date"](0);
   __dartPrint("jsExternal " + __dartStr(externalMax) + " " + __dartStr(externalPi) + " " + __dartStr(__dartJsNumberToDartInt(externalDate["getUTCFullYear"]())));
+  const promiseConstructor = globalThis["Promise"];
+  const resolvedPromise = __dartJsCallMethodOptional(promiseConstructor, "resolve", [11]);
+  const viaJsUtil = await Promise.resolve(resolvedPromise);
+  const viaToDart = await Promise.resolve(resolvedPromise);
+  const viaFutureToJs = await Promise.resolve(Promise.resolve(Promise.resolve(13)));
+  const constructedPromise = Promise.resolve(new globalThis["Promise"](function(resolve, _reject) {
+    resolve["call"](resolve, 19);
+}));
+  const module = await Promise.resolve(import("data:text/javascript,export const answer=17"));
+  const moduleAnswer = module["answer"];
+  __dartPrint("jsPromise " + __dartStr(__dartJsNumberToDartInt(viaJsUtil)) + " " + __dartStr(__dartJsNumberToDartInt(viaToDart)) + " " + __dartStr(__dartJsNumberToDartInt(viaFutureToJs)) + " " + __dartStr(__dartJsNumberToDartInt(moduleAnswer)) + " " + __dartStr(__dartJsNumberToDartInt(await constructedPromise)));
 }
 
-main();
+await main();

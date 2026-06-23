@@ -6636,6 +6636,17 @@ final class _EsmEmitter {
       if (name == 'callConstructor' && positionalArgs.length == 2) {
         return 'new ${positionalArgs[0]}(...Array.from(${positionalArgs[1]} ?? []))';
       }
+      if (name == 'promiseToFuture' && positionalArgs.length == 1) {
+        return 'Promise.resolve(${positionalArgs.single})';
+      }
+      if (RegExp(r'^_functionToJS(?:[0-5]|N)$').hasMatch(name) &&
+          positionalArgs.isNotEmpty) {
+        return positionalArgs.first;
+      }
+      if (RegExp(r'^_functionToJSCaptureThis(?:[0-5]|N)$').hasMatch(name) &&
+          positionalArgs.isNotEmpty) {
+        return '(function(...args) { return (${positionalArgs.first})(this, ...args); })';
+      }
       if ((name.startsWith('_callMethodUnchecked') ||
               name.startsWith('_callMethodUncheckedTrustType')) &&
           positionalArgs.length >= 2) {
@@ -6684,10 +6695,22 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return 'new Array(${positionalArgs.single})';
     }
+    if (member == 'JSPromise|constructor#' && positionalArgs.length == 1) {
+      return 'new Promise(${positionalArgs.single})';
+    }
+    if (member == 'importModule' && positionalArgs.length == 1) {
+      return 'import(${positionalArgs.single})';
+    }
     if (positionalArgs.isEmpty) {
       return null;
     }
     final receiver = positionalArgs.first;
+    if ((member == 'JSPromiseToFuture|get#toDart' ||
+            member == 'FutureOfJSAnyToJSPromise|get#toJS' ||
+            member == 'FutureOfVoidToJSPromise|get#toJS') &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve($receiver)';
+    }
     if (_isJsIdentityConversion(member) && positionalArgs.length == 1) {
       return receiver;
     }

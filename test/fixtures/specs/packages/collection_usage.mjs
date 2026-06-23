@@ -631,6 +631,9 @@ function __dartObjectHashUnordered(values) {
 function __dartTruncDiv(left, right) {
   return Math.trunc(left / right);
 }
+function __dartShr(left, right) {
+  return Math.floor(left / (2 ** right));
+}
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
@@ -2362,7 +2365,7 @@ class BoolList extends _BoolList_Object_ListMixin {
   }
   "[]"(index) {
     __dartCheckValidIndex(index, this, "index", this._length, null);
-    return !(__dartEquals((this._data[(index >> 5)] & (1 << (index & 31))), 0));
+    return !(__dartEquals((this._data[__dartShr(index, 5)] & (1 << (index & 31))), 0));
   }
   "[]="(index, value) {
     __dartCheckValidIndex(index, this, "index", this._length, null);
@@ -2371,8 +2374,8 @@ class BoolList extends _BoolList_Object_ListMixin {
   fillRange(start, end, fill = null) {
     __dartCheckValidRange(start, end, this._length, null, null, null);
     ((fill === null) ? fill = false : null);
-    let startWord = (start >> 5);
-    let endWord = ((end - 1) >> 5);
+    let startWord = __dartShr(start, 5);
+    let endWord = __dartShr((end - 1), 5);
     let startBit = (start & 31);
     let endBit = ((end - 1) & 31);
     if ((startWord < endWord)) {
@@ -2411,16 +2414,16 @@ class BoolList extends _BoolList_Object_ListMixin {
   _setBit(index, value) {
     if (value) {
       {
-        (() => { let v = this._data; return (() => { let v_1 = (index >> 5); return v[v_1] = (v[v_1] | (1 << (index & 31))); })(); })();
+        (() => { let v = this._data; return (() => { let v_1 = __dartShr(index, 5); return v[v_1] = (v[v_1] | (1 << (index & 31))); })(); })();
       }
     } else {
       {
-        (() => { let v_2 = this._data; return (() => { let v_3 = (index >> 5); return v_2[v_3] = (v_2[v_3] & (~(1 << (index & 31)))); })(); })();
+        (() => { let v_2 = this._data; return (() => { let v_3 = __dartShr(index, 5); return v_2[v_3] = (v_2[v_3] & (~(1 << (index & 31)))); })(); })();
       }
     }
   }
   static _lengthInWords(bitLength) {
-    return ((bitLength + (32 - 1)) >> 5);
+    return __dartShr((bitLength + (32 - 1)), 5);
   }
 }
 
@@ -2578,7 +2581,7 @@ class _BoolListIterator {
     if ((this._pos < this._boolList.length)) {
       {
         let pos = (() => { let v = this._pos; return (() => { let v_1 = this._pos = (v + 1); return v; })(); })();
-        this._current = !(__dartEquals((this._boolList._data[(pos >> 5)] & (1 << (pos & 31))), 0));
+        this._current = !(__dartEquals((this._boolList._data[__dartShr(pos, 5)] & (1 << (pos & 31))), 0));
         return true;
       }
     }
@@ -3020,13 +3023,13 @@ class IterableEquality {
             let c = this._elementEquality.hash(element);
             hash = ((hash + c) & 2147483647);
             hash = ((hash + (hash << 10)) & 2147483647);
-            hash = (hash ^ (hash >> 6));
+            hash = (hash ^ __dartShr(hash, 6));
           }
         }
       }
     }
     hash = ((hash + (hash << 3)) & 2147483647);
-    hash = (hash ^ (hash >> 11));
+    hash = (hash ^ __dartShr(hash, 11));
     hash = ((hash + (hash << 15)) & 2147483647);
     return hash;
   }
@@ -3070,11 +3073,11 @@ class ListEquality {
         let c = this._elementEquality.hash(list[i]);
         hash = ((hash + c) & 2147483647);
         hash = ((hash + (hash << 10)) & 2147483647);
-        hash = (hash ^ (hash >> 6));
+        hash = (hash ^ __dartShr(hash, 6));
       }
     }
     hash = ((hash + (hash << 3)) & 2147483647);
-    hash = (hash ^ (hash >> 11));
+    hash = (hash ^ __dartShr(hash, 11));
     hash = ((hash + (hash << 15)) & 2147483647);
     return hash;
   }
@@ -3146,7 +3149,7 @@ class _UnorderedEquality {
       }
     }
     hash = ((hash + (hash << 3)) & 2147483647);
-    hash = (hash ^ (hash >> 11));
+    hash = (hash ^ __dartShr(hash, 11));
     hash = ((hash + (hash << 15)) & 2147483647);
     return hash;
   }
@@ -3252,7 +3255,7 @@ class MapEquality {
       }
     }
     hash = ((hash + (hash << 3)) & 2147483647);
-    hash = (hash ^ (hash >> 11));
+    hash = (hash ^ __dartShr(hash, 11));
     hash = ((hash + (hash << 15)) & 2147483647);
     return hash;
   }
@@ -3850,7 +3853,7 @@ class HeapPriorityQueue {
           {
             while ((Math.trunc(position) % 2 !== 0)) {
               {
-                position = (position >> 1);
+                position = __dartShr(position, 1);
               }
             }
             position = (position + 1);
@@ -4880,7 +4883,7 @@ class QueueList extends _QueueList_Object_ListMixin {
     }
   }
   _preGrow(newElementCount) {
-    newElementCount = (newElementCount + (newElementCount >> 1));
+    newElementCount = (newElementCount + __dartShr(newElementCount, 1));
     let newCapacity = QueueList._nextPowerOf2(newElementCount);
     let newTable = __dartFixedList(new Array(newCapacity).fill(null));
     this._tail = this._writeToList(newTable);
@@ -5081,7 +5084,7 @@ function binarySearchBy(sortedList, keyOf, compare, value, start = 0, end = null
   let key = (keyOf)(value);
   while ((min < max)) {
     {
-      let mid = (min + ((max - min) >> 1));
+      let mid = (min + __dartShr((max - min), 1));
       let element = sortedList[mid];
       let comp = (compare)((keyOf)(element), key);
       if (__dartEquals(comp, 0)) {
@@ -5113,7 +5116,7 @@ function lowerBoundBy(sortedList, keyOf, compare, value, start = 0, end = null) 
   let key = (keyOf)(value);
   while ((min < max)) {
     {
-      let mid = (min + ((max - min) >> 1));
+      let mid = (min + __dartShr((max - min), 1));
       let element = sortedList[mid];
       let comp = (compare)((keyOf)(element), key);
       if ((comp < 0)) {
@@ -5170,7 +5173,7 @@ function insertionSort(elements, { compare = null, start = 0, end = null } = {})
       let element = elements[pos];
       while ((min < max)) {
         {
-          let mid = (min + ((max - min) >> 1));
+          let mid = (min + __dartShr((max - min), 1));
           let comparison = (compare)(element, elements[mid]);
           if ((comparison < 0)) {
             {
@@ -5207,7 +5210,7 @@ function mergeSort(elements, { start = 0, end = null, compare = null } = {}) {
       return;
     }
   }
-  let firstLength = ((end - start) >> 1);
+  let firstLength = __dartShr((end - start), 1);
   let middle = (start + firstLength);
   let secondLength = (end - middle);
   let scratchSpace = elements.slice(0, secondLength);
@@ -5229,7 +5232,7 @@ function mergeSortBy(elements, keyOf, compare, start = 0, end = null) {
       return;
     }
   }
-  let middle = (start + (length >> 1));
+  let middle = (start + __dartShr(length, 1));
   let firstLength = (middle - start);
   let secondLength = (end - middle);
   let scratchSpace = elements.slice(0, secondLength);
@@ -5253,7 +5256,7 @@ function _movingInsertionSort(list, keyOf, compare, start, end, target, targetOf
       let max = (targetOffset + i);
       while ((min < max)) {
         {
-          let mid = (min + ((max - min) >> 1));
+          let mid = (min + __dartShr((max - min), 1));
           if (((compare)(elementKey, (keyOf)(target[mid])) < 0)) {
             {
               max = mid;
@@ -5279,7 +5282,7 @@ function _mergeSort(elements, keyOf, compare, start, end, target, targetOffset) 
       return;
     }
   }
-  let middle = (start + (length >> 1));
+  let middle = (start + __dartShr(length, 1));
   let firstLength = (middle - start);
   let secondLength = (end - middle);
   let targetMiddle = (targetOffset + firstLength);
@@ -5443,11 +5446,11 @@ function hashIgnoreAsciiCase(string) {
       }
       hash = (536870911 & (hash + char));
       hash = (536870911 & (hash + ((524287 & hash) << 10)));
-      hash = (hash >> 6);
+      hash = __dartShr(hash, 6);
     }
   }
   hash = (536870911 & (hash + ((67108863 & hash) << 3)));
-  hash = (hash >> 11);
+  hash = __dartShr(hash, 11);
   return (536870911 & (hash + ((16383 & hash) << 15)));
 }
 

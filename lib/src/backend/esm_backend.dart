@@ -4571,6 +4571,16 @@ final class _EsmEmitter {
           expression.arguments.positional.single,
           positionalArgs.single,
         );
+        if (name == '&' && rightOperand == '4294967295') {
+          return '($leftOperand >>> 0)';
+        }
+        if (name == '&' && leftOperand == '4294967295') {
+          return '($rightOperand >>> 0)';
+        }
+        if (name == '>>') {
+          _usedHelpers.add('__dartShr');
+          return '__dartShr($leftOperand, $rightOperand)';
+        }
         return '($leftOperand $operator $rightOperand)';
       }
       _usedHelpers.add('__dartTruncDiv');
@@ -9708,6 +9718,15 @@ final class _EsmEmitter {
     }
     final factoryName = parts.last;
     if (factoryName == 'fromList' && positionalArgs.length == 1) {
+      if (constructor == 'BigInt64Array' || constructor == 'BigUint64Array') {
+        final literal = _emitBigIntTypedDataListArgument(
+          expression.arguments.positional.single,
+        );
+        if (literal != null) {
+          return '$constructor.from($literal)';
+        }
+        return '$constructor.from(${positionalArgs.single}, (value) => BigInt(value))';
+      }
       return '$constructor.from(${positionalArgs.single})';
     }
     if (factoryName == 'view') {
@@ -9728,6 +9747,51 @@ final class _EsmEmitter {
       return 'new $constructor(${positionalArgs.single})';
     }
     return null;
+  }
+
+  String? _emitBigIntTypedDataListArgument(k.Expression expression) {
+    switch (expression) {
+      case k.ListLiteral(:final expressions):
+        final values = <String>[];
+        for (final expression in expressions) {
+          final value = _emitBigIntTypedDataListElement(expression);
+          if (value == null) {
+            return null;
+          }
+          values.add(value);
+        }
+        return '[${values.join(', ')}]';
+      case k.ConstantExpression(:final constant):
+        if (constant is! k.ListConstant) {
+          return null;
+        }
+        final values = <String>[];
+        for (final entry in constant.entries) {
+          if (entry is! k.IntConstant) {
+            return null;
+          }
+          values.add(_emitBigIntLiteral(entry.value.toString()));
+        }
+        return '[${values.join(', ')}]';
+      default:
+        return null;
+    }
+  }
+
+  String? _emitBigIntTypedDataListElement(k.Expression expression) {
+    return switch (expression) {
+      k.IntLiteral(:final value) => _emitBigIntLiteral(value.toString()),
+      k.ConstantExpression(:final constant) when constant is k.IntConstant =>
+        _emitBigIntLiteral(constant.value.toString()),
+      _ => null,
+    };
+  }
+
+  String _emitBigIntLiteral(String decimal) {
+    if (decimal.startsWith('-')) {
+      return '(-${decimal.substring(1)}n)';
+    }
+    return '${decimal}n';
   }
 
   String? _emitTypedDataStaticGet(k.StaticGet expression) {
@@ -16685,6 +16749,11 @@ final class _EsmEmitter {
       helper.writeln('  return Math.trunc(left / right);');
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartShr')) {
+      helper.writeln('function __dartShr(left, right) {');
+      helper.writeln('  return Math.floor(left / (2 ** right));');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartRecord')) {
       helper.writeln('function __dartRecord(positional, named) {');
       helper.writeln('  const record = {};');
@@ -17255,6 +17324,7 @@ const _generatedGlobalNames = {
   '__dartSetRetainWhere',
   '__dartSetUnion',
   '__dartSetWhereMutate',
+  '__dartShr',
   '__dartSinkAdd',
   '__dartSinkClose',
   '__dartSplaySortMap',

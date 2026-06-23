@@ -754,6 +754,9 @@ function __dartIntToRadixString(value, radix) {
   if (base < 2 || base > 36) throw __dartCoreError("RangeError", "Invalid value");
   return Math.trunc(value).toString(base);
 }
+function __dartShr(left, right) {
+  return Math.floor(left / (2 ** right));
+}
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
@@ -789,7 +792,7 @@ export function main() {
   __dartPrint("intMore " + __dartStr((Math.trunc(5) % 2 === 0)) + " " + __dartStr((Math.trunc(5) % 2 !== 0)) + " " + __dartStr(__dartIntGcd(5, 15)) + " " + __dartStr(__dartIntGcd((-12), 18)) + " " + __dartStr(__dartIntModInverse(5, 7)) + " " + __dartStr(__dartIntModPow(5, 3, 7)) + " " + __dartStr(__dartIntToRadixString((-31), 16)));
   const bits = 3855;
   const lowerBits = 255;
-  __dartPrint("bitOps " + __dartStr((bits & lowerBits)) + " " + __dartStr((bits | 4096)) + " " + __dartStr((bits ^ lowerBits)) + " " + __dartStr((3 << 4)) + " " + __dartStr((16 >> 2)) + " " + __dartStr((16 >>> 2)));
+  __dartPrint("bitOps " + __dartStr((bits & lowerBits)) + " " + __dartStr((bits | 4096)) + " " + __dartStr((bits ^ lowerBits)) + " " + __dartStr((3 << 4)) + " " + __dartStr(__dartShr(16, 2)) + " " + __dartStr((16 >>> 2)));
   __dartPrint("doubleMore " + __dartStr(__dartDouble(__dartRoundToInt(3.7))) + " " + __dartStr(__dartDouble(Math.floor(3.7))) + " " + __dartStr(__dartDouble(Math.ceil(3.2))) + " " + __dartStr(__dartDouble(Math.trunc(3.2))));
   try {
     {

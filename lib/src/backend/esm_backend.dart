@@ -3209,6 +3209,16 @@ final class _EsmEmitter {
       return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (_referencePath(expression.targetReference) ==
+            'dart:core::Function::@methods::apply' &&
+        positionalArgs.length >= 2 &&
+        positionalArgs.length <= 3) {
+      _usedHelpers.add('__dartFunctionApply');
+      final namedArguments = positionalArgs.length == 3
+          ? positionalArgs[2]
+          : 'null';
+      return '__dartFunctionApply(${positionalArgs[0]}, ${positionalArgs[1]}, $namedArguments)';
+    }
+    if (_referencePath(expression.targetReference) ==
             'dart:collection::@methods::NullableIterableExtensions|get#nonNulls' &&
         positionalArgs.length == 1) {
       return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';
@@ -10623,6 +10633,32 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
+    if (_usedHelpers.contains('__dartFunctionApply')) {
+      helper.writeln(
+        'function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {',
+      );
+      helper.writeln('  const args = Array.from(positionalArguments);');
+      helper.writeln('  if (namedArguments != null) {');
+      helper.writeln('    const options = {};');
+      helper.writeln('    let hasNamed = false;');
+      helper.writeln(
+        '    const entries = namedArguments instanceof Map ? namedArguments.entries() : Object.entries(namedArguments);',
+      );
+      helper.writeln('    for (const [key, value] of entries) {');
+      helper.writeln(
+        '      const name = typeof key === "string" ? key : (typeof key === "symbol" ? key.description : key?.name);',
+      );
+      helper.writeln(
+        '      if (typeof name !== "string") throw new TypeError("Function.apply named argument keys must be Symbols");',
+      );
+      helper.writeln('      options[name] = value;');
+      helper.writeln('      hasNamed = true;');
+      helper.writeln('    }');
+      helper.writeln('    if (hasNamed) args.push(options);');
+      helper.writeln('  }');
+      helper.writeln('  return fn(...args);');
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartSetAdd')) {
       helper.writeln('function __dartSetAdd(set, value) {');
       helper.writeln('  if (set.__dartIdentitySet) {');
@@ -13213,6 +13249,7 @@ const _generatedGlobalNames = {
   '__dartEquals',
   '__dartFixedList',
   '__dartFormatException',
+  '__dartFunctionApply',
   '__dartFromJson',
   '__dartFutureAsStream',
   '__dartFutureDoWhile',

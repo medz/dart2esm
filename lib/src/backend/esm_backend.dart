@@ -3689,6 +3689,19 @@ final class _EsmEmitter {
         .toList();
     final args = _emitArguments(expression.arguments);
     final target = expression.interfaceTargetReference;
+    final receiverCollectionKind = _expressionCollectionKind(
+      expression.receiver,
+    );
+    final isAsyncStreamInvocation = _isAsyncStreamMember(target, name);
+    final isCollectionInvocation =
+        _isCoreCollectionMember(target, name) ||
+        (receiverCollectionKind != null && !isAsyncStreamInvocation);
+    final isSetInvocation =
+        _isCoreSetMember(target, name) || receiverCollectionKind == 'Set';
+    final isMapInvocation =
+        _isCoreMapMember(target, name) || receiverCollectionKind == 'Map';
+    final isListInvocation =
+        _isCoreListMember(target, name) || receiverCollectionKind == 'List';
     final durationOperator = _emitDurationOperatorInvocation(
       target,
       name,
@@ -3742,7 +3755,7 @@ final class _EsmEmitter {
       if (_isCoreMember(target, 'Expando', '[]')) {
         return '$left.get(${positionalArgs.single})';
       }
-      if (_isCoreMember(target, 'Map', '[]')) {
+      if (isMapInvocation) {
         _usedHelpers.add('__dartMapGet');
         _usedHelpers.add('__dartMapKey');
         _usedHelpers.add('__dartEquals');
@@ -3759,7 +3772,7 @@ final class _EsmEmitter {
       if (_isCoreMember(target, 'Expando', '[]=')) {
         return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
       }
-      if (_isCoreMember(target, 'Map', '[]=')) {
+      if (isMapInvocation) {
         _usedHelpers.add('__dartMapSet');
         _usedHelpers.add('__dartMapKey');
         _usedHelpers.add('__dartEquals');
@@ -4004,8 +4017,8 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
-      if (_isCoreMember(target, 'Set', name)) {
+        isCollectionInvocation) {
+      if (isSetInvocation) {
         _usedHelpers.add('__dartIterableContains');
         _usedHelpers.add('__dartEquals');
         return '__dartIterableContains($left, ${positionalArgs.single})';
@@ -4016,7 +4029,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'join' &&
         positionalArgs.length <= 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       _usedHelpers.add('__dartIterableJoin');
       _usedHelpers.add('__dartStr');
       final separator = positionalArgs.isEmpty ? '""' : positionalArgs.single;
@@ -4025,14 +4038,14 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'where' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).filter(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'whereType' &&
         positionalArgs.isEmpty &&
         expression.arguments.types.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       final typeTest = _emitTypeTest(
         'value',
         expression.arguments.types.single,
@@ -4044,11 +4057,11 @@ final class _EsmEmitter {
         name == 'cast' &&
         positionalArgs.isEmpty &&
         expression.arguments.types.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       _usedHelpers.add('__dartAs');
       final type = expression.arguments.types.single;
       final typeTest = _emitTypeTest('value', type, expression);
-      if (_isCoreSetMember(target, name)) {
+      if (isSetInvocation) {
         return 'new Set(Array.from($left, (value) => __dartAs(value, (value) => $typeTest, ${jsonEncode(type.toString())})))';
       }
       return 'Array.from($left, (value) => __dartAs(value, (value) => $typeTest, ${jsonEncode(type.toString())}))';
@@ -4056,26 +4069,26 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'map' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name) &&
-        !_isCoreMapMember(target, name)) {
+        isCollectionInvocation &&
+        !isMapInvocation) {
       return 'Array.from($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'expand' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).flatMap((value) => Array.from((${positionalArgs.single})(value)))';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'followedBy' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return '[...Array.from($left), ...Array.from(${positionalArgs.single})]';
     }
     if (_hasOnlyNamedArguments(expression.arguments, {'growable'}) &&
         name == 'toList' &&
         positionalArgs.isEmpty &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return _emitMaybeFixedList(
         'Array.from($left)',
         _namedArgument(expression.arguments, 'growable'),
@@ -4085,7 +4098,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'toSet' &&
         positionalArgs.isEmpty &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       _usedHelpers.add('__dartSetFrom');
       _usedHelpers.add('__dartSetAdd');
       _usedHelpers.add('__dartIterableContains');
@@ -4095,14 +4108,14 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'fold' &&
         positionalArgs.length == 2 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).reduce((previous, value) => (${positionalArgs[1]})(previous, value), ${positionalArgs[0]})';
     }
     if ((name == 'firstWhere' ||
             name == 'lastWhere' ||
             name == 'singleWhere') &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       final helper = switch (name) {
         'firstWhere' => '__dartIterableFirstWhere',
         'lastWhere' => '__dartIterableLastWhere',
@@ -4116,63 +4129,63 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'reduce' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).reduce((previous, value) => (${positionalArgs.single})(previous, value))';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'forEach' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', name)) {
+        isMapInvocation) {
       return '($left.forEach((value, key) => (${positionalArgs.single})(key, value)), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'forEach' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return '(Array.from($left).forEach(${positionalArgs.single}), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'take' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).slice(0, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'takeWhile' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       _usedHelpers.add('__dartIterableTakeWhile');
       return '__dartIterableTakeWhile($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'skip' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).slice(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'skipWhile' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       _usedHelpers.add('__dartIterableSkipWhile');
       return '__dartIterableSkipWhile($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'elementAt' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left)[${positionalArgs.single}]';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'any' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).some(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'every' &&
         positionalArgs.length == 1 &&
-        _isCoreCollectionMember(target, name)) {
+        isCollectionInvocation) {
       return 'Array.from($left).every(${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -4556,7 +4569,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'sort' &&
         positionalArgs.length <= 1 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListSort');
       final compare = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return '__dartListSort($left, $compare)';
@@ -4564,7 +4577,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'shuffle' &&
         positionalArgs.length <= 1 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListShuffle');
       final random = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return '__dartListShuffle($left, $random)';
@@ -4572,14 +4585,14 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'removeAt' &&
         positionalArgs.length == 1 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '$left.splice(${positionalArgs.single}, 1)[0]';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'indexWhere' &&
         positionalArgs.length >= 1 &&
         positionalArgs.length <= 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
       return '$left.findIndex((value, index) => index >= $start && (${positionalArgs[0]})(value))';
     }
@@ -4587,7 +4600,7 @@ final class _EsmEmitter {
         name == 'lastIndexWhere' &&
         positionalArgs.length >= 1 &&
         positionalArgs.length <= 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListLastIndexWhere');
       final start = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
       return '__dartListLastIndexWhere($left, ${positionalArgs[0]}, $start)';
@@ -4596,7 +4609,7 @@ final class _EsmEmitter {
         name == 'indexOf' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListIndexOf');
       _usedHelpers.add('__dartEquals');
       final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
@@ -4606,7 +4619,7 @@ final class _EsmEmitter {
         name == 'lastIndexOf' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListLastIndexOf');
       _usedHelpers.add('__dartEquals');
       final start = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
@@ -4615,7 +4628,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
         positionalArgs.length == 1 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListRemove');
       _usedHelpers.add('__dartEquals');
       return '__dartListRemove($left, ${positionalArgs.single})';
@@ -4623,25 +4636,25 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'removeLast' &&
         positionalArgs.isEmpty &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '$left.pop()';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'insert' &&
         positionalArgs.length == 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '($left.splice(${positionalArgs[0]}, 0, ${positionalArgs[1]}), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'insertAll' &&
         positionalArgs.length == 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '($left.splice(${positionalArgs[0]}, 0, ...Array.from(${positionalArgs[1]})), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'setAll' &&
         positionalArgs.length == 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListSetAll');
       return '__dartListSetAll($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
     }
@@ -4649,7 +4662,7 @@ final class _EsmEmitter {
         name == 'setRange' &&
         positionalArgs.length >= 3 &&
         positionalArgs.length <= 4 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListSetRange');
       final skipCount = positionalArgs.length == 4 ? positionalArgs[3] : '0';
       return '__dartListSetRange($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, $skipCount)';
@@ -4683,7 +4696,7 @@ final class _EsmEmitter {
         name == 'sublist' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       if (positionalArgs.length == 1) {
         return '$left.slice(${positionalArgs.single})';
       }
@@ -4743,60 +4756,60 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'getRange' &&
         positionalArgs.length == 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'clear' &&
         positionalArgs.isEmpty &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '($left.length = 0, null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'fillRange' &&
         positionalArgs.length >= 2 &&
         positionalArgs.length <= 3 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       final fillValue = positionalArgs.length == 3 ? positionalArgs[2] : 'null';
       return '($left.fill($fillValue, ${positionalArgs[0]}, ${positionalArgs[1]}), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'replaceRange' &&
         positionalArgs.length == 3 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '($left.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}, ...Array.from(${positionalArgs[2]})), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'removeRange' &&
         positionalArgs.length == 2 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       return '($left.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'removeWhere' &&
         positionalArgs.length == 1 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListWhereMutate');
       return '__dartListRemoveWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'retainWhere' &&
         positionalArgs.length == 1 &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListWhereMutate');
       return '__dartListRetainWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'asMap' &&
         positionalArgs.isEmpty &&
-        _isCoreListMember(target, name)) {
+        isListInvocation) {
       _usedHelpers.add('__dartListAsMap');
       return '__dartListAsMap($left)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'add' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', 'add')) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetAdd');
       _usedHelpers.add('__dartIterableContains');
       _usedHelpers.add('__dartEquals');
@@ -4805,7 +4818,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'addAll' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', 'addAll')) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetAddAll');
       _usedHelpers.add('__dartSetAdd');
       _usedHelpers.add('__dartIterableContains');
@@ -4815,7 +4828,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         (name == 'removeWhere' || name == 'retainWhere') &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', name)) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetWhereMutate');
       final helper = name == 'removeWhere'
           ? '__dartSetRemoveWhere'
@@ -4825,7 +4838,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         (name == 'difference' || name == 'intersection' || name == 'union') &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', name)) {
+        isSetInvocation) {
       final helper = switch (name) {
         'difference' => '__dartSetDifference',
         'intersection' => '__dartSetIntersection',
@@ -4841,7 +4854,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'addAll' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', 'addAll')) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapAddAll');
       _usedHelpers.add('__dartMapSet');
       _usedHelpers.add('__dartMapKey');
@@ -4852,7 +4865,7 @@ final class _EsmEmitter {
         name == 'cast' &&
         positionalArgs.isEmpty &&
         expression.arguments.types.length == 2 &&
-        _isCoreMapMember(target, name)) {
+        isMapInvocation) {
       _usedHelpers.add('__dartAs');
       final keyType = expression.arguments.types[0];
       final valueType = expression.arguments.types[1];
@@ -4863,7 +4876,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'addEntries' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', name)) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapAddEntries');
       _usedHelpers.add('__dartMapSet');
       _usedHelpers.add('__dartMapKey');
@@ -4873,7 +4886,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'map' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', name)) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapMap');
       _usedHelpers.add('__dartMapSet');
       _usedHelpers.add('__dartMapKey');
@@ -4883,7 +4896,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', 'remove')) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetRemove');
       _usedHelpers.add('__dartEquals');
       return '__dartSetRemove($left, ${positionalArgs.single})';
@@ -4891,7 +4904,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'lookup' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', 'lookup')) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetLookup');
       _usedHelpers.add('__dartEquals');
       return '__dartSetLookup($left, ${positionalArgs.single})';
@@ -4899,7 +4912,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'containsAll' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', 'containsAll')) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetContainsAll');
       _usedHelpers.add('__dartIterableContains');
       _usedHelpers.add('__dartEquals');
@@ -4908,7 +4921,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'removeAll' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', 'removeAll')) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetRemoveAll');
       _usedHelpers.add('__dartEquals');
       return '__dartSetRemoveAll($left, ${positionalArgs.single})';
@@ -4916,7 +4929,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'retainAll' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Set', 'retainAll')) {
+        isSetInvocation) {
       _usedHelpers.add('__dartSetRetainAll');
       _usedHelpers.add('__dartEquals');
       return '__dartSetRetainAll($left, ${positionalArgs.single})';
@@ -4924,7 +4937,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'remove' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', 'remove')) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapRemove');
       _usedHelpers.add('__dartMapKey');
       _usedHelpers.add('__dartEquals');
@@ -4933,20 +4946,20 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'clear' &&
         positionalArgs.isEmpty &&
-        _isCoreMember(target, 'Map', 'clear')) {
+        isMapInvocation) {
       return '($left.clear(), null)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'removeWhere' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', name)) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapRemoveWhere');
       return '__dartMapRemoveWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'containsKey' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', 'containsKey')) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapContainsKey');
       _usedHelpers.add('__dartMapKey');
       _usedHelpers.add('__dartEquals');
@@ -4955,7 +4968,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'containsValue' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', 'containsValue')) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapContainsValue');
       _usedHelpers.add('__dartEquals');
       return '__dartMapContainsValue($left, ${positionalArgs.single})';
@@ -4963,16 +4976,16 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'putIfAbsent' &&
         positionalArgs.length == 2 &&
-        _isCoreMember(target, 'Map', name)) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapPutIfAbsent');
+      _usedHelpers.add('__dartMapSet');
       _usedHelpers.add('__dartMapKey');
       _usedHelpers.add('__dartEquals');
       return '__dartMapPutIfAbsent($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
     }
-    if (name == 'update' &&
-        positionalArgs.length == 2 &&
-        _isCoreMember(target, 'Map', name)) {
+    if (name == 'update' && positionalArgs.length == 2 && isMapInvocation) {
       _usedHelpers.add('__dartMapUpdate');
+      _usedHelpers.add('__dartMapSet');
       _usedHelpers.add('__dartMapKey');
       _usedHelpers.add('__dartEquals');
       final ifAbsent = _namedArgument(expression.arguments, 'ifAbsent');
@@ -4981,7 +4994,7 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == 'updateAll' &&
         positionalArgs.length == 1 &&
-        _isCoreMember(target, 'Map', name)) {
+        isMapInvocation) {
       _usedHelpers.add('__dartMapUpdateAll');
       return '__dartMapUpdateAll($left, ${positionalArgs.single})';
     }
@@ -5445,15 +5458,18 @@ final class _EsmEmitter {
       return '__dartIterableLength($receiver)';
     }
     if (name == 'keys' &&
-        _isCoreMember(expression.interfaceTargetReference, 'Map', 'keys')) {
+        (_isCoreMapMember(expression.interfaceTargetReference, name) ||
+            receiverCollectionKind == 'Map')) {
       return 'Array.from($receiver.keys())';
     }
     if (name == 'values' &&
-        _isCoreMember(expression.interfaceTargetReference, 'Map', 'values')) {
+        (_isCoreMapMember(expression.interfaceTargetReference, name) ||
+            receiverCollectionKind == 'Map')) {
       return 'Array.from($receiver.values())';
     }
     if (name == 'entries' &&
-        _isCoreMember(expression.interfaceTargetReference, 'Map', 'entries')) {
+        (_isCoreMapMember(expression.interfaceTargetReference, name) ||
+            receiverCollectionKind == 'Map')) {
       return 'Array.from($receiver, ([key, value]) => ({ key, value }))';
     }
     return _emitPropertyGet(receiver, _memberName(name));
@@ -6226,6 +6242,42 @@ final class _EsmEmitter {
         positionalArgs.length == 2) {
       return 'Object.freeze({ key: ${positionalArgs[0]}, value: ${positionalArgs[1]} })';
     }
+    if (path.startsWith('dart:collection::SplayTreeSet::@constructors::') &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartSplayTreeSet');
+      final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+      final isValidKey = positionalArgs.length >= 2
+          ? positionalArgs[1]
+          : 'null';
+      return '__dartSplayTreeSet($compare, $isValidKey)';
+    }
+    if (path.startsWith('dart:collection::SplayTreeMap::@constructors::') &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartSplayTreeMap');
+      final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+      final isValidKey = positionalArgs.length >= 2
+          ? positionalArgs[1]
+          : 'null';
+      return '__dartSplayTreeMap($compare, $isValidKey)';
+    }
+    if (path.startsWith('dart:collection::SplayTreeSet::@constructors::') &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartSplayTreeSet');
+      final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+      final isValidKey = positionalArgs.length >= 2
+          ? positionalArgs[1]
+          : 'null';
+      return '__dartSplayTreeSet($compare, $isValidKey)';
+    }
+    if (path.startsWith('dart:collection::SplayTreeMap::@constructors::') &&
+        positionalArgs.length <= 2) {
+      _usedHelpers.add('__dartSplayTreeMap');
+      final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+      final isValidKey = positionalArgs.length >= 2
+          ? positionalArgs[1]
+          : 'null';
+      return '__dartSplayTreeMap($compare, $isValidKey)';
+    }
     if (path.startsWith('dart:async::_EmptyStream::@constructors::') &&
         positionalArgs.isEmpty) {
       _usedHelpers.add('__dartStream');
@@ -6958,6 +7010,36 @@ final class _EsmEmitter {
     String path,
     List<String> positionalArgs,
   ) {
+    if (path.startsWith('dart:collection::SplayTreeSet::@factories::')) {
+      final name = path.split('::').last;
+      return switch (name) {
+        '' when positionalArgs.length <= 2 => () {
+          _usedHelpers.add('__dartSplayTreeSet');
+          final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+          final isValidKey = positionalArgs.length >= 2
+              ? positionalArgs[1]
+              : 'null';
+          return '__dartSplayTreeSet($compare, $isValidKey)';
+        }(),
+        'of' || 'from'
+            when positionalArgs.isNotEmpty && positionalArgs.length <= 3 =>
+          () {
+            _usedHelpers.add('__dartSplayTreeSetFrom');
+            _usedHelpers.add('__dartSplayTreeSet');
+            _usedHelpers.add('__dartSetAdd');
+            _usedHelpers.add('__dartIterableContains');
+            _usedHelpers.add('__dartEquals');
+            final compare = positionalArgs.length >= 2
+                ? positionalArgs[1]
+                : 'null';
+            final isValidKey = positionalArgs.length >= 3
+                ? positionalArgs[2]
+                : 'null';
+            return '__dartSplayTreeSetFrom(${positionalArgs[0]}, $compare, $isValidKey)';
+          }(),
+        _ => null,
+      };
+    }
     if (!path.startsWith('dart:core::Set::@factories::') &&
         !path.startsWith('dart:collection::LinkedHashSet::@factories::') &&
         !path.startsWith('dart:collection::HashSet::@factories::')) {
@@ -6994,6 +7076,36 @@ final class _EsmEmitter {
     k.Arguments arguments,
     List<String> positionalArgs,
   ) {
+    if (path.startsWith('dart:collection::SplayTreeMap::@factories::')) {
+      final name = path.split('::').last;
+      return switch (name) {
+        '' when positionalArgs.length <= 2 => () {
+          _usedHelpers.add('__dartSplayTreeMap');
+          final compare = positionalArgs.isEmpty ? 'null' : positionalArgs[0];
+          final isValidKey = positionalArgs.length >= 2
+              ? positionalArgs[1]
+              : 'null';
+          return '__dartSplayTreeMap($compare, $isValidKey)';
+        }(),
+        'of' || 'from'
+            when positionalArgs.isNotEmpty && positionalArgs.length <= 3 =>
+          () {
+            _usedHelpers.add('__dartSplayTreeMapFromEntries');
+            _usedHelpers.add('__dartSplayTreeMap');
+            _usedHelpers.add('__dartMapSet');
+            _usedHelpers.add('__dartMapKey');
+            _usedHelpers.add('__dartEquals');
+            final compare = positionalArgs.length >= 2
+                ? positionalArgs[1]
+                : 'null';
+            final isValidKey = positionalArgs.length >= 3
+                ? positionalArgs[2]
+                : 'null';
+            return '__dartSplayTreeMapFromEntries(${positionalArgs[0]}, $compare, $isValidKey)';
+          }(),
+        _ => null,
+      };
+    }
     if (!path.startsWith('dart:core::Map::@factories::') &&
         !path.startsWith('dart:collection::LinkedHashMap::@factories::') &&
         !path.startsWith('dart:collection::HashMap::@factories::')) {
@@ -7652,6 +7764,11 @@ final class _EsmEmitter {
         path.contains('::Map::') ||
         path.contains('::_Map::') ||
         path.startsWith('dart:_compact_hash::') ||
+        path.contains('::SplayTreeSet::') ||
+        path.contains('::_SplayTreeSet::') ||
+        path.contains('::SplayTreeMap::') ||
+        path.contains('::_SplayTreeMap::') ||
+        path.contains('::_SplayTree::') ||
         path.startsWith('dart:collection::Queue::') ||
         path.startsWith('dart:collection::ListQueue::') ||
         path.startsWith('dart:collection::DoubleLinkedQueue::');
@@ -7668,12 +7785,17 @@ final class _EsmEmitter {
     final path = _referencePath(reference);
     return _isCoreMember(reference, 'Set', name) ||
         path.contains('::_Set::') ||
-        path.startsWith('dart:_compact_hash::');
+        path.startsWith('dart:_compact_hash::') ||
+        path.contains('::SplayTreeSet::') ||
+        path.contains('::_SplayTreeSet::');
   }
 
   bool _isCoreMapMember(k.Reference reference, String name) {
     final path = _referencePath(reference);
-    return _isCoreMember(reference, 'Map', name) || path.contains('::_Map::');
+    return _isCoreMember(reference, 'Map', name) ||
+        path.contains('::_Map::') ||
+        path.contains('::SplayTreeMap::') ||
+        path.contains('::_SplayTreeMap::');
   }
 
   bool _isCoreUriMember(k.Reference reference, String name) {
@@ -7858,8 +7980,16 @@ final class _EsmEmitter {
     final name = _interfaceTypeName(type);
     return switch (name) {
       'List' || '_List' || '_GrowableList' => 'List',
-      'Set' || '_Set' || 'HashSet' || 'LinkedHashSet' => 'Set',
-      'Map' || '_Map' || 'HashMap' || 'LinkedHashMap' => 'Map',
+      'Set' ||
+      '_Set' ||
+      'HashSet' ||
+      'LinkedHashSet' ||
+      'SplayTreeSet' => 'Set',
+      'Map' ||
+      '_Map' ||
+      'HashMap' ||
+      'LinkedHashMap' ||
+      'SplayTreeMap' => 'Map',
       'Queue' || 'ListQueue' => 'List',
       'Iterable' => 'Iterable',
       _ => null,
@@ -10934,11 +11064,111 @@ final class _EsmEmitter {
       helper.writeln('  return fn(...args);');
       helper.writeln('}');
     }
+    final emitsDartCompare =
+        _usedHelpers.contains('__dartSplayTreeSet') ||
+        _usedHelpers.contains('__dartSplayTreeMap') ||
+        _usedHelpers.contains('__dartSetAdd') ||
+        _usedHelpers.contains('__dartSetRemove') ||
+        _usedHelpers.contains('__dartSetLookup') ||
+        _usedHelpers.contains('__dartSetRemoveAll') ||
+        _usedHelpers.contains('__dartSetRetainAll') ||
+        _usedHelpers.contains('__dartIterableContains') ||
+        _usedHelpers.contains('__dartMapKey');
+    if (emitsDartCompare) {
+      helper.writeln('function __dartCompare(left, right, compare = null) {');
+      helper.writeln(
+        '  if (typeof compare === "function") return Number(compare(left, right));',
+      );
+      helper.writeln('  const compareTo = left?.compareTo;');
+      helper.writeln(
+        '  if (typeof compareTo === "function") return Number(compareTo.call(left, right));',
+      );
+      helper.writeln('  return left < right ? -1 : (left > right ? 1 : 0);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSplayTreeSet')) {
+      helper.writeln(
+        'function __dartSplayTreeSet(compare = null, isValidKey = null) {',
+      );
+      helper.writeln('  const set = new Set();');
+      helper.writeln(
+        '  Object.defineProperty(set, "__dartSplayCompare", { value: compare });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(set, "__dartSplayIsValidKey", { value: isValidKey });',
+      );
+      helper.writeln('  return set;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSplayTreeSetFrom')) {
+      helper.writeln(
+        'function __dartSplayTreeSetFrom(values, compare = null, isValidKey = null) {',
+      );
+      helper.writeln('  const set = __dartSplayTreeSet(compare, isValidKey);');
+      helper.writeln('  for (const value of values) __dartSetAdd(set, value);');
+      helper.writeln('  return set;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSetAdd')) {
+      helper.writeln('function __dartSplaySortSet(set) {');
+      helper.writeln(
+        '  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));',
+      );
+      helper.writeln('  set.clear();');
+      helper.writeln('  for (const value of values) set.add(value);');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSplayTreeMap')) {
+      helper.writeln(
+        'function __dartSplayTreeMap(compare = null, isValidKey = null) {',
+      );
+      helper.writeln('  const map = new Map();');
+      helper.writeln(
+        '  Object.defineProperty(map, "__dartSplayCompare", { value: compare });',
+      );
+      helper.writeln(
+        '  Object.defineProperty(map, "__dartSplayIsValidKey", { value: isValidKey });',
+      );
+      helper.writeln('  return map;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartSplayTreeMapFromEntries')) {
+      helper.writeln(
+        'function __dartSplayTreeMapFromEntries(entries, compare = null, isValidKey = null) {',
+      );
+      helper.writeln('  const map = __dartSplayTreeMap(compare, isValidKey);');
+      helper.writeln(
+        '  for (const [key, value] of entries) __dartMapSet(map, key, value);',
+      );
+      helper.writeln('  return map;');
+      helper.writeln('}');
+    }
+    if (_usedHelpers.contains('__dartMapSet')) {
+      helper.writeln('function __dartSplaySortMap(map) {');
+      helper.writeln(
+        '  const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));',
+      );
+      helper.writeln('  map.clear();');
+      helper.writeln(
+        '  for (const [key, value] of entries) map.set(key, value);',
+      );
+      helper.writeln('}');
+    }
     if (_usedHelpers.contains('__dartSetAdd')) {
       helper.writeln('function __dartSetAdd(set, value) {');
       helper.writeln('  if (set.__dartIdentitySet) {');
       helper.writeln('    if (set.has(value)) return false;');
       helper.writeln('    set.add(value);');
+      helper.writeln('    return true;');
+      helper.writeln('  }');
+      helper.writeln('  if (set.__dartSplayCompare !== undefined) {');
+      helper.writeln('    for (const candidate of set) {');
+      helper.writeln(
+        '      if (__dartCompare(candidate, value, set.__dartSplayCompare) === 0) return false;',
+      );
+      helper.writeln('    }');
+      helper.writeln('    set.add(value);');
+      helper.writeln('    __dartSplaySortSet(set);');
       helper.writeln('    return true;');
       helper.writeln('  }');
       helper.writeln('  if (__dartIterableContains(set, value)) return false;');
@@ -10974,6 +11204,12 @@ final class _EsmEmitter {
       helper.writeln(
         '  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });',
       );
+      helper.writeln(
+        '  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });',
+      );
+      helper.writeln(
+        '  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });',
+      );
       helper.writeln('  for (const value of set) {');
       helper.writeln(
         '    if (!__dartIterableContains(other, value)) result.add(value);',
@@ -10986,6 +11222,12 @@ final class _EsmEmitter {
       helper.writeln(
         '  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });',
       );
+      helper.writeln(
+        '  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });',
+      );
+      helper.writeln(
+        '  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });',
+      );
       helper.writeln('  for (const value of set) {');
       helper.writeln(
         '    if (__dartIterableContains(other, value)) result.add(value);',
@@ -10997,6 +11239,12 @@ final class _EsmEmitter {
       helper.writeln('  const result = new Set(set);');
       helper.writeln(
         '  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });',
+      );
+      helper.writeln(
+        '  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });',
+      );
+      helper.writeln(
+        '  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });',
       );
       helper.writeln(
         '  for (const value of other) __dartSetAdd(result, value);',
@@ -11012,6 +11260,12 @@ final class _EsmEmitter {
       helper.writeln('    return found;');
       helper.writeln('  }');
       helper.writeln('  for (const value of set) {');
+      helper.writeln(
+        '    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) {',
+      );
+      helper.writeln('      set.delete(value);');
+      helper.writeln('      return true;');
+      helper.writeln('    }');
       helper.writeln('    if (__dartEquals(value, needle)) {');
       helper.writeln('      set.delete(value);');
       helper.writeln('      return true;');
@@ -11051,6 +11305,14 @@ final class _EsmEmitter {
       helper.writeln(
         '  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;',
       );
+      helper.writeln('  if (map.__dartSplayCompare !== undefined) {');
+      helper.writeln('    for (const candidate of map.keys()) {');
+      helper.writeln(
+        '      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;',
+      );
+      helper.writeln('    }');
+      helper.writeln('    return __dartMapMissingKey;');
+      helper.writeln('  }');
       helper.writeln('  for (const candidate of map.keys()) {');
       helper.writeln('    if (__dartEquals(candidate, key)) return candidate;');
       helper.writeln('  }');
@@ -11077,6 +11339,9 @@ final class _EsmEmitter {
       helper.writeln('  const actualKey = __dartMapKey(map, key);');
       helper.writeln(
         '  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);',
+      );
+      helper.writeln(
+        '  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);',
       );
       helper.writeln('  return value;');
       helper.writeln('}');
@@ -11179,7 +11444,7 @@ final class _EsmEmitter {
         '  if (actualKey !== __dartMapMissingKey) return map.get(actualKey);',
       );
       helper.writeln('  const value = ifAbsent();');
-      helper.writeln('  map.set(key, value);');
+      helper.writeln('  __dartMapSet(map, key, value);');
       helper.writeln('  return value;');
       helper.writeln('}');
     }
@@ -11190,12 +11455,12 @@ final class _EsmEmitter {
       helper.writeln('  const actualKey = __dartMapKey(map, key);');
       helper.writeln('  if (actualKey !== __dartMapMissingKey) {');
       helper.writeln('    const value = update(map.get(actualKey));');
-      helper.writeln('    map.set(actualKey, value);');
+      helper.writeln('    __dartMapSet(map, actualKey, value);');
       helper.writeln('    return value;');
       helper.writeln('  }');
       helper.writeln('  if (typeof ifAbsent === "function") {');
       helper.writeln('    const value = ifAbsent();');
-      helper.writeln('    map.set(key, value);');
+      helper.writeln('    __dartMapSet(map, key, value);');
       helper.writeln('    return value;');
       helper.writeln('  }');
       helper.writeln('  throw new Error("Key not in map");');
@@ -11378,6 +11643,9 @@ final class _EsmEmitter {
         '  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);',
       );
       helper.writeln('  for (const value of iterable) {');
+      helper.writeln(
+        '    if (iterable instanceof Set && iterable.__dartSplayCompare !== undefined && __dartCompare(value, needle, iterable.__dartSplayCompare) === 0) return true;',
+      );
       if (_usedHelpers.contains('__dartEquals')) {
         helper.writeln('    if (__dartEquals(value, needle)) return true;');
       } else {
@@ -11440,6 +11708,9 @@ final class _EsmEmitter {
         '  if (set.__dartIdentitySet) return set.has(needle) ? needle : null;',
       );
       helper.writeln('  for (const value of set) {');
+      helper.writeln(
+        '    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) return value;',
+      );
       helper.writeln('    if (__dartEquals(value, needle)) return value;');
       helper.writeln('  }');
       helper.writeln('  return null;');
@@ -11463,6 +11734,12 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  for (const value of values) {');
       helper.writeln('    for (const candidate of Array.from(set)) {');
+      helper.writeln(
+        '      if (set.__dartSplayCompare !== undefined && __dartCompare(candidate, value, set.__dartSplayCompare) === 0) {',
+      );
+      helper.writeln('        set.delete(candidate);');
+      helper.writeln('        break;');
+      helper.writeln('      }');
       helper.writeln('      if (__dartEquals(candidate, value)) {');
       helper.writeln('        set.delete(candidate);');
       helper.writeln('        break;');
@@ -11477,8 +11754,9 @@ final class _EsmEmitter {
       helper.writeln('  const retained = Array.from(values);');
       helper.writeln('  for (const value of Array.from(set)) {');
       helper.writeln(
-        '    if (set.__dartIdentitySet ? !retained.includes(value) : retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);',
+        '    const index = set.__dartIdentitySet ? retained.indexOf(value) : retained.findIndex((needle) => set.__dartSplayCompare !== undefined ? __dartCompare(value, needle, set.__dartSplayCompare) === 0 : __dartEquals(value, needle));',
       );
+      helper.writeln('    if (index < 0) set.delete(value);');
       helper.writeln('  }');
       helper.writeln('  return null;');
       helper.writeln('}');
@@ -13625,6 +13903,7 @@ const _generatedGlobalNames = {
   '__dartConverterConvert',
   '__dartConverterFuse',
   '__dartConverterStartChunked',
+  '__dartCompare',
   '__dartCoreError',
   '__dartCreateZone',
   '__dartCurrentZone',
@@ -13796,6 +14075,12 @@ const _generatedGlobalNames = {
   '__dartSetWhereMutate',
   '__dartSinkAdd',
   '__dartSinkClose',
+  '__dartSplaySortMap',
+  '__dartSplaySortSet',
+  '__dartSplayTreeMap',
+  '__dartSplayTreeMapFromEntries',
+  '__dartSplayTreeSet',
+  '__dartSplayTreeSetFrom',
   '__dartStr',
   '__dartStream',
   '__dartStreamAny',

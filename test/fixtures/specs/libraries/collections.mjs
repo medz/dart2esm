@@ -54,10 +54,34 @@ function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
+function __dartCompare(left, right, compare = null) {
+  if (typeof compare === "function") return Number(compare(left, right));
+  const compareTo = left?.compareTo;
+  if (typeof compareTo === "function") return Number(compareTo.call(left, right));
+  return left < right ? -1 : (left > right ? 1 : 0);
+}
+function __dartSplaySortSet(set) {
+  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
+  set.clear();
+  for (const value of values) set.add(value);
+}
+function __dartSplaySortMap(map) {
+  const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
+  map.clear();
+  for (const [key, value] of entries) map.set(key, value);
+}
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
     if (set.has(value)) return false;
     set.add(value);
+    return true;
+  }
+  if (set.__dartSplayCompare !== undefined) {
+    for (const candidate of set) {
+      if (__dartCompare(candidate, value, set.__dartSplayCompare) === 0) return false;
+    }
+    set.add(value);
+    __dartSplaySortSet(set);
     return true;
   }
   if (__dartIterableContains(set, value)) return false;
@@ -76,6 +100,8 @@ function __dartSetFrom(values) {
 function __dartSetDifference(set, other) {
   const result = new Set();
   if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
+  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
+  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
   for (const value of set) {
     if (!__dartIterableContains(other, value)) result.add(value);
   }
@@ -84,6 +110,8 @@ function __dartSetDifference(set, other) {
 function __dartSetIntersection(set, other) {
   const result = new Set();
   if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
+  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
+  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
   for (const value of set) {
     if (__dartIterableContains(other, value)) result.add(value);
   }
@@ -92,6 +120,8 @@ function __dartSetIntersection(set, other) {
 function __dartSetUnion(set, other) {
   const result = new Set(set);
   if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
+  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
+  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
   for (const value of other) __dartSetAdd(result, value);
   return result;
 }
@@ -102,6 +132,10 @@ function __dartSetRemove(set, needle) {
     return found;
   }
   for (const value of set) {
+    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) {
+      set.delete(value);
+      return true;
+    }
     if (__dartEquals(value, needle)) {
       set.delete(value);
       return true;
@@ -129,6 +163,12 @@ function __dartIdentityMap() {
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   for (const candidate of map.keys()) {
     if (__dartEquals(candidate, key)) return candidate;
   }
@@ -144,6 +184,7 @@ function __dartMapGet(map, key) {
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
   return value;
 }
 function __dartMapAddAll(map, entries) {
@@ -192,19 +233,19 @@ function __dartMapPutIfAbsent(map, key, ifAbsent) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey !== __dartMapMissingKey) return map.get(actualKey);
   const value = ifAbsent();
-  map.set(key, value);
+  __dartMapSet(map, key, value);
   return value;
 }
 function __dartMapUpdate(map, key, update, ifAbsent = null) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey !== __dartMapMissingKey) {
     const value = update(map.get(actualKey));
-    map.set(actualKey, value);
+    __dartMapSet(map, actualKey, value);
     return value;
   }
   if (typeof ifAbsent === "function") {
     const value = ifAbsent();
-    map.set(key, value);
+    __dartMapSet(map, key, value);
     return value;
   }
   throw new Error("Key not in map");
@@ -307,6 +348,7 @@ function __dartListAsMap(list) {
 function __dartIterableContains(iterable, needle) {
   if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
   for (const value of iterable) {
+    if (iterable instanceof Set && iterable.__dartSplayCompare !== undefined && __dartCompare(value, needle, iterable.__dartSplayCompare) === 0) return true;
     if (__dartEquals(value, needle)) return true;
   }
   return false;
@@ -345,6 +387,7 @@ function __dartIterableSkipWhile(iterable, test) {
 function __dartSetLookup(set, needle) {
   if (set.__dartIdentitySet) return set.has(needle) ? needle : null;
   for (const value of set) {
+    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) return value;
     if (__dartEquals(value, needle)) return value;
   }
   return null;
@@ -362,6 +405,10 @@ function __dartSetRemoveAll(set, values) {
   }
   for (const value of values) {
     for (const candidate of Array.from(set)) {
+      if (set.__dartSplayCompare !== undefined && __dartCompare(candidate, value, set.__dartSplayCompare) === 0) {
+        set.delete(candidate);
+        break;
+      }
       if (__dartEquals(candidate, value)) {
         set.delete(candidate);
         break;
@@ -373,7 +420,8 @@ function __dartSetRemoveAll(set, values) {
 function __dartSetRetainAll(set, values) {
   const retained = Array.from(values);
   for (const value of Array.from(set)) {
-    if (set.__dartIdentitySet ? !retained.includes(value) : retained.findIndex((needle) => __dartEquals(value, needle)) < 0) set.delete(value);
+    const index = set.__dartIdentitySet ? retained.indexOf(value) : retained.findIndex((needle) => set.__dartSplayCompare !== undefined ? __dartCompare(value, needle, set.__dartSplayCompare) === 0 : __dartEquals(value, needle));
+    if (index < 0) set.delete(value);
   }
   return null;
 }

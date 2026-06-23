@@ -195,10 +195,29 @@ function __dartBind(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
+function __dartCompare(left, right, compare = null) {
+  if (typeof compare === "function") return Number(compare(left, right));
+  const compareTo = left?.compareTo;
+  if (typeof compareTo === "function") return Number(compareTo.call(left, right));
+  return left < right ? -1 : (left > right ? 1 : 0);
+}
+function __dartSplaySortSet(set) {
+  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
+  set.clear();
+  for (const value of values) set.add(value);
+}
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
     if (set.has(value)) return false;
     set.add(value);
+    return true;
+  }
+  if (set.__dartSplayCompare !== undefined) {
+    for (const candidate of set) {
+      if (__dartCompare(candidate, value, set.__dartSplayCompare) === 0) return false;
+    }
+    set.add(value);
+    __dartSplaySortSet(set);
     return true;
   }
   if (__dartIterableContains(set, value)) return false;
@@ -208,6 +227,7 @@ function __dartSetAdd(set, value) {
 function __dartIterableContains(iterable, needle) {
   if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
   for (const value of iterable) {
+    if (iterable instanceof Set && iterable.__dartSplayCompare !== undefined && __dartCompare(value, needle, iterable.__dartSplayCompare) === 0) return true;
     if (__dartEquals(value, needle)) return true;
   }
   return false;

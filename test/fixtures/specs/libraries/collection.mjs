@@ -20,19 +20,65 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartCompare(left, right, compare = null) {
+  if (typeof compare === "function") return Number(compare(left, right));
+  const compareTo = left?.compareTo;
+  if (typeof compareTo === "function") return Number(compareTo.call(left, right));
+  return left < right ? -1 : (left > right ? 1 : 0);
+}
+function __dartSplayTreeSet(compare = null, isValidKey = null) {
+  const set = new Set();
+  Object.defineProperty(set, "__dartSplayCompare", { value: compare });
+  Object.defineProperty(set, "__dartSplayIsValidKey", { value: isValidKey });
+  return set;
+}
+function __dartSplaySortSet(set) {
+  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
+  set.clear();
+  for (const value of values) set.add(value);
+}
+function __dartSplayTreeMap(compare = null, isValidKey = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartSplayCompare", { value: compare });
+  Object.defineProperty(map, "__dartSplayIsValidKey", { value: isValidKey });
+  return map;
+}
+function __dartSplaySortMap(map) {
+  const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
+  map.clear();
+  for (const [key, value] of entries) map.set(key, value);
+}
 function __dartSetAdd(set, value) {
   if (set.__dartIdentitySet) {
     if (set.has(value)) return false;
     set.add(value);
     return true;
   }
+  if (set.__dartSplayCompare !== undefined) {
+    for (const candidate of set) {
+      if (__dartCompare(candidate, value, set.__dartSplayCompare) === 0) return false;
+    }
+    set.add(value);
+    __dartSplaySortSet(set);
+    return true;
+  }
   if (__dartIterableContains(set, value)) return false;
   set.add(value);
   return true;
 }
+function __dartSetAddAll(set, values) {
+  for (const value of values) __dartSetAdd(set, value);
+  return null;
+}
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   for (const candidate of map.keys()) {
     if (__dartEquals(candidate, key)) return candidate;
   }
@@ -48,6 +94,7 @@ function __dartMapGet(map, key) {
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
   return value;
 }
 function __dartListRemove(list, needle) {
@@ -67,6 +114,7 @@ function __dartListRetainWhere(list, test) {
 function __dartIterableContains(iterable, needle) {
   if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
   for (const value of iterable) {
+    if (iterable instanceof Set && iterable.__dartSplayCompare !== undefined && __dartCompare(value, needle, iterable.__dartSplayCompare) === 0) return true;
     if (__dartEquals(value, needle)) return true;
   }
   return false;
@@ -112,6 +160,13 @@ export function main() {
   __dartPrint("queueIter " + __dartStr(Array.from(copied)[1]) + " " + __dartStr(__dartIterableJoin(Array.from(copied), "|")) + " " + __dartStr(Array.from(copied).some(function(value) { return __dartEquals(value, 5); })) + " " + __dartStr(Array.from(copied).every(function(value) { return (value > 0); })));
   (copied.length = 0, null);
   __dartPrint("queueClear " + __dartStr(copied.length) + " " + __dartStr(copied.length === 0));
+  const sortedSet = __dartSplayTreeSet(null, null);
+  __dartSetAddAll(sortedSet, [3, 1, 2]);
+  __dartPrint("splaySet " + __dartStr(__dartIterableJoin(sortedSet, ",")) + " " + __dartStr(__dartIterableContains(sortedSet, 2)));
+  const sortedMap = __dartSplayTreeMap(null, null);
+  __dartMapSet(sortedMap, "b", 2);
+  __dartMapSet(sortedMap, "a", 1);
+  __dartPrint("splayMap " + __dartStr(__dartIterableJoin(Array.from(sortedMap.keys()), ",")) + " " + __dartStr(__dartIterableJoin(Array.from(sortedMap.values()), ",")) + " " + __dartStr(__dartMapGet(sortedMap, "b")));
 }
 
 main();

@@ -45,4 +45,16 @@ void main() {
   );
   copied.clear();
   print('queueClear ${copied.length} ${copied.isEmpty}');
+
+  final sortedSet = SplayTreeSet<int>();
+  sortedSet.addAll([3, 1, 2]);
+  print('splaySet ${sortedSet.join(',')} ${sortedSet.contains(2)}');
+
+  final sortedMap = SplayTreeMap<String, int>();
+  sortedMap['b'] = 2;
+  sortedMap['a'] = 1;
+  print(
+    'splayMap ${sortedMap.keys.join(',')} ${sortedMap.values.join(',')} '
+    '${sortedMap['b']}',
+  );
 }

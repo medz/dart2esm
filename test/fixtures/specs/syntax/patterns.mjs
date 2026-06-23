@@ -28,9 +28,21 @@ function __dartAs(value, test, typeName) {
   if (test(value)) return value;
   throw new TypeError("Type cast failed: expected " + typeName);
 }
+function __dartCompare(left, right, compare = null) {
+  if (typeof compare === "function") return Number(compare(left, right));
+  const compareTo = left?.compareTo;
+  if (typeof compareTo === "function") return Number(compareTo.call(left, right));
+  return left < right ? -1 : (left > right ? 1 : 0);
+}
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
   if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   for (const candidate of map.keys()) {
     if (__dartEquals(candidate, key)) return candidate;
   }

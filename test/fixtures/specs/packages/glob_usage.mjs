@@ -1598,10 +1598,10 @@ function __dartFutureTimeout(future, duration, onTimeout = null) {
   });
 }
 function __dartStreamController(broadcast = false, options = {}) {
-  const onListen = options.onListen ?? null;
-  const onPause = options.onPause ?? null;
-  const onResume = options.onResume ?? null;
-  const onCancel = options.onCancel ?? null;
+  let onListen = options.onListen ?? null;
+  let onPause = options.onPause ?? null;
+  let onResume = options.onResume ?? null;
+  let onCancel = options.onCancel ?? null;
   const listeners = new Set();
   let closed = false;
   let singleListened = false;
@@ -1724,6 +1724,14 @@ function __dartStreamController(broadcast = false, options = {}) {
     get isClosed() { return closed; },
     get isPaused() { return !hasActiveListener() && !closed; },
     get hasListener() { return hasActiveListener(); },
+    get onListen() { return onListen; },
+    set onListen(value) { onListen = value; },
+    get onPause() { return onPause; },
+    set onPause(value) { onPause = value; },
+    get onResume() { return onResume; },
+    set onResume(value) { onResume = value; },
+    get onCancel() { return onCancel; },
+    set onCancel(value) { onCancel = value; },
     add(value) { deliver({ value }); return null; },
     addError(error, stackTrace = null) { deliver({ error }); return null; },
     close() { closeQueue(); return done; },
@@ -1843,6 +1851,54 @@ function __dartStreamFromFuture(future) {
     yield await future;
   })();
 }
+function __dartStreamIterable(stream) {
+  if (stream != null && typeof stream[Symbol.asyncIterator] === "function") return stream;
+  if (stream == null || typeof stream.listen !== "function") return stream;
+  return {
+    [Symbol.asyncIterator]() {
+      const queue = [];
+      const waiters = [];
+      let done = false;
+      let error = null;
+      let subscription = null;
+      function push(record) {
+        if (waiters.length > 0) waiters.shift()(record);
+        else queue.push(record);
+      }
+      function finish(doneError = null) {
+        if (done) return;
+        done = true;
+        error = doneError;
+        push({ done: true });
+      }
+      subscription = stream.listen(
+        (value) => push({ value, done: false }),
+        { onError: (listenError) => finish(listenError), onDone: () => finish(), cancelOnError: true },
+      );
+      return {
+        async next() {
+          if (queue.length === 0 && done) {
+            if (error != null) throw error;
+            return { done: true };
+          }
+          const record = queue.length > 0 ? queue.shift() : await new Promise((resolve) => waiters.push(resolve));
+          if (record.done) {
+            if (error != null) throw error;
+            return { done: true };
+          }
+          return { value: record.value, done: false };
+        },
+        async return() {
+          done = true;
+          queue.length = 0;
+          while (waiters.length > 0) waiters.shift()({ done: true });
+          if (subscription != null && typeof subscription.cancel === "function") await subscription.cancel();
+          return { done: true };
+        },
+      };
+    },
+  };
+}
 function __dartStreamFromFutures(futures) {
   const controller = __dartStreamController(false);
   const pending = Array.from(futures);
@@ -1906,7 +1962,7 @@ function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null)
   }
   async function pump() {
     try {
-      for await (const value of stream) {
+      for await (const value of __dartStreamIterable(stream)) {
         if (canceled) break;
         controller.add(value);
       }
@@ -1938,31 +1994,42 @@ function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null)
 }
 function __dartStreamMap(stream, convert) {
   return (async function*() {
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       yield convert(value);
     }
   })();
 }
 function __dartStreamWhere(stream, test) {
   return (async function*() {
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       if (test(value)) yield value;
     }
   })();
 }
 function __dartStreamAsyncMap(stream, convert) {
   return (async function*() {
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       yield await convert(value);
     }
   })();
 }
 function __dartStreamAsyncExpand(stream, convert) {
   return (async function*() {
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       const inner = convert(value);
       if (inner == null) continue;
-      for await (const expanded of inner) yield expanded;
+      for await (const expanded of __dartStreamIterable(inner)) yield expanded;
+    }
+  })();
+}
+function __dartStreamExpand(stream, convert) {
+  return (async function*() {
+    for await (const value of __dartStreamIterable(stream)) {
+      const inner = convert(value);
+      if (inner == null) continue;
+      for (const expanded of Array.from(inner)) {
+        yield expanded;
+      }
     }
   })();
 }
@@ -1977,7 +2044,7 @@ function __dartStreamTransformerFromHandlers({ handleData = null, handleError = 
       (async () => {
         let shouldClose = false;
         try {
-          const iterator = stream[Symbol.asyncIterator]();
+          const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();
           while (!controller.isClosed) {
             let next;
             try {
@@ -2029,7 +2096,7 @@ function __dartStreamEventTransformed(stream, mapSink) {
   const sink = mapSink(controller.sink);
   (async () => {
     try {
-      const iterator = stream[Symbol.asyncIterator]();
+      const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();
       while (!controller.isClosed) {
         let next;
         try {
@@ -2061,7 +2128,7 @@ function __dartStreamDistinct(stream, equals = null) {
   return (async function*() {
     let hasPrevious = false;
     let previous;
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));
       if (same) continue;
       previous = value;
@@ -2072,7 +2139,7 @@ function __dartStreamDistinct(stream, equals = null) {
 }
 function __dartStreamHandleError(stream, onError, test = null) {
   return (async function*() {
-    const iterator = stream[Symbol.asyncIterator]();
+    const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();
     while (true) {
       let next;
       try {
@@ -2092,7 +2159,7 @@ function __dartStreamTake(stream, count) {
   return (async function*() {
     let remaining = Math.max(0, Math.trunc(count));
     if (remaining === 0) return;
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       yield value;
       remaining--;
       if (remaining === 0) break;
@@ -2102,7 +2169,7 @@ function __dartStreamTake(stream, count) {
 function __dartStreamSkip(stream, count) {
   return (async function*() {
     let remaining = Math.max(0, Math.trunc(count));
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       if (remaining > 0) {
         remaining--;
         continue;
@@ -2114,7 +2181,7 @@ function __dartStreamSkip(stream, count) {
 function __dartStreamTimeout(stream, duration, onTimeout = null) {
   const controller = __dartStreamController(false);
   const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
-  const iterator = stream[Symbol.asyncIterator]();
+  const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();
   let pendingNext = null;
   function nextEvent() {
     pendingNext ??= Promise.resolve(iterator.next()).then((next) => ({ next }), (error) => ({ error }));
@@ -2154,7 +2221,7 @@ function __dartStreamTimeout(stream, duration, onTimeout = null) {
 }
 function __dartStreamTakeWhile(stream, test) {
   return (async function*() {
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       if (!test(value)) break;
       yield value;
     }
@@ -2163,7 +2230,7 @@ function __dartStreamTakeWhile(stream, test) {
 function __dartStreamSkipWhile(stream, test) {
   return (async function*() {
     let skipping = true;
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       if (skipping && test(value)) continue;
       skipping = false;
       yield value;
@@ -2172,19 +2239,19 @@ function __dartStreamSkipWhile(stream, test) {
 }
 async function __dartStreamToList(stream) {
   const values = [];
-  for await (const value of stream) values.push(value);
+  for await (const value of __dartStreamIterable(stream)) values.push(value);
   return values;
 }
 async function __dartStreamToSet(stream) {
   const values = new Set();
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     __dartSetAdd(values, value);
   }
   return values;
 }
 async function __dartStreamFold(stream, initialValue, combine) {
   let result = initialValue;
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     result = await combine(result, value);
   }
   return result;
@@ -2192,7 +2259,7 @@ async function __dartStreamFold(stream, initialValue, combine) {
 async function __dartStreamReduce(stream, combine) {
   let found = false;
   let result;
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (!found) {
       found = true;
       result = value;
@@ -2204,24 +2271,24 @@ async function __dartStreamReduce(stream, combine) {
   return result;
 }
 async function __dartStreamForEach(stream, action) {
-  for await (const value of stream) await action(value);
+  for await (const value of __dartStreamIterable(stream)) await action(value);
   return null;
 }
 function __dartStreamCast(stream, test, typeName) {
   return (async function*() {
-    for await (const value of stream) {
+    for await (const value of __dartStreamIterable(stream)) {
       yield __dartAs(value, test, typeName);
     }
   })();
 }
 async function __dartStreamFirst(stream) {
-  for await (const value of stream) return value;
+  for await (const value of __dartStreamIterable(stream)) return value;
   throw new RangeError("No element");
 }
 async function __dartStreamLast(stream) {
   let found = false;
   let last;
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     found = true;
     last = value;
   }
@@ -2231,7 +2298,7 @@ async function __dartStreamLast(stream) {
 async function __dartStreamSingle(stream) {
   let found = false;
   let single;
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (found) throw new Error("Bad state: Too many elements");
     found = true;
     single = value;
@@ -2241,27 +2308,27 @@ async function __dartStreamSingle(stream) {
 }
 async function __dartStreamLength(stream) {
   let count = 0;
-  for await (const _ of stream) count++;
+  for await (const _ of __dartStreamIterable(stream)) count++;
   return count;
 }
 async function __dartStreamIsEmpty(stream) {
-  for await (const _ of stream) return false;
+  for await (const _ of __dartStreamIterable(stream)) return false;
   return true;
 }
 async function __dartStreamAny(stream, test) {
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (test(value)) return true;
   }
   return false;
 }
 async function __dartStreamEvery(stream, test) {
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (!test(value)) return false;
   }
   return true;
 }
 async function __dartStreamFirstWhere(stream, test, orElse = null) {
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (test(value)) return value;
   }
   if (typeof orElse === "function") return orElse();
@@ -2270,7 +2337,7 @@ async function __dartStreamFirstWhere(stream, test, orElse = null) {
 async function __dartStreamLastWhere(stream, test, orElse = null) {
   let found = false;
   let last;
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (test(value)) {
       found = true;
       last = value;
@@ -2283,7 +2350,7 @@ async function __dartStreamLastWhere(stream, test, orElse = null) {
 async function __dartStreamSingleWhere(stream, test, orElse = null) {
   let found = false;
   let single;
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (!test(value)) continue;
     if (found) throw new Error("Bad state: Too many elements");
     found = true;
@@ -2294,25 +2361,25 @@ async function __dartStreamSingleWhere(stream, test, orElse = null) {
   throw new RangeError("No element");
 }
 async function __dartStreamContains(stream, needle) {
-  for await (const value of stream) {
+  for await (const value of __dartStreamIterable(stream)) {
     if (__dartEquals(value, needle)) return true;
   }
   return false;
 }
 async function __dartStreamJoin(stream, separator = "") {
   const values = [];
-  for await (const value of stream) values.push(__dartStr(value));
+  for await (const value of __dartStreamIterable(stream)) values.push(__dartStr(value));
   return values.join(String(separator));
 }
 async function __dartStreamDrain(stream, futureValue = null) {
-  for await (const _ of stream) {}
+  for await (const _ of __dartStreamIterable(stream)) {}
   return futureValue;
 }
 async function __dartStreamPipe(stream, consumer) {
   if (typeof consumer.addStream === "function") {
     await consumer.addStream(stream);
   } else {
-    for await (const value of stream) consumer.add(value);
+    for await (const value of __dartStreamIterable(stream)) consumer.add(value);
   }
   return typeof consumer.close === "function" ? await consumer.close() : null;
 }

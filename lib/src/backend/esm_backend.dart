@@ -5339,6 +5339,13 @@ final class _EsmEmitter {
       return '__dartStreamAsyncExpand($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
+        name == 'expand' &&
+        positionalArgs.length == 1 &&
+        _isAsyncStreamMember(target, name)) {
+      _usedHelpers.add('__dartStream');
+      return '__dartStreamExpand($left, ${positionalArgs.single})';
+    }
+    if (expression.arguments.named.isEmpty &&
         name == 'transform' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
@@ -16065,10 +16072,10 @@ final class _EsmEmitter {
       helper.writeln(
         'function __dartStreamController(broadcast = false, options = {}) {',
       );
-      helper.writeln('  const onListen = options.onListen ?? null;');
-      helper.writeln('  const onPause = options.onPause ?? null;');
-      helper.writeln('  const onResume = options.onResume ?? null;');
-      helper.writeln('  const onCancel = options.onCancel ?? null;');
+      helper.writeln('  let onListen = options.onListen ?? null;');
+      helper.writeln('  let onPause = options.onPause ?? null;');
+      helper.writeln('  let onResume = options.onResume ?? null;');
+      helper.writeln('  let onCancel = options.onCancel ?? null;');
       helper.writeln('  const listeners = new Set();');
       helper.writeln('  let closed = false;');
       helper.writeln('  let singleListened = false;');
@@ -16239,6 +16246,14 @@ final class _EsmEmitter {
         '    get isPaused() { return !hasActiveListener() && !closed; },',
       );
       helper.writeln('    get hasListener() { return hasActiveListener(); },');
+      helper.writeln('    get onListen() { return onListen; },');
+      helper.writeln('    set onListen(value) { onListen = value; },');
+      helper.writeln('    get onPause() { return onPause; },');
+      helper.writeln('    set onPause(value) { onPause = value; },');
+      helper.writeln('    get onResume() { return onResume; },');
+      helper.writeln('    set onResume(value) { onResume = value; },');
+      helper.writeln('    get onCancel() { return onCancel; },');
+      helper.writeln('    set onCancel(value) { onCancel = value; },');
       helper.writeln('    add(value) { deliver({ value }); return null; },');
       helper.writeln(
         '    addError(error, stackTrace = null) { deliver({ error }); return null; },',
@@ -16529,6 +16544,68 @@ final class _EsmEmitter {
       helper.writeln('    yield await future;');
       helper.writeln('  })();');
       helper.writeln('}');
+      helper.writeln('function __dartStreamIterable(stream) {');
+      helper.writeln(
+        '  if (stream != null && typeof stream[Symbol.asyncIterator] === "function") return stream;',
+      );
+      helper.writeln(
+        '  if (stream == null || typeof stream.listen !== "function") return stream;',
+      );
+      helper.writeln('  return {');
+      helper.writeln('    [Symbol.asyncIterator]() {');
+      helper.writeln('      const queue = [];');
+      helper.writeln('      const waiters = [];');
+      helper.writeln('      let done = false;');
+      helper.writeln('      let error = null;');
+      helper.writeln('      let subscription = null;');
+      helper.writeln('      function push(record) {');
+      helper.writeln(
+        '        if (waiters.length > 0) waiters.shift()(record);',
+      );
+      helper.writeln('        else queue.push(record);');
+      helper.writeln('      }');
+      helper.writeln('      function finish(doneError = null) {');
+      helper.writeln('        if (done) return;');
+      helper.writeln('        done = true;');
+      helper.writeln('        error = doneError;');
+      helper.writeln('        push({ done: true });');
+      helper.writeln('      }');
+      helper.writeln('      subscription = stream.listen(');
+      helper.writeln('        (value) => push({ value, done: false }),');
+      helper.writeln(
+        '        { onError: (listenError) => finish(listenError), onDone: () => finish(), cancelOnError: true },',
+      );
+      helper.writeln('      );');
+      helper.writeln('      return {');
+      helper.writeln('        async next() {');
+      helper.writeln('          if (queue.length === 0 && done) {');
+      helper.writeln('            if (error != null) throw error;');
+      helper.writeln('            return { done: true };');
+      helper.writeln('          }');
+      helper.writeln(
+        '          const record = queue.length > 0 ? queue.shift() : await new Promise((resolve) => waiters.push(resolve));',
+      );
+      helper.writeln('          if (record.done) {');
+      helper.writeln('            if (error != null) throw error;');
+      helper.writeln('            return { done: true };');
+      helper.writeln('          }');
+      helper.writeln('          return { value: record.value, done: false };');
+      helper.writeln('        },');
+      helper.writeln('        async return() {');
+      helper.writeln('          done = true;');
+      helper.writeln('          queue.length = 0;');
+      helper.writeln(
+        '          while (waiters.length > 0) waiters.shift()({ done: true });',
+      );
+      helper.writeln(
+        '          if (subscription != null && typeof subscription.cancel === "function") await subscription.cancel();',
+      );
+      helper.writeln('          return { done: true };');
+      helper.writeln('        },');
+      helper.writeln('      };');
+      helper.writeln('    },');
+      helper.writeln('  };');
+      helper.writeln('}');
       helper.writeln('function __dartStreamFromFutures(futures) {');
       helper.writeln('  const controller = __dartStreamController(false);');
       helper.writeln('  const pending = Array.from(futures);');
@@ -16606,7 +16683,9 @@ final class _EsmEmitter {
       helper.writeln('  }');
       helper.writeln('  async function pump() {');
       helper.writeln('    try {');
-      helper.writeln('      for await (const value of stream) {');
+      helper.writeln(
+        '      for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('        if (canceled) break;');
       helper.writeln('        controller.add(value);');
       helper.writeln('      }');
@@ -16646,33 +16725,54 @@ final class _EsmEmitter {
       helper.writeln('}');
       helper.writeln('function __dartStreamMap(stream, convert) {');
       helper.writeln('  return (async function*() {');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      yield convert(value);');
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
       helper.writeln('function __dartStreamWhere(stream, test) {');
       helper.writeln('  return (async function*() {');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      if (test(value)) yield value;');
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
       helper.writeln('function __dartStreamAsyncMap(stream, convert) {');
       helper.writeln('  return (async function*() {');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      yield await convert(value);');
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
       helper.writeln('function __dartStreamAsyncExpand(stream, convert) {');
       helper.writeln('  return (async function*() {');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      const inner = convert(value);');
       helper.writeln('      if (inner == null) continue;');
       helper.writeln(
-        '      for await (const expanded of inner) yield expanded;',
+        '      for await (const expanded of __dartStreamIterable(inner)) yield expanded;',
       );
+      helper.writeln('    }');
+      helper.writeln('  })();');
+      helper.writeln('}');
+      helper.writeln('function __dartStreamExpand(stream, convert) {');
+      helper.writeln('  return (async function*() {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
+      helper.writeln('      const inner = convert(value);');
+      helper.writeln('      if (inner == null) continue;');
+      helper.writeln('      for (const expanded of Array.from(inner)) {');
+      helper.writeln('        yield expanded;');
+      helper.writeln('      }');
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
@@ -16690,7 +16790,7 @@ final class _EsmEmitter {
       helper.writeln('        let shouldClose = false;');
       helper.writeln('        try {');
       helper.writeln(
-        '          const iterator = stream[Symbol.asyncIterator]();',
+        '          const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
       );
       helper.writeln('          while (!controller.isClosed) {');
       helper.writeln('            let next;');
@@ -16765,7 +16865,9 @@ final class _EsmEmitter {
       helper.writeln('  const sink = mapSink(controller.sink);');
       helper.writeln('  (async () => {');
       helper.writeln('    try {');
-      helper.writeln('      const iterator = stream[Symbol.asyncIterator]();');
+      helper.writeln(
+        '      const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
+      );
       helper.writeln('      while (!controller.isClosed) {');
       helper.writeln('        let next;');
       helper.writeln('        try {');
@@ -16803,7 +16905,9 @@ final class _EsmEmitter {
       helper.writeln('  return (async function*() {');
       helper.writeln('    let hasPrevious = false;');
       helper.writeln('    let previous;');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln(
         '      const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));',
       );
@@ -16818,7 +16922,9 @@ final class _EsmEmitter {
         'function __dartStreamHandleError(stream, onError, test = null) {',
       );
       helper.writeln('  return (async function*() {');
-      helper.writeln('    const iterator = stream[Symbol.asyncIterator]();');
+      helper.writeln(
+        '    const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
+      );
       helper.writeln('    while (true) {');
       helper.writeln('      let next;');
       helper.writeln('      try {');
@@ -16842,7 +16948,9 @@ final class _EsmEmitter {
       helper.writeln('  return (async function*() {');
       helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
       helper.writeln('    if (remaining === 0) return;');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      yield value;');
       helper.writeln('      remaining--;');
       helper.writeln('      if (remaining === 0) break;');
@@ -16852,7 +16960,9 @@ final class _EsmEmitter {
       helper.writeln('function __dartStreamSkip(stream, count) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      if (remaining > 0) {');
       helper.writeln('        remaining--;');
       helper.writeln('        continue;');
@@ -16868,7 +16978,9 @@ final class _EsmEmitter {
       helper.writeln(
         '  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);',
       );
-      helper.writeln('  const iterator = stream[Symbol.asyncIterator]();');
+      helper.writeln(
+        '  const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
+      );
       helper.writeln('  let pendingNext = null;');
       helper.writeln('  function nextEvent() {');
       helper.writeln(
@@ -16916,7 +17028,9 @@ final class _EsmEmitter {
       helper.writeln('}');
       helper.writeln('function __dartStreamTakeWhile(stream, test) {');
       helper.writeln('  return (async function*() {');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      if (!test(value)) break;');
       helper.writeln('      yield value;');
       helper.writeln('    }');
@@ -16925,7 +17039,9 @@ final class _EsmEmitter {
       helper.writeln('function __dartStreamSkipWhile(stream, test) {');
       helper.writeln('  return (async function*() {');
       helper.writeln('    let skipping = true;');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      if (skipping && test(value)) continue;');
       helper.writeln('      skipping = false;');
       helper.writeln('      yield value;');
@@ -16934,12 +17050,16 @@ final class _EsmEmitter {
       helper.writeln('}');
       helper.writeln('async function __dartStreamToList(stream) {');
       helper.writeln('  const values = [];');
-      helper.writeln('  for await (const value of stream) values.push(value);');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) values.push(value);',
+      );
       helper.writeln('  return values;');
       helper.writeln('}');
       helper.writeln('async function __dartStreamToSet(stream) {');
       helper.writeln('  const values = new Set();');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    __dartSetAdd(values, value);');
       helper.writeln('  }');
       helper.writeln('  return values;');
@@ -16948,7 +17068,9 @@ final class _EsmEmitter {
         'async function __dartStreamFold(stream, initialValue, combine) {',
       );
       helper.writeln('  let result = initialValue;');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    result = await combine(result, value);');
       helper.writeln('  }');
       helper.writeln('  return result;');
@@ -16956,7 +17078,9 @@ final class _EsmEmitter {
       helper.writeln('async function __dartStreamReduce(stream, combine) {');
       helper.writeln('  let found = false;');
       helper.writeln('  let result;');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    if (!found) {');
       helper.writeln('      found = true;');
       helper.writeln('      result = value;');
@@ -16969,25 +17093,31 @@ final class _EsmEmitter {
       helper.writeln('}');
       helper.writeln('async function __dartStreamForEach(stream, action) {');
       helper.writeln(
-        '  for await (const value of stream) await action(value);',
+        '  for await (const value of __dartStreamIterable(stream)) await action(value);',
       );
       helper.writeln('  return null;');
       helper.writeln('}');
       helper.writeln('function __dartStreamCast(stream, test, typeName) {');
       helper.writeln('  return (async function*() {');
-      helper.writeln('    for await (const value of stream) {');
+      helper.writeln(
+        '    for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('      yield __dartAs(value, test, typeName);');
       helper.writeln('    }');
       helper.writeln('  })();');
       helper.writeln('}');
       helper.writeln('async function __dartStreamFirst(stream) {');
-      helper.writeln('  for await (const value of stream) return value;');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) return value;',
+      );
       helper.writeln('  throw new RangeError("No element");');
       helper.writeln('}');
       helper.writeln('async function __dartStreamLast(stream) {');
       helper.writeln('  let found = false;');
       helper.writeln('  let last;');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    found = true;');
       helper.writeln('    last = value;');
       helper.writeln('  }');
@@ -16997,7 +17127,9 @@ final class _EsmEmitter {
       helper.writeln('async function __dartStreamSingle(stream) {');
       helper.writeln('  let found = false;');
       helper.writeln('  let single;');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln(
         '    if (found) throw new Error("Bad state: Too many elements");',
       );
@@ -17009,21 +17141,29 @@ final class _EsmEmitter {
       helper.writeln('}');
       helper.writeln('async function __dartStreamLength(stream) {');
       helper.writeln('  let count = 0;');
-      helper.writeln('  for await (const _ of stream) count++;');
+      helper.writeln(
+        '  for await (const _ of __dartStreamIterable(stream)) count++;',
+      );
       helper.writeln('  return count;');
       helper.writeln('}');
       helper.writeln('async function __dartStreamIsEmpty(stream) {');
-      helper.writeln('  for await (const _ of stream) return false;');
+      helper.writeln(
+        '  for await (const _ of __dartStreamIterable(stream)) return false;',
+      );
       helper.writeln('  return true;');
       helper.writeln('}');
       helper.writeln('async function __dartStreamAny(stream, test) {');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    if (test(value)) return true;');
       helper.writeln('  }');
       helper.writeln('  return false;');
       helper.writeln('}');
       helper.writeln('async function __dartStreamEvery(stream, test) {');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    if (!test(value)) return false;');
       helper.writeln('  }');
       helper.writeln('  return true;');
@@ -17031,7 +17171,9 @@ final class _EsmEmitter {
       helper.writeln(
         'async function __dartStreamFirstWhere(stream, test, orElse = null) {',
       );
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    if (test(value)) return value;');
       helper.writeln('  }');
       helper.writeln('  if (typeof orElse === "function") return orElse();');
@@ -17042,7 +17184,9 @@ final class _EsmEmitter {
       );
       helper.writeln('  let found = false;');
       helper.writeln('  let last;');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    if (test(value)) {');
       helper.writeln('      found = true;');
       helper.writeln('      last = value;');
@@ -17057,7 +17201,9 @@ final class _EsmEmitter {
       );
       helper.writeln('  let found = false;');
       helper.writeln('  let single;');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    if (!test(value)) continue;');
       helper.writeln(
         '    if (found) throw new Error("Bad state: Too many elements");',
@@ -17070,7 +17216,9 @@ final class _EsmEmitter {
       helper.writeln('  throw new RangeError("No element");');
       helper.writeln('}');
       helper.writeln('async function __dartStreamContains(stream, needle) {');
-      helper.writeln('  for await (const value of stream) {');
+      helper.writeln(
+        '  for await (const value of __dartStreamIterable(stream)) {',
+      );
       helper.writeln('    if (__dartEquals(value, needle)) return true;');
       helper.writeln('  }');
       helper.writeln('  return false;');
@@ -17080,14 +17228,16 @@ final class _EsmEmitter {
       );
       helper.writeln('  const values = [];');
       helper.writeln(
-        '  for await (const value of stream) values.push(__dartStr(value));',
+        '  for await (const value of __dartStreamIterable(stream)) values.push(__dartStr(value));',
       );
       helper.writeln('  return values.join(String(separator));');
       helper.writeln('}');
       helper.writeln(
         'async function __dartStreamDrain(stream, futureValue = null) {',
       );
-      helper.writeln('  for await (const _ of stream) {}');
+      helper.writeln(
+        '  for await (const _ of __dartStreamIterable(stream)) {}',
+      );
       helper.writeln('  return futureValue;');
       helper.writeln('}');
       helper.writeln('async function __dartStreamPipe(stream, consumer) {');
@@ -17095,7 +17245,7 @@ final class _EsmEmitter {
       helper.writeln('    await consumer.addStream(stream);');
       helper.writeln('  } else {');
       helper.writeln(
-        '    for await (const value of stream) consumer.add(value);',
+        '    for await (const value of __dartStreamIterable(stream)) consumer.add(value);',
       );
       helper.writeln('  }');
       helper.writeln(
@@ -17985,6 +18135,7 @@ const _generatedGlobalNames = {
   '__dartStreamDrain',
   '__dartStreamEvery',
   '__dartStreamEventTransformed',
+  '__dartStreamExpand',
   '__dartStreamFirst',
   '__dartStreamFirstWhere',
   '__dartStreamFold',
@@ -17995,6 +18146,7 @@ const _generatedGlobalNames = {
   '__dartStreamFromIterable',
   '__dartStreamHandleError',
   '__dartStreamIsEmpty',
+  '__dartStreamIterable',
   '__dartStreamJoin',
   '__dartStreamLast',
   '__dartStreamLastWhere',

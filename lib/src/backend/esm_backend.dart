@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:kernel/kernel.dart' as k;
 
+import 'runtime_helpers.dart';
+
 EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
   final emitter = _EsmEmitter(component, runMain: runMain);
   return emitter.emit();
@@ -3639,8 +3641,6 @@ final class _EsmEmitter {
         ) &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartBoundSubscriptionStream');
-      _usedHelpers.add('__dartStreamController');
-      _usedHelpers.add('__dartStreamListen');
       return 'Object.freeze({ bind(stream) { return __dartBoundSubscriptionStream(stream, ${positionalArgs.single}); } })';
     }
     if (path.startsWith(
@@ -3648,8 +3648,6 @@ final class _EsmEmitter {
         ) &&
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartBoundSubscriptionStream');
-      _usedHelpers.add('__dartStreamController');
-      _usedHelpers.add('__dartStreamListen');
       return '__dartBoundSubscriptionStream(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     return null;
@@ -5314,59 +5312,55 @@ final class _EsmEmitter {
         name == 'map' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamMap');
       return '__dartStreamMap($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'where' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamWhere');
       return '__dartStreamWhere($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'asyncMap' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamAsyncMap');
       return '__dartStreamAsyncMap($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'asyncExpand' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamAsyncExpand');
       return '__dartStreamAsyncExpand($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'expand' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamExpand');
       return '__dartStreamExpand($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'transform' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
-      _usedHelpers.add('__dartConverterBind');
+      _usedHelpers.add('__dartStreamTransform');
       return '__dartStreamTransform($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'bind' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamTransformerMember(target, name)) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamTransformerBind');
       return '__dartStreamTransformerBind($left, ${positionalArgs.single})';
     }
     if (name == 'asBroadcastStream' &&
         positionalArgs.isEmpty &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamAsBroadcastStream');
       final onListen =
           _namedArgument(expression.arguments, 'onListen') ?? 'null';
       final onCancel =
@@ -5377,15 +5371,14 @@ final class _EsmEmitter {
         name == 'distinct' &&
         positionalArgs.length <= 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartEquals');
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamDistinct');
       final equals = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return '__dartStreamDistinct($left, $equals)';
     }
     if (name == 'handleError' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamHandleError');
       final test = _namedArgument(expression.arguments, 'test') ?? 'null';
       return '__dartStreamHandleError($left, ${positionalArgs.single}, $test)';
     }
@@ -5393,15 +5386,14 @@ final class _EsmEmitter {
         (name == 'take' || name == 'skip') &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
       final helper = name == 'take' ? '__dartStreamTake' : '__dartStreamSkip';
+      _usedHelpers.add(helper);
       return '$helper($left, ${positionalArgs.single})';
     }
     if (name == 'timeout' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamTimeout');
       final onTimeout = _namedArgument(expression.arguments, 'onTimeout');
       return '__dartStreamTimeout($left, ${positionalArgs.single}, ${onTimeout ?? 'null'})';
     }
@@ -5409,10 +5401,10 @@ final class _EsmEmitter {
         (name == 'takeWhile' || name == 'skipWhile') &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
       final helper = name == 'takeWhile'
           ? '__dartStreamTakeWhile'
           : '__dartStreamSkipWhile';
+      _usedHelpers.add(helper);
       return '$helper($left, ${positionalArgs.single})';
     }
     if ((name == 'firstWhere' ||
@@ -5420,13 +5412,13 @@ final class _EsmEmitter {
             name == 'singleWhere') &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
       final helper = switch (name) {
         'firstWhere' => '__dartStreamFirstWhere',
         'lastWhere' => '__dartStreamLastWhere',
         'singleWhere' => '__dartStreamSingleWhere',
         _ => throw StateError('unreachable'),
       };
+      _usedHelpers.add(helper);
       final orElse = _namedArgument(expression.arguments, 'orElse') ?? 'null';
       return '$helper($left, ${positionalArgs.single}, $orElse)';
     }
@@ -5434,7 +5426,7 @@ final class _EsmEmitter {
         name == 'toList' &&
         positionalArgs.isEmpty &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamToList');
       return '__dartStreamToList($left)';
     }
     if (expression.arguments.named.isEmpty &&
@@ -5443,29 +5435,28 @@ final class _EsmEmitter {
         _isAsyncStreamMember(target, name)) {
       _usedHelpers.add('__dartEquals');
       _usedHelpers.add('__dartIterableContains');
-      _usedHelpers.add('__dartSetAdd');
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamToSet');
       return '__dartStreamToSet($left)';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'fold' &&
         positionalArgs.length == 2 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamFold');
       return '__dartStreamFold($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'reduce' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamReduce');
       return '__dartStreamReduce($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'forEach' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamForEach');
       return '__dartStreamForEach($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
@@ -5473,8 +5464,7 @@ final class _EsmEmitter {
         positionalArgs.isEmpty &&
         expression.arguments.types.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartAs');
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamCast');
       final type = expression.arguments.types.single;
       final typeTest = _emitTypeTest('value', type, expression);
       return '__dartStreamCast($left, (value) => $typeTest, ${jsonEncode(type.toString())})';
@@ -5483,24 +5473,22 @@ final class _EsmEmitter {
         (name == 'any' || name == 'every') &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
       final helper = name == 'any' ? '__dartStreamAny' : '__dartStreamEvery';
+      _usedHelpers.add(helper);
       return '$helper($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartEquals');
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamContains');
       return '__dartStreamContains($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'join' &&
         positionalArgs.length <= 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStr');
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamJoin');
       final separator = positionalArgs.isEmpty ? '""' : positionalArgs.single;
       return '__dartStreamJoin($left, $separator)';
     }
@@ -5508,7 +5496,7 @@ final class _EsmEmitter {
         name == 'drain' &&
         positionalArgs.length <= 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamDrain');
       final futureValue = positionalArgs.isEmpty
           ? 'null'
           : positionalArgs.single;
@@ -5518,7 +5506,7 @@ final class _EsmEmitter {
         name == 'pipe' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamPipe');
       return '__dartStreamPipe($left, ${positionalArgs.single})';
     }
     if (name == 'addStream' &&
@@ -5563,7 +5551,7 @@ final class _EsmEmitter {
     if (name == 'listen' &&
         positionalArgs.length == 1 &&
         _isAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamListen');
       final onError = _namedArgument(expression.arguments, 'onError') ?? 'null';
       final onDone = _namedArgument(expression.arguments, 'onDone') ?? 'null';
       final cancelOnError =
@@ -6367,27 +6355,27 @@ final class _EsmEmitter {
     }
     if (name == 'first' &&
         _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamFirst');
       return '__dartStreamFirst($receiver)';
     }
     if (name == 'last' &&
         _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamLast');
       return '__dartStreamLast($receiver)';
     }
     if (name == 'single' &&
         _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamSingle');
       return '__dartStreamSingle($receiver)';
     }
     if (name == 'length' &&
         _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamLength');
       return '__dartStreamLength($receiver)';
     }
     if (name == 'isEmpty' &&
         _isAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamIsEmpty');
       return '__dartStreamIsEmpty($receiver)';
     }
     if (name == 'isBroadcast' &&
@@ -8307,10 +8295,6 @@ final class _EsmEmitter {
     final path = _referencePath(expression.targetReference);
     if (path == 'dart:isolate::ReceivePort::@factories::' &&
         positionalArgs.length <= 1) {
-      _usedHelpers.add('__dartStreamController');
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamListen');
-      _usedHelpers.add('__dartSendPort');
       _usedHelpers.add('__dartReceivePort');
       final debugName = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
       return '__dartReceivePort($debugName)';
@@ -8695,35 +8679,34 @@ final class _EsmEmitter {
     }
     if (path == 'dart:async::Stream::@factories::fromIterable' &&
         positionalArgs.length == 1) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamFromIterable');
       return '__dartStreamFromIterable(${positionalArgs.single})';
     }
     if (path == 'dart:async::Stream::@factories::fromFuture' &&
         positionalArgs.length == 1) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamFromFuture');
       return '__dartStreamFromFuture(${positionalArgs.single})';
     }
     if (path == 'dart:async::Stream::@factories::fromFutures' &&
         positionalArgs.length == 1) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamFromFutures');
       return '__dartStreamFromFutures(${positionalArgs.single})';
     }
     if (path == 'dart:async::Stream::@factories::value' &&
         positionalArgs.length == 1) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamFromIterable');
       return '__dartStreamFromIterable([${positionalArgs.single}])';
     }
     if (path == 'dart:async::Stream::@factories::error' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamError');
       return '__dartStreamError(${positionalArgs.single})';
     }
     if (path == 'dart:async::Stream::@factories::periodic' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamPeriodic');
       final computation = positionalArgs.length == 2
           ? positionalArgs[1]
           : 'null';
@@ -8731,34 +8714,30 @@ final class _EsmEmitter {
     }
     if (path == 'dart:async::Stream::@factories::multi' &&
         positionalArgs.length == 1) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamMulti');
       final isBroadcast =
           _namedArgument(expression.arguments, 'isBroadcast') ?? 'false';
       return '__dartStreamMulti(${positionalArgs.single}, $isBroadcast)';
     }
     if (path == 'dart:async::Stream::@factories::empty') {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamFromIterable');
       final broadcast =
           _namedArgument(expression.arguments, 'broadcast') ?? 'true';
       return '__dartStreamFromIterable([], $broadcast)';
     }
     if (path == 'dart:async::Stream::@factories::eventTransformed' &&
         positionalArgs.length == 2) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamEventTransformed');
       return '__dartStreamEventTransformed(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
     if (path == 'dart:async::StreamTransformer::@factories::fromBind' &&
         positionalArgs.length == 1) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamTransformerFromBind');
       return '__dartStreamTransformerFromBind(${positionalArgs.single})';
     }
     if (path == 'dart:async::StreamTransformer::@factories::fromHandlers' &&
         positionalArgs.isEmpty) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamTransformerFromHandlers');
       final handleData = _namedArgument(expression.arguments, 'handleData');
       final handleError = _namedArgument(expression.arguments, 'handleError');
       final handleDone = _namedArgument(expression.arguments, 'handleDone');
@@ -8825,15 +8804,14 @@ final class _EsmEmitter {
     }
     if (path.startsWith('dart:async::_EmptyStream::@constructors::') &&
         positionalArgs.isEmpty) {
-      _usedHelpers.add('__dartStream');
+      _usedHelpers.add('__dartStreamFromIterable');
       return '__dartStreamFromIterable([], true)';
     }
     if (path.startsWith(
           'dart:async::_StreamHandlerTransformer::@constructors::',
         ) &&
         positionalArgs.length <= 3) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamTransformerFromHandlers');
       final handleData = positionalArgs.isNotEmpty
           ? positionalArgs[0]
           : _namedArgument(arguments, 'handleData');
@@ -8849,8 +8827,7 @@ final class _EsmEmitter {
           'dart:async::_StreamBindTransformer::@constructors::',
         ) &&
         positionalArgs.length == 1) {
-      _usedHelpers.add('__dartStream');
-      _usedHelpers.add('__dartStreamController');
+      _usedHelpers.add('__dartStreamTransformerFromBind');
       return '__dartStreamTransformerFromBind(${positionalArgs.single})';
     }
     if (path.startsWith('dart:convert::Utf8Codec::@constructors::') &&
@@ -11150,8 +11127,13 @@ final class _EsmEmitter {
   }
 
   String _emitHelpers() {
+    _usedHelpers.addAll(resolveEsmRuntimeHelperDependencies(_usedHelpers));
+
     final helper = StringBuffer();
     final usesRecord = _usedHelpers.contains('__dartRecord');
+    final usesStreamRuntime =
+        _usedHelpers.contains('__dartStream') ||
+        _usedHelpers.any(isEsmLegacyStreamRuntimeHelper);
     final usesJson =
         _usedHelpers.contains('__dartJsonCodec') ||
         _usedHelpers.contains('__dartJsonEncoder') ||
@@ -16519,7 +16501,7 @@ final class _EsmEmitter {
       helper.writeln('  };');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartStream')) {
+    if (usesStreamRuntime) {
       helper.writeln(
         'function __dartStreamFromIterable(values, isBroadcast = false) {',
       );

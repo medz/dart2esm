@@ -484,11 +484,6 @@ function __dartStreamFromIterable(values, isBroadcast = false) {
     },
   };
 }
-function __dartStreamFromFuture(future) {
-  return (async function*() {
-    yield await future;
-  })();
-}
 function __dartStreamIterable(stream) {
   if (stream != null && typeof stream[Symbol.asyncIterator] === "function") return stream;
   if (stream == null || typeof stream.listen !== "function") return stream;
@@ -537,53 +532,9 @@ function __dartStreamIterable(stream) {
     },
   };
 }
-function __dartStreamFromFutures(futures) {
-  const controller = __dartStreamController(false);
-  const pending = Array.from(futures);
-  if (pending.length === 0) {
-    controller.close();
-    return controller.stream;
-  }
-  let remaining = pending.length;
-  for (const future of pending) {
-    Promise.resolve(future).then(
-      (value) => controller.add(value),
-      (error) => controller.addError(error),
-    ).finally(() => {
-      remaining--;
-      if (remaining === 0) controller.close();
-    });
-  }
-  return controller.stream;
-}
-function __dartStreamMulti(onListen, isBroadcast = false) {
-  let listened = false;
-  return {
-    isBroadcast,
-    [Symbol.asyncIterator]() {
-      if (!isBroadcast) {
-        if (listened) throw new Error("Bad state: Stream has already been listened to.");
-        listened = true;
-      }
-      const controller = __dartStreamController(false);
-      onListen(controller);
-      return controller.stream[Symbol.asyncIterator]();
-    },
-  };
-}
 function __dartStreamError(error) {
   return (async function*() {
     throw error;
-  })();
-}
-function __dartStreamPeriodic(period, computation = null) {
-  return (async function*() {
-    let tick = 0;
-    while (true) {
-      await new Promise((resolve) => setTimeout(resolve, Math.max(0, period.inMilliseconds)));
-      yield typeof computation === "function" ? computation(tick) : null;
-      tick++;
-    }
   })();
 }
 function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null) {
@@ -657,17 +608,6 @@ function __dartStreamAsyncExpand(stream, convert) {
       const inner = convert(value);
       if (inner == null) continue;
       for await (const expanded of __dartStreamIterable(inner)) yield expanded;
-    }
-  })();
-}
-function __dartStreamExpand(stream, convert) {
-  return (async function*() {
-    for await (const value of __dartStreamIterable(stream)) {
-      const inner = convert(value);
-      if (inner == null) continue;
-      for (const expanded of Array.from(inner)) {
-        yield expanded;
-      }
     }
   })();
 }

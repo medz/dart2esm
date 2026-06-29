@@ -11131,9 +11131,16 @@ final class _EsmEmitter {
 
     final helper = StringBuffer();
     final usesRecord = _usedHelpers.contains('__dartRecord');
-    final usesStreamRuntime =
-        _usedHelpers.contains('__dartStream') ||
-        _usedHelpers.any(isEsmLegacyStreamRuntimeHelper);
+    final usesStreamRuntime = _usedHelpers.any(isEsmLegacyStreamRuntimeHelper);
+
+    bool usesLegacyStreamHelper(String name) => _usedHelpers.contains(name);
+
+    void emitLegacyStreamHelper(String name, void Function() emit) {
+      if (usesLegacyStreamHelper(name)) {
+        emit();
+      }
+    }
+
     final usesJson =
         _usedHelpers.contains('__dartJsonCodec') ||
         _usedHelpers.contains('__dartJsonEncoder') ||
@@ -16502,833 +16509,937 @@ final class _EsmEmitter {
       helper.writeln('}');
     }
     if (usesStreamRuntime) {
-      helper.writeln(
-        'function __dartStreamFromIterable(values, isBroadcast = false) {',
-      );
-      helper.writeln('  let listened = false;');
-      helper.writeln('  return {');
-      helper.writeln('    isBroadcast,');
-      helper.writeln('    [Symbol.asyncIterator]() {');
-      helper.writeln('      if (!isBroadcast) {');
-      helper.writeln(
-        '        if (listened) throw new Error("Bad state: Stream has already been listened to.");',
-      );
-      helper.writeln('        listened = true;');
-      helper.writeln('      }');
-      helper.writeln('      return (async function*() {');
-      helper.writeln('        for (const value of values) yield value;');
-      helper.writeln('      })();');
-      helper.writeln('    },');
-      helper.writeln('  };');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamFromFuture(future) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln('    yield await future;');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamIterable(stream) {');
-      helper.writeln(
-        '  if (stream != null && typeof stream[Symbol.asyncIterator] === "function") return stream;',
-      );
-      helper.writeln(
-        '  if (stream == null || typeof stream.listen !== "function") return stream;',
-      );
-      helper.writeln('  return {');
-      helper.writeln('    [Symbol.asyncIterator]() {');
-      helper.writeln('      const queue = [];');
-      helper.writeln('      const waiters = [];');
-      helper.writeln('      let done = false;');
-      helper.writeln('      let error = null;');
-      helper.writeln('      let subscription = null;');
-      helper.writeln('      function push(record) {');
-      helper.writeln(
-        '        if (waiters.length > 0) waiters.shift()(record);',
-      );
-      helper.writeln('        else queue.push(record);');
-      helper.writeln('      }');
-      helper.writeln('      function finish(doneError = null) {');
-      helper.writeln('        if (done) return;');
-      helper.writeln('        done = true;');
-      helper.writeln('        error = doneError;');
-      helper.writeln('        push({ done: true });');
-      helper.writeln('      }');
-      helper.writeln('      subscription = stream.listen(');
-      helper.writeln('        (value) => push({ value, done: false }),');
-      helper.writeln(
-        '        { onError: (listenError) => finish(listenError), onDone: () => finish(), cancelOnError: true },',
-      );
-      helper.writeln('      );');
-      helper.writeln('      return {');
-      helper.writeln('        async next() {');
-      helper.writeln('          if (queue.length === 0 && done) {');
-      helper.writeln('            if (error != null) throw error;');
-      helper.writeln('            return { done: true };');
-      helper.writeln('          }');
-      helper.writeln(
-        '          const record = queue.length > 0 ? queue.shift() : await new Promise((resolve) => waiters.push(resolve));',
-      );
-      helper.writeln('          if (record.done) {');
-      helper.writeln('            if (error != null) throw error;');
-      helper.writeln('            return { done: true };');
-      helper.writeln('          }');
-      helper.writeln('          return { value: record.value, done: false };');
-      helper.writeln('        },');
-      helper.writeln('        async return() {');
-      helper.writeln('          done = true;');
-      helper.writeln('          queue.length = 0;');
-      helper.writeln(
-        '          while (waiters.length > 0) waiters.shift()({ done: true });',
-      );
-      helper.writeln(
-        '          if (subscription != null && typeof subscription.cancel === "function") await subscription.cancel();',
-      );
-      helper.writeln('          return { done: true };');
-      helper.writeln('        },');
-      helper.writeln('      };');
-      helper.writeln('    },');
-      helper.writeln('  };');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamFromFutures(futures) {');
-      helper.writeln('  const controller = __dartStreamController(false);');
-      helper.writeln('  const pending = Array.from(futures);');
-      helper.writeln('  if (pending.length === 0) {');
-      helper.writeln('    controller.close();');
-      helper.writeln('    return controller.stream;');
-      helper.writeln('  }');
-      helper.writeln('  let remaining = pending.length;');
-      helper.writeln('  for (const future of pending) {');
-      helper.writeln('    Promise.resolve(future).then(');
-      helper.writeln('      (value) => controller.add(value),');
-      helper.writeln('      (error) => controller.addError(error),');
-      helper.writeln('    ).finally(() => {');
-      helper.writeln('      remaining--;');
-      helper.writeln('      if (remaining === 0) controller.close();');
-      helper.writeln('    });');
-      helper.writeln('  }');
-      helper.writeln('  return controller.stream;');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamMulti(onListen, isBroadcast = false) {',
-      );
-      helper.writeln('  let listened = false;');
-      helper.writeln('  return {');
-      helper.writeln('    isBroadcast,');
-      helper.writeln('    [Symbol.asyncIterator]() {');
-      helper.writeln('      if (!isBroadcast) {');
-      helper.writeln(
-        '        if (listened) throw new Error("Bad state: Stream has already been listened to.");',
-      );
-      helper.writeln('        listened = true;');
-      helper.writeln('      }');
-      helper.writeln('      const controller = __dartStreamController(false);');
-      helper.writeln('      onListen(controller);');
-      helper.writeln('      return controller.stream[Symbol.asyncIterator]();');
-      helper.writeln('    },');
-      helper.writeln('  };');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamError(error) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln('    throw error;');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamPeriodic(period, computation = null) {',
-      );
-      helper.writeln('  return (async function*() {');
-      helper.writeln('    let tick = 0;');
-      helper.writeln('    while (true) {');
-      helper.writeln(
-        '      await new Promise((resolve) => setTimeout(resolve, Math.max(0, period.inMilliseconds)));',
-      );
-      helper.writeln(
-        '      yield typeof computation === "function" ? computation(tick) : null;',
-      );
-      helper.writeln('      tick++;');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null) {',
-      );
-      helper.writeln('  const controller = __dartStreamController(true);');
-      helper.writeln('  let started = false;');
-      helper.writeln('  let canceled = false;');
-      helper.writeln('  function makeSubscription() {');
-      helper.writeln('    return {');
-      helper.writeln('      pause() { return null; },');
-      helper.writeln('      resume() { return null; },');
-      helper.writeln(
-        '      cancel() { canceled = true; return controller.close(); },',
-      );
-      helper.writeln('      get isPaused() { return false; },');
-      helper.writeln('    };');
-      helper.writeln('  }');
-      helper.writeln('  async function pump() {');
-      helper.writeln('    try {');
-      helper.writeln(
-        '      for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('        if (canceled) break;');
-      helper.writeln('        controller.add(value);');
-      helper.writeln('      }');
-      helper.writeln('    } catch (error) {');
-      helper.writeln('      if (!canceled) controller.addError(error);');
-      helper.writeln('    } finally {');
-      helper.writeln('      await controller.close();');
-      helper.writeln('    }');
-      helper.writeln('  }');
-      helper.writeln('  return {');
-      helper.writeln('    isBroadcast: true,');
-      helper.writeln('    [Symbol.asyncIterator]() {');
-      helper.writeln('      if (!started) {');
-      helper.writeln('        started = true;');
-      helper.writeln(
-        '        if (typeof onListen === "function") onListen(makeSubscription());',
-      );
-      helper.writeln('        Promise.resolve().then(pump);');
-      helper.writeln('      }');
-      helper.writeln(
-        '      const iterator = controller.stream[Symbol.asyncIterator]();',
-      );
-      helper.writeln('      return {');
-      helper.writeln('        next() { return iterator.next(); },');
-      helper.writeln('        return() {');
-      helper.writeln(
-        '          if (typeof onCancel === "function") onCancel(makeSubscription());',
-      );
-      helper.writeln(
-        '          if (typeof iterator.return === "function") return iterator.return();',
-      );
-      helper.writeln('          return Promise.resolve({ done: true });');
-      helper.writeln('        },');
-      helper.writeln('      };');
-      helper.writeln('    },');
-      helper.writeln('  };');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamMap(stream, convert) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      yield convert(value);');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamWhere(stream, test) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      if (test(value)) yield value;');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamAsyncMap(stream, convert) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      yield await convert(value);');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamAsyncExpand(stream, convert) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      const inner = convert(value);');
-      helper.writeln('      if (inner == null) continue;');
-      helper.writeln(
-        '      for await (const expanded of __dartStreamIterable(inner)) yield expanded;',
-      );
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamExpand(stream, convert) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      const inner = convert(value);');
-      helper.writeln('      if (inner == null) continue;');
-      helper.writeln('      for (const expanded of Array.from(inner)) {');
-      helper.writeln('        yield expanded;');
-      helper.writeln('      }');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamTransformerFromBind(bind) {');
-      helper.writeln('  return { bind };');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamTransformerFromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {',
-      );
-      helper.writeln('  return {');
-      helper.writeln('    bind(stream) {');
-      helper.writeln('      const controller = __dartStreamController(false);');
-      helper.writeln('      const sink = controller.sink;');
-      helper.writeln('      (async () => {');
-      helper.writeln('        let shouldClose = false;');
-      helper.writeln('        try {');
-      helper.writeln(
-        '          const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
-      );
-      helper.writeln('          while (!controller.isClosed) {');
-      helper.writeln('            let next;');
-      helper.writeln('            try {');
-      helper.writeln('              next = await iterator.next();');
-      helper.writeln('            } catch (error) {');
-      helper.writeln('              if (typeof handleError === "function") {');
-      helper.writeln(
-        '                await handleError(error, error?.stack ?? "<javascript stack unavailable>", sink);',
-      );
-      helper.writeln('                continue;');
-      helper.writeln('              }');
-      helper.writeln('              sink.addError(error);');
-      helper.writeln('              continue;');
-      helper.writeln('            }');
-      helper.writeln('            if (next.done) {');
-      helper.writeln('              if (typeof handleDone === "function") {');
-      helper.writeln('                await handleDone(sink);');
-      helper.writeln('              } else {');
-      helper.writeln('                shouldClose = true;');
-      helper.writeln('              }');
-      helper.writeln('              break;');
-      helper.writeln('            }');
-      helper.writeln('            if (typeof handleData === "function") {');
-      helper.writeln('              await handleData(next.value, sink);');
-      helper.writeln('            } else {');
-      helper.writeln('              sink.add(next.value);');
-      helper.writeln('            }');
-      helper.writeln('          }');
-      helper.writeln('        } catch (error) {');
-      helper.writeln(
-        '          if (!controller.isClosed) sink.addError(error);',
-      );
-      helper.writeln('          shouldClose = true;');
-      helper.writeln('        } finally {');
-      helper.writeln(
-        '          if (shouldClose && !controller.isClosed) await controller.close();',
-      );
-      helper.writeln('        }');
-      helper.writeln('      })();');
-      helper.writeln('      return controller.stream;');
-      helper.writeln('    },');
-      helper.writeln('  };');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamTransformerBind(transformer, stream) {',
-      );
-      helper.writeln(
-        '  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);',
-      );
-      helper.writeln(
-        '  if (transformer != null && typeof transformer.convert === "function") return __dartConverterBind(transformer, stream);',
-      );
-      helper.writeln(
-        '  if (typeof transformer === "function") return transformer(stream);',
-      );
-      helper.writeln(
-        '  throw new TypeError("StreamTransformer.bind is not available");',
-      );
-      helper.writeln('}');
-      helper.writeln('function __dartStreamTransform(stream, transformer) {');
-      helper.writeln(
-        '  return __dartStreamTransformerBind(transformer, stream);',
-      );
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamEventTransformed(stream, mapSink) {',
-      );
-      helper.writeln(
-        '  const controller = __dartStreamController(stream?.isBroadcast === true);',
-      );
-      helper.writeln('  const sink = mapSink(controller.sink);');
-      helper.writeln('  (async () => {');
-      helper.writeln('    try {');
-      helper.writeln(
-        '      const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
-      );
-      helper.writeln('      while (!controller.isClosed) {');
-      helper.writeln('        let next;');
-      helper.writeln('        try {');
-      helper.writeln('          next = await iterator.next();');
-      helper.writeln('        } catch (error) {');
-      helper.writeln('          if (typeof sink.addError === "function") {');
-      helper.writeln(
-        '            sink.addError(error, error?.stack ?? "<javascript stack unavailable>");',
-      );
-      helper.writeln('          } else {');
-      helper.writeln('            controller.addError(error);');
-      helper.writeln('          }');
-      helper.writeln('          continue;');
-      helper.writeln('        }');
-      helper.writeln('        if (next.done) break;');
-      helper.writeln('        sink.add(next.value);');
-      helper.writeln('      }');
-      helper.writeln('      if (typeof sink.close === "function") {');
-      helper.writeln('        await sink.close();');
-      helper.writeln('      } else if (!controller.isClosed) {');
-      helper.writeln('        await controller.close();');
-      helper.writeln('      }');
-      helper.writeln('    } catch (error) {');
-      helper.writeln(
-        '      if (!controller.isClosed) controller.addError(error);',
-      );
-      helper.writeln(
-        '      if (!controller.isClosed) await controller.close();',
-      );
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('  return controller.stream;');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamDistinct(stream, equals = null) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln('    let hasPrevious = false;');
-      helper.writeln('    let previous;');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln(
-        '      const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));',
-      );
-      helper.writeln('      if (same) continue;');
-      helper.writeln('      previous = value;');
-      helper.writeln('      hasPrevious = true;');
-      helper.writeln('      yield value;');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamHandleError(stream, onError, test = null) {',
-      );
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
-      );
-      helper.writeln('    while (true) {');
-      helper.writeln('      let next;');
-      helper.writeln('      try {');
-      helper.writeln('        next = await iterator.next();');
-      helper.writeln('        if (next.done) break;');
-      helper.writeln('        yield next.value;');
-      helper.writeln('      } catch (error) {');
-      helper.writeln(
-        '        if (typeof test === "function" && !test(error)) throw error;',
-      );
-      helper.writeln('        if (typeof onError !== "function") continue;');
-      helper.writeln(
-        '        const result = onError.length >= 2 ? onError(error, error?.stack ?? "<javascript stack unavailable>") : onError(error);',
-      );
-      helper.writeln('        await result;');
-      helper.writeln('      }');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamTake(stream, count) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
-      helper.writeln('    if (remaining === 0) return;');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      yield value;');
-      helper.writeln('      remaining--;');
-      helper.writeln('      if (remaining === 0) break;');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamSkip(stream, count) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      if (remaining > 0) {');
-      helper.writeln('        remaining--;');
-      helper.writeln('        continue;');
-      helper.writeln('      }');
-      helper.writeln('      yield value;');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamTimeout(stream, duration, onTimeout = null) {',
-      );
-      helper.writeln('  const controller = __dartStreamController(false);');
-      helper.writeln(
-        '  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);',
-      );
-      helper.writeln(
-        '  const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
-      );
-      helper.writeln('  let pendingNext = null;');
-      helper.writeln('  function nextEvent() {');
-      helper.writeln(
-        '    pendingNext ??= Promise.resolve(iterator.next()).then((next) => ({ next }), (error) => ({ error }));',
-      );
-      helper.writeln('    return pendingNext;');
-      helper.writeln('  }');
-      helper.writeln('  function timeoutEvent() {');
-      helper.writeln(
-        '    return new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), delay));',
-      );
-      helper.writeln('  }');
-      helper.writeln('  (async () => {');
-      helper.writeln('    try {');
-      helper.writeln('      while (!controller.isClosed) {');
-      helper.writeln(
-        '        const result = await Promise.race([nextEvent(), timeoutEvent()]);',
-      );
-      helper.writeln('        if (result.timeout) {');
-      helper.writeln('          if (typeof onTimeout === "function") {');
-      helper.writeln('            onTimeout(controller.sink);');
-      helper.writeln('          } else {');
-      helper.writeln(
-        '            controller.addError(new Error("TimeoutException: Stream timeout"));',
-      );
-      helper.writeln('          }');
-      helper.writeln('          continue;');
-      helper.writeln('        }');
-      helper.writeln('        pendingNext = null;');
-      helper.writeln('        if ("error" in result) {');
-      helper.writeln('          controller.addError(result.error);');
-      helper.writeln('          continue;');
-      helper.writeln('        }');
-      helper.writeln('        if (result.next.done) break;');
-      helper.writeln('        controller.add(result.next.value);');
-      helper.writeln('      }');
-      helper.writeln('    } finally {');
-      helper.writeln('      if (typeof iterator.return === "function") {');
-      helper.writeln('        try { await iterator.return(); } catch (_) {}');
-      helper.writeln('      }');
-      helper.writeln('      await controller.close();');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('  return controller.stream;');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamTakeWhile(stream, test) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      if (!test(value)) break;');
-      helper.writeln('      yield value;');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamSkipWhile(stream, test) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln('    let skipping = true;');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      if (skipping && test(value)) continue;');
-      helper.writeln('      skipping = false;');
-      helper.writeln('      yield value;');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamToList(stream) {');
-      helper.writeln('  const values = [];');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) values.push(value);',
-      );
-      helper.writeln('  return values;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamToSet(stream) {');
-      helper.writeln('  const values = new Set();');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    __dartSetAdd(values, value);');
-      helper.writeln('  }');
-      helper.writeln('  return values;');
-      helper.writeln('}');
-      helper.writeln(
-        'async function __dartStreamFold(stream, initialValue, combine) {',
-      );
-      helper.writeln('  let result = initialValue;');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    result = await combine(result, value);');
-      helper.writeln('  }');
-      helper.writeln('  return result;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamReduce(stream, combine) {');
-      helper.writeln('  let found = false;');
-      helper.writeln('  let result;');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    if (!found) {');
-      helper.writeln('      found = true;');
-      helper.writeln('      result = value;');
-      helper.writeln('    } else {');
-      helper.writeln('      result = await combine(result, value);');
-      helper.writeln('    }');
-      helper.writeln('  }');
-      helper.writeln('  if (!found) throw new RangeError("No element");');
-      helper.writeln('  return result;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamForEach(stream, action) {');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) await action(value);',
-      );
-      helper.writeln('  return null;');
-      helper.writeln('}');
-      helper.writeln('function __dartStreamCast(stream, test, typeName) {');
-      helper.writeln('  return (async function*() {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('      yield __dartAs(value, test, typeName);');
-      helper.writeln('    }');
-      helper.writeln('  })();');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamFirst(stream) {');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) return value;',
-      );
-      helper.writeln('  throw new RangeError("No element");');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamLast(stream) {');
-      helper.writeln('  let found = false;');
-      helper.writeln('  let last;');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    found = true;');
-      helper.writeln('    last = value;');
-      helper.writeln('  }');
-      helper.writeln('  if (!found) throw new RangeError("No element");');
-      helper.writeln('  return last;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamSingle(stream) {');
-      helper.writeln('  let found = false;');
-      helper.writeln('  let single;');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln(
-        '    if (found) throw new Error("Bad state: Too many elements");',
-      );
-      helper.writeln('    found = true;');
-      helper.writeln('    single = value;');
-      helper.writeln('  }');
-      helper.writeln('  if (!found) throw new RangeError("No element");');
-      helper.writeln('  return single;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamLength(stream) {');
-      helper.writeln('  let count = 0;');
-      helper.writeln(
-        '  for await (const _ of __dartStreamIterable(stream)) count++;',
-      );
-      helper.writeln('  return count;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamIsEmpty(stream) {');
-      helper.writeln(
-        '  for await (const _ of __dartStreamIterable(stream)) return false;',
-      );
-      helper.writeln('  return true;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamAny(stream, test) {');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    if (test(value)) return true;');
-      helper.writeln('  }');
-      helper.writeln('  return false;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamEvery(stream, test) {');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    if (!test(value)) return false;');
-      helper.writeln('  }');
-      helper.writeln('  return true;');
-      helper.writeln('}');
-      helper.writeln(
-        'async function __dartStreamFirstWhere(stream, test, orElse = null) {',
-      );
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    if (test(value)) return value;');
-      helper.writeln('  }');
-      helper.writeln('  if (typeof orElse === "function") return orElse();');
-      helper.writeln('  throw new RangeError("No element");');
-      helper.writeln('}');
-      helper.writeln(
-        'async function __dartStreamLastWhere(stream, test, orElse = null) {',
-      );
-      helper.writeln('  let found = false;');
-      helper.writeln('  let last;');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    if (test(value)) {');
-      helper.writeln('      found = true;');
-      helper.writeln('      last = value;');
-      helper.writeln('    }');
-      helper.writeln('  }');
-      helper.writeln('  if (found) return last;');
-      helper.writeln('  if (typeof orElse === "function") return orElse();');
-      helper.writeln('  throw new RangeError("No element");');
-      helper.writeln('}');
-      helper.writeln(
-        'async function __dartStreamSingleWhere(stream, test, orElse = null) {',
-      );
-      helper.writeln('  let found = false;');
-      helper.writeln('  let single;');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    if (!test(value)) continue;');
-      helper.writeln(
-        '    if (found) throw new Error("Bad state: Too many elements");',
-      );
-      helper.writeln('    found = true;');
-      helper.writeln('    single = value;');
-      helper.writeln('  }');
-      helper.writeln('  if (found) return single;');
-      helper.writeln('  if (typeof orElse === "function") return orElse();');
-      helper.writeln('  throw new RangeError("No element");');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamContains(stream, needle) {');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) {',
-      );
-      helper.writeln('    if (__dartEquals(value, needle)) return true;');
-      helper.writeln('  }');
-      helper.writeln('  return false;');
-      helper.writeln('}');
-      helper.writeln(
-        'async function __dartStreamJoin(stream, separator = "") {',
-      );
-      helper.writeln('  const values = [];');
-      helper.writeln(
-        '  for await (const value of __dartStreamIterable(stream)) values.push(__dartStr(value));',
-      );
-      helper.writeln('  return values.join(String(separator));');
-      helper.writeln('}');
-      helper.writeln(
-        'async function __dartStreamDrain(stream, futureValue = null) {',
-      );
-      helper.writeln(
-        '  for await (const _ of __dartStreamIterable(stream)) {}',
-      );
-      helper.writeln('  return futureValue;');
-      helper.writeln('}');
-      helper.writeln('async function __dartStreamPipe(stream, consumer) {');
-      helper.writeln('  if (typeof consumer.addStream === "function") {');
-      helper.writeln('    await consumer.addStream(stream);');
-      helper.writeln('  } else {');
-      helper.writeln(
-        '    for await (const value of __dartStreamIterable(stream)) consumer.add(value);',
-      );
-      helper.writeln('  }');
-      helper.writeln(
-        '  return typeof consumer.close === "function" ? await consumer.close() : null;',
-      );
-      helper.writeln('}');
-      helper.writeln(
-        'function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {',
-      );
-      helper.writeln(
-        '  if (stream != null && typeof stream.listen === "function" && typeof stream[Symbol.asyncIterator] !== "function") {',
-      );
-      helper.writeln(
-        '    return stream.listen(onData, { onError, onDone, cancelOnError });',
-      );
-      helper.writeln('  }');
-      helper.writeln(
-        '  const iteratorFactory = stream?.[Symbol.asyncIterator];',
-      );
-      helper.writeln(
-        '  if (typeof iteratorFactory !== "function") throw new TypeError("Object is not a Stream");',
-      );
-      helper.writeln('  const iterator = iteratorFactory.call(stream);');
-      helper.writeln('  let canceled = false;');
-      helper.writeln('  let paused = false;');
-      helper.writeln('  let resumeWaiter = null;');
-      helper.writeln('  function waitWhilePaused() {');
-      helper.writeln('    if (!paused) return Promise.resolve();');
-      helper.writeln(
-        '    return new Promise((resolve) => { resumeWaiter = resolve; });',
-      );
-      helper.writeln('  }');
-      helper.writeln('  const done = (async () => {');
-      helper.writeln('      while (!canceled) {');
-      helper.writeln('        await waitWhilePaused();');
-      helper.writeln('        if (canceled) break;');
-      helper.writeln('        let next;');
-      helper.writeln('        try {');
-      helper.writeln('          next = await iterator.next();');
-      helper.writeln('        } catch (error) {');
-      helper.writeln(
-        '          if (typeof onError === "function") onError(error);',
-      );
-      helper.writeln('          else throw error;');
-      helper.writeln('          if (cancelOnError) break;');
-      helper.writeln('          continue;');
-      helper.writeln('        }');
-      helper.writeln('        if (next.done) break;');
-      helper.writeln(
-        '        if (typeof onData === "function") onData(next.value);',
-      );
-      helper.writeln('      }');
-      helper.writeln(
-        '      if (!canceled && typeof onDone === "function") onDone();',
-      );
-      helper.writeln('    return null;');
-      helper.writeln('  })();');
-      helper.writeln('  return {');
-      helper.writeln('    get isPaused() { return paused; },');
-      helper.writeln('    pause(resumeSignal = null) {');
-      helper.writeln('      if (!paused) {');
-      helper.writeln('        paused = true;');
-      helper.writeln(
-        '        if (typeof stream._onPause === "function") stream._onPause();',
-      );
-      helper.writeln('      }');
-      helper.writeln(
-        '      if (resumeSignal != null) Promise.resolve(resumeSignal).then(() => this.resume());',
-      );
-      helper.writeln('      return null;');
-      helper.writeln('    },');
-      helper.writeln('    resume() {');
-      helper.writeln('      if (!paused) return null;');
-      helper.writeln('      paused = false;');
-      helper.writeln(
-        '      if (typeof stream._onResume === "function") stream._onResume();',
-      );
-      helper.writeln('      if (resumeWaiter != null) {');
-      helper.writeln('        const resolve = resumeWaiter;');
-      helper.writeln('        resumeWaiter = null;');
-      helper.writeln('        resolve();');
-      helper.writeln('      }');
-      helper.writeln('      return null;');
-      helper.writeln('    },');
-      helper.writeln(
-        '    onData(handleData) { onData = handleData; return null; },',
-      );
-      helper.writeln(
-        '    onError(handleError) { onError = handleError; return null; },',
-      );
-      helper.writeln(
-        '    onDone(handleDone) { onDone = handleDone; return null; },',
-      );
-      helper.writeln(
-        '    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },',
-      );
-      helper.writeln(
-        '    asFuture(value = null) { return done.then(() => value); },',
-      );
-      helper.writeln('  };');
-      helper.writeln('}');
+      emitLegacyStreamHelper('__dartStreamFromIterable', () {
+        helper.writeln(
+          'function __dartStreamFromIterable(values, isBroadcast = false) {',
+        );
+        helper.writeln('  let listened = false;');
+        helper.writeln('  return {');
+        helper.writeln('    isBroadcast,');
+        helper.writeln('    [Symbol.asyncIterator]() {');
+        helper.writeln('      if (!isBroadcast) {');
+        helper.writeln(
+          '        if (listened) throw new Error("Bad state: Stream has already been listened to.");',
+        );
+        helper.writeln('        listened = true;');
+        helper.writeln('      }');
+        helper.writeln('      return (async function*() {');
+        helper.writeln('        for (const value of values) yield value;');
+        helper.writeln('      })();');
+        helper.writeln('    },');
+        helper.writeln('  };');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamFromFuture', () {
+        helper.writeln('function __dartStreamFromFuture(future) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln('    yield await future;');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamIterable', () {
+        helper.writeln('function __dartStreamIterable(stream) {');
+        helper.writeln(
+          '  if (stream != null && typeof stream[Symbol.asyncIterator] === "function") return stream;',
+        );
+        helper.writeln(
+          '  if (stream == null || typeof stream.listen !== "function") return stream;',
+        );
+        helper.writeln('  return {');
+        helper.writeln('    [Symbol.asyncIterator]() {');
+        helper.writeln('      const queue = [];');
+        helper.writeln('      const waiters = [];');
+        helper.writeln('      let done = false;');
+        helper.writeln('      let error = null;');
+        helper.writeln('      let subscription = null;');
+        helper.writeln('      function push(record) {');
+        helper.writeln(
+          '        if (waiters.length > 0) waiters.shift()(record);',
+        );
+        helper.writeln('        else queue.push(record);');
+        helper.writeln('      }');
+        helper.writeln('      function finish(doneError = null) {');
+        helper.writeln('        if (done) return;');
+        helper.writeln('        done = true;');
+        helper.writeln('        error = doneError;');
+        helper.writeln('        push({ done: true });');
+        helper.writeln('      }');
+        helper.writeln('      subscription = stream.listen(');
+        helper.writeln('        (value) => push({ value, done: false }),');
+        helper.writeln(
+          '        { onError: (listenError) => finish(listenError), onDone: () => finish(), cancelOnError: true },',
+        );
+        helper.writeln('      );');
+        helper.writeln('      return {');
+        helper.writeln('        async next() {');
+        helper.writeln('          if (queue.length === 0 && done) {');
+        helper.writeln('            if (error != null) throw error;');
+        helper.writeln('            return { done: true };');
+        helper.writeln('          }');
+        helper.writeln(
+          '          const record = queue.length > 0 ? queue.shift() : await new Promise((resolve) => waiters.push(resolve));',
+        );
+        helper.writeln('          if (record.done) {');
+        helper.writeln('            if (error != null) throw error;');
+        helper.writeln('            return { done: true };');
+        helper.writeln('          }');
+        helper.writeln(
+          '          return { value: record.value, done: false };',
+        );
+        helper.writeln('        },');
+        helper.writeln('        async return() {');
+        helper.writeln('          done = true;');
+        helper.writeln('          queue.length = 0;');
+        helper.writeln(
+          '          while (waiters.length > 0) waiters.shift()({ done: true });',
+        );
+        helper.writeln(
+          '          if (subscription != null && typeof subscription.cancel === "function") await subscription.cancel();',
+        );
+        helper.writeln('          return { done: true };');
+        helper.writeln('        },');
+        helper.writeln('      };');
+        helper.writeln('    },');
+        helper.writeln('  };');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamFromFutures', () {
+        helper.writeln('function __dartStreamFromFutures(futures) {');
+        helper.writeln('  const controller = __dartStreamController(false);');
+        helper.writeln('  const pending = Array.from(futures);');
+        helper.writeln('  if (pending.length === 0) {');
+        helper.writeln('    controller.close();');
+        helper.writeln('    return controller.stream;');
+        helper.writeln('  }');
+        helper.writeln('  let remaining = pending.length;');
+        helper.writeln('  for (const future of pending) {');
+        helper.writeln('    Promise.resolve(future).then(');
+        helper.writeln('      (value) => controller.add(value),');
+        helper.writeln('      (error) => controller.addError(error),');
+        helper.writeln('    ).finally(() => {');
+        helper.writeln('      remaining--;');
+        helper.writeln('      if (remaining === 0) controller.close();');
+        helper.writeln('    });');
+        helper.writeln('  }');
+        helper.writeln('  return controller.stream;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamMulti', () {
+        helper.writeln(
+          'function __dartStreamMulti(onListen, isBroadcast = false) {',
+        );
+        helper.writeln('  let listened = false;');
+        helper.writeln('  return {');
+        helper.writeln('    isBroadcast,');
+        helper.writeln('    [Symbol.asyncIterator]() {');
+        helper.writeln('      if (!isBroadcast) {');
+        helper.writeln(
+          '        if (listened) throw new Error("Bad state: Stream has already been listened to.");',
+        );
+        helper.writeln('        listened = true;');
+        helper.writeln('      }');
+        helper.writeln(
+          '      const controller = __dartStreamController(false);',
+        );
+        helper.writeln('      onListen(controller);');
+        helper.writeln(
+          '      return controller.stream[Symbol.asyncIterator]();',
+        );
+        helper.writeln('    },');
+        helper.writeln('  };');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamError', () {
+        helper.writeln('function __dartStreamError(error) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln('    throw error;');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamPeriodic', () {
+        helper.writeln(
+          'function __dartStreamPeriodic(period, computation = null) {',
+        );
+        helper.writeln('  return (async function*() {');
+        helper.writeln('    let tick = 0;');
+        helper.writeln('    while (true) {');
+        helper.writeln(
+          '      await new Promise((resolve) => setTimeout(resolve, Math.max(0, period.inMilliseconds)));',
+        );
+        helper.writeln(
+          '      yield typeof computation === "function" ? computation(tick) : null;',
+        );
+        helper.writeln('      tick++;');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamAsBroadcastStream', () {
+        helper.writeln(
+          'function __dartStreamAsBroadcastStream(stream, onListen = null, onCancel = null) {',
+        );
+        helper.writeln('  const controller = __dartStreamController(true);');
+        helper.writeln('  let started = false;');
+        helper.writeln('  let canceled = false;');
+        helper.writeln('  function makeSubscription() {');
+        helper.writeln('    return {');
+        helper.writeln('      pause() { return null; },');
+        helper.writeln('      resume() { return null; },');
+        helper.writeln(
+          '      cancel() { canceled = true; return controller.close(); },',
+        );
+        helper.writeln('      get isPaused() { return false; },');
+        helper.writeln('    };');
+        helper.writeln('  }');
+        helper.writeln('  async function pump() {');
+        helper.writeln('    try {');
+        helper.writeln(
+          '      for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('        if (canceled) break;');
+        helper.writeln('        controller.add(value);');
+        helper.writeln('      }');
+        helper.writeln('    } catch (error) {');
+        helper.writeln('      if (!canceled) controller.addError(error);');
+        helper.writeln('    } finally {');
+        helper.writeln('      await controller.close();');
+        helper.writeln('    }');
+        helper.writeln('  }');
+        helper.writeln('  return {');
+        helper.writeln('    isBroadcast: true,');
+        helper.writeln('    [Symbol.asyncIterator]() {');
+        helper.writeln('      if (!started) {');
+        helper.writeln('        started = true;');
+        helper.writeln(
+          '        if (typeof onListen === "function") onListen(makeSubscription());',
+        );
+        helper.writeln('        Promise.resolve().then(pump);');
+        helper.writeln('      }');
+        helper.writeln(
+          '      const iterator = controller.stream[Symbol.asyncIterator]();',
+        );
+        helper.writeln('      return {');
+        helper.writeln('        next() { return iterator.next(); },');
+        helper.writeln('        return() {');
+        helper.writeln(
+          '          if (typeof onCancel === "function") onCancel(makeSubscription());',
+        );
+        helper.writeln(
+          '          if (typeof iterator.return === "function") return iterator.return();',
+        );
+        helper.writeln('          return Promise.resolve({ done: true });');
+        helper.writeln('        },');
+        helper.writeln('      };');
+        helper.writeln('    },');
+        helper.writeln('  };');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamMap', () {
+        helper.writeln('function __dartStreamMap(stream, convert) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      yield convert(value);');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamWhere', () {
+        helper.writeln('function __dartStreamWhere(stream, test) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      if (test(value)) yield value;');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamAsyncMap', () {
+        helper.writeln('function __dartStreamAsyncMap(stream, convert) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      yield await convert(value);');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamAsyncExpand', () {
+        helper.writeln('function __dartStreamAsyncExpand(stream, convert) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      const inner = convert(value);');
+        helper.writeln('      if (inner == null) continue;');
+        helper.writeln(
+          '      for await (const expanded of __dartStreamIterable(inner)) yield expanded;',
+        );
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamExpand', () {
+        helper.writeln('function __dartStreamExpand(stream, convert) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      const inner = convert(value);');
+        helper.writeln('      if (inner == null) continue;');
+        helper.writeln('      for (const expanded of Array.from(inner)) {');
+        helper.writeln('        yield expanded;');
+        helper.writeln('      }');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamTransformerFromBind', () {
+        helper.writeln('function __dartStreamTransformerFromBind(bind) {');
+        helper.writeln('  return { bind };');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamTransformerFromHandlers', () {
+        helper.writeln(
+          'function __dartStreamTransformerFromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {',
+        );
+        helper.writeln('  return {');
+        helper.writeln('    bind(stream) {');
+        helper.writeln(
+          '      const controller = __dartStreamController(false);',
+        );
+        helper.writeln('      const sink = controller.sink;');
+        helper.writeln('      (async () => {');
+        helper.writeln('        let shouldClose = false;');
+        helper.writeln('        try {');
+        helper.writeln(
+          '          const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
+        );
+        helper.writeln('          while (!controller.isClosed) {');
+        helper.writeln('            let next;');
+        helper.writeln('            try {');
+        helper.writeln('              next = await iterator.next();');
+        helper.writeln('            } catch (error) {');
+        helper.writeln(
+          '              if (typeof handleError === "function") {',
+        );
+        helper.writeln(
+          '                await handleError(error, error?.stack ?? "<javascript stack unavailable>", sink);',
+        );
+        helper.writeln('                continue;');
+        helper.writeln('              }');
+        helper.writeln('              sink.addError(error);');
+        helper.writeln('              continue;');
+        helper.writeln('            }');
+        helper.writeln('            if (next.done) {');
+        helper.writeln('              if (typeof handleDone === "function") {');
+        helper.writeln('                await handleDone(sink);');
+        helper.writeln('              } else {');
+        helper.writeln('                shouldClose = true;');
+        helper.writeln('              }');
+        helper.writeln('              break;');
+        helper.writeln('            }');
+        helper.writeln('            if (typeof handleData === "function") {');
+        helper.writeln('              await handleData(next.value, sink);');
+        helper.writeln('            } else {');
+        helper.writeln('              sink.add(next.value);');
+        helper.writeln('            }');
+        helper.writeln('          }');
+        helper.writeln('        } catch (error) {');
+        helper.writeln(
+          '          if (!controller.isClosed) sink.addError(error);',
+        );
+        helper.writeln('          shouldClose = true;');
+        helper.writeln('        } finally {');
+        helper.writeln(
+          '          if (shouldClose && !controller.isClosed) await controller.close();',
+        );
+        helper.writeln('        }');
+        helper.writeln('      })();');
+        helper.writeln('      return controller.stream;');
+        helper.writeln('    },');
+        helper.writeln('  };');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamTransformerBind', () {
+        helper.writeln(
+          'function __dartStreamTransformerBind(transformer, stream) {',
+        );
+        helper.writeln(
+          '  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);',
+        );
+        helper.writeln(
+          '  if (transformer != null && typeof transformer.convert === "function") return __dartConverterBind(transformer, stream);',
+        );
+        helper.writeln(
+          '  if (typeof transformer === "function") return transformer(stream);',
+        );
+        helper.writeln(
+          '  throw new TypeError("StreamTransformer.bind is not available");',
+        );
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamTransform', () {
+        helper.writeln('function __dartStreamTransform(stream, transformer) {');
+        helper.writeln(
+          '  return __dartStreamTransformerBind(transformer, stream);',
+        );
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamEventTransformed', () {
+        helper.writeln(
+          'function __dartStreamEventTransformed(stream, mapSink) {',
+        );
+        helper.writeln(
+          '  const controller = __dartStreamController(stream?.isBroadcast === true);',
+        );
+        helper.writeln('  const sink = mapSink(controller.sink);');
+        helper.writeln('  (async () => {');
+        helper.writeln('    try {');
+        helper.writeln(
+          '      const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
+        );
+        helper.writeln('      while (!controller.isClosed) {');
+        helper.writeln('        let next;');
+        helper.writeln('        try {');
+        helper.writeln('          next = await iterator.next();');
+        helper.writeln('        } catch (error) {');
+        helper.writeln('          if (typeof sink.addError === "function") {');
+        helper.writeln(
+          '            sink.addError(error, error?.stack ?? "<javascript stack unavailable>");',
+        );
+        helper.writeln('          } else {');
+        helper.writeln('            controller.addError(error);');
+        helper.writeln('          }');
+        helper.writeln('          continue;');
+        helper.writeln('        }');
+        helper.writeln('        if (next.done) break;');
+        helper.writeln('        sink.add(next.value);');
+        helper.writeln('      }');
+        helper.writeln('      if (typeof sink.close === "function") {');
+        helper.writeln('        await sink.close();');
+        helper.writeln('      } else if (!controller.isClosed) {');
+        helper.writeln('        await controller.close();');
+        helper.writeln('      }');
+        helper.writeln('    } catch (error) {');
+        helper.writeln(
+          '      if (!controller.isClosed) controller.addError(error);',
+        );
+        helper.writeln(
+          '      if (!controller.isClosed) await controller.close();',
+        );
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('  return controller.stream;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamDistinct', () {
+        helper.writeln(
+          'function __dartStreamDistinct(stream, equals = null) {',
+        );
+        helper.writeln('  return (async function*() {');
+        helper.writeln('    let hasPrevious = false;');
+        helper.writeln('    let previous;');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln(
+          '      const same = hasPrevious && (typeof equals === "function" ? equals(previous, value) : __dartEquals(previous, value));',
+        );
+        helper.writeln('      if (same) continue;');
+        helper.writeln('      previous = value;');
+        helper.writeln('      hasPrevious = true;');
+        helper.writeln('      yield value;');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamHandleError', () {
+        helper.writeln(
+          'function __dartStreamHandleError(stream, onError, test = null) {',
+        );
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
+        );
+        helper.writeln('    while (true) {');
+        helper.writeln('      let next;');
+        helper.writeln('      try {');
+        helper.writeln('        next = await iterator.next();');
+        helper.writeln('        if (next.done) break;');
+        helper.writeln('        yield next.value;');
+        helper.writeln('      } catch (error) {');
+        helper.writeln(
+          '        if (typeof test === "function" && !test(error)) throw error;',
+        );
+        helper.writeln('        if (typeof onError !== "function") continue;');
+        helper.writeln(
+          '        const result = onError.length >= 2 ? onError(error, error?.stack ?? "<javascript stack unavailable>") : onError(error);',
+        );
+        helper.writeln('        await result;');
+        helper.writeln('      }');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamTake', () {
+        helper.writeln('function __dartStreamTake(stream, count) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
+        helper.writeln('    if (remaining === 0) return;');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      yield value;');
+        helper.writeln('      remaining--;');
+        helper.writeln('      if (remaining === 0) break;');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamSkip', () {
+        helper.writeln('function __dartStreamSkip(stream, count) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln('    let remaining = Math.max(0, Math.trunc(count));');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      if (remaining > 0) {');
+        helper.writeln('        remaining--;');
+        helper.writeln('        continue;');
+        helper.writeln('      }');
+        helper.writeln('      yield value;');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamTimeout', () {
+        helper.writeln(
+          'function __dartStreamTimeout(stream, duration, onTimeout = null) {',
+        );
+        helper.writeln('  const controller = __dartStreamController(false);');
+        helper.writeln(
+          '  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);',
+        );
+        helper.writeln(
+          '  const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();',
+        );
+        helper.writeln('  let pendingNext = null;');
+        helper.writeln('  function nextEvent() {');
+        helper.writeln(
+          '    pendingNext ??= Promise.resolve(iterator.next()).then((next) => ({ next }), (error) => ({ error }));',
+        );
+        helper.writeln('    return pendingNext;');
+        helper.writeln('  }');
+        helper.writeln('  function timeoutEvent() {');
+        helper.writeln(
+          '    return new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), delay));',
+        );
+        helper.writeln('  }');
+        helper.writeln('  (async () => {');
+        helper.writeln('    try {');
+        helper.writeln('      while (!controller.isClosed) {');
+        helper.writeln(
+          '        const result = await Promise.race([nextEvent(), timeoutEvent()]);',
+        );
+        helper.writeln('        if (result.timeout) {');
+        helper.writeln('          if (typeof onTimeout === "function") {');
+        helper.writeln('            onTimeout(controller.sink);');
+        helper.writeln('          } else {');
+        helper.writeln(
+          '            controller.addError(new Error("TimeoutException: Stream timeout"));',
+        );
+        helper.writeln('          }');
+        helper.writeln('          continue;');
+        helper.writeln('        }');
+        helper.writeln('        pendingNext = null;');
+        helper.writeln('        if ("error" in result) {');
+        helper.writeln('          controller.addError(result.error);');
+        helper.writeln('          continue;');
+        helper.writeln('        }');
+        helper.writeln('        if (result.next.done) break;');
+        helper.writeln('        controller.add(result.next.value);');
+        helper.writeln('      }');
+        helper.writeln('    } finally {');
+        helper.writeln('      if (typeof iterator.return === "function") {');
+        helper.writeln('        try { await iterator.return(); } catch (_) {}');
+        helper.writeln('      }');
+        helper.writeln('      await controller.close();');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('  return controller.stream;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamTakeWhile', () {
+        helper.writeln('function __dartStreamTakeWhile(stream, test) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      if (!test(value)) break;');
+        helper.writeln('      yield value;');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamSkipWhile', () {
+        helper.writeln('function __dartStreamSkipWhile(stream, test) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln('    let skipping = true;');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      if (skipping && test(value)) continue;');
+        helper.writeln('      skipping = false;');
+        helper.writeln('      yield value;');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamToList', () {
+        helper.writeln('async function __dartStreamToList(stream) {');
+        helper.writeln('  const values = [];');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) values.push(value);',
+        );
+        helper.writeln('  return values;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamToSet', () {
+        helper.writeln('async function __dartStreamToSet(stream) {');
+        helper.writeln('  const values = new Set();');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    __dartSetAdd(values, value);');
+        helper.writeln('  }');
+        helper.writeln('  return values;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamFold', () {
+        helper.writeln(
+          'async function __dartStreamFold(stream, initialValue, combine) {',
+        );
+        helper.writeln('  let result = initialValue;');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    result = await combine(result, value);');
+        helper.writeln('  }');
+        helper.writeln('  return result;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamReduce', () {
+        helper.writeln('async function __dartStreamReduce(stream, combine) {');
+        helper.writeln('  let found = false;');
+        helper.writeln('  let result;');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    if (!found) {');
+        helper.writeln('      found = true;');
+        helper.writeln('      result = value;');
+        helper.writeln('    } else {');
+        helper.writeln('      result = await combine(result, value);');
+        helper.writeln('    }');
+        helper.writeln('  }');
+        helper.writeln('  if (!found) throw new RangeError("No element");');
+        helper.writeln('  return result;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamForEach', () {
+        helper.writeln('async function __dartStreamForEach(stream, action) {');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) await action(value);',
+        );
+        helper.writeln('  return null;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamCast', () {
+        helper.writeln('function __dartStreamCast(stream, test, typeName) {');
+        helper.writeln('  return (async function*() {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('      yield __dartAs(value, test, typeName);');
+        helper.writeln('    }');
+        helper.writeln('  })();');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamFirst', () {
+        helper.writeln('async function __dartStreamFirst(stream) {');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) return value;',
+        );
+        helper.writeln('  throw new RangeError("No element");');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamLast', () {
+        helper.writeln('async function __dartStreamLast(stream) {');
+        helper.writeln('  let found = false;');
+        helper.writeln('  let last;');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    found = true;');
+        helper.writeln('    last = value;');
+        helper.writeln('  }');
+        helper.writeln('  if (!found) throw new RangeError("No element");');
+        helper.writeln('  return last;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamSingle', () {
+        helper.writeln('async function __dartStreamSingle(stream) {');
+        helper.writeln('  let found = false;');
+        helper.writeln('  let single;');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln(
+          '    if (found) throw new Error("Bad state: Too many elements");',
+        );
+        helper.writeln('    found = true;');
+        helper.writeln('    single = value;');
+        helper.writeln('  }');
+        helper.writeln('  if (!found) throw new RangeError("No element");');
+        helper.writeln('  return single;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamLength', () {
+        helper.writeln('async function __dartStreamLength(stream) {');
+        helper.writeln('  let count = 0;');
+        helper.writeln(
+          '  for await (const _ of __dartStreamIterable(stream)) count++;',
+        );
+        helper.writeln('  return count;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamIsEmpty', () {
+        helper.writeln('async function __dartStreamIsEmpty(stream) {');
+        helper.writeln(
+          '  for await (const _ of __dartStreamIterable(stream)) return false;',
+        );
+        helper.writeln('  return true;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamAny', () {
+        helper.writeln('async function __dartStreamAny(stream, test) {');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    if (test(value)) return true;');
+        helper.writeln('  }');
+        helper.writeln('  return false;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamEvery', () {
+        helper.writeln('async function __dartStreamEvery(stream, test) {');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    if (!test(value)) return false;');
+        helper.writeln('  }');
+        helper.writeln('  return true;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamFirstWhere', () {
+        helper.writeln(
+          'async function __dartStreamFirstWhere(stream, test, orElse = null) {',
+        );
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    if (test(value)) return value;');
+        helper.writeln('  }');
+        helper.writeln('  if (typeof orElse === "function") return orElse();');
+        helper.writeln('  throw new RangeError("No element");');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamLastWhere', () {
+        helper.writeln(
+          'async function __dartStreamLastWhere(stream, test, orElse = null) {',
+        );
+        helper.writeln('  let found = false;');
+        helper.writeln('  let last;');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    if (test(value)) {');
+        helper.writeln('      found = true;');
+        helper.writeln('      last = value;');
+        helper.writeln('    }');
+        helper.writeln('  }');
+        helper.writeln('  if (found) return last;');
+        helper.writeln('  if (typeof orElse === "function") return orElse();');
+        helper.writeln('  throw new RangeError("No element");');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamSingleWhere', () {
+        helper.writeln(
+          'async function __dartStreamSingleWhere(stream, test, orElse = null) {',
+        );
+        helper.writeln('  let found = false;');
+        helper.writeln('  let single;');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    if (!test(value)) continue;');
+        helper.writeln(
+          '    if (found) throw new Error("Bad state: Too many elements");',
+        );
+        helper.writeln('    found = true;');
+        helper.writeln('    single = value;');
+        helper.writeln('  }');
+        helper.writeln('  if (found) return single;');
+        helper.writeln('  if (typeof orElse === "function") return orElse();');
+        helper.writeln('  throw new RangeError("No element");');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamContains', () {
+        helper.writeln('async function __dartStreamContains(stream, needle) {');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) {',
+        );
+        helper.writeln('    if (__dartEquals(value, needle)) return true;');
+        helper.writeln('  }');
+        helper.writeln('  return false;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamJoin', () {
+        helper.writeln(
+          'async function __dartStreamJoin(stream, separator = "") {',
+        );
+        helper.writeln('  const values = [];');
+        helper.writeln(
+          '  for await (const value of __dartStreamIterable(stream)) values.push(__dartStr(value));',
+        );
+        helper.writeln('  return values.join(String(separator));');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamDrain', () {
+        helper.writeln(
+          'async function __dartStreamDrain(stream, futureValue = null) {',
+        );
+        helper.writeln(
+          '  for await (const _ of __dartStreamIterable(stream)) {}',
+        );
+        helper.writeln('  return futureValue;');
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamPipe', () {
+        helper.writeln('async function __dartStreamPipe(stream, consumer) {');
+        helper.writeln('  if (typeof consumer.addStream === "function") {');
+        helper.writeln('    await consumer.addStream(stream);');
+        helper.writeln('  } else {');
+        helper.writeln(
+          '    for await (const value of __dartStreamIterable(stream)) consumer.add(value);',
+        );
+        helper.writeln('  }');
+        helper.writeln(
+          '  return typeof consumer.close === "function" ? await consumer.close() : null;',
+        );
+        helper.writeln('}');
+      });
+      emitLegacyStreamHelper('__dartStreamListen', () {
+        helper.writeln(
+          'function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {',
+        );
+        helper.writeln(
+          '  if (stream != null && typeof stream.listen === "function" && typeof stream[Symbol.asyncIterator] !== "function") {',
+        );
+        helper.writeln(
+          '    return stream.listen(onData, { onError, onDone, cancelOnError });',
+        );
+        helper.writeln('  }');
+        helper.writeln(
+          '  const iteratorFactory = stream?.[Symbol.asyncIterator];',
+        );
+        helper.writeln(
+          '  if (typeof iteratorFactory !== "function") throw new TypeError("Object is not a Stream");',
+        );
+        helper.writeln('  const iterator = iteratorFactory.call(stream);');
+        helper.writeln('  let canceled = false;');
+        helper.writeln('  let paused = false;');
+        helper.writeln('  let resumeWaiter = null;');
+        helper.writeln('  function waitWhilePaused() {');
+        helper.writeln('    if (!paused) return Promise.resolve();');
+        helper.writeln(
+          '    return new Promise((resolve) => { resumeWaiter = resolve; });',
+        );
+        helper.writeln('  }');
+        helper.writeln('  const done = (async () => {');
+        helper.writeln('      while (!canceled) {');
+        helper.writeln('        await waitWhilePaused();');
+        helper.writeln('        if (canceled) break;');
+        helper.writeln('        let next;');
+        helper.writeln('        try {');
+        helper.writeln('          next = await iterator.next();');
+        helper.writeln('        } catch (error) {');
+        helper.writeln(
+          '          if (typeof onError === "function") onError(error);',
+        );
+        helper.writeln('          else throw error;');
+        helper.writeln('          if (cancelOnError) break;');
+        helper.writeln('          continue;');
+        helper.writeln('        }');
+        helper.writeln('        if (next.done) break;');
+        helper.writeln(
+          '        if (typeof onData === "function") onData(next.value);',
+        );
+        helper.writeln('      }');
+        helper.writeln(
+          '      if (!canceled && typeof onDone === "function") onDone();',
+        );
+        helper.writeln('    return null;');
+        helper.writeln('  })();');
+        helper.writeln('  return {');
+        helper.writeln('    get isPaused() { return paused; },');
+        helper.writeln('    pause(resumeSignal = null) {');
+        helper.writeln('      if (!paused) {');
+        helper.writeln('        paused = true;');
+        helper.writeln(
+          '        if (typeof stream._onPause === "function") stream._onPause();',
+        );
+        helper.writeln('      }');
+        helper.writeln(
+          '      if (resumeSignal != null) Promise.resolve(resumeSignal).then(() => this.resume());',
+        );
+        helper.writeln('      return null;');
+        helper.writeln('    },');
+        helper.writeln('    resume() {');
+        helper.writeln('      if (!paused) return null;');
+        helper.writeln('      paused = false;');
+        helper.writeln(
+          '      if (typeof stream._onResume === "function") stream._onResume();',
+        );
+        helper.writeln('      if (resumeWaiter != null) {');
+        helper.writeln('        const resolve = resumeWaiter;');
+        helper.writeln('        resumeWaiter = null;');
+        helper.writeln('        resolve();');
+        helper.writeln('      }');
+        helper.writeln('      return null;');
+        helper.writeln('    },');
+        helper.writeln(
+          '    onData(handleData) { onData = handleData; return null; },',
+        );
+        helper.writeln(
+          '    onError(handleError) { onError = handleError; return null; },',
+        );
+        helper.writeln(
+          '    onDone(handleDone) { onDone = handleDone; return null; },',
+        );
+        helper.writeln(
+          '    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },',
+        );
+        helper.writeln(
+          '    asFuture(value = null) { return done.then(() => value); },',
+        );
+        helper.writeln('  };');
+        helper.writeln('}');
+      });
     }
     if (_usedHelpers.contains('__dartEquals')) {
       helper.writeln('function __dartEquals(left, right) {');
@@ -18106,7 +18217,6 @@ const _generatedGlobalNames = {
   '__dartSplayTreeSet',
   '__dartSplayTreeSetFrom',
   '__dartStr',
-  '__dartStream',
   '__dartStreamAny',
   '__dartStreamAsBroadcastStream',
   '__dartStreamAsyncExpand',

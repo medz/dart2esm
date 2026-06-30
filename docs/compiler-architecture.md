@@ -85,6 +85,9 @@ must keep exported declarations importable from external JavaScript.
 
 Current implementation:
 
+- `lib/src/program/program_model.dart` builds the current aggregate program
+  model consumed by the backend: ESM roots, reachability/world plan, and
+  dependency-ordered libraries.
 - `lib/src/program/program_roots.dart` computes public ESM API roots,
   re-export visibility, export combinators, and dependency-based library order.
 

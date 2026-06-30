@@ -4,12 +4,17 @@ import 'package:kernel/kernel.dart' as k;
 
 import '../js_ast/js_ast.dart';
 import '../lowering/lowering.dart';
+import '../program/program_model.dart';
 import '../program/program_roots.dart';
-import '../world/reachability.dart';
+import '../world/reachability.dart' show EsmProgramPlan;
 import 'runtime_helpers.dart';
 
 EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
-  final emitter = _EsmEmitter(component, runMain: runMain);
+  if (component.mainMethod == null) {
+    throw UnsupportedKernelNode(component, 'component without main method');
+  }
+  final model = buildEsmProgramModel(component);
+  final emitter = _EsmEmitter(model, runMain: runMain);
   return emitter.emit();
 }
 
@@ -44,9 +49,9 @@ final class _ExtensionTypeMember {
 }
 
 final class _EsmEmitter {
-  _EsmEmitter(this.component, {required this.runMain});
+  _EsmEmitter(this.model, {required this.runMain});
 
-  final k.Component component;
+  final EsmProgramModel model;
   final bool runMain;
   var _buffer = StringBuffer();
   final _diagnostics = <String>[];
@@ -76,18 +81,10 @@ final class _EsmEmitter {
   String? _rethrowException;
 
   EsmBackendResult emit() {
-    final main = component.mainMethod;
-    if (main == null) {
-      throw UnsupportedKernelNode(component, 'component without main method');
-    }
-    final roots = computeEsmProgramRoots(main);
-    final plan = computeEsmProgramPlan(
-      component,
-      main: main,
-      exportNamesByLibrary: roots.exportNamesByLibrary,
-      isEmittableTopLevelProcedure: isEmittableTopLevelProcedure,
-    );
-    final libraries = orderLibrariesByDependencies(plan.libraries);
+    final main = model.main;
+    final roots = model.roots;
+    final plan = model.world;
+    final libraries = model.orderedLibraries;
     for (final library in libraries) {
       _declareTopLevelNames(library, plan);
     }
@@ -1797,7 +1794,7 @@ final class _EsmEmitter {
     if (owner == null) {
       return false;
     }
-    return component.libraries
+    return model.component.libraries
         .expand((library) => library.classes)
         .where(
           (klass) => !identical(klass, owner) && _isSubclassOf(klass, owner),

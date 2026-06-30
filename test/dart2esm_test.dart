@@ -427,6 +427,47 @@ main();
     expect((nodeResult.stdout as String).trim(), 'value 7\ndouble 14');
   });
 
+  test('compiles inheritance through the new core', () async {
+    final source = File(p.join(fixtureDir.path, 'classes', 'inheritance.dart'));
+    final expected = File(
+      p.join(fixtureDir.path, 'classes', 'inheritance.mjs'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-inheritance-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+
+    final nodeResult = await Process.run('node', [output.path]);
+    expect(
+      nodeResult.exitCode,
+      0,
+      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+    );
+    expect(
+      (nodeResult.stdout as String).trim(),
+      'animal Rex dog 4\n'
+      'animal Rex dog 5\n'
+      'animal Ada\n'
+      'animal Ada dog 5\n'
+      'animal true\n'
+      'dog true',
+    );
+  });
+
   test('compiles if/else control flow through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-if-core-');
     addTearDown(() => tempDir.deleteSync(recursive: true));

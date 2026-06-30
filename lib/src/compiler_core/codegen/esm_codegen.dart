@@ -61,7 +61,10 @@ final class _EsmIrPrinter {
 
   void _emitClass(EsmClassIr klass) {
     final exportPrefix = klass.export ? 'export ' : '';
-    _writeIndented('${exportPrefix}class ${klass.name} {');
+    final superclass = klass.superclass == null
+        ? ''
+        : ' extends ${klass.superclass}';
+    _writeIndented('${exportPrefix}class ${klass.name}$superclass {');
     _indent++;
     final constructor = klass.constructor;
     if (constructor != null) {
@@ -270,6 +273,7 @@ final class _EsmIrPrinter {
       EsmPropertyAccessIr() =>
         '${_emitExpression(expression.receiver)}.${expression.property}',
       EsmThisIr() => 'this',
+      EsmSuperIr() => 'super',
     };
   }
 

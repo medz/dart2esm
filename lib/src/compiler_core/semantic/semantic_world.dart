@@ -101,6 +101,7 @@ final class EsmClassSymbol {
     required this.node,
     required this.name,
     required this.export,
+    required this.localSuperclass,
     required List<EsmConstructorSymbol> constructors,
     required List<EsmInstanceFieldSymbol> fields,
     required List<EsmInstanceProcedureSymbol> procedures,
@@ -111,6 +112,7 @@ final class EsmClassSymbol {
   final k.Class node;
   final String name;
   final bool export;
+  final k.Class? localSuperclass;
   final List<EsmConstructorSymbol> constructors;
   final List<EsmInstanceFieldSymbol> fields;
   final List<EsmInstanceProcedureSymbol> procedures;
@@ -237,10 +239,17 @@ final class SemanticWorldStage {
 
   EsmClassSymbol _buildClassSymbol(JsNameAllocator allocator, k.Class klass) {
     final usedNames = <String>{};
+    final accessorNames = <String, String>{};
+    final localSuperclass = klass.supertype?.className.node;
     return EsmClassSymbol(
       node: klass,
       name: allocator.freshGlobal(klass.name),
       export: _isPublic(klass.name),
+      localSuperclass:
+          localSuperclass is k.Class &&
+              localSuperclass.enclosingLibrary == klass.enclosingLibrary
+          ? localSuperclass
+          : null,
       constructors: [
         for (final constructor in klass.constructors)
           if (!constructor.isExternal && !constructor.isSynthetic)
@@ -262,7 +271,12 @@ final class SemanticWorldStage {
           if (_instanceProcedureKind(procedure) case final kind?)
             EsmInstanceProcedureSymbol(
               node: procedure,
-              name: _freshMemberName(usedNames, procedure.name.text),
+              name: _freshProcedureMemberName(
+                usedNames,
+                accessorNames,
+                procedure.name.text,
+                kind,
+              ),
               kind: kind,
             ),
       ],
@@ -317,6 +331,22 @@ final class SemanticWorldStage {
       suffix++;
     }
     return candidate;
+  }
+
+  String _freshProcedureMemberName(
+    Set<String> usedNames,
+    Map<String, String> accessorNames,
+    String original,
+    EsmProcedureKind kind,
+  ) {
+    return switch (kind) {
+      EsmProcedureKind.method => _freshMemberName(usedNames, original),
+      EsmProcedureKind.getter ||
+      EsmProcedureKind.setter => accessorNames.putIfAbsent(
+        original,
+        () => _freshMemberName(usedNames, original),
+      ),
+    };
   }
 
   bool _isPublic(String name) => !name.startsWith('_');

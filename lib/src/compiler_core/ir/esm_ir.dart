@@ -19,12 +19,14 @@ final class EsmClassIr extends EsmModuleItemIr {
   const EsmClassIr({
     required this.name,
     required this.export,
+    required this.superclass,
     required this.constructor,
     required this.methods,
   });
 
   final String name;
   final bool export;
+  final String? superclass;
   final EsmClassConstructorIr? constructor;
   final List<EsmClassMethodIr> methods;
 }
@@ -248,4 +250,8 @@ final class EsmPropertyAccessIr extends EsmExpressionIr {
 
 final class EsmThisIr extends EsmExpressionIr {
   const EsmThisIr();
+}
+
+final class EsmSuperIr extends EsmExpressionIr {
+  const EsmSuperIr();
 }

@@ -1159,7 +1159,7 @@ final class KernelToEsmIrLoweringStage {
         expression,
         thisExpression: thisExpression,
       ),
-      k.ConstantExpression() => _lowerConstantExpression(expression),
+      k.ConstantExpression() => _lowerConstantExpression(world, expression),
       k.VariableGet() => _lowerVariableGet(locals, expression),
       k.VariableSet() => _lowerVariableSet(
         world,
@@ -1223,6 +1223,36 @@ final class KernelToEsmIrLoweringStage {
         expression,
         thisExpression: thisExpression,
       ),
+      k.AsExpression() => _lowerAsExpression(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
+      k.ConditionalExpression() => EsmConditionalIr(
+        condition: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.condition,
+          thisExpression: thisExpression,
+        ),
+        thenExpression: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.then,
+          thisExpression: thisExpression,
+        ),
+        otherwiseExpression: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.otherwise,
+          thisExpression: thisExpression,
+        ),
+      ),
       k.ThisExpression() => thisExpression,
       k.StringLiteral() => EsmStringLiteralIr(expression.value),
       k.StringConcatenation() => EsmStringConcatenationIr([
@@ -1239,11 +1269,89 @@ final class KernelToEsmIrLoweringStage {
       k.DoubleLiteral() => EsmNumberLiteralIr(expression.value),
       k.BoolLiteral() => EsmBooleanLiteralIr(expression.value),
       k.NullLiteral() => const EsmNullLiteralIr(),
+      k.ListLiteral() => EsmArrayLiteralIr([
+        for (final element in expression.expressions)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            element,
+            thisExpression: thisExpression,
+          ),
+      ]),
+      k.MapLiteral() => EsmNewIr(
+        callee: const EsmIdentifierIr('Map'),
+        arguments: [
+          EsmArrayLiteralIr([
+            for (final entry in expression.entries)
+              EsmArrayLiteralIr([
+                _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  entry.key,
+                  thisExpression: thisExpression,
+                ),
+                _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  entry.value,
+                  thisExpression: thisExpression,
+                ),
+              ]),
+          ]),
+        ],
+      ),
+      k.SymbolLiteral() => EsmCallIr(
+        callee: const EsmIdentifierIr('Symbol'),
+        arguments: [EsmStringLiteralIr(expression.value)],
+      ),
+      k.FunctionExpression() => _lowerFunctionExpression(
+        world,
+        helpers,
+        locals,
+        expression,
+      ),
       _ => throw NewCompilerUnsupported(expression, 'expression lowering'),
     };
   }
 
-  EsmExpressionIr _lowerConstantExpression(k.ConstantExpression expression) {
+  EsmExpressionIr _lowerFunctionExpression(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> outerLocals,
+    k.FunctionExpression expression,
+  ) {
+    final function = expression.function;
+    if (function.asyncMarker != k.AsyncMarker.Sync) {
+      throw NewCompilerUnsupported(
+        function,
+        'function expression async marker',
+      );
+    }
+    final body = function.body;
+    if (body == null) {
+      throw NewCompilerUnsupported(function, 'function expression body');
+    }
+    final locals = Map<k.VariableDeclaration, String>.of(outerLocals);
+    final usedParameters = <String>{};
+    return EsmFunctionExpressionIr(
+      parameters: _bindParameters(
+        world,
+        helpers,
+        locals,
+        usedParameters,
+        function,
+      ),
+      body: _lowerStatementList(world, helpers, locals, {}, body),
+    );
+  }
+
+  EsmExpressionIr _lowerConstantExpression(
+    EsmSemanticWorld world,
+    k.ConstantExpression expression,
+  ) {
     final constant = expression.constant;
     if (constant is k.IntConstant) {
       return EsmNumberLiteralIr(constant.value);
@@ -1259,6 +1367,21 @@ final class KernelToEsmIrLoweringStage {
     }
     if (constant is k.NullConstant) {
       return const EsmNullLiteralIr();
+    }
+    if (constant is k.SymbolConstant) {
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('Symbol'),
+        arguments: [EsmStringLiteralIr(constant.name)],
+      );
+    }
+    if (constant is k.StaticTearOffConstant) {
+      final target = constant.targetReference.node;
+      if (target is k.Procedure) {
+        final symbol = world.symbolFor(target);
+        if (symbol != null && symbol.kind == EsmProcedureKind.method) {
+          return EsmIdentifierIr(symbol.name);
+        }
+      }
     }
     throw NewCompilerUnsupported(expression, 'constant expression lowering');
   }
@@ -1374,6 +1497,16 @@ final class KernelToEsmIrLoweringStage {
         expression.arguments.positional.length != 1 ||
         expression.arguments.named.isNotEmpty ||
         expression.arguments.types.isNotEmpty) {
+      final intrinsic = _lowerCoreInstanceInvocation(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      );
+      if (intrinsic != null) {
+        return intrinsic;
+      }
       final target = expression.interfaceTargetReference.node;
       if (target is k.Procedure) {
         final symbol = world.instanceProcedureSymbolFor(target);
@@ -1419,6 +1552,41 @@ final class KernelToEsmIrLoweringStage {
         expression.arguments.positional.single,
         thisExpression: thisExpression,
       ),
+    );
+  }
+
+  EsmExpressionIr? _lowerCoreInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.positional.isNotEmpty ||
+        expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final target = expression.interfaceTargetReference.toStringInternal();
+    final property = switch (target) {
+      'dart:core::String::@methods::toUpperCase' => 'toUpperCase',
+      _ => null,
+    };
+    if (property == null) {
+      return null;
+    }
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(
+        receiver: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        property: property,
+      ),
+      arguments: const [],
     );
   }
 
@@ -1640,6 +1808,63 @@ final class KernelToEsmIrLoweringStage {
     throw NewCompilerUnsupported(expression, 'is expression lowering');
   }
 
+  EsmExpressionIr _lowerAsExpression(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.AsExpression expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final type = expression.type.unalias;
+    final operand = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.operand,
+      thisExpression: thisExpression,
+    );
+    if (type is k.DynamicType || type is k.VoidType) {
+      return operand;
+    }
+    helpers.add(EsmRuntimeHelper.typeCast);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.typeCast),
+      arguments: [
+        operand,
+        EsmArrowFunctionIr(
+          parameters: const ['value'],
+          body: _lowerTypeTest(type, const EsmIdentifierIr('value')),
+        ),
+        EsmStringLiteralIr(_typeName(type)),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerTypeTest(k.DartType type, EsmExpressionIr value) {
+    if (type is k.InterfaceType) {
+      final target = type.classReference.toStringInternal();
+      if (target == 'dart:core::String') {
+        return EsmBinaryIr(
+          left: EsmUnaryIr(operator: 'typeof', operand: value),
+          operator: '===',
+          right: const EsmStringLiteralIr('string'),
+        );
+      }
+    }
+    throw NewCompilerUnsupported(type, 'type test lowering');
+  }
+
+  String _typeName(k.DartType type) {
+    if (type is k.InterfaceType) {
+      final path = type.classReference.toStringInternal();
+      final separator = path.lastIndexOf('::');
+      if (separator != -1) {
+        return path.substring(separator + 2);
+      }
+    }
+    return type.toString();
+  }
+
   EsmExpressionIr _lowerStaticInvocation(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -1692,9 +1917,43 @@ final class KernelToEsmIrLoweringStage {
     k.StaticInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    if (!_isCorePrint(expression.targetReference)) {
-      return null;
+    if (_isCoreFunctionApply(expression.targetReference)) {
+      return _lowerCoreFunctionApply(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      );
     }
+    if (_isCoreGrowableListLiteral(expression.targetReference)) {
+      return _lowerCoreGrowableListLiteral(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
+    if (_isCorePrint(expression.targetReference)) {
+      return _lowerCorePrint(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr _lowerCorePrint(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     if (expression.arguments.positional.length != 1 ||
         expression.arguments.named.isNotEmpty ||
         expression.arguments.types.isNotEmpty) {
@@ -1713,6 +1972,70 @@ final class KernelToEsmIrLoweringStage {
         ),
       ],
     );
+  }
+
+  EsmExpressionIr _lowerCoreGrowableListLiteral(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty) {
+      throw NewCompilerUnsupported(expression, 'GrowableList literal shape');
+    }
+    return EsmArrayLiteralIr([
+      for (final argument in expression.arguments.positional)
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          argument,
+          thisExpression: thisExpression,
+        ),
+    ]);
+  }
+
+  bool _isCoreGrowableListLiteral(k.Reference reference) {
+    return reference.toStringInternal().startsWith(
+      'dart:core::_GrowableList::@factories::dart:core::_literal',
+    );
+  }
+
+  EsmExpressionIr _lowerCoreFunctionApply(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final positional = expression.arguments.positional;
+    if (positional.length < 2 ||
+        positional.length > 3 ||
+        expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      throw NewCompilerUnsupported(expression, 'Function.apply argument shape');
+    }
+    helpers.add(EsmRuntimeHelper.functionApply);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.functionApply),
+      arguments: [
+        for (final argument in positional)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+        if (positional.length == 2) const EsmNullLiteralIr(),
+      ],
+    );
+  }
+
+  bool _isCoreFunctionApply(k.Reference reference) {
+    return reference.toStringInternal() ==
+        'dart:core::Function::@methods::apply';
   }
 
   bool _isCorePrint(k.Reference reference) {

@@ -39,11 +39,15 @@ final class _EsmIrPrinter {
   }
 
   bool _needsBlankLineAfter(EsmModuleItemIr item) {
-    return item is EsmClassIr || item is EsmFunctionIr;
+    return item is EsmRawModuleItemIr ||
+        item is EsmClassIr ||
+        item is EsmFunctionIr;
   }
 
   void _emitModuleItem(EsmModuleItemIr item) {
     switch (item) {
+      case EsmRawModuleItemIr():
+        _writeIndented(item.source.trimRight());
       case EsmClassIr():
         _emitClass(item);
       case EsmFunctionIr():
@@ -284,6 +288,10 @@ final class _EsmIrPrinter {
         '${_emitExpression(expression.target)} = ${_emitExpression(expression.value)}',
       EsmBinaryIr() =>
         '${_emitExpression(expression.left)} ${expression.operator} ${_emitExpression(expression.right)}',
+      EsmUnaryIr() =>
+        '${expression.operator} ${_emitExpression(expression.operand)}',
+      EsmConditionalIr() =>
+        '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.thenExpression)} : ${_emitExpression(expression.otherwiseExpression)})',
       EsmNumberLiteralIr() => _emitNumber(expression.value),
       EsmBooleanLiteralIr() => expression.value ? 'true' : 'false',
       EsmNullLiteralIr() => 'null',
@@ -291,6 +299,9 @@ final class _EsmIrPrinter {
         '[${expression.elements.map(_emitExpression).join(', ')}]',
       EsmObjectLiteralIr() =>
         '{ ${expression.properties.map(_emitObjectLiteralProperty).join(', ')} }',
+      EsmArrowFunctionIr() =>
+        '(${expression.parameters.join(', ')}) => ${_emitExpression(expression.body)}',
+      EsmFunctionExpressionIr() => _emitFunctionExpression(expression),
       EsmCallIr() =>
         '${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmNewIr() =>
@@ -305,6 +316,27 @@ final class _EsmIrPrinter {
 
   String _emitObjectLiteralProperty(EsmObjectLiteralPropertyIr property) {
     return '${_emitObjectPropertyName(property.name)}: ${_emitExpression(property.value)}';
+  }
+
+  String _emitFunctionExpression(EsmFunctionExpressionIr expression) {
+    final parameters = expression.parameters.map(_emitParameter).join(', ');
+    final body = expression.body.map(_emitInlineStatement).join(' ');
+    return 'function($parameters) { $body }';
+  }
+
+  String _emitInlineStatement(EsmStatementIr statement) {
+    return switch (statement) {
+      EsmExpressionStatementIr() => '${_emitExpression(statement.expression)};',
+      EsmReturnStatementIr() =>
+        statement.expression == null
+            ? 'return;'
+            : 'return ${_emitExpression(statement.expression!)};',
+      EsmThrowStatementIr() =>
+        'throw ${_emitExpression(statement.expression)};',
+      _ => throw StateError(
+        'Expression codegen cannot inline ${statement.runtimeType}.',
+      ),
+    };
   }
 
   String _emitObjectPropertyName(String name) {

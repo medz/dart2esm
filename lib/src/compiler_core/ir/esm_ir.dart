@@ -12,6 +12,12 @@ sealed class EsmModuleItemIr extends EsmIrNode {
   const EsmModuleItemIr();
 }
 
+final class EsmRawModuleItemIr extends EsmModuleItemIr {
+  const EsmRawModuleItemIr(this.source);
+
+  final String source;
+}
+
 final class EsmClassIr extends EsmModuleItemIr {
   const EsmClassIr({
     required this.name,
@@ -245,6 +251,25 @@ final class EsmBinaryIr extends EsmExpressionIr {
   final EsmExpressionIr right;
 }
 
+final class EsmUnaryIr extends EsmExpressionIr {
+  const EsmUnaryIr({required this.operator, required this.operand});
+
+  final String operator;
+  final EsmExpressionIr operand;
+}
+
+final class EsmConditionalIr extends EsmExpressionIr {
+  const EsmConditionalIr({
+    required this.condition,
+    required this.thenExpression,
+    required this.otherwiseExpression,
+  });
+
+  final EsmExpressionIr condition;
+  final EsmExpressionIr thenExpression;
+  final EsmExpressionIr otherwiseExpression;
+}
+
 final class EsmNumberLiteralIr extends EsmExpressionIr {
   const EsmNumberLiteralIr(this.value);
 
@@ -278,6 +303,20 @@ final class EsmObjectLiteralPropertyIr extends EsmIrNode {
 
   final String name;
   final EsmExpressionIr value;
+}
+
+final class EsmArrowFunctionIr extends EsmExpressionIr {
+  const EsmArrowFunctionIr({required this.parameters, required this.body});
+
+  final List<String> parameters;
+  final EsmExpressionIr body;
+}
+
+final class EsmFunctionExpressionIr extends EsmExpressionIr {
+  const EsmFunctionExpressionIr({required this.parameters, required this.body});
+
+  final List<EsmParameterIr> parameters;
+  final List<EsmStatementIr> body;
 }
 
 final class EsmCallIr extends EsmExpressionIr {

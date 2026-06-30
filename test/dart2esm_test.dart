@@ -732,6 +732,47 @@ main();
     );
   });
 
+  test('compiles Function.apply through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'functions', 'function_apply.dart'),
+    );
+    final expected = File(
+      p.join(fixtureDir.path, 'functions', 'function_apply.mjs'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-function-apply-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+
+    final nodeResult = await Process.run('node', [output.path]);
+    expect(
+      nodeResult.exitCode,
+      0,
+      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+    );
+    expect(
+      (nodeResult.stdout as String).trim(),
+      'positional 5\n'
+      'named ADA:3\n'
+      'local 9\n'
+      'forward dart:2',
+    );
+  });
+
   test('compiles if/else control flow through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-if-core-');
     addTearDown(() => tempDir.deleteSync(recursive: true));

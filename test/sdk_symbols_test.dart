@@ -269,6 +269,30 @@ void main() {
       DartSdkStaticInvocationSymbol.collectionElementAtOrNull,
     );
     expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:_internal::@methods::checkNotNullable'),
+      ),
+      DartSdkStaticInvocationSymbol.internalCheckNotNullable,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:typed_data::BytesBuilder::@factories::'),
+      ),
+      DartSdkStaticInvocationSymbol.internalBytesBuilder,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:_internal::IterableElementError::@methods::tooMany'),
+      ),
+      DartSdkStaticInvocationSymbol.iterableElementErrorTooMany,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:collection::MapBase::@methods::mapToString'),
+      ),
+      DartSdkStaticInvocationSymbol.collectionMapBaseToString,
+    );
+    expect(
       dartSdkStaticInvocationSymbol(_reference('dart:core::Object')),
       isNull,
     );

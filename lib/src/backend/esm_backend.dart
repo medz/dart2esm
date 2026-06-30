@@ -3639,30 +3639,10 @@ final class _EsmEmitter {
     final sdkStaticInvocation = DartSdkStaticInvocationEmitter(
       helpers: _usedHelpers,
       emitNamedArgument: _emitNamedArgument,
+      namedArgument: _namedArgument,
     ).emit(expression, positionalArgs, args);
     if (sdkStaticInvocation != null) {
       return sdkStaticInvocation;
-    }
-    final internalIterableInvocation = _emitInternalIterableStaticInvocation(
-      expression,
-      positionalArgs,
-    );
-    if (internalIterableInvocation != null) {
-      return internalIterableInvocation;
-    }
-    final iterableElementError = _emitIterableElementErrorInvocation(
-      expression,
-      positionalArgs,
-    );
-    if (iterableElementError != null) {
-      return iterableElementError;
-    }
-    final collectionBaseInvocation = _emitCollectionBaseStaticInvocation(
-      expression,
-      positionalArgs,
-    );
-    if (collectionBaseInvocation != null) {
-      return collectionBaseInvocation;
     }
     final coreInvocation = _emitCoreStaticInvocation(
       expression,
@@ -3726,89 +3706,6 @@ final class _EsmEmitter {
       expression,
       'static invocation ${kernelReferencePath(expression.targetReference)}',
     );
-  }
-
-  String? _emitInternalIterableStaticInvocation(
-    k.StaticInvocation expression,
-    List<String> positionalArgs,
-  ) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (path == 'dart:_internal::@methods::checkNotNullable' &&
-        positionalArgs.length == 2) {
-      _usedHelpers.add('__dartNullCheck');
-      return '__dartNullCheck(${positionalArgs[0]})';
-    }
-    if ((path == 'dart:_internal::BytesBuilder::@factories::' ||
-            path == 'dart:typed_data::BytesBuilder::@factories::') &&
-        positionalArgs.isEmpty) {
-      _usedHelpers.add('__dartBytesBuilder');
-      final copy = _namedArgument(expression.arguments, 'copy') ?? 'true';
-      return '__dartBytesBuilder($copy)';
-    }
-    if (path == 'dart:_internal::Sort::@methods::sort' &&
-        positionalArgs.length == 2) {
-      _usedHelpers.add('__dartListSort');
-      return '__dartListSort(${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (path == 'dart:_internal::Sort::@methods::sortRange' &&
-        positionalArgs.length == 4) {
-      _usedHelpers.add('__dartCoreError');
-      _usedHelpers.add('__dartListSortRange');
-      return '__dartListSortRange(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, ${positionalArgs[3]})';
-    }
-    if (path ==
-            'dart:_internal::FollowedByIterable::@factories::firstEfficient' &&
-        positionalArgs.length == 2) {
-      return 'Array.from(${positionalArgs[0]}).concat(Array.from(${positionalArgs[1]}))';
-    }
-    return null;
-  }
-
-  String? _emitIterableElementErrorInvocation(
-    k.StaticInvocation expression,
-    List<String> positionalArgs,
-  ) {
-    if (positionalArgs.isNotEmpty) {
-      return null;
-    }
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:_internal::IterableElementError::@methods::')) {
-      return null;
-    }
-    final message = switch (path.split('::').last) {
-      'noElement' => 'No element',
-      'tooMany' => 'Too many elements',
-      'tooFew' => 'Too few elements',
-      _ => null,
-    };
-    if (message == null) {
-      return null;
-    }
-    _usedHelpers.add('__dartCoreError');
-    return '__dartCoreError("StateError", ${jsonEncode(message)})';
-  }
-
-  String? _emitCollectionBaseStaticInvocation(
-    k.StaticInvocation expression,
-    List<String> positionalArgs,
-  ) {
-    if (positionalArgs.length != 1) {
-      return null;
-    }
-    final path = kernelReferencePath(expression.targetReference);
-    if (path == 'dart:collection::ListBase::@methods::listToString') {
-      _usedHelpers.add('__dartStr');
-      return '("[" + Array.from(${positionalArgs.single}, (value) => __dartStr(value)).join(", ") + "]")';
-    }
-    if (path == 'dart:collection::SetBase::@methods::setToString') {
-      _usedHelpers.add('__dartStr');
-      return '("{" + Array.from(${positionalArgs.single}, (value) => __dartStr(value)).join(", ") + "}")';
-    }
-    if (path == 'dart:collection::MapBase::@methods::mapToString') {
-      _usedHelpers.add('__dartStr');
-      return '("{" + Array.from(${positionalArgs.single}, ([key, value]) => __dartStr(key) + ": " + __dartStr(value)).join(", ") + "}")';
-    }
-    return null;
   }
 
   String _emitExtensionTypeInvocation(

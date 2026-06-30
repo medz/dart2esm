@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:kernel/kernel.dart' as k;
 
 import '../kernel/sdk_symbols.dart';
@@ -7,10 +9,12 @@ final class DartSdkStaticInvocationEmitter {
   DartSdkStaticInvocationEmitter({
     required this.helpers,
     required this.emitNamedArgument,
+    required this.namedArgument,
   });
 
   final EsmRuntimeHelperUseSet helpers;
   final String Function(k.NamedExpression argument) emitNamedArgument;
+  final String? Function(k.Arguments arguments, String name) namedArgument;
 
   String? emit(
     k.StaticInvocation expression,
@@ -90,9 +94,67 @@ final class DartSdkStaticInvocationEmitter {
           helpers.add('__dartIterableElementAtOrNull');
           return '__dartIterableElementAtOrNull(${positionalArgs[0]}, ${positionalArgs[1]})';
         }
+      case DartSdkStaticInvocationSymbol.internalCheckNotNullable:
+        if (positionalArgs.length == 2) {
+          helpers.add('__dartNullCheck');
+          return '__dartNullCheck(${positionalArgs[0]})';
+        }
+      case DartSdkStaticInvocationSymbol.internalBytesBuilder:
+        if (positionalArgs.isEmpty) {
+          helpers.add('__dartBytesBuilder');
+          final copy = namedArgument(expression.arguments, 'copy') ?? 'true';
+          return '__dartBytesBuilder($copy)';
+        }
+      case DartSdkStaticInvocationSymbol.internalSort:
+        if (positionalArgs.length == 2) {
+          helpers.add('__dartListSort');
+          return '__dartListSort(${positionalArgs[0]}, ${positionalArgs[1]})';
+        }
+      case DartSdkStaticInvocationSymbol.internalSortRange:
+        if (positionalArgs.length == 4) {
+          helpers.add('__dartCoreError');
+          helpers.add('__dartListSortRange');
+          return '__dartListSortRange(${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, ${positionalArgs[3]})';
+        }
+      case DartSdkStaticInvocationSymbol.internalFollowedByFirstEfficient:
+        if (positionalArgs.length == 2) {
+          return 'Array.from(${positionalArgs[0]}).concat(Array.from(${positionalArgs[1]}))';
+        }
+      case DartSdkStaticInvocationSymbol.iterableElementErrorNoElement:
+        return _emitIterableElementError(positionalArgs, 'No element');
+      case DartSdkStaticInvocationSymbol.iterableElementErrorTooMany:
+        return _emitIterableElementError(positionalArgs, 'Too many elements');
+      case DartSdkStaticInvocationSymbol.iterableElementErrorTooFew:
+        return _emitIterableElementError(positionalArgs, 'Too few elements');
+      case DartSdkStaticInvocationSymbol.collectionListBaseToString:
+        if (positionalArgs.length == 1) {
+          helpers.add('__dartStr');
+          return '("[" + Array.from(${positionalArgs.single}, (value) => __dartStr(value)).join(", ") + "]")';
+        }
+      case DartSdkStaticInvocationSymbol.collectionSetBaseToString:
+        if (positionalArgs.length == 1) {
+          helpers.add('__dartStr');
+          return '("{" + Array.from(${positionalArgs.single}, (value) => __dartStr(value)).join(", ") + "}")';
+        }
+      case DartSdkStaticInvocationSymbol.collectionMapBaseToString:
+        if (positionalArgs.length == 1) {
+          helpers.add('__dartStr');
+          return '("{" + Array.from(${positionalArgs.single}, ([key, value]) => __dartStr(key) + ": " + __dartStr(value)).join(", ") + "}")';
+        }
       case null:
         return null;
     }
     return null;
+  }
+
+  String? _emitIterableElementError(
+    List<String> positionalArgs,
+    String message,
+  ) {
+    if (positionalArgs.isNotEmpty) {
+      return null;
+    }
+    helpers.add('__dartCoreError');
+    return '__dartCoreError("StateError", ${jsonEncode(message)})';
   }
 }

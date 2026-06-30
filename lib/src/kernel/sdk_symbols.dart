@@ -28,6 +28,17 @@ enum DartSdkStaticInvocationSymbol {
   collectionLastOrNull,
   collectionSingleOrNull,
   collectionElementAtOrNull,
+  internalCheckNotNullable,
+  internalBytesBuilder,
+  internalSort,
+  internalSortRange,
+  internalFollowedByFirstEfficient,
+  iterableElementErrorNoElement,
+  iterableElementErrorTooMany,
+  iterableElementErrorTooFew,
+  collectionListBaseToString,
+  collectionSetBaseToString,
+  collectionMapBaseToString,
 }
 
 const dartCoreExceptionTypeNames = {
@@ -104,6 +115,29 @@ DartSdkStaticInvocationSymbol? dartSdkStaticInvocationSymbol(
       DartSdkStaticInvocationSymbol.collectionSingleOrNull,
     'dart:collection::@methods::IterableExtensions|elementAtOrNull' =>
       DartSdkStaticInvocationSymbol.collectionElementAtOrNull,
+    'dart:_internal::@methods::checkNotNullable' =>
+      DartSdkStaticInvocationSymbol.internalCheckNotNullable,
+    'dart:_internal::BytesBuilder::@factories::' ||
+    'dart:typed_data::BytesBuilder::@factories::' =>
+      DartSdkStaticInvocationSymbol.internalBytesBuilder,
+    'dart:_internal::Sort::@methods::sort' =>
+      DartSdkStaticInvocationSymbol.internalSort,
+    'dart:_internal::Sort::@methods::sortRange' =>
+      DartSdkStaticInvocationSymbol.internalSortRange,
+    'dart:_internal::FollowedByIterable::@factories::firstEfficient' =>
+      DartSdkStaticInvocationSymbol.internalFollowedByFirstEfficient,
+    'dart:_internal::IterableElementError::@methods::noElement' =>
+      DartSdkStaticInvocationSymbol.iterableElementErrorNoElement,
+    'dart:_internal::IterableElementError::@methods::tooMany' =>
+      DartSdkStaticInvocationSymbol.iterableElementErrorTooMany,
+    'dart:_internal::IterableElementError::@methods::tooFew' =>
+      DartSdkStaticInvocationSymbol.iterableElementErrorTooFew,
+    'dart:collection::ListBase::@methods::listToString' =>
+      DartSdkStaticInvocationSymbol.collectionListBaseToString,
+    'dart:collection::SetBase::@methods::setToString' =>
+      DartSdkStaticInvocationSymbol.collectionSetBaseToString,
+    'dart:collection::MapBase::@methods::mapToString' =>
+      DartSdkStaticInvocationSymbol.collectionMapBaseToString,
     _ => null,
   };
 }

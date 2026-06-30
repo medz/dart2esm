@@ -85,6 +85,8 @@ final class _EsmIrPrinter {
         _emitIfStatement(statement);
       case EsmWhileStatementIr():
         _emitWhileStatement(statement);
+      case EsmForStatementIr():
+        _emitForStatement(statement);
       case EsmReturnStatementIr():
         final expression = statement.expression;
         _writeIndented(
@@ -124,6 +126,37 @@ final class _EsmIrPrinter {
     }
     _indent--;
     _writeIndented('}');
+  }
+
+  void _emitForStatement(EsmForStatementIr statement) {
+    final initializer = _emitForInitializer(statement.initializers);
+    final condition = statement.condition == null
+        ? ''
+        : _emitExpression(statement.condition!);
+    final updates = statement.updates.map(_emitExpression).join(', ');
+    _writeIndented('for ($initializer; $condition; $updates) {');
+    _indent++;
+    for (final child in statement.body) {
+      _emitStatement(child);
+    }
+    _indent--;
+    _writeIndented('}');
+  }
+
+  String _emitForInitializer(List<EsmVariableDeclarationIr> initializers) {
+    if (initializers.isEmpty) {
+      return '';
+    }
+    final mutable = initializers.first.mutable;
+    final keyword = mutable ? 'let' : 'const';
+    return '$keyword ${initializers.map(_emitForInitializerBinding).join(', ')}';
+  }
+
+  String _emitForInitializerBinding(EsmVariableDeclarationIr initializer) {
+    final value = initializer.initializer;
+    return value == null
+        ? initializer.name
+        : '${initializer.name} = ${_emitExpression(value)}';
   }
 
   String _emitExpression(EsmExpressionIr expression) {

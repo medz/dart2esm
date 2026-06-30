@@ -65,9 +65,7 @@ main();
     final library = k.Library(libraryUri, fileUri: libraryUri);
     final main = _procedure(
       'main',
-      body: k.Block([
-        k.ForStatement(const [], null, const [], k.EmptyStatement()),
-      ]),
+      body: k.Block([k.DoStatement(k.EmptyStatement(), k.BoolLiteral(false))]),
     );
     library.addProcedure(main);
     final component = k.Component(libraries: [library]);

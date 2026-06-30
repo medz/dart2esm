@@ -101,6 +101,9 @@ final class KernelToEsmIrLoweringStage {
       k.WhileStatement() => [
         _lowerWhileStatement(world, helpers, locals, statement),
       ],
+      k.ForStatement() => [
+        _lowerForStatement(world, helpers, locals, statement),
+      ],
       k.ReturnStatement() => [
         EsmReturnStatementIr(
           statement.expression == null
@@ -138,6 +141,40 @@ final class KernelToEsmIrLoweringStage {
       condition: _lowerExpression(world, helpers, locals, statement.condition),
       body: _lowerStatementList(world, helpers, locals, statement.body),
     );
+  }
+
+  EsmForStatementIr _lowerForStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.ForStatement statement,
+  ) {
+    return EsmForStatementIr(
+      initializers: [
+        for (final initializer in statement.variableInitializations)
+          _lowerForInitializer(world, helpers, locals, initializer),
+      ],
+      condition: statement.condition == null
+          ? null
+          : _lowerExpression(world, helpers, locals, statement.condition!),
+      updates: [
+        for (final update in statement.updates)
+          _lowerExpression(world, helpers, locals, update),
+      ],
+      body: _lowerStatementList(world, helpers, locals, statement.body),
+    );
+  }
+
+  EsmVariableDeclarationIr _lowerForInitializer(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.VariableInitializationBase initializer,
+  ) {
+    if (initializer is! k.VariableDeclaration) {
+      throw NewCompilerUnsupported(initializer, 'for initializer lowering');
+    }
+    return _lowerVariableDeclaration(world, helpers, locals, initializer);
   }
 
   EsmVariableDeclarationIr _lowerVariableDeclaration(

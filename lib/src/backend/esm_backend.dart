@@ -62,7 +62,7 @@ final class _EsmEmitter {
   final _continueSwitchTargets = <k.SwitchCase, _ContinueSwitchTarget>{};
   final _interfaceMarkersByClass = <k.Class, Set<k.Class>>{};
   final _interfaceMarkerNames = <k.Class, String>{};
-  final _usedHelpers = <String>{};
+  final _usedHelpers = EsmRuntimeHelperUseSet();
   final _usedNames = <String>{};
   final _jsInterfaceSuperclasses = <k.Class, k.Class>{};
   final _jsInterfaceBaseClasses = <k.Class>{};
@@ -11158,11 +11158,11 @@ final class _EsmEmitter {
   }
 
   String _emitHelpers() {
-    _usedHelpers.addAll(resolveEsmRuntimeHelperDependencies(_usedHelpers));
+    _usedHelpers.closeDependencies();
 
     final helper = StringBuffer();
     final usesRecord = _usedHelpers.contains('__dartRecord');
-    final usesStreamRuntime = _usedHelpers.any(isEsmLegacyStreamRuntimeHelper);
+    final usesStreamRuntime = _usedHelpers.usesLegacyStreamRuntime;
 
     void emitRuntimeHelper(String name, void Function() emit) {
       if (_usedHelpers.contains(name)) {
@@ -11171,7 +11171,7 @@ final class _EsmEmitter {
     }
 
     void emitRegisteredRuntimeHelper(String name) {
-      final source = esmRuntimeHelperSource(name);
+      final source = _usedHelpers.registeredSource(name);
       if (_usedHelpers.contains(name) && source != null) {
         helper.writeln(source);
       }

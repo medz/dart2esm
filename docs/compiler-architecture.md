@@ -150,6 +150,8 @@ Current implementation:
 
 - `lib/src/backend/runtime_helpers.dart` already contains helper metadata and a
   dependency resolver.
+- `EsmRuntimeHelperUseSet` owns requested helper tracking, dependency closure,
+  registered helper source lookup, and legacy stream-runtime classification.
 - Some helper source is still emitted inline from `esm_backend.dart`.
 
 Target boundary:
@@ -159,6 +161,8 @@ Target boundary:
 - Lowering records helper/runtime feature usage.
 - Final helper selection is deterministic, dependency-closed, and tree-shaken.
 - SDK lowering, runtime helpers, and ESM export shaping stay separate.
+- Move the remaining inline helper source blocks out of `esm_backend.dart` and
+  into declarative helper specs.
 
 ## Optimization Passes
 

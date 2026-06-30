@@ -58,4 +58,23 @@ void main() {
     expect(isEsmLegacyStreamRuntimeHelper('__dartStreamMap'), isTrue);
     expect(isEsmLegacyStreamRuntimeHelper('__dartStreamController'), isFalse);
   });
+
+  test('runtime helper use set owns closure and registry lookups', () {
+    final helpers = EsmRuntimeHelperUseSet({
+      '__dartJsonUtf8Encoder',
+      '__dartStreamMap',
+    });
+
+    expect(helpers, isNot(contains('__dartJsonEncode')));
+    helpers.closeDependencies();
+
+    expect(helpers, contains('__dartJsonEncode'));
+    expect(helpers, contains('__dartUtf8Encode'));
+    expect(helpers.usesLegacyStreamRuntime, isTrue);
+    expect(
+      helpers.registeredSource('__dartPrint'),
+      contains('function __dartPrint'),
+    );
+    expect(helpers.registeredSource('__dartStreamMap'), isNull);
+  });
 }

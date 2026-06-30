@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 enum EsmRuntimeHelperCategory {
   core,
   async,
@@ -22,6 +24,43 @@ final class EsmRuntimeHelperSpec {
   final List<String> dependencies;
   final String description;
   final String? source;
+}
+
+final class EsmRuntimeHelperUseSet extends SetBase<String> {
+  EsmRuntimeHelperUseSet([Iterable<String> helpers = const []]) {
+    addAll(helpers);
+  }
+
+  final _helpers = <String>{};
+
+  @override
+  bool add(String value) => _helpers.add(value);
+
+  @override
+  bool contains(Object? element) => _helpers.contains(element);
+
+  @override
+  Iterator<String> get iterator => _helpers.iterator;
+
+  @override
+  int get length => _helpers.length;
+
+  @override
+  String? lookup(Object? object) => _helpers.lookup(object);
+
+  @override
+  bool remove(Object? value) => _helpers.remove(value);
+
+  @override
+  Set<String> toSet() => _helpers.toSet();
+
+  void closeDependencies() {
+    addAll(resolveEsmRuntimeHelperDependencies(_helpers));
+  }
+
+  bool get usesLegacyStreamRuntime => any(isEsmLegacyStreamRuntimeHelper);
+
+  String? registeredSource(String name) => esmRuntimeHelperSource(name);
 }
 
 const _dartStrSource = r'''function __dartStr(value) {

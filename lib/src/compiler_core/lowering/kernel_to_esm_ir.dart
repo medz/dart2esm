@@ -3645,6 +3645,15 @@ final class KernelToEsmIrLoweringStage
 
   EsmExpressionIr? _lowerRuntimeStaticGet(k.StaticGet expression) {
     final target = kernelReferencePath(expression.targetReference);
+    final bigIntConstant = switch (target) {
+      'dart:core::BigInt::@getters::zero' => 0,
+      'dart:core::BigInt::@getters::one' => 1,
+      'dart:core::BigInt::@getters::two' => 2,
+      _ => null,
+    };
+    if (bigIntConstant != null) {
+      return _bigIntLiteral(bigIntConstant);
+    }
     if (target == 'dart:core::StackTrace::@getters::current') {
       return const EsmNullishCoalesceIr(
         left: EsmPropertyAccessIr(
@@ -4015,7 +4024,18 @@ final class KernelToEsmIrLoweringStage
     if (expression.arguments.named.isNotEmpty) {
       return null;
     }
-    final target = expression.interfaceTargetReference.toStringInternal();
+    final target = kernelReferencePath(expression.interfaceTargetReference);
+    final bigIntInvocation = _lowerBigIntInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (bigIntInvocation != null) {
+      return bigIntInvocation;
+    }
     if (expression.name.text == '[]' &&
         expression.arguments.positional.length == 1) {
       final receiver = _lowerExpression(
@@ -4242,6 +4262,9 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::int::@methods::unary-') {
       return EsmUnaryIr(operator: '-', operand: receiver);
     }
+    if (target == 'dart:core::BigInt::@methods::unary-') {
+      return EsmUnaryIr(operator: '-', operand: receiver);
+    }
     if (target == 'dart:core::int::@methods::~') {
       return EsmUnaryIr(operator: '~', operand: receiver);
     }
@@ -4262,6 +4285,89 @@ final class KernelToEsmIrLoweringStage
       callee: EsmPropertyAccessIr(receiver: receiver, property: property),
       arguments: const [],
     );
+  }
+
+  EsmExpressionIr? _lowerBigIntInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    final positional = expression.arguments.positional;
+    if (target == 'dart:core::BigInt::@methods::toInt' && positional.isEmpty) {
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('Number'),
+        arguments: [receiver],
+      );
+    }
+    if (target == 'dart:core::BigInt::@methods::toRadixString' &&
+        positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(receiver: receiver, property: 'toString'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (target == 'dart:core::BigInt::@methods::abs' && positional.isEmpty) {
+      return EsmConditionalIr(
+        condition: EsmBinaryIr(
+          left: receiver,
+          operator: '<',
+          right: _bigIntLiteral(0),
+        ),
+        thenExpression: EsmUnaryIr(operator: '-', operand: receiver),
+        otherwiseExpression: receiver,
+      );
+    }
+    if (target == 'dart:core::BigInt::@methods::remainder' &&
+        positional.length == 1) {
+      return EsmBinaryIr(
+        left: receiver,
+        operator: '%',
+        right: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          positional.single,
+          thisExpression: thisExpression,
+        ),
+      );
+    }
+    if (target == 'dart:core::BigInt::@methods::~/') {
+      if (positional.length != 1) return null;
+      return EsmBinaryIr(
+        left: receiver,
+        operator: '/',
+        right: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          positional.single,
+          thisExpression: thisExpression,
+        ),
+      );
+    }
+    return null;
   }
 
   EsmExpressionIr _lowerInstanceGet(
@@ -4384,7 +4490,7 @@ final class KernelToEsmIrLoweringStage
     k.InstanceGet expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    final target = expression.interfaceTargetReference.toStringInternal();
+    final target = kernelReferencePath(expression.interfaceTargetReference);
     final receiver = _lowerExpression(
       world,
       helpers,
@@ -4426,7 +4532,68 @@ final class KernelToEsmIrLoweringStage
         right: const EsmNumberLiteralIr(0),
       );
     }
+    final bigIntGet = _lowerBigIntInstanceGet(helpers, receiver, target);
+    if (bigIntGet != null) {
+      return bigIntGet;
+    }
     return null;
+  }
+
+  EsmExpressionIr? _lowerBigIntInstanceGet(
+    EsmRuntimeHelperUseSet helpers,
+    EsmExpressionIr receiver,
+    String target,
+  ) {
+    return switch (target) {
+      'dart:core::BigInt::@getters::isNegative' => EsmBinaryIr(
+        left: receiver,
+        operator: '<',
+        right: _bigIntLiteral(0),
+      ),
+      'dart:core::BigInt::@getters::isEven' => EsmBinaryIr(
+        left: EsmBinaryIr(
+          left: receiver,
+          operator: '%',
+          right: _bigIntLiteral(2),
+        ),
+        operator: '===',
+        right: _bigIntLiteral(0),
+      ),
+      'dart:core::BigInt::@getters::isOdd' => EsmBinaryIr(
+        left: EsmBinaryIr(
+          left: receiver,
+          operator: '%',
+          right: _bigIntLiteral(2),
+        ),
+        operator: '!==',
+        right: _bigIntLiteral(0),
+      ),
+      'dart:core::BigInt::@getters::sign' => EsmConditionalIr(
+        condition: EsmBinaryIr(
+          left: receiver,
+          operator: '<',
+          right: _bigIntLiteral(0),
+        ),
+        thenExpression: const EsmNumberLiteralIr(-1),
+        otherwiseExpression: EsmConditionalIr(
+          condition: EsmBinaryIr(
+            left: receiver,
+            operator: '>',
+            right: _bigIntLiteral(0),
+          ),
+          thenExpression: const EsmNumberLiteralIr(1),
+          otherwiseExpression: const EsmNumberLiteralIr(0),
+        ),
+      ),
+      'dart:core::BigInt::@getters::bitLength' => () {
+        helpers.add(EsmRuntimeHelper.bigIntBitLength);
+        return EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.bigIntBitLength),
+          arguments: [receiver],
+        );
+      }(),
+      _ => null,
+    };
   }
 
   EsmExpressionIr _lowerInstanceSet(
@@ -5196,6 +5363,13 @@ final class KernelToEsmIrLoweringStage
     return EsmBinaryIr(left: left, operator: '===', right: right);
   }
 
+  EsmExpressionIr _bigIntLiteral(int value) {
+    return EsmCallIr(
+      callee: const EsmIdentifierIr('BigInt'),
+      arguments: [EsmNumberLiteralIr(value)],
+    );
+  }
+
   EsmExpressionIr _andAll(List<EsmExpressionIr> expressions) {
     if (expressions.isEmpty) {
       return const EsmBooleanLiteralIr(true);
@@ -5501,6 +5675,17 @@ final class KernelToEsmIrLoweringStage
       return null;
     }
     final target = kernelReferencePath(expression.targetReference);
+    final bigIntStatic = _lowerBigIntStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (bigIntStatic != null) {
+      return bigIntStatic;
+    }
     if (target != 'dart:core::int::@methods::parse') {
       return null;
     }
@@ -5538,6 +5723,90 @@ final class KernelToEsmIrLoweringStage
             radix,
             thisExpression: thisExpression,
           ),
+      ],
+    );
+  }
+
+  EsmExpressionIr? _lowerBigIntStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (target == 'dart:core::BigInt::@factories::from' ||
+        target == 'dart:core::BigInt::@methods::from') {
+      if (expression.arguments.positional.length != 1 ||
+          expression.arguments.named.isNotEmpty) {
+        return null;
+      }
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('BigInt'),
+        arguments: [
+          EsmCallIr(
+            callee: const EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr('Math'),
+              property: 'trunc',
+            ),
+            arguments: [
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                expression.arguments.positional.single,
+                thisExpression: thisExpression,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    final tryParse = switch (target) {
+      'dart:core::BigInt::@methods::parse' => false,
+      'dart:core::BigInt::@methods::tryParse' => true,
+      _ => null,
+    };
+    if (tryParse == null) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    if (positional.length != 1 ||
+        expression.arguments.named.any(
+          (argument) => argument.name != 'radix',
+        )) {
+      return null;
+    }
+    final radixArguments = [
+      for (final argument in expression.arguments.named)
+        if (argument.name == 'radix') argument.value,
+    ];
+    if (radixArguments.length > 1) {
+      return null;
+    }
+    final radix = radixArguments.isEmpty ? null : radixArguments.single;
+    helpers.add(EsmRuntimeHelper.bigIntParse);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.bigIntParse),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          positional.single,
+          thisExpression: thisExpression,
+        ),
+        if (radix == null)
+          const EsmNullLiteralIr()
+        else
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            radix,
+            thisExpression: thisExpression,
+          ),
+        EsmBooleanLiteralIr(tryParse),
       ],
     );
   }

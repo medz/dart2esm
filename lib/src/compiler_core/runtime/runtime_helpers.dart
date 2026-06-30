@@ -1,6 +1,8 @@
 import '../ir/esm_ir.dart';
 
 enum EsmRuntimeHelper {
+  bigIntBitLength,
+  bigIntParse,
   coreError,
   constMap,
   constSet,
@@ -41,6 +43,8 @@ final class EsmRuntimeHelperRegistry {
 
   static const generatedGlobalNames = {
     '__dartAs',
+    '__dartBigIntBitLength',
+    '__dartBigIntParse',
     '__dartCoreError',
     '__dartConst',
     '__dartConstMap',
@@ -89,6 +93,8 @@ final class EsmRuntimeHelperRegistry {
 
   String name(EsmRuntimeHelper helper) {
     return switch (helper) {
+      EsmRuntimeHelper.bigIntBitLength => '__dartBigIntBitLength',
+      EsmRuntimeHelper.bigIntParse => '__dartBigIntParse',
       EsmRuntimeHelper.coreError => '__dartCoreError',
       EsmRuntimeHelper.constMap => '__dartConstMap',
       EsmRuntimeHelper.constSet => '__dartConstSet',
@@ -131,6 +137,39 @@ final class EsmRuntimeHelperRegistry {
 
   EsmModuleItemIr declaration(EsmRuntimeHelper helper) {
     return switch (helper) {
+      EsmRuntimeHelper.bigIntBitLength => EsmRawModuleItemIr('''
+function __dartBigIntBitLength(value) {
+  if (value === 0n || value === -1n) return 0;
+  const magnitude = value < 0n ? -value - 1n : value;
+  return magnitude.toString(2).length;
+}
+'''),
+      EsmRuntimeHelper.bigIntParse => EsmRawModuleItemIr(r'''
+function __dartBigIntParse(source, radix = null, tryParse = false) {
+  try {
+    const text = String(source).trim();
+    const sign = /^[+-]/.test(text) ? text[0] : "";
+    let digits = sign === "" ? text : text.slice(1);
+    let base = radix == null ? null : Number(radix);
+    if (base == null && /^0x[0-9a-f]+$/i.test(digits)) { base = 16; digits = digits.slice(2); }
+    base ??= 10;
+    if (!Number.isInteger(base) || base < 2 || base > 36) throw new RangeError("Radix out of range");
+    if (digits.length === 0) throw new Error("Invalid BigInt literal");
+    let value = 0n;
+    const bigBase = BigInt(base);
+    for (const char of digits.toLowerCase()) {
+      const code = char.charCodeAt(0);
+      const digit = code >= 48 && code <= 57 ? code - 48 : code >= 97 && code <= 122 ? code - 87 : -1;
+      if (digit < 0 || digit >= base) throw new Error("Invalid BigInt literal");
+      value = value * bigBase + BigInt(digit);
+    }
+    return sign === "-" ? -value : value;
+  } catch (error) {
+    if (tryParse) return null;
+    throw error;
+  }
+}
+'''),
       EsmRuntimeHelper.coreError => EsmRawModuleItemIr('''
 function __dartCoreError(typeName, message) {
   const text = message == null ? "" : String(message);
@@ -653,6 +692,8 @@ final class EsmRuntimeHelperUseSet {
 
   bool add(EsmRuntimeHelper helper) {
     switch (helper) {
+      case EsmRuntimeHelper.bigIntBitLength:
+      case EsmRuntimeHelper.bigIntParse:
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
       case EsmRuntimeHelper.constMap:

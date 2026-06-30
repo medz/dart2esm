@@ -5,6 +5,7 @@ import 'frontend/kernel_frontend.dart';
 import 'legacy_oracle.dart';
 import 'lowering/kernel_to_esm_ir.dart';
 import 'new_compiler_unsupported.dart';
+import 'runtime/runtime_helpers.dart';
 import 'runtime/runtime_linker.dart';
 import 'semantic/semantic_world.dart';
 import 'transform/module_normalizer.dart';
@@ -53,7 +54,9 @@ final class Dart2EsmCompilerPipeline {
   const Dart2EsmCompilerPipeline({
     required this.options,
     this.kernelFrontend = const KernelFrontendStage(),
-    this.semanticWorld = const SemanticWorldStage(),
+    this.semanticWorld = const SemanticWorldStage(
+      generatedGlobalNames: esmRuntimeHelperGlobalNames,
+    ),
     this.lowering = const KernelToEsmIrLoweringStage(),
     this.normalizer = const ModuleNormalizerStage(),
     this.runtimeLinker = const RuntimeLinkerStage(),

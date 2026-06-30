@@ -115,6 +115,36 @@ export function main() {
 ''');
   });
 
+  test('semantic world reserves pipeline-provided generated global names', () {
+    final libraryUri = Uri.parse('package:sample/main.dart');
+    final library = k.Library(libraryUri, fileUri: libraryUri);
+    final main = _procedure('main', body: k.EmptyStatement());
+    final helperCollision = k.Procedure(
+      k.Name('__dartPrint', library),
+      k.ProcedureKind.Method,
+      k.FunctionNode(k.EmptyStatement()),
+      fileUri: Uri.parse('memory:__dartPrint.dart'),
+      isStatic: true,
+    );
+    library.addProcedure(helperCollision);
+    library.addProcedure(main);
+    final component = k.Component(libraries: [library]);
+    component.setMainMethodAndMode(main.reference, true);
+
+    final result = Dart2EsmCompilerPipeline(
+      options: const Dart2EsmPipelineOptions(
+        runMain: false,
+        allowLegacyOracle: false,
+      ),
+    ).compile(component);
+
+    expect(result.path, Dart2EsmCompilerPath.newCore);
+    final collisionSymbol = result.semantic!.world.symbolForRequired(
+      helperCollision,
+    );
+    expect(collisionSymbol.name, '__dartPrint_1');
+  });
+
   test('can reject unsupported Kernel without invoking the legacy oracle', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);

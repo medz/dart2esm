@@ -60,6 +60,21 @@ void main() {
     expect(ir, isNot(contains('runtimeHelpers')));
   });
 
+  test(
+    'semantic world accepts name reservations without runtime dependency',
+    () {
+      final semantic = _read(
+        'lib/src/compiler_core/semantic/semantic_world.dart',
+      );
+      final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
+
+      expect(semantic, contains('generatedGlobalNames'));
+      expect(semantic, isNot(contains('runtime_helpers.dart')));
+      expect(semantic, isNot(contains('EsmRuntimeHelper')));
+      expect(pipeline, contains('esmRuntimeHelperGlobalNames'));
+    },
+  );
+
   test('runtime helpers are owned by compiler core, not legacy backend', () {
     final runtime = _read('lib/src/compiler_core/runtime/runtime_helpers.dart');
     final linker = _read('lib/src/compiler_core/runtime/runtime_linker.dart');

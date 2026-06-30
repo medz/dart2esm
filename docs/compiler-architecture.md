@@ -155,6 +155,8 @@ Current implementation:
 - Small core/collection helpers such as `__dartConst`, `__dartConstSet`,
   `__dartConstMap`, `__dartLazyField`, `__dartIterator`, and simple numeric
   helpers are emitted from declarative helper specs.
+- Record runtime helpers are also registered declaratively with explicit shape
+  and type-test dependencies.
 - Some helper source is still emitted inline from `esm_backend.dart`.
 
 Target boundary:

@@ -11161,7 +11161,6 @@ final class _EsmEmitter {
     _usedHelpers.closeDependencies();
 
     final helper = StringBuffer();
-    final usesRecord = _usedHelpers.contains('__dartRecord');
     final usesStreamRuntime = _usedHelpers.usesLegacyStreamRuntime;
 
     void emitRuntimeHelper(String name, void Function() emit) {
@@ -11229,14 +11228,8 @@ final class _EsmEmitter {
         _usedHelpers.contains('__dartStringConversionSinkFrom') ||
         _usedHelpers.contains('__dartStringConversionSinkFromStringSink') ||
         _usedHelpers.contains('__dartStringConversionSinkAsUtf8Sink');
-    if (usesRecord) {
-      helper.writeln('const __dartRecordShape = Symbol("dart.recordShape");');
-      helper.writeln('function __dartIsRecord(value) {');
-      helper.writeln(
-        '  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);',
-      );
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartRecordShape');
+    emitRegisteredRuntimeHelper('__dartIsRecord');
     emitRegisteredRuntimeHelper('__dartStr');
     emitRegisteredRuntimeHelper('__dartDouble');
     emitRegisteredRuntimeHelper('__dartObjectToString');
@@ -17403,7 +17396,7 @@ final class _EsmEmitter {
       helper.writeln(
         '  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);',
       );
-      if (usesRecord) {
+      if (_usedHelpers.contains('__dartRecord')) {
         helper.writeln(
           '  if (__dartIsRecord(left) && __dartIsRecord(right)) {',
         );
@@ -17564,39 +17557,7 @@ final class _EsmEmitter {
     }
     emitRegisteredRuntimeHelper('__dartTruncDiv');
     emitRegisteredRuntimeHelper('__dartShr');
-    if (_usedHelpers.contains('__dartRecord')) {
-      helper.writeln('function __dartRecord(positional, named) {');
-      helper.writeln('  const record = {};');
-      helper.writeln('  const shape = [];');
-      helper.writeln('  for (let i = 0; i < positional.length; i++) {');
-      helper.writeln('    const name = "\$" + (i + 1);');
-      helper.writeln('    shape.push(name);');
-      helper.writeln(
-        '    Object.defineProperty(record, name, { value: positional[i], enumerable: true });',
-      );
-      helper.writeln('  }');
-      helper.writeln('  for (const name of Object.keys(named).sort()) {');
-      helper.writeln('    shape.push(name);');
-      helper.writeln(
-        '    Object.defineProperty(record, name, { value: named[name], enumerable: true });',
-      );
-      helper.writeln('  }');
-      helper.writeln(
-        '  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });',
-      );
-      helper.writeln('  Object.defineProperty(record, "toString", {');
-      helper.writeln('    value() {');
-      helper.writeln('      return "(" + shape.map((name) => {');
-      helper.writeln('        const value = String(record[name]);');
-      helper.writeln(
-        '        return name.startsWith("\$") ? value : name + ": " + value;',
-      );
-      helper.writeln('      }).join(", ") + ")";');
-      helper.writeln('    },');
-      helper.writeln('  });');
-      helper.writeln('  return Object.freeze(record);');
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartRecord');
     emitRegisteredRuntimeHelper('__dartConst');
     emitRegisteredRuntimeHelper('__dartConstSet');
     emitRegisteredRuntimeHelper('__dartConstMap');

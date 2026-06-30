@@ -51,6 +51,14 @@ void main() {
     expect(helpers, contains('__dartMapSet'));
   });
 
+  test('resolves record helper dependencies', () {
+    final helpers = resolveEsmRuntimeHelperDependencies({'__dartRecord'});
+
+    expect(helpers, contains('__dartRecord'));
+    expect(helpers, contains('__dartRecordShape'));
+    expect(helpers, contains('__dartIsRecord'));
+  });
+
   test('exposes registered helper source definitions', () {
     expect(esmRuntimeHelperSource('__dartPrint'), contains('__dartStr(value)'));
     expect(esmRuntimeHelperSource('__dartStr'), contains('function __dartStr'));
@@ -96,6 +104,18 @@ void main() {
       contains('function __dartTruncDiv'),
     );
     expect(esmRuntimeHelperSource('__dartShr'), contains('function __dartShr'));
+    expect(
+      esmRuntimeHelperSource('__dartRecordShape'),
+      contains('const __dartRecordShape'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartIsRecord'),
+      contains('function __dartIsRecord'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartRecord'),
+      contains('function __dartRecord'),
+    );
     expect(esmRuntimeHelperSource('__dartStreamMap'), isNull);
   });
 

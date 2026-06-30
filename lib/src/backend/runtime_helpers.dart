@@ -326,6 +326,37 @@ const _dartShrSource = r'''function __dartShr(left, right) {
   return Math.floor(left / (2 ** right));
 }''';
 
+const _dartRecordShapeSource =
+    r'''const __dartRecordShape = Symbol("dart.recordShape");''';
+
+const _dartIsRecordSource = r'''function __dartIsRecord(value) {
+  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
+}''';
+
+const _dartRecordSource = r'''function __dartRecord(positional, named) {
+  const record = {};
+  const shape = [];
+  for (let i = 0; i < positional.length; i++) {
+    const name = "$" + (i + 1);
+    shape.push(name);
+    Object.defineProperty(record, name, { value: positional[i], enumerable: true });
+  }
+  for (const name of Object.keys(named).sort()) {
+    shape.push(name);
+    Object.defineProperty(record, name, { value: named[name], enumerable: true });
+  }
+  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });
+  Object.defineProperty(record, "toString", {
+    value() {
+      return "(" + shape.map((name) => {
+        const value = String(record[name]);
+        return name.startsWith("$") ? value : name + ": " + value;
+      }).join(", ") + ")";
+    },
+  });
+  return Object.freeze(record);
+}''';
+
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
     name: '__dartPrint',
@@ -430,6 +461,23 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     name: '__dartShr',
     category: EsmRuntimeHelperCategory.core,
     source: _dartShrSource,
+  ),
+  '__dartRecordShape': EsmRuntimeHelperSpec(
+    name: '__dartRecordShape',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartRecordShapeSource,
+  ),
+  '__dartIsRecord': EsmRuntimeHelperSpec(
+    name: '__dartIsRecord',
+    category: EsmRuntimeHelperCategory.core,
+    dependencies: ['__dartRecordShape'],
+    source: _dartIsRecordSource,
+  ),
+  '__dartRecord': EsmRuntimeHelperSpec(
+    name: '__dartRecord',
+    category: EsmRuntimeHelperCategory.core,
+    dependencies: ['__dartRecordShape', '__dartIsRecord'],
+    source: _dartRecordSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',

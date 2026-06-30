@@ -37,6 +37,13 @@ final class DartSdkInstanceInvocationEmitter {
           positionalArgs,
           namedArgumentsEmpty,
         ) ??
+        _emitComparableInstanceInvocation(
+          target,
+          name,
+          receiver,
+          positionalArgs,
+          namedArgumentsEmpty,
+        ) ??
         _emitByteDataInstanceInvocation(
           target,
           name,
@@ -60,6 +67,23 @@ final class DartSdkInstanceInvocationEmitter {
       'isNegative' => '($value < 0 || Object.is($value, -0))',
       _ => null,
     };
+  }
+
+  String? _emitComparableInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    bool namedArgumentsEmpty,
+  ) {
+    if (namedArgumentsEmpty &&
+        name == 'compareTo' &&
+        positionalArgs.length == 1 &&
+        isDartCoreMember(target, 'Comparable', name)) {
+      helpers.add('__dartCompare');
+      return '__dartCompare($receiver, ${positionalArgs.single})';
+    }
+    return null;
   }
 
   String? _emitNumberInstanceInvocation(

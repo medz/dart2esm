@@ -19,6 +19,7 @@ import 'sdk_constructor_invocations.dart';
 import 'sdk_instance_invocations.dart';
 import 'sdk_static_gets.dart';
 import 'sdk_static_invocations.dart';
+import 'sdk_text_instances.dart';
 
 EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
   if (component.mainMethod == null) {
@@ -4001,220 +4002,14 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return '$left.detach(${positionalArgs.single})';
     }
-    if (expression.arguments.named.isEmpty &&
-        name == 'contains' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartCoreMember(target, 'String', 'contains')) {
-      if (_isStringLiteralArgument(expression.arguments, 0)) {
-        if (positionalArgs.length == 1) {
-          return '$left.includes(${positionalArgs.single})';
-        }
-        return '$left.includes(${positionalArgs[0]}, ${positionalArgs[1]})';
-      }
-      _usedHelpers.add('__dartStringPattern');
-      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
-      return '__dartStringContains($left, ${positionalArgs[0]}, $start)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'startsWith' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartCoreMember(target, 'String', 'startsWith')) {
-      if (_isStringLiteralArgument(expression.arguments, 0)) {
-        if (positionalArgs.length == 1) {
-          return '$left.startsWith(${positionalArgs.single})';
-        }
-        return '$left.startsWith(${positionalArgs[0]}, ${positionalArgs[1]})';
-      }
-      _usedHelpers.add('__dartStringPattern');
-      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
-      return '__dartStringStartsWith($left, ${positionalArgs[0]}, $start)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'indexOf' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartCoreMember(target, 'String', 'indexOf')) {
-      if (_isStringLiteralArgument(expression.arguments, 0)) {
-        if (positionalArgs.length == 1) {
-          return '$left.indexOf(${positionalArgs.single})';
-        }
-        return '$left.indexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
-      }
-      _usedHelpers.add('__dartStringPattern');
-      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
-      return '__dartStringIndexOf($left, ${positionalArgs[0]}, $start)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'lastIndexOf' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartCoreMember(target, 'String', 'lastIndexOf')) {
-      if (_isStringLiteralArgument(expression.arguments, 0)) {
-        if (positionalArgs.length == 1) {
-          return '$left.lastIndexOf(${positionalArgs.single})';
-        }
-        return '$left.lastIndexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
-      }
-      _usedHelpers.add('__dartStringPattern');
-      final start = positionalArgs.length == 2 ? positionalArgs[1] : 'null';
-      return '__dartStringLastIndexOf($left, ${positionalArgs[0]}, $start)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'allMatches' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        (isDartCoreMember(target, 'String', 'allMatches') ||
-            isDartCoreMember(target, 'Pattern', 'allMatches'))) {
-      _usedHelpers.add('__dartStringPattern');
-      _usedHelpers.add('__dartPatternAllMatches');
-      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
-      return '__dartPatternAllMatches($left, ${positionalArgs[0]}, $start)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'matchAsPrefix' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        (isDartCoreMember(target, 'String', 'matchAsPrefix') ||
-            isDartCoreMember(target, 'Pattern', 'matchAsPrefix'))) {
-      _usedHelpers.add('__dartStringPattern');
-      _usedHelpers.add('__dartPatternMatchAsPrefix');
-      final start = positionalArgs.length == 2 ? positionalArgs[1] : '0';
-      return '__dartPatternMatchAsPrefix($left, ${positionalArgs[0]}, $start)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'split' &&
-        positionalArgs.length == 1 &&
-        isDartCoreMember(target, 'String', 'split')) {
-      if (_isStringLiteralArgument(expression.arguments, 0)) {
-        return '$left.split(${positionalArgs.single})';
-      }
-      _usedHelpers.add('__dartStringPattern');
-      return '__dartStringSplit($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'codeUnitAt' &&
-        positionalArgs.length == 1 &&
-        isDartCoreMember(target, 'String', 'codeUnitAt')) {
-      return '$left.charCodeAt(${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        (name == 'padLeft' || name == 'padRight') &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartCoreMember(target, 'String', name)) {
-      final padding = positionalArgs.length == 2 ? positionalArgs[1] : '" "';
-      final method = name == 'padLeft' ? 'padStart' : 'padEnd';
-      return '$left.$method(${positionalArgs[0]}, $padding)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        (name == 'trimLeft' || name == 'trimRight') &&
-        positionalArgs.isEmpty &&
-        isDartCoreMember(target, 'String', name)) {
-      final method = name == 'trimLeft' ? 'trimStart' : 'trimEnd';
-      return '$left.$method()';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'compareTo' &&
-        positionalArgs.length == 1 &&
-        isDartCoreMember(target, 'Comparable', name)) {
-      _usedHelpers.add('__dartCompare');
-      return '__dartCompare($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'compareTo' &&
-        positionalArgs.length == 1 &&
-        isDartCoreMember(target, 'String', name)) {
-      return '($left < ${positionalArgs.single} ? -1 : ($left > ${positionalArgs.single} ? 1 : 0))';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'replaceAll' &&
-        positionalArgs.length == 2 &&
-        isDartCoreMember(target, 'String', name)) {
-      if (_isStringLiteralArgument(expression.arguments, 0)) {
-        return '$left.replaceAll(${positionalArgs[0]}, ${positionalArgs[1]})';
-      }
-      _usedHelpers.add('__dartStringPattern');
-      return '__dartStringReplaceAll($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'replaceAllMapped' &&
-        positionalArgs.length == 2 &&
-        isDartCoreMember(target, 'String', name)) {
-      _usedHelpers.add('__dartStringPattern');
-      return '__dartStringReplaceAllMapped($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'replaceFirst' &&
-        positionalArgs.length >= 2 &&
-        positionalArgs.length <= 3 &&
-        isDartCoreMember(target, 'String', name)) {
-      final startIndex = positionalArgs.length == 3 ? positionalArgs[2] : '0';
-      if (_isStringLiteralArgument(expression.arguments, 0)) {
-        _usedHelpers.add('__dartStringReplaceFirst');
-        return '__dartStringReplaceFirst($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
-      }
-      _usedHelpers.add('__dartStringPattern');
-      _usedHelpers.add('__dartStringReplaceFirst');
-      _usedHelpers.add('__dartStringReplaceFirstPattern');
-      return '__dartStringReplaceFirstPattern($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'replaceFirstMapped' &&
-        positionalArgs.length >= 2 &&
-        positionalArgs.length <= 3 &&
-        isDartCoreMember(target, 'String', name)) {
-      _usedHelpers.add('__dartStringPattern');
-      final startIndex = positionalArgs.length == 3 ? positionalArgs[2] : '0';
-      return '__dartStringReplaceFirstMapped($left, ${positionalArgs[0]}, ${positionalArgs[1]}, $startIndex)';
-    }
-    if (name == 'splitMapJoin' &&
-        positionalArgs.length == 1 &&
-        isDartCoreMember(target, 'String', name)) {
-      _usedHelpers.add('__dartStringPattern');
-      final onMatch = _namedArgument(expression.arguments, 'onMatch') ?? 'null';
-      final onNonMatch =
-          _namedArgument(expression.arguments, 'onNonMatch') ?? 'null';
-      return '__dartStringSplitMapJoin($left, ${positionalArgs[0]}, $onMatch, $onNonMatch)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        (name == 'resolve' || name == 'resolveUri') &&
-        positionalArgs.length == 1 &&
-        isDartCoreUriMember(target, name)) {
-      _usedHelpers.add('__dartUriParse');
-      _usedHelpers.add('__dartUriResolve');
-      return '__dartUriResolve($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'removeFragment' &&
-        positionalArgs.isEmpty &&
-        isDartCoreUriMember(target, name)) {
-      _usedHelpers.add('__dartUriParse');
-      _usedHelpers.add('__dartUriReplace');
-      return '__dartUriReplace($left, { __removeFragment: true })';
-    }
-    if (name == 'replace' &&
-        positionalArgs.isEmpty &&
-        isDartCoreUriMember(target, name)) {
-      _usedHelpers.add('__dartUriParse');
-      _usedHelpers.add('__dartUriReplace');
-      return '__dartUriReplace($left, ${_emitUriReplaceOptions(expression.arguments)})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'normalizePath' &&
-        positionalArgs.isEmpty &&
-        isDartCoreUriMember(target, name)) {
-      _usedHelpers.add('__dartUriParse');
-      _usedHelpers.add('__dartUriNormalizePath');
-      return '__dartUriNormalizePath($left)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'replaceRange' &&
-        positionalArgs.length == 3 &&
-        isDartCoreMember(target, 'String', name)) {
-      _usedHelpers.add('__dartStringReplaceRange');
-      return '__dartStringReplaceRange($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]})';
+    final textInvocation = DartSdkTextInstanceEmitter(
+      helpers: _usedHelpers,
+      isStringLiteralArgument: _isStringLiteralArgument,
+      namedArgument: _namedArgument,
+      emitUriReplaceOptions: _emitUriReplaceOptions,
+    ).emitInvocation(target, name, left, positionalArgs, expression.arguments);
+    if (textInvocation != null) {
+      return textInvocation;
     }
     if (expression.arguments.named.isEmpty &&
         name == 'contains' &&
@@ -4955,6 +4750,15 @@ final class _EsmEmitter {
     if (asyncGet != null) {
       return asyncGet;
     }
+    final textGet = DartSdkTextInstanceEmitter(
+      helpers: _usedHelpers,
+      isStringLiteralArgument: _isStringLiteralArgument,
+      namedArgument: _namedArgument,
+      emitUriReplaceOptions: _emitUriReplaceOptions,
+    ).emitGet(expression.interfaceTargetReference, name, receiver);
+    if (textGet != null) {
+      return textGet;
+    }
     if (name == 'lengthInBytes' &&
         isDartTypedDataMember(expression.interfaceTargetReference, name)) {
       return '$receiver.byteLength';
@@ -4965,22 +4769,6 @@ final class _EsmEmitter {
           name,
         )) {
       return '$receiver.target';
-    }
-    if (name == 'isEmpty' &&
-        isDartCoreMember(expression.interfaceTargetReference, 'String', name)) {
-      return '$receiver.length === 0';
-    }
-    if (name == 'isNotEmpty' &&
-        isDartCoreMember(expression.interfaceTargetReference, 'String', name)) {
-      return '$receiver.length !== 0';
-    }
-    if (name == 'codeUnits' &&
-        isDartCoreMember(expression.interfaceTargetReference, 'String', name)) {
-      return 'Array.from({ length: $receiver.length }, (_, index) => $receiver.charCodeAt(index))';
-    }
-    if (name == 'runes' &&
-        isDartCoreMember(expression.interfaceTargetReference, 'String', name)) {
-      return 'Array.from($receiver, (char) => char.codePointAt(0))';
     }
     if (name == 'isOdd' &&
         isDartCoreMember(expression.interfaceTargetReference, 'int', name)) {

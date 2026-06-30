@@ -70,6 +70,22 @@ void main() {
     expect(helpers, containsAll(['__dartDuration', '__dartRoundToInt']));
   });
 
+  test('emits Comparable compareTo through helper runtime', () {
+    final helpers = EsmRuntimeHelperUseSet();
+    final emitter = DartSdkInstanceInvocationEmitter(helpers: helpers);
+
+    final output = emitter.emitInvocation(
+      _reference('dart:core::Comparable::@methods::compareTo'),
+      'compareTo',
+      'left',
+      ['right'],
+      k.Arguments.empty(),
+    );
+
+    expect(output, '__dartCompare(left, right)');
+    expect(helpers, contains('__dartCompare'));
+  });
+
   test('emits ByteData 64-bit accessors as native DataView operations', () {
     final helpers = EsmRuntimeHelperUseSet();
     final emitter = DartSdkInstanceInvocationEmitter(helpers: helpers);

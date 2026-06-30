@@ -150,6 +150,8 @@ final class _EsmIrPrinter {
         );
       case EsmThrowStatementIr():
         _writeIndented('throw ${_emitExpression(statement.expression)};');
+      case EsmTryStatementIr():
+        _emitTryStatement(statement);
     }
   }
 
@@ -226,6 +228,34 @@ final class _EsmIrPrinter {
       _emitStatement(child);
     }
     _indent--;
+  }
+
+  void _emitTryStatement(EsmTryStatementIr statement) {
+    _writeIndented('try {');
+    _indent++;
+    for (final child in statement.body) {
+      _emitStatement(child);
+    }
+    _indent--;
+    final catchBody = statement.catchBody;
+    final finallyBody = statement.finallyBody;
+    if (catchBody != null) {
+      _writeIndented('} catch (${statement.catchParameter}) {');
+      _indent++;
+      for (final child in catchBody) {
+        _emitStatement(child);
+      }
+      _indent--;
+    }
+    if (finallyBody != null) {
+      _writeIndented('} finally {');
+      _indent++;
+      for (final child in finallyBody) {
+        _emitStatement(child);
+      }
+      _indent--;
+    }
+    _writeIndented('}');
   }
 
   void _emitForStatement(EsmForStatementIr statement) {

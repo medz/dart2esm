@@ -210,6 +210,20 @@ final class EsmThrowStatementIr extends EsmStatementIr {
   final EsmExpressionIr expression;
 }
 
+final class EsmTryStatementIr extends EsmStatementIr {
+  const EsmTryStatementIr({
+    required this.body,
+    required this.catchParameter,
+    required this.catchBody,
+    required this.finallyBody,
+  });
+
+  final List<EsmStatementIr> body;
+  final String? catchParameter;
+  final List<EsmStatementIr>? catchBody;
+  final List<EsmStatementIr>? finallyBody;
+}
+
 sealed class EsmExpressionIr extends EsmIrNode {
   const EsmExpressionIr();
 }

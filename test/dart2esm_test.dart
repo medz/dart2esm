@@ -1492,6 +1492,40 @@ void main() {
     }
   });
 
+  test('compiles exception and assert flow through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-exceptions-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+
+    for (final id in const [
+      'classes/const_instances',
+      'control_flow/exceptions',
+      'syntax/asserts',
+      'syntax/casts',
+    ]) {
+      final source = File(p.join(fixtureDir.path, '$id.dart'));
+      final expected = File(p.join(fixtureDir.path, '$id.mjs'));
+      final output = File(
+        p.join(tempDir.path, '${id.replaceAll('/', '_')}.mjs'),
+      );
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+          allowLegacyOracle: false,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+      expect(output.readAsStringSync(), expected.readAsStringSync());
+      await _expectSameDartAndNodeOutput(source, output);
+    }
+  });
+
   test('compiles local library imports through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-local-imports-core-',

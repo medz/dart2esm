@@ -774,6 +774,7 @@ final class KernelToEsmIrLoweringStage {
           ),
         ),
       ],
+      k.AssertInitializer() => const [],
       _ => throw NewCompilerUnsupported(
         initializer,
         'constructor initializer lowering',
@@ -1039,6 +1040,7 @@ final class KernelToEsmIrLoweringStage {
     Map<k.LabeledStatement, String> labels,
     k.Statement statement, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
+    String? rethrowName,
   }) {
     return switch (statement) {
       k.Block() => [
@@ -1050,6 +1052,7 @@ final class KernelToEsmIrLoweringStage {
             labels,
             child,
             thisExpression: thisExpression,
+            rethrowName: rethrowName,
           ),
       ],
       k.LabeledStatement() => [
@@ -1060,6 +1063,7 @@ final class KernelToEsmIrLoweringStage {
           labels,
           statement,
           thisExpression,
+          rethrowName: rethrowName,
         ),
       ],
       k.BreakStatement() => [_lowerBreakStatement(labels, statement)],
@@ -1076,6 +1080,19 @@ final class KernelToEsmIrLoweringStage {
         _lowerFunctionDeclaration(world, helpers, locals, statement),
       ],
       k.EmptyStatement() => const [],
+      k.AssertStatement() => const [],
+      k.ExpressionStatement(expression: k.Throw()) => [
+        _lowerThrowStatement(
+          world,
+          helpers,
+          locals,
+          statement.expression as k.Throw,
+          thisExpression: thisExpression,
+        ),
+      ],
+      k.ExpressionStatement(expression: k.Rethrow()) => [
+        _lowerRethrowStatement(statement.expression as k.Rethrow, rethrowName),
+      ],
       k.ExpressionStatement() => [
         EsmExpressionStatementIr(
           _lowerExpression(
@@ -1095,6 +1112,7 @@ final class KernelToEsmIrLoweringStage {
           labels,
           statement,
           thisExpression,
+          rethrowName: rethrowName,
         ),
       ],
       k.WhileStatement() => [
@@ -1105,6 +1123,7 @@ final class KernelToEsmIrLoweringStage {
           labels,
           statement,
           thisExpression,
+          rethrowName: rethrowName,
         ),
       ],
       k.DoStatement() => [
@@ -1115,6 +1134,7 @@ final class KernelToEsmIrLoweringStage {
           labels,
           statement,
           thisExpression,
+          rethrowName: rethrowName,
         ),
       ],
       k.SwitchStatement() => [
@@ -1125,6 +1145,7 @@ final class KernelToEsmIrLoweringStage {
           labels,
           statement,
           thisExpression,
+          rethrowName: rethrowName,
         ),
       ],
       k.ForStatement() => [
@@ -1135,6 +1156,29 @@ final class KernelToEsmIrLoweringStage {
           labels,
           statement,
           thisExpression,
+          rethrowName: rethrowName,
+        ),
+      ],
+      k.TryCatch() => [
+        _lowerTryCatch(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+          rethrowName,
+        ),
+      ],
+      k.TryFinally() => [
+        _lowerTryFinally(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+          rethrowName,
         ),
       ],
       k.ReturnStatement() => [
@@ -1160,8 +1204,9 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.LabeledStatement statement,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
     final label = _freshIn(labels.values.toSet(), 'label');
     labels[statement] = label;
     return EsmLabeledStatementIr(
@@ -1173,6 +1218,7 @@ final class KernelToEsmIrLoweringStage {
         labels,
         statement.body,
         thisExpression: thisExpression,
+        rethrowName: rethrowName,
       ),
     );
   }
@@ -1194,8 +1240,9 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.IfStatement statement,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
     final otherwise = statement.otherwise;
     return EsmIfStatementIr(
       condition: _lowerExpression(
@@ -1212,6 +1259,7 @@ final class KernelToEsmIrLoweringStage {
         labels,
         statement.then,
         thisExpression: thisExpression,
+        rethrowName: rethrowName,
       ),
       otherwiseBody: otherwise == null
           ? null
@@ -1222,6 +1270,7 @@ final class KernelToEsmIrLoweringStage {
               labels,
               otherwise,
               thisExpression: thisExpression,
+              rethrowName: rethrowName,
             ),
     );
   }
@@ -1232,8 +1281,9 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.WhileStatement statement,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
     return EsmWhileStatementIr(
       condition: _lowerExpression(
         world,
@@ -1249,6 +1299,7 @@ final class KernelToEsmIrLoweringStage {
         labels,
         statement.body,
         thisExpression: thisExpression,
+        rethrowName: rethrowName,
       ),
     );
   }
@@ -1259,8 +1310,9 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.DoStatement statement,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
     return EsmDoStatementIr(
       body: _lowerStatementList(
         world,
@@ -1269,6 +1321,7 @@ final class KernelToEsmIrLoweringStage {
         labels,
         statement.body,
         thisExpression: thisExpression,
+        rethrowName: rethrowName,
       ),
       condition: _lowerExpression(
         world,
@@ -1286,8 +1339,9 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.SwitchStatement statement,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
     return EsmSwitchStatementIr(
       expression: _lowerExpression(
         world,
@@ -1305,6 +1359,7 @@ final class KernelToEsmIrLoweringStage {
             labels,
             switchCase,
             thisExpression,
+            rethrowName: rethrowName,
           ),
       ],
     );
@@ -1316,8 +1371,9 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.SwitchCase switchCase,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
     return EsmSwitchCaseIr(
       expressions: [
         for (final expression in switchCase.expressions)
@@ -1337,6 +1393,7 @@ final class KernelToEsmIrLoweringStage {
         labels,
         switchCase.body,
         thisExpression: thisExpression,
+        rethrowName: rethrowName,
       ),
     );
   }
@@ -1347,8 +1404,9 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.ForStatement statement,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
     return EsmForStatementIr(
       initializers: [
         for (final initializer in statement.variableInitializations)
@@ -1386,8 +1444,205 @@ final class KernelToEsmIrLoweringStage {
         labels,
         statement.body,
         thisExpression: thisExpression,
+        rethrowName: rethrowName,
       ),
     );
+  }
+
+  EsmThrowStatementIr _lowerThrowStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.Throw expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    return EsmThrowStatementIr(
+      _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.expression,
+        thisExpression: thisExpression,
+      ),
+    );
+  }
+
+  EsmThrowStatementIr _lowerRethrowStatement(
+    k.Rethrow expression,
+    String? rethrowName,
+  ) {
+    if (rethrowName == null) {
+      throw NewCompilerUnsupported(expression, 'rethrow lowering');
+    }
+    return EsmThrowStatementIr(EsmIdentifierIr(rethrowName));
+  }
+
+  EsmTryStatementIr _lowerTryCatch(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    k.TryCatch statement,
+    EsmExpressionIr thisExpression,
+    String? rethrowName,
+  ) {
+    final errorName = _freshIn(locals.values.toSet(), r'$error');
+    return EsmTryStatementIr(
+      body: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.body,
+        thisExpression: thisExpression,
+        rethrowName: rethrowName,
+      ),
+      catchParameter: errorName,
+      catchBody: _lowerCatchChain(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.catches,
+        errorName,
+        thisExpression,
+      ),
+      finallyBody: null,
+    );
+  }
+
+  EsmTryStatementIr _lowerTryFinally(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    k.TryFinally statement,
+    EsmExpressionIr thisExpression,
+    String? rethrowName,
+  ) {
+    return EsmTryStatementIr(
+      body: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.body,
+        thisExpression: thisExpression,
+        rethrowName: rethrowName,
+      ),
+      catchParameter: null,
+      catchBody: null,
+      finallyBody: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.finalizer,
+        thisExpression: thisExpression,
+        rethrowName: rethrowName,
+      ),
+    );
+  }
+
+  List<EsmStatementIr> _lowerCatchChain(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    List<k.Catch> catches,
+    String errorName,
+    EsmExpressionIr thisExpression,
+  ) {
+    var otherwise = <EsmStatementIr>[
+      EsmThrowStatementIr(EsmIdentifierIr(errorName)),
+    ];
+    for (final catchClause in catches.reversed) {
+      final body = _lowerCatchBody(
+        world,
+        helpers,
+        locals,
+        labels,
+        catchClause,
+        errorName,
+        thisExpression,
+      );
+      if (_isTopType(catchClause.guard.unalias)) {
+        otherwise = body;
+        continue;
+      }
+      otherwise = [
+        EsmIfStatementIr(
+          condition: _lowerTypeTest(
+            world,
+            helpers,
+            catchClause.guard,
+            EsmIdentifierIr(errorName),
+          ),
+          thenBody: body,
+          otherwiseBody: otherwise,
+        ),
+      ];
+    }
+    return otherwise;
+  }
+
+  List<EsmStatementIr> _lowerCatchBody(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    k.Catch catchClause,
+    String errorName,
+    EsmExpressionIr thisExpression,
+  ) {
+    final catchLocals = Map<k.VariableDeclaration, String>.of(locals);
+    final statements = <EsmStatementIr>[];
+    final error = EsmIdentifierIr(errorName);
+    final exception = catchClause.exception;
+    if (exception != null) {
+      final name = _freshIn(catchLocals.values.toSet(), exception.name ?? 'e');
+      catchLocals[exception] = name;
+      statements.add(
+        EsmVariableDeclarationIr(
+          name: name,
+          initializer: error,
+          mutable: exception.isAssignable,
+        ),
+      );
+    }
+    final stackTrace = catchClause.stackTrace;
+    if (stackTrace != null) {
+      final name = _freshIn(
+        catchLocals.values.toSet(),
+        stackTrace.name ?? 'stack',
+      );
+      catchLocals[stackTrace] = name;
+      statements.add(
+        EsmVariableDeclarationIr(
+          name: name,
+          initializer: EsmNullishCoalesceIr(
+            left: EsmOptionalPropertyAccessIr(
+              receiver: error,
+              property: 'stack',
+            ),
+            right: const EsmStringLiteralIr('<javascript stack unavailable>'),
+          ),
+          mutable: stackTrace.isAssignable,
+        ),
+      );
+    }
+    statements.addAll(
+      _lowerStatementList(
+        world,
+        helpers,
+        catchLocals,
+        labels,
+        catchClause.body,
+        thisExpression: thisExpression,
+        rethrowName: errorName,
+      ),
+    );
+    return statements;
   }
 
   EsmVariableDeclarationIr _lowerForInitializer(
@@ -2881,6 +3136,32 @@ final class KernelToEsmIrLoweringStage {
         ],
       );
     }
+    if (target.startsWith('dart:') &&
+        expression.name.text == 'contains' &&
+        !target.contains('Set::') &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          property: 'includes',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
     if (expression.arguments.positional.isNotEmpty) {
       return null;
     }
@@ -2896,6 +3177,12 @@ final class KernelToEsmIrLoweringStage {
     }
     if (target == 'dart:core::int::@methods::~') {
       return EsmUnaryIr(operator: '~', operand: receiver);
+    }
+    if (target.startsWith('dart:') && expression.name.text == 'toString') {
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('String'),
+        arguments: [receiver],
+      );
     }
     final property = switch (target) {
       'dart:core::String::@methods::toUpperCase' => 'toUpperCase',
@@ -2917,6 +3204,16 @@ final class KernelToEsmIrLoweringStage {
     k.InstanceGet expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final intrinsic = _lowerCoreInstanceGet(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (intrinsic != null) {
+      return intrinsic;
+    }
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'instance get lowering');
@@ -2931,6 +3228,28 @@ final class KernelToEsmIrLoweringStage {
       ),
       property: _instanceMemberName(world, target),
     );
+  }
+
+  EsmExpressionIr? _lowerCoreInstanceGet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceGet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final target = expression.interfaceTargetReference.toStringInternal();
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    if (target == 'dart:core::List::@getters::length' ||
+        target == 'dart:core::String::@getters::length') {
+      return EsmPropertyAccessIr(receiver: receiver, property: 'length');
+    }
+    return null;
   }
 
   EsmExpressionIr _lowerInstanceSet(

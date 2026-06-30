@@ -55,6 +55,17 @@ final class EsmNamePlan {
         _procedureNames[procedure.node] = freshGlobal(procedure.node.name.text);
       }
     }
+    _declareClassRuntime(module);
+  }
+
+  void _declareClassRuntime(EsmModulePlan module) {
+    final sortedClasses = module.classRuntime.classes.toList()
+      ..sort((left, right) => className(left).compareTo(className(right)));
+    for (final klass in sortedClasses) {
+      for (final interface in module.classRuntime.interfaceMarkersFor(klass)) {
+        interfaceMarkerName(interface);
+      }
+    }
   }
 
   T withFunctionScope<T>(T Function() body) {

@@ -34,6 +34,39 @@ void main() {
     expect(names.procedureName(procedure), 'value_2');
   });
 
+  test('predeclares class runtime interface marker names', () {
+    final libraryUri = Uri.parse('package:sample/main.dart');
+    final library = k.Library(libraryUri, fileUri: libraryUri);
+    final interface = k.Class(name: 'Interface', fileUri: libraryUri);
+    final implementer = k.Class(name: 'Implementer', fileUri: libraryUri);
+    library.addClass(interface);
+    library.addClass(implementer);
+
+    final names = EsmNamePlan.forModule(
+      _module(
+        library,
+        classes: [
+          EsmClassPlan(node: interface, export: false),
+          EsmClassPlan(node: implementer, export: false),
+        ],
+        classRuntime: EsmClassRuntimePlan(
+          classes: {interface, implementer},
+          jsInterfaceSuperclasses: const {},
+          interfaceMarkersByClass: {
+            implementer: {interface},
+          },
+          interfaceBaseClasses: {interface},
+        ),
+      ),
+    );
+
+    expect(names.interfaceMarkerName(interface), r'$Interface_interface');
+    expect(
+      names.freshGlobal(r'$Interface_interface'),
+      r'$Interface_interface_1',
+    );
+  });
+
   test('allocates and reuses local variable names in function scopes', () {
     final names = EsmNamePlan(generatedGlobalNames: const {'taken'});
     final variable = k.VariableDeclaration('taken');
@@ -91,6 +124,7 @@ EsmModulePlan _module(
   List<EsmClassPlan> classes = const [],
   List<EsmFieldPlan> fields = const [],
   List<EsmProcedurePlan> procedures = const [],
+  EsmClassRuntimePlan? classRuntime,
 }) {
   return EsmModulePlan(
     classes: classes,
@@ -104,12 +138,14 @@ EsmModulePlan _module(
         extensionTypes: const [],
       ),
     ],
-    classRuntime: const EsmClassRuntimePlan(
-      classes: {},
-      jsInterfaceSuperclasses: {},
-      interfaceMarkersByClass: {},
-      interfaceBaseClasses: {},
-    ),
+    classRuntime:
+        classRuntime ??
+        const EsmClassRuntimePlan(
+          classes: {},
+          jsInterfaceSuperclasses: {},
+          interfaceMarkersByClass: {},
+          interfaceBaseClasses: {},
+        ),
     extensionTypeMembers: EsmExtensionTypeMemberIndex.empty,
   );
 }

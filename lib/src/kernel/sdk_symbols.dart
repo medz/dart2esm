@@ -142,6 +142,22 @@ DartSdkStaticInvocationSymbol? dartSdkStaticInvocationSymbol(
   };
 }
 
+enum DartCoreObjectStaticInvocationSymbol { hash, hashAll, hashAllUnordered }
+
+DartCoreObjectStaticInvocationSymbol? dartCoreObjectStaticInvocationSymbol(
+  k.Reference reference,
+) {
+  return switch (kernelReferencePath(reference)) {
+    'dart:core::Object::@methods::hash' =>
+      DartCoreObjectStaticInvocationSymbol.hash,
+    'dart:core::Object::@methods::hashAll' =>
+      DartCoreObjectStaticInvocationSymbol.hashAll,
+    'dart:core::Object::@methods::hashAllUnordered' =>
+      DartCoreObjectStaticInvocationSymbol.hashAllUnordered,
+    _ => null,
+  };
+}
+
 bool isDartSdkLibraryClassMember(
   k.Reference reference,
   String libraryUri,

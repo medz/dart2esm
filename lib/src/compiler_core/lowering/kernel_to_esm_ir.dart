@@ -4618,6 +4618,16 @@ final class KernelToEsmIrLoweringStage
     if (coreErrorStatic != null) {
       return coreErrorStatic;
     }
+    final coreObjectStatic = _lowerCoreObjectStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (coreObjectStatic != null) {
+      return coreObjectStatic;
+    }
     if (_isCoreFunctionApply(expression.targetReference)) {
       return _lowerCoreFunctionApply(
         world,
@@ -4655,6 +4665,86 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerCoreObjectStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    switch (dartCoreObjectStaticInvocationSymbol(expression.targetReference)) {
+      case DartCoreObjectStaticInvocationSymbol.hash
+          when positional.length >= 2:
+        helpers.add(EsmRuntimeHelper.objectHash);
+        return EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.objectHash),
+          arguments: [
+            EsmArrayLiteralIr([
+              for (final argument in positional)
+                _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  argument,
+                  thisExpression: thisExpression,
+                ),
+            ]),
+          ],
+        );
+      case DartCoreObjectStaticInvocationSymbol.hashAll
+          when positional.length == 1:
+        helpers.add(EsmRuntimeHelper.objectHash);
+        return EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.objectHash),
+          arguments: [
+            _arrayFrom(
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                positional.single,
+                thisExpression: thisExpression,
+              ),
+            ),
+          ],
+        );
+      case DartCoreObjectStaticInvocationSymbol.hashAllUnordered
+          when positional.length == 1:
+        helpers.add(EsmRuntimeHelper.objectHash);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartObjectHashUnordered'),
+          arguments: [
+            _arrayFrom(
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                positional.single,
+                thisExpression: thisExpression,
+              ),
+            ),
+          ],
+        );
+      default:
+        return null;
+    }
+  }
+
+  EsmCallIr _arrayFrom(EsmExpressionIr value) {
+    return EsmCallIr(
+      callee: const EsmPropertyAccessIr(
+        receiver: EsmIdentifierIr('Array'),
+        property: 'from',
+      ),
+      arguments: [value],
+    );
   }
 
   EsmExpressionIr? _lowerCoreEnumStaticInvocation(

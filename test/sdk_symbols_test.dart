@@ -124,6 +124,31 @@ void main() {
     );
   });
 
+  test('classifies dart:core Object static invocations', () {
+    expect(
+      dartCoreObjectStaticInvocationSymbol(
+        _reference('dart:core::Object::@methods::hash'),
+      ),
+      DartCoreObjectStaticInvocationSymbol.hash,
+    );
+    expect(
+      dartCoreObjectStaticInvocationSymbol(
+        _reference('dart:core::Object::@methods::hashAll'),
+      ),
+      DartCoreObjectStaticInvocationSymbol.hashAll,
+    );
+    expect(
+      dartCoreObjectStaticInvocationSymbol(
+        _reference('dart:core::Object::@methods::hashAllUnordered'),
+      ),
+      DartCoreObjectStaticInvocationSymbol.hashAllUnordered,
+    );
+    expect(
+      dartCoreObjectStaticInvocationSymbol(_reference('dart:core::Object')),
+      isNull,
+    );
+  });
+
   test('classifies dart:core object and collection members', () {
     expect(
       isDartCoreWeakReferenceMember(

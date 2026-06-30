@@ -20,6 +20,7 @@ enum EsmRuntimeHelper {
   mapAddAll,
   mapSet,
   nullCheck,
+  objectHash,
   print,
   recordShape,
   isRecord,
@@ -57,9 +58,16 @@ final class EsmRuntimeHelperRegistry {
     '__dartListAddAll',
     '__dartMapAddAll',
     '__dartMapSet',
+    '__dartCombineHash',
+    '__dartFinishHash',
+    '__dartHashValue',
+    '__dartIdentityHashes',
+    '__dartNextIdentityHash',
     '__dartIsRecord',
     '__dartIsCoreError',
     '__dartNullCheck',
+    '__dartObjectHash',
+    '__dartObjectHashUnordered',
     '__dartPrint',
     '__dartRecord',
     '__dartRecordShape',
@@ -95,6 +103,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.mapAddAll => '__dartMapAddAll',
       EsmRuntimeHelper.mapSet => '__dartMapSet',
       EsmRuntimeHelper.nullCheck => '__dartNullCheck',
+      EsmRuntimeHelper.objectHash => '__dartObjectHash',
       EsmRuntimeHelper.print => '__dartPrint',
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
@@ -443,6 +452,51 @@ function __dartNullCheck(value) {
   return value;
 }
 '''),
+      EsmRuntimeHelper.objectHash => EsmRawModuleItemIr(r'''
+const __dartIdentityHashes = new WeakMap();
+let __dartNextIdentityHash = 1;
+function __dartCombineHash(hash, value) {
+  hash = (((hash + value) & 0x1fffffff) + (((hash & 0x0007ffff) << 10) & 0x1fffffff)) & 0x1fffffff;
+  return hash ^ (hash >> 6);
+}
+function __dartFinishHash(hash) {
+  hash = (((hash + (((hash & 0x03ffffff) << 3) & 0x1fffffff)) & 0x1fffffff) ^ (hash >> 11));
+  return (hash + (((hash & 0x00003fff) << 15) & 0x1fffffff)) & 0x1fffffff;
+}
+function __dartHashValue(value) {
+  if (value == null) return 0;
+  if (typeof value === "boolean") return value ? 1231 : 1237;
+  if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value) & 0x1fffffff : 0;
+  if (typeof value === "string") {
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) hash = __dartCombineHash(hash, value.charCodeAt(i));
+    return __dartFinishHash(hash);
+  }
+  if (typeof value === "bigint") return Number(value & 0x1fffffffn);
+  if (!__dartIdentityHashes.has(value)) {
+    __dartIdentityHashes.set(value, __dartNextIdentityHash);
+    __dartNextIdentityHash = (__dartNextIdentityHash + 1) & 0x1fffffff || 1;
+  }
+  return __dartIdentityHashes.get(value);
+}
+function __dartObjectHash(values) {
+  let hash = 0;
+  for (const value of values) hash = __dartCombineHash(hash, __dartHashValue(value));
+  return __dartFinishHash(hash);
+}
+function __dartObjectHashUnordered(values) {
+  let sum = 0;
+  let xor = 0;
+  let count = 0;
+  for (const value of values) {
+    const hash = __dartHashValue(value);
+    sum = (sum + hash) & 0x1fffffff;
+    xor ^= hash;
+    count++;
+  }
+  return __dartObjectHash([sum, xor, count]);
+}
+'''),
       EsmRuntimeHelper.print => EsmFunctionIr(
         name: name(helper),
         export: false,
@@ -587,6 +641,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.print:
         _helpers.add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.recordShape:
+      case EsmRuntimeHelper.objectHash:
       case EsmRuntimeHelper.safeToString:
       case EsmRuntimeHelper.setAddAll:
       case EsmRuntimeHelper.stringify:

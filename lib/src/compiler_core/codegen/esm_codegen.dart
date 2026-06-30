@@ -271,6 +271,8 @@ final class _EsmIrPrinter {
       EsmNumberLiteralIr() => _emitNumber(expression.value),
       EsmBooleanLiteralIr() => expression.value ? 'true' : 'false',
       EsmNullLiteralIr() => 'null',
+      EsmArrayLiteralIr() =>
+        '[${expression.elements.map(_emitExpression).join(', ')}]',
       EsmCallIr() =>
         '${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmNewIr() =>
@@ -278,6 +280,7 @@ final class _EsmIrPrinter {
       EsmPropertyAccessIr() =>
         '${_emitExpression(expression.receiver)}.${expression.property}',
       EsmThisIr() => 'this',
+      EsmNewTargetIr() => 'new.target',
       EsmSuperIr() => 'super',
     };
   }

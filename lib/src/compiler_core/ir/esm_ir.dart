@@ -235,6 +235,12 @@ final class EsmNullLiteralIr extends EsmExpressionIr {
   const EsmNullLiteralIr();
 }
 
+final class EsmArrayLiteralIr extends EsmExpressionIr {
+  const EsmArrayLiteralIr(this.elements);
+
+  final List<EsmExpressionIr> elements;
+}
+
 final class EsmCallIr extends EsmExpressionIr {
   const EsmCallIr({required this.callee, required this.arguments});
 
@@ -258,6 +264,10 @@ final class EsmPropertyAccessIr extends EsmExpressionIr {
 
 final class EsmThisIr extends EsmExpressionIr {
   const EsmThisIr();
+}
+
+final class EsmNewTargetIr extends EsmExpressionIr {
+  const EsmNewTargetIr();
 }
 
 final class EsmSuperIr extends EsmExpressionIr {

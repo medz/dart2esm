@@ -72,7 +72,7 @@ final class KernelToEsmIrLoweringStage {
       constructor: constructor,
       methods: [
         for (final constructor in namedConstructors)
-          _lowerNamedConstructor(world, helpers, klass, constructor),
+          _lowerNamedConstructor(world, helpers, constructor),
         for (final procedure in klass.procedures)
           _lowerClassProcedure(world, helpers, procedure),
       ],
@@ -115,10 +115,57 @@ final class KernelToEsmIrLoweringStage {
       for (final initializer in constructor.node.initializers)
         if (initializer is k.SuperInitializer) initializer,
     ];
+    final factorySuperInitializers = [
+      for (final initializer in superInitializers)
+        if (_isFactorySuperInitializer(world, initializer)) initializer,
+    ];
+    if (factorySuperInitializers.length > 1) {
+      throw NewCompilerUnsupported(
+        constructor.node,
+        'multiple factory super initializers',
+      );
+    }
     final otherInitializers = [
       for (final initializer in constructor.node.initializers)
         if (initializer is! k.SuperInitializer) initializer,
     ];
+    if (factorySuperInitializers case [final superInitializer]) {
+      final selfName = _freshIn(usedParameters, r'$self');
+      final self = EsmIdentifierIr(selfName);
+      final body = <EsmStatementIr>[
+        EsmVariableDeclarationIr(
+          name: selfName,
+          initializer: _lowerSuperFactoryAllocation(
+            world,
+            helpers,
+            locals,
+            superInitializer,
+            const EsmNewTargetIr(),
+          ),
+          mutable: false,
+        ),
+        for (final initializer in otherInitializers)
+          ..._lowerConstructorInitializer(
+            world,
+            helpers,
+            locals,
+            initializer,
+            self,
+          ),
+        if (function.body case final body?) ...[
+          ..._lowerStatementList(
+            world,
+            helpers,
+            locals,
+            labels,
+            body,
+            thisExpression: self,
+          ),
+        ],
+        EsmReturnStatementIr(self),
+      ];
+      return EsmClassConstructorIr(parameters: parameters, body: body);
+    }
     final body = <EsmStatementIr>[
       for (final initializer in superInitializers)
         ..._lowerSuperInitializer(world, helpers, locals, initializer),
@@ -140,7 +187,6 @@ final class KernelToEsmIrLoweringStage {
   EsmClassMethodIr _lowerNamedConstructor(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
-    EsmClassSymbol klass,
     EsmConstructorSymbol constructor,
   ) {
     final function = constructor.node.function;
@@ -163,26 +209,31 @@ final class KernelToEsmIrLoweringStage {
       for (final initializer in constructor.node.initializers)
         if (initializer is k.SuperInitializer) initializer,
     ];
+    if (superInitializers.length > 1) {
+      throw NewCompilerUnsupported(
+        constructor.node,
+        'multiple super initializers',
+      );
+    }
     final otherInitializers = [
       for (final initializer in constructor.node.initializers)
         if (initializer is! k.SuperInitializer) initializer,
     ];
+    final allocation = superInitializers.isEmpty
+        ? _lowerObjectCreate(const EsmThisIr())
+        : _lowerSuperFactoryAllocation(
+            world,
+            helpers,
+            locals,
+            superInitializers.single,
+            const EsmThisIr(),
+          );
     final body = <EsmStatementIr>[
       EsmVariableDeclarationIr(
         name: selfName,
-        initializer: EsmCallIr(
-          callee: const EsmPropertyAccessIr(
-            receiver: EsmIdentifierIr('Object'),
-            property: 'create',
-          ),
-          arguments: const [
-            EsmPropertyAccessIr(receiver: EsmThisIr(), property: 'prototype'),
-          ],
-        ),
+        initializer: allocation,
         mutable: false,
       ),
-      for (final initializer in superInitializers)
-        ..._lowerNamedConstructorSuperInitializer(initializer),
       for (final initializer in otherInitializers)
         ..._lowerConstructorInitializer(
           world,
@@ -212,17 +263,79 @@ final class KernelToEsmIrLoweringStage {
     );
   }
 
-  List<EsmStatementIr> _lowerNamedConstructorSuperInitializer(
+  bool _isFactorySuperInitializer(
+    EsmSemanticWorld world,
     k.SuperInitializer initializer,
   ) {
-    if (initializer.arguments.positional.isEmpty &&
-        initializer.arguments.named.isEmpty &&
-        initializer.arguments.types.isEmpty) {
-      return const [];
+    final target = initializer.targetReference.node;
+    return target is k.Constructor &&
+        world.constructorSymbolFor(target)?.name.isNotEmpty == true;
+  }
+
+  EsmExpressionIr _lowerObjectCreate(EsmExpressionIr newTarget) {
+    return EsmCallIr(
+      callee: const EsmPropertyAccessIr(
+        receiver: EsmIdentifierIr('Object'),
+        property: 'create',
+      ),
+      arguments: [
+        EsmPropertyAccessIr(receiver: newTarget, property: 'prototype'),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerSuperFactoryAllocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.SuperInitializer initializer,
+    EsmExpressionIr newTarget,
+  ) {
+    if (initializer.arguments.named.isNotEmpty ||
+        initializer.arguments.types.isNotEmpty) {
+      throw NewCompilerUnsupported(initializer, 'super initializer arguments');
     }
-    throw NewCompilerUnsupported(
-      initializer,
-      'named super initializer lowering',
+    final target = initializer.targetReference.node;
+    if (target is! k.Constructor) {
+      if (initializer.arguments.positional.isEmpty) {
+        return _lowerObjectCreate(newTarget);
+      }
+      throw NewCompilerUnsupported(initializer, 'super initializer target');
+    }
+    final constructor = world.constructorSymbolFor(target);
+    final klass = world.classSymbolFor(target.enclosingClass);
+    if (constructor == null || klass == null) {
+      if (initializer.arguments.positional.isEmpty) {
+        return _lowerObjectCreate(newTarget);
+      }
+      throw NewCompilerUnsupported(initializer, 'super initializer target');
+    }
+    final arguments = [
+      for (final argument in initializer.arguments.positional)
+        _lowerExpression(world, helpers, locals, argument),
+    ];
+    if (constructor.name.isEmpty) {
+      return EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr('Reflect'),
+          property: 'construct',
+        ),
+        arguments: [
+          EsmIdentifierIr(klass.name),
+          EsmArrayLiteralIr(arguments),
+          newTarget,
+        ],
+      );
+    }
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(
+        receiver: EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr(klass.name),
+          property: constructor.name,
+        ),
+        property: 'call',
+      ),
+      arguments: [newTarget, ...arguments],
     );
   }
 

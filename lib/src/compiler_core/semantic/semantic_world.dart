@@ -20,6 +20,9 @@ final class EsmSemanticWorld {
     required List<EsmProcedureSymbol> procedures,
   }) : fields = List.unmodifiable(fields),
        procedures = List.unmodifiable(procedures),
+       _fieldSymbols = {
+         for (final field in fields) field.node: field,
+       },
        _procedureSymbols = {
          for (final procedure in procedures) procedure.node: procedure,
        };
@@ -28,7 +31,20 @@ final class EsmSemanticWorld {
   final k.Procedure main;
   final List<EsmFieldSymbol> fields;
   final List<EsmProcedureSymbol> procedures;
+  final Map<k.Field, EsmFieldSymbol> _fieldSymbols;
   final Map<k.Procedure, EsmProcedureSymbol> _procedureSymbols;
+
+  EsmFieldSymbol? fieldSymbolFor(k.Field field) {
+    return _fieldSymbols[field];
+  }
+
+  EsmFieldSymbol fieldSymbolForRequired(k.Field field) {
+    final symbol = fieldSymbolFor(field);
+    if (symbol == null) {
+      throw NewCompilerUnsupported(field, 'unbound field');
+    }
+    return symbol;
+  }
 
   EsmProcedureSymbol? symbolFor(k.Procedure procedure) {
     return _procedureSymbols[procedure];

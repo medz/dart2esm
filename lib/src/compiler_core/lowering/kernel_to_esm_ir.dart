@@ -336,6 +336,8 @@ final class KernelToEsmIrLoweringStage {
         locals,
         expression,
       ),
+      k.StaticGet() => _lowerStaticGet(world, expression),
+      k.StaticSet() => _lowerStaticSet(world, helpers, locals, expression),
       k.ConstantExpression() => _lowerConstantExpression(expression),
       k.VariableGet() => _lowerVariableGet(locals, expression),
       k.VariableSet() => _lowerVariableSet(world, helpers, locals, expression),
@@ -376,6 +378,42 @@ final class KernelToEsmIrLoweringStage {
       return const EsmNullLiteralIr();
     }
     throw NewCompilerUnsupported(expression, 'constant expression lowering');
+  }
+
+  EsmExpressionIr _lowerStaticGet(
+    EsmSemanticWorld world,
+    k.StaticGet expression,
+  ) {
+    final target = expression.targetReference.node;
+    if (target is k.Field) {
+      final symbol = world.fieldSymbolFor(target);
+      if (symbol != null) {
+        return EsmIdentifierIr(symbol.name);
+      }
+    }
+    throw NewCompilerUnsupported(expression, 'static get lowering');
+  }
+
+  EsmExpressionIr _lowerStaticSet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticSet expression,
+  ) {
+    final target = expression.targetReference.node;
+    if (target is k.Field) {
+      final symbol = world.fieldSymbolFor(target);
+      if (symbol != null) {
+        if (!symbol.mutable) {
+          throw NewCompilerUnsupported(expression, 'write to final field');
+        }
+        return EsmAssignmentIr(
+          target: EsmIdentifierIr(symbol.name),
+          value: _lowerExpression(world, helpers, locals, expression.value),
+        );
+      }
+    }
+    throw NewCompilerUnsupported(expression, 'static set lowering');
   }
 
   EsmExpressionIr _lowerVariableSet(

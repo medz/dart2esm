@@ -419,6 +419,7 @@ final class SemanticWorldStage {
     }
     return switch (procedure.kind) {
       k.ProcedureKind.Method => EsmProcedureKind.method,
+      k.ProcedureKind.Factory => EsmProcedureKind.method,
       k.ProcedureKind.Getter => EsmProcedureKind.getter,
       k.ProcedureKind.Setter => EsmProcedureKind.setter,
       _ => null,

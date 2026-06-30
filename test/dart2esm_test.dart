@@ -766,6 +766,101 @@ main();
     );
   });
 
+  test(
+    'compiles redirecting factory constructors through the new core',
+    () async {
+      final source = File(
+        p.join(
+          fixtureDir.path,
+          'classes',
+          'redirecting_factory_constructors.dart',
+        ),
+      );
+      final expected = File(
+        p.join(
+          fixtureDir.path,
+          'classes',
+          'redirecting_factory_constructors.mjs',
+        ),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-redirecting-factory-constructors-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+          allowLegacyOracle: false,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+      expect(output.readAsStringSync(), expected.readAsStringSync());
+
+      final nodeResult = await Process.run('node', [output.path]);
+      expect(
+        nodeResult.exitCode,
+        0,
+        reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+      );
+      expect(
+        (nodeResult.stdout as String).trim(),
+        'square:2\n'
+        'named:3\n'
+        'named:4\n'
+        'square:5\n'
+        'default:8\n'
+        'options:9\n'
+        'custom:6\n'
+        'button:button\n'
+        'button:primary',
+      );
+
+      final module = File(p.join(tempDir.path, 'module.mjs'));
+      final consumer = File(p.join(tempDir.path, 'consumer.mjs'))
+        ..writeAsStringSync(
+          "import { Shape, Widget } from './module.mjs';\n"
+          "console.log(Shape.named(3) instanceof Shape);\n"
+          "console.log(Widget.named('primary') instanceof Widget);\n",
+        );
+      final moduleResult = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: module.path,
+          workingDirectory: Directory.current,
+          runMain: false,
+          allowLegacyOracle: false,
+        ),
+      );
+
+      expect(
+        moduleResult.success,
+        isTrue,
+        reason: moduleResult.diagnostics.join('\n'),
+      );
+      expect(moduleResult.compilerPath, Dart2EsmCompilerPath.newCore);
+      expect(
+        module.readAsStringSync(),
+        _withoutMainCall(expected.readAsStringSync()),
+      );
+
+      final importResult = await Process.run('node', [
+        consumer.path,
+      ], workingDirectory: tempDir.path);
+      expect(
+        importResult.exitCode,
+        0,
+        reason: '${importResult.stdout}\n${importResult.stderr}',
+      );
+      expect((importResult.stdout as String).trim(), 'true\ntrue');
+    },
+  );
+
   test('compiles function parameters through the new core', () async {
     final source = File(
       p.join(fixtureDir.path, 'functions', 'parameters.dart'),

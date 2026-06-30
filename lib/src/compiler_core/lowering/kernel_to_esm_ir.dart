@@ -94,6 +94,15 @@ final class KernelToEsmIrLoweringStage {
       for (final constructor in klass.constructors)
         if (constructor.name.isNotEmpty) constructor,
     ];
+    final unnamedFactories = [
+      for (final procedure in klass.staticProcedures)
+        if (procedure.node.kind == k.ProcedureKind.Factory &&
+            procedure.node.name.text.isEmpty)
+          procedure,
+    ];
+    if (unnamedFactories.length > 1) {
+      throw NewCompilerUnsupported(klass.node, 'unnamed factory lowering');
+    }
     final interfaceMarkers = _interfaceMarkersForClass(world, klass);
     final constructor = unnamedConstructors.isNotEmpty
         ? _lowerConstructor(
@@ -102,6 +111,8 @@ final class KernelToEsmIrLoweringStage {
             unnamedConstructors.single,
             interfaceMarkers: interfaceMarkers,
           )
+        : unnamedFactories.isNotEmpty
+        ? _lowerFactoryConstructor(world, helpers, unnamedFactories.single)
         : namedConstructors.isNotEmpty
         ? _lowerMissingUnnamedConstructor(klass)
         : interfaceMarkers.isNotEmpty
@@ -120,15 +131,22 @@ final class KernelToEsmIrLoweringStage {
       constructor: constructor,
       methods: [
         for (final constructor in namedConstructors)
-          _lowerNamedConstructor(world, helpers, constructor),
-        for (final procedure in klass.staticProcedures)
-          _lowerClassProcedure(
+          _lowerNamedConstructor(
             world,
             helpers,
-            klass,
-            procedure,
-            isStatic: true,
+            constructor,
+            interfaceMarkers: interfaceMarkers,
           ),
+        for (final procedure in klass.staticProcedures)
+          if (procedure.node.kind != k.ProcedureKind.Factory ||
+              procedure.node.name.text.isNotEmpty)
+            _lowerClassProcedure(
+              world,
+              helpers,
+              klass,
+              procedure,
+              isStatic: true,
+            ),
         for (final procedure in klass.procedures)
           _lowerClassProcedure(world, helpers, klass, procedure),
       ],
@@ -328,6 +346,35 @@ final class KernelToEsmIrLoweringStage {
     );
   }
 
+  EsmClassConstructorIr _lowerFactoryConstructor(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmStaticProcedureSymbol procedure,
+  ) {
+    final function = procedure.node.function;
+    if (function.asyncMarker != k.AsyncMarker.Sync) {
+      throw NewCompilerUnsupported(function, 'async factory lowering');
+    }
+    final locals = <k.VariableDeclaration, String>{};
+    final labels = <k.LabeledStatement, String>{};
+    final usedParameters = <String>{};
+    final parameters = _bindParameters(
+      world,
+      helpers,
+      locals,
+      usedParameters,
+      function,
+    );
+    final body = function.body;
+    if (body == null) {
+      throw NewCompilerUnsupported(function, 'factory without body');
+    }
+    return EsmClassConstructorIr(
+      parameters: parameters,
+      body: _lowerStatementList(world, helpers, locals, labels, body),
+    );
+  }
+
   EsmClassConstructorIr _lowerConstructor(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -441,8 +488,9 @@ final class KernelToEsmIrLoweringStage {
   EsmClassMethodIr _lowerNamedConstructor(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
-    EsmConstructorSymbol constructor,
-  ) {
+    EsmConstructorSymbol constructor, {
+    List<String> interfaceMarkers = const [],
+  }) {
     final function = constructor.node.function;
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw NewCompilerUnsupported(function, 'async constructor lowering');
@@ -526,6 +574,7 @@ final class KernelToEsmIrLoweringStage {
           thisExpression: self,
         ),
       ],
+      ..._lowerInterfaceMarkerDefinitions(self, interfaceMarkers),
       EsmReturnStatementIr(self),
     ];
     return EsmClassMethodIr(
@@ -2238,14 +2287,18 @@ final class KernelToEsmIrLoweringStage {
         operand,
         EsmArrowFunctionIr(
           parameters: const ['value'],
-          body: _lowerTypeTest(type, const EsmIdentifierIr('value')),
+          body: _lowerTypeTest(world, type, const EsmIdentifierIr('value')),
         ),
         EsmStringLiteralIr(_typeName(type)),
       ],
     );
   }
 
-  EsmExpressionIr _lowerTypeTest(k.DartType type, EsmExpressionIr value) {
+  EsmExpressionIr _lowerTypeTest(
+    EsmSemanticWorld world,
+    k.DartType type,
+    EsmExpressionIr value,
+  ) {
     if (type is k.InterfaceType) {
       final target = type.classReference.toStringInternal();
       if (target == 'dart:core::String') {
@@ -2254,6 +2307,17 @@ final class KernelToEsmIrLoweringStage {
           operator: '===',
           right: const EsmStringLiteralIr('string'),
         );
+      }
+      final targetNode = type.classReference.node;
+      if (targetNode is k.Class) {
+        final klass = world.classSymbolFor(targetNode);
+        if (klass != null) {
+          return EsmBinaryIr(
+            left: value,
+            operator: 'instanceof',
+            right: EsmIdentifierIr(klass.name),
+          );
+        }
       }
     }
     throw NewCompilerUnsupported(type, 'type test lowering');

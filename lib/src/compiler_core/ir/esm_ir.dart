@@ -270,6 +270,13 @@ final class EsmConditionalIr extends EsmExpressionIr {
   final EsmExpressionIr otherwiseExpression;
 }
 
+final class EsmNullishCoalesceIr extends EsmExpressionIr {
+  const EsmNullishCoalesceIr({required this.left, required this.right});
+
+  final EsmExpressionIr left;
+  final EsmExpressionIr right;
+}
+
 final class EsmParenthesizedIr extends EsmExpressionIr {
   const EsmParenthesizedIr(this.expression);
 
@@ -354,6 +361,28 @@ final class EsmComputedPropertyAccessIr extends EsmExpressionIr {
 
   final EsmExpressionIr receiver;
   final EsmExpressionIr property;
+}
+
+final class EsmOptionalPropertyAccessIr extends EsmExpressionIr {
+  const EsmOptionalPropertyAccessIr({
+    required this.receiver,
+    required this.property,
+  });
+
+  final EsmExpressionIr receiver;
+  final String property;
+}
+
+final class EsmOptionalMethodCallIr extends EsmExpressionIr {
+  const EsmOptionalMethodCallIr({
+    required this.receiver,
+    required this.property,
+    required this.arguments,
+  });
+
+  final EsmExpressionIr receiver;
+  final String property;
+  final List<EsmExpressionIr> arguments;
 }
 
 final class EsmThisIr extends EsmExpressionIr {

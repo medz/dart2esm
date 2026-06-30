@@ -291,9 +291,13 @@ final class _EsmIrPrinter {
       EsmUnaryIr() =>
         expression.operator == '!'
             ? '!${_emitUnaryOperand(expression.operand)}'
+            : expression.operator == '-' || expression.operator == '~'
+            ? '${expression.operator}${_emitUnaryOperand(expression.operand)}'
             : '${expression.operator} ${_emitUnaryOperand(expression.operand)}',
       EsmConditionalIr() =>
         '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.thenExpression)} : ${_emitExpression(expression.otherwiseExpression)})',
+      EsmNullishCoalesceIr() =>
+        '(${_emitExpression(expression.left)} ?? ${_emitExpression(expression.right)})',
       EsmParenthesizedIr() => '(${_emitExpression(expression.expression)})',
       EsmNumberLiteralIr() => _emitNumber(expression.value),
       EsmBooleanLiteralIr() => expression.value ? 'true' : 'false',
@@ -313,6 +317,10 @@ final class _EsmIrPrinter {
         '${_emitExpression(expression.receiver)}.${expression.property}',
       EsmComputedPropertyAccessIr() =>
         '${_emitExpression(expression.receiver)}[${_emitExpression(expression.property)}]',
+      EsmOptionalPropertyAccessIr() =>
+        '${_emitExpression(expression.receiver)}?.${expression.property}',
+      EsmOptionalMethodCallIr() =>
+        '${_emitExpression(expression.receiver)}?.${expression.property}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmThisIr() => 'this',
       EsmNewTargetIr() => 'new.target',
       EsmSuperIr() => 'super',

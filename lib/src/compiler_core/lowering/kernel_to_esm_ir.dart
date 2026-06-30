@@ -1749,6 +1749,13 @@ final class KernelToEsmIrLoweringStage {
         expression,
         thisExpression: thisExpression,
       ),
+      k.Let() => _lowerLetExpression(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
       _ => throw NewCompilerUnsupported(expression, 'expression lowering'),
     };
   }
@@ -1792,6 +1799,159 @@ final class KernelToEsmIrLoweringStage {
   }
 
   String _recordPositionalKey(int index) => '\$${index + 1}';
+
+  EsmExpressionIr _lowerLetExpression(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> outerLocals,
+    k.Let expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final optimized = _tryLowerLetExpressionInline(
+      world,
+      helpers,
+      outerLocals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (optimized != null) {
+      return optimized;
+    }
+    final locals = Map<k.VariableDeclaration, String>.of(outerLocals);
+    return EsmCallIr(
+      callee: EsmParenthesizedIr(
+        EsmFunctionExpressionIr(
+          parameters: const [],
+          body: [
+            _lowerVariableDeclaration(
+              world,
+              helpers,
+              locals,
+              expression.variable,
+              thisExpression: thisExpression,
+            ),
+            EsmReturnStatementIr(
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                expression.body,
+                thisExpression: thisExpression,
+              ),
+            ),
+          ],
+        ),
+      ),
+      arguments: const [],
+    );
+  }
+
+  EsmExpressionIr? _tryLowerLetExpressionInline(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.Let expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final initializer = expression.variable.initializer;
+    final body = expression.body;
+    if (initializer == null || body is! k.ConditionalExpression) {
+      return null;
+    }
+    if (!_isEqualsNullVariable(body.condition, expression.variable)) {
+      return null;
+    }
+    if (_isVariableGet(body.otherwise, expression.variable)) {
+      return EsmNullishCoalesceIr(
+        left: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          initializer,
+          thisExpression: thisExpression,
+        ),
+        right: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          body.then,
+          thisExpression: thisExpression,
+        ),
+      );
+    }
+    if (body.then is k.NullLiteral) {
+      return _tryLowerNullAwareLet(
+        world,
+        helpers,
+        locals,
+        expression.variable,
+        initializer,
+        body.otherwise,
+        thisExpression: thisExpression,
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _tryLowerNullAwareLet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.VariableDeclaration variable,
+    k.Expression initializer,
+    k.Expression otherwise, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      initializer,
+      thisExpression: thisExpression,
+    );
+    if (otherwise is k.InstanceGet &&
+        _isVariableGet(otherwise.receiver, variable)) {
+      final target = otherwise.interfaceTargetReference.node;
+      if (target is k.Member) {
+        return EsmOptionalPropertyAccessIr(
+          receiver: receiver,
+          property: _instanceMemberName(world, target),
+        );
+      }
+    }
+    if (otherwise is k.InstanceInvocation &&
+        _isVariableGet(otherwise.receiver, variable)) {
+      final target = otherwise.interfaceTargetReference.node;
+      if (target is k.Member) {
+        return EsmOptionalMethodCallIr(
+          receiver: receiver,
+          property: _instanceMemberName(world, target),
+          arguments: _lowerArguments(
+            world,
+            helpers,
+            locals,
+            otherwise.arguments,
+            thisExpression: thisExpression,
+            contextNode: otherwise,
+            context: 'null-aware invocation arguments',
+          ),
+        );
+      }
+    }
+    return null;
+  }
+
+  bool _isEqualsNullVariable(
+    k.Expression expression,
+    k.VariableDeclaration variable,
+  ) {
+    return expression is k.EqualsNull &&
+        _isVariableGet(expression.expression, variable);
+  }
+
+  bool _isVariableGet(k.Expression expression, k.VariableDeclaration variable) {
+    return expression is k.VariableGet && expression.variable == variable;
+  }
 
   EsmExpressionIr _lowerBlockExpression(
     EsmSemanticWorld world,
@@ -2218,6 +2378,19 @@ final class KernelToEsmIrLoweringStage {
     if (expression.arguments.positional.isNotEmpty) {
       return null;
     }
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    if (target == 'dart:core::int::@methods::unary-') {
+      return EsmUnaryIr(operator: '-', operand: receiver);
+    }
+    if (target == 'dart:core::int::@methods::~') {
+      return EsmUnaryIr(operator: '~', operand: receiver);
+    }
     final property = switch (target) {
       'dart:core::String::@methods::toUpperCase' => 'toUpperCase',
       _ => null,
@@ -2226,16 +2399,7 @@ final class KernelToEsmIrLoweringStage {
       return null;
     }
     return EsmCallIr(
-      callee: EsmPropertyAccessIr(
-        receiver: _lowerExpression(
-          world,
-          helpers,
-          locals,
-          expression.receiver,
-          thisExpression: thisExpression,
-        ),
-        property: property,
-      ),
+      callee: EsmPropertyAccessIr(receiver: receiver, property: property),
       arguments: const [],
     );
   }

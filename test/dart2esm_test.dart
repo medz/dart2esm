@@ -1402,6 +1402,34 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles control operators through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'syntax', 'control_operators.dart'),
+    );
+    final expected = File(
+      p.join(fixtureDir.path, 'syntax', 'control_operators.mjs'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-control-operators-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'control_operators.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
   test('can emit an ESM module without running main', () async {
     final fixture = _GoldenFixture(
       root: fixtureDir,

@@ -85,12 +85,13 @@ must keep exported declarations importable from external JavaScript.
 
 Current implementation:
 
-- Export discovery still lives in `lib/src/backend/esm_backend.dart`.
+- `lib/src/program/program_roots.dart` computes public ESM API roots,
+  re-export visibility, export combinators, and dependency-based library order.
 
 Target boundary:
 
-- Move export-scope and root discovery into `lib/src/program/`.
 - Make the backend consume an explicit root/API model.
+- Move remaining deferred-import and unsupported-library facts into this layer.
 
 ## World / Reachability
 
@@ -241,9 +242,7 @@ lib/src/diagnostics/           Structured diagnostics and metrics
 ## Migration Order
 
 1. Keep behavior stable while moving reachability into `lib/src/world/`.
-2. Move library/export-root discovery into `lib/src/program/`.
-3. Introduce a semantic IR for the narrowest existing subset.
-4. Move helper usage declarations out of emission branches and into lowering.
-5. Add metrics for reachability and helper/runtime size.
-6. Only then resume output-shape optimization as explicit passes.
-
+2. Introduce a semantic IR for the narrowest existing subset.
+3. Move helper usage declarations out of emission branches and into lowering.
+4. Add metrics for reachability and helper/runtime size.
+5. Only then resume output-shape optimization as explicit passes.

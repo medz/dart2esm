@@ -1,7 +1,6 @@
 import 'package:kernel/kernel.dart' as k;
 
-typedef EmittableTopLevelProcedurePredicate =
-    bool Function(k.Procedure procedure);
+import '../program/program_roots.dart';
 
 EsmProgramPlan computeEsmProgramPlan(
   k.Component component, {

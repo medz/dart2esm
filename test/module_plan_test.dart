@@ -79,6 +79,14 @@ void main() {
 
     expect(plan.classes.map((klass) => klass.node), [base, derived]);
     expect(plan.classes.map((klass) => klass.export), [isFalse, isTrue]);
+    expect(plan.libraries.single.classes.map((klass) => klass.node), [
+      derived,
+      base,
+    ]);
+    expect(plan.libraries.single.classes.map((klass) => klass.export), [
+      isTrue,
+      isFalse,
+    ]);
   });
 }
 

@@ -14,6 +14,7 @@ final class EsmLibraryPlan {
   const EsmLibraryPlan({
     required this.library,
     required this.exportNames,
+    required this.classes,
     required this.fields,
     required this.procedures,
     required this.extensionTypes,
@@ -21,6 +22,7 @@ final class EsmLibraryPlan {
 
   final k.Library library;
   final Set<String> exportNames;
+  final List<EsmClassPlan> classes;
   final List<EsmFieldPlan> fields;
   final List<EsmProcedurePlan> procedures;
   final List<EsmExtensionTypePlan> extensionTypes;
@@ -89,6 +91,14 @@ EsmLibraryPlan _buildLibraryPlan(
   return EsmLibraryPlan(
     library: library,
     exportNames: Set.unmodifiable(exportNames),
+    classes: [
+      for (final klass in library.classes)
+        if (world.classes.contains(klass))
+          EsmClassPlan(
+            node: klass,
+            export: _shouldExport(klass.name, exportNames),
+          ),
+    ],
     fields: [
       for (final field in library.fields)
         if (!field.isExtensionTypeMember &&

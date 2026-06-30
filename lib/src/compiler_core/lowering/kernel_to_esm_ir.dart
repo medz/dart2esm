@@ -50,6 +50,8 @@ final class KernelToEsmIrLoweringStage
     final items = <EsmModuleItemIr>[
       for (final klass in world.classes)
         ..._lowerClassItems(world, helpers, klass),
+      for (final extensionType in world.extensionTypes)
+        ..._lowerExtensionTypeItems(world, helpers, extensionType),
       for (final field in world.fields) _lowerField(world, helpers, field),
       for (final procedure in world.procedures)
         _lowerProcedure(world, helpers, procedure),
@@ -304,6 +306,421 @@ final class KernelToEsmIrLoweringStage
           _lowerClassProcedure(world, helpers, klass, procedure),
       ],
     );
+  }
+
+  List<EsmModuleItemIr> _lowerExtensionTypeItems(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeSymbol extensionType,
+  ) {
+    return [
+      _lowerExtensionTypeFacade(world, helpers, extensionType),
+      for (final member in extensionType.members)
+        ..._lowerExtensionTypeBackingItems(world, helpers, member),
+    ];
+  }
+
+  EsmClassIr _lowerExtensionTypeFacade(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeSymbol extensionType,
+  ) {
+    final constructors = [
+      for (final member in extensionType.members)
+        if (member.descriptor.kind == k.ExtensionTypeMemberKind.Constructor &&
+            member.descriptor.name.text.isEmpty)
+          member,
+    ];
+    if (constructors.length > 1) {
+      throw NewCompilerUnsupported(
+        extensionType.node,
+        'extension type constructor lowering',
+      );
+    }
+    return EsmClassIr(
+      name: extensionType.name,
+      export: extensionType.export,
+      superclass: null,
+      constructor: constructors.isEmpty
+          ? null
+          : _lowerExtensionTypeFacadeConstructor(
+              world,
+              helpers,
+              extensionType,
+              constructors.single,
+            ),
+      methods: [
+        for (final member in extensionType.members)
+          ..._lowerExtensionTypeFacadeMethods(
+            world,
+            helpers,
+            extensionType,
+            member,
+          ),
+      ],
+    );
+  }
+
+  EsmClassConstructorIr _lowerExtensionTypeFacadeConstructor(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeSymbol extensionType,
+    EsmExtensionTypeMemberSymbol member,
+  ) {
+    final procedure = _extensionTypeProcedure(member);
+    final locals = <k.VariableDeclaration, String>{};
+    final usedNames = <String>{};
+    final parameters = _bindExtensionTypeFacadeParameters(
+      world,
+      helpers,
+      locals,
+      usedNames,
+      procedure.function,
+      skipReceiver: false,
+    );
+    return EsmClassConstructorIr(
+      parameters: parameters,
+      body: [
+        EsmExpressionStatementIr(
+          EsmAssignmentIr(
+            target: EsmPropertyAccessIr(
+              receiver: const EsmThisIr(),
+              property: extensionType.representationName,
+            ),
+            value: EsmCallIr(
+              callee: EsmIdentifierIr(member.backingName),
+              arguments: _extensionTypeFacadeArguments(
+                procedure.function,
+                locals,
+                skipReceiver: false,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<EsmClassMethodIr> _lowerExtensionTypeFacadeMethods(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeSymbol extensionType,
+    EsmExtensionTypeMemberSymbol member,
+  ) {
+    final descriptor = member.descriptor;
+    return switch (descriptor.kind) {
+      k.ExtensionTypeMemberKind.Constructor => const [],
+      k.ExtensionTypeMemberKind.Field => [
+        EsmClassMethodIr(
+          name: member.name,
+          kind: EsmClassMethodKindIr.getter,
+          isStatic: true,
+          parameters: const [],
+          body: [
+            EsmReturnStatementIr(
+              _lowerExtensionTypeFacadeReturn(
+                world,
+                helpers,
+                _extensionTypeMemberType(member),
+                EsmIdentifierIr(member.backingName),
+              ),
+            ),
+          ],
+        ),
+        if (member.mutable)
+          EsmClassMethodIr(
+            name: member.name,
+            kind: EsmClassMethodKindIr.setter,
+            isStatic: true,
+            parameters: const [EsmIdentifierParameterIr(name: 'value')],
+            body: [
+              EsmReturnStatementIr(
+                EsmAssignmentIr(
+                  target: EsmIdentifierIr(member.backingName),
+                  value: _lowerExtensionTypeRepresentation(
+                    helpers,
+                    const EsmIdentifierIr('value'),
+                    extensionType,
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+      k.ExtensionTypeMemberKind.Factory ||
+      k.ExtensionTypeMemberKind.RedirectingFactory ||
+      k.ExtensionTypeMemberKind.Method ||
+      k.ExtensionTypeMemberKind.Operator ||
+      k.ExtensionTypeMemberKind.Getter ||
+      k.ExtensionTypeMemberKind.Setter => [
+        _lowerExtensionTypeFacadeProcedure(
+          world,
+          helpers,
+          extensionType,
+          member,
+        ),
+      ],
+    };
+  }
+
+  EsmClassMethodIr _lowerExtensionTypeFacadeProcedure(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeSymbol extensionType,
+    EsmExtensionTypeMemberSymbol member,
+  ) {
+    final procedure = _extensionTypeProcedure(member);
+    final descriptor = member.descriptor;
+    final locals = <k.VariableDeclaration, String>{};
+    final usedNames = <String>{};
+    final skipReceiver =
+        !descriptor.isStatic &&
+        descriptor.kind != k.ExtensionTypeMemberKind.Factory &&
+        descriptor.kind != k.ExtensionTypeMemberKind.RedirectingFactory;
+    final parameters = _bindExtensionTypeFacadeParameters(
+      world,
+      helpers,
+      locals,
+      usedNames,
+      procedure.function,
+      skipReceiver: skipReceiver,
+    );
+    final call = EsmCallIr(
+      callee: EsmIdentifierIr(member.backingName),
+      arguments: [
+        if (skipReceiver)
+          _lowerExtensionTypeRepresentation(
+            helpers,
+            const EsmThisIr(),
+            extensionType,
+          ),
+        ..._extensionTypeFacadeArguments(
+          procedure.function,
+          locals,
+          skipReceiver: skipReceiver,
+        ),
+      ],
+    );
+    final isSetter = descriptor.kind == k.ExtensionTypeMemberKind.Setter;
+    return EsmClassMethodIr(
+      name: member.name,
+      kind: switch (descriptor.kind) {
+        k.ExtensionTypeMemberKind.Getter => EsmClassMethodKindIr.getter,
+        k.ExtensionTypeMemberKind.Setter => EsmClassMethodKindIr.setter,
+        _ => EsmClassMethodKindIr.method,
+      },
+      isStatic: descriptor.isStatic,
+      parameters: parameters,
+      body: [
+        if (isSetter)
+          EsmReturnStatementIr(call)
+        else
+          EsmReturnStatementIr(
+            _lowerExtensionTypeFacadeReturn(
+              world,
+              helpers,
+              procedure.function.returnType,
+              call,
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<EsmModuleItemIr> _lowerExtensionTypeBackingItems(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeMemberSymbol member,
+  ) {
+    final node = member.memberReference?.node;
+    return switch (node) {
+      k.Field() => [
+        _lowerExtensionTypeBackingField(world, helpers, member, node),
+      ],
+      k.Procedure() => [
+        _lowerExtensionTypeBackingProcedure(world, helpers, member, node),
+      ],
+      _ => throw NewCompilerUnsupported(
+        member.descriptor,
+        'extension type member lowering',
+      ),
+    };
+  }
+
+  EsmVariableDeclarationIr _lowerExtensionTypeBackingField(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeMemberSymbol member,
+    k.Field field,
+  ) {
+    final initializer = field.initializer;
+    return EsmVariableDeclarationIr(
+      name: member.backingName,
+      initializer: initializer == null
+          ? null
+          : _lowerExpression(
+              world,
+              helpers,
+              const <k.VariableDeclaration, String>{},
+              initializer,
+            ),
+      mutable: member.mutable,
+    );
+  }
+
+  EsmFunctionIr _lowerExtensionTypeBackingProcedure(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeMemberSymbol member,
+    k.Procedure procedure,
+  ) {
+    if (procedure.function.asyncMarker != k.AsyncMarker.Sync) {
+      throw NewCompilerUnsupported(
+        procedure.function,
+        'async extension type member lowering',
+      );
+    }
+    final locals = <k.VariableDeclaration, String>{};
+    final labels = <k.LabeledStatement, String>{};
+    final usedNames = <String>{};
+    final parameters = _bindParameters(
+      world,
+      helpers,
+      locals,
+      usedNames,
+      procedure.function,
+    );
+    final body = procedure.function.body;
+    if (body == null) {
+      if (procedure.function.positionalParameters.length == 1 &&
+          member.descriptor.kind == k.ExtensionTypeMemberKind.Constructor) {
+        return EsmFunctionIr(
+          name: member.backingName,
+          export: false,
+          parameters: parameters,
+          body: [
+            EsmReturnStatementIr(
+              EsmIdentifierIr(
+                locals[procedure.function.positionalParameters.single]!,
+              ),
+            ),
+          ],
+        );
+      }
+      throw NewCompilerUnsupported(
+        procedure.function,
+        'extension type member without body',
+      );
+    }
+    return EsmFunctionIr(
+      name: member.backingName,
+      export: false,
+      parameters: parameters,
+      body: _lowerStatementList(world, helpers, locals, labels, body),
+    );
+  }
+
+  List<EsmParameterIr> _bindExtensionTypeFacadeParameters(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Set<String> usedParameters,
+    k.FunctionNode function, {
+    required bool skipReceiver,
+  }) {
+    final positional = skipReceiver
+        ? function.positionalParameters.skip(1)
+        : function.positionalParameters;
+    return [
+      for (final parameter in positional)
+        _bindPositionalParameter(
+          world,
+          helpers,
+          locals,
+          usedParameters,
+          parameter,
+        ),
+      if (function.namedParameters.isNotEmpty)
+        EsmObjectPatternParameterIr(
+          bindings: [
+            for (final parameter in function.namedParameters)
+              _bindNamedParameter(
+                world,
+                helpers,
+                locals,
+                usedParameters,
+                parameter,
+              ),
+          ],
+        ),
+    ];
+  }
+
+  List<EsmExpressionIr> _extensionTypeFacadeArguments(
+    k.FunctionNode function,
+    Map<k.VariableDeclaration, String> locals, {
+    required bool skipReceiver,
+  }) {
+    final positional = skipReceiver
+        ? function.positionalParameters.skip(1)
+        : function.positionalParameters;
+    return [
+      for (final parameter in positional) EsmIdentifierIr(locals[parameter]!),
+      for (final parameter in function.namedParameters)
+        EsmIdentifierIr(locals[parameter]!),
+    ];
+  }
+
+  EsmExpressionIr _lowerExtensionTypeFacadeReturn(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.DartType type,
+    EsmExpressionIr value,
+  ) {
+    final unaliased = type.unalias;
+    if (unaliased is k.ExtensionType) {
+      final symbol = world.extensionTypeSymbolFor(
+        unaliased.extensionTypeDeclaration,
+      );
+      if (symbol != null) {
+        return EsmNewIr(
+          callee: EsmIdentifierIr(symbol.name),
+          arguments: [
+            _lowerExtensionTypeRepresentation(helpers, value, symbol),
+          ],
+        );
+      }
+    }
+    return value;
+  }
+
+  EsmExpressionIr _lowerExtensionTypeRepresentation(
+    EsmRuntimeHelperUseSet helpers,
+    EsmExpressionIr value,
+    EsmExtensionTypeSymbol extensionType,
+  ) {
+    helpers.add(EsmRuntimeHelper.extensionTypeRep);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.extensionTypeRep),
+      arguments: [value, EsmStringLiteralIr(extensionType.representationName)],
+    );
+  }
+
+  k.Procedure _extensionTypeProcedure(EsmExtensionTypeMemberSymbol member) {
+    final node = member.memberReference?.node;
+    if (node is k.Procedure) {
+      return node;
+    }
+    throw NewCompilerUnsupported(member.descriptor, 'extension type procedure');
+  }
+
+  k.DartType _extensionTypeMemberType(EsmExtensionTypeMemberSymbol member) {
+    final node = member.memberReference?.node;
+    return switch (node) {
+      k.Field() => node.type,
+      k.Procedure() => node.function.returnType,
+      _ => const k.DynamicType(),
+    };
   }
 
   List<EsmModuleItemIr> _lowerStaticFieldItems(
@@ -2743,6 +3160,12 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (constant is k.StaticTearOffConstant) {
+      final extensionTypeMember = world.extensionTypeMemberSymbolForReference(
+        constant.targetReference,
+      );
+      if (extensionTypeMember != null) {
+        return EsmIdentifierIr(extensionTypeMember.backingName);
+      }
       final target = constant.targetReference.node;
       if (target is k.Procedure) {
         final symbol = world.symbolFor(target);
@@ -3154,6 +3577,12 @@ final class KernelToEsmIrLoweringStage
     if (runtimeStaticGet != null) {
       return runtimeStaticGet;
     }
+    final extensionTypeMember = world.extensionTypeMemberSymbolForReference(
+      expression.targetReference,
+    );
+    if (extensionTypeMember != null) {
+      return _lowerExtensionTypeStaticGet(extensionTypeMember);
+    }
     final target = expression.targetReference.node;
     if (target is k.Field) {
       final symbol = world.fieldSymbolFor(target);
@@ -3228,6 +3657,27 @@ final class KernelToEsmIrLoweringStage
     return null;
   }
 
+  EsmExpressionIr _lowerExtensionTypeStaticGet(
+    EsmExtensionTypeMemberSymbol member,
+  ) {
+    return switch (member.descriptor.kind) {
+      k.ExtensionTypeMemberKind.Field => EsmIdentifierIr(member.backingName),
+      k.ExtensionTypeMemberKind.Getter => EsmCallIr(
+        callee: EsmIdentifierIr(member.backingName),
+        arguments: const [],
+      ),
+      k.ExtensionTypeMemberKind.Constructor ||
+      k.ExtensionTypeMemberKind.Factory ||
+      k.ExtensionTypeMemberKind.RedirectingFactory ||
+      k.ExtensionTypeMemberKind.Method ||
+      k.ExtensionTypeMemberKind.Operator => EsmIdentifierIr(member.backingName),
+      k.ExtensionTypeMemberKind.Setter => throw NewCompilerUnsupported(
+        member.descriptor,
+        'extension type setter get',
+      ),
+    };
+  }
+
   EsmExpressionIr _lowerStaticSet(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -3235,6 +3685,19 @@ final class KernelToEsmIrLoweringStage
     k.StaticSet expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final extensionTypeMember = world.extensionTypeMemberSymbolForReference(
+      expression.targetReference,
+    );
+    if (extensionTypeMember != null) {
+      return _lowerExtensionTypeStaticSet(
+        world,
+        helpers,
+        locals,
+        extensionTypeMember,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
     final target = expression.targetReference.node;
     if (target is k.Field) {
       final symbol = world.fieldSymbolFor(target);
@@ -3317,6 +3780,30 @@ final class KernelToEsmIrLoweringStage
     throw NewCompilerUnsupported(expression, 'static set lowering');
   }
 
+  EsmExpressionIr _lowerExtensionTypeStaticSet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    EsmExtensionTypeMemberSymbol member,
+    k.StaticSet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (member.descriptor.kind != k.ExtensionTypeMemberKind.Field ||
+        !member.mutable) {
+      throw NewCompilerUnsupported(expression, 'extension type static set');
+    }
+    return EsmAssignmentIr(
+      target: EsmIdentifierIr(member.backingName),
+      value: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.value,
+        thisExpression: thisExpression,
+      ),
+    );
+  }
+
   EsmExpressionIr _lowerVariableSet(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -3348,6 +3835,19 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
     final operator = expression.name.text;
+    final extensionTypeMember = world.extensionTypeMemberSymbolForReference(
+      expression.interfaceTargetReference,
+    );
+    if (extensionTypeMember != null) {
+      return _lowerExtensionTypeInstanceInvocation(
+        world,
+        helpers,
+        locals,
+        extensionTypeMember,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
     final target = expression.interfaceTargetReference.node;
     if (target is k.Procedure) {
       final symbol = world.instanceProcedureSymbolFor(target);
@@ -3461,6 +3961,46 @@ final class KernelToEsmIrLoweringStage
                 ),
               ),
           ]),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerExtensionTypeInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    EsmExtensionTypeMemberSymbol member,
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final kind = member.descriptor.kind;
+    if (kind != k.ExtensionTypeMemberKind.Method &&
+        kind != k.ExtensionTypeMemberKind.Operator) {
+      throw NewCompilerUnsupported(
+        expression,
+        'extension type instance invocation',
+      );
+    }
+    return EsmCallIr(
+      callee: EsmIdentifierIr(member.backingName),
+      arguments: [
+        _lowerExtensionTypeInstanceReceiver(
+          world,
+          helpers,
+          locals,
+          member,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        ..._lowerArguments(
+          world,
+          helpers,
+          locals,
+          expression.arguments,
+          thisExpression: thisExpression,
+          contextNode: expression,
+          context: 'extension type instance invocation arguments',
+        ),
       ],
     );
   }
@@ -3741,6 +4281,19 @@ final class KernelToEsmIrLoweringStage
     if (intrinsic != null) {
       return intrinsic;
     }
+    final extensionTypeMember = world.extensionTypeMemberSymbolForReference(
+      expression.interfaceTargetReference,
+    );
+    if (extensionTypeMember != null) {
+      return _lowerExtensionTypeInstanceGet(
+        world,
+        helpers,
+        locals,
+        extensionTypeMember,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'instance get lowering');
@@ -3754,6 +4307,73 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       ),
       property: _instanceMemberName(world, target),
+    );
+  }
+
+  EsmExpressionIr _lowerExtensionTypeInstanceGet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    EsmExtensionTypeMemberSymbol member,
+    k.InstanceGet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final receiver = _lowerExtensionTypeInstanceReceiver(
+      world,
+      helpers,
+      locals,
+      member,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    return switch (member.descriptor.kind) {
+      k.ExtensionTypeMemberKind.Getter => EsmCallIr(
+        callee: EsmIdentifierIr(member.backingName),
+        arguments: [receiver],
+      ),
+      k.ExtensionTypeMemberKind.Method || k.ExtensionTypeMemberKind.Operator =>
+        _lowerExtensionTypeInstanceTearOff(world, helpers, member, receiver),
+      _ => throw NewCompilerUnsupported(
+        expression,
+        'extension type instance get',
+      ),
+    };
+  }
+
+  EsmExpressionIr _lowerExtensionTypeInstanceTearOff(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmExtensionTypeMemberSymbol member,
+    EsmExpressionIr receiver,
+  ) {
+    final procedure = _extensionTypeProcedure(member);
+    final locals = <k.VariableDeclaration, String>{};
+    final usedNames = <String>{};
+    final parameters = _bindExtensionTypeFacadeParameters(
+      world,
+      helpers,
+      locals,
+      usedNames,
+      procedure.function,
+      skipReceiver: true,
+    );
+    return EsmFunctionExpressionIr(
+      parameters: parameters,
+      body: [
+        EsmReturnStatementIr(
+          EsmCallIr(
+            callee: EsmIdentifierIr(member.backingName),
+            arguments: [
+              receiver,
+              ..._extensionTypeFacadeArguments(
+                procedure.function,
+                locals,
+                skipReceiver: true,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -3816,6 +4436,19 @@ final class KernelToEsmIrLoweringStage
     k.InstanceSet expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final extensionTypeMember = world.extensionTypeMemberSymbolForReference(
+      expression.interfaceTargetReference,
+    );
+    if (extensionTypeMember != null) {
+      return _lowerExtensionTypeInstanceSet(
+        world,
+        helpers,
+        locals,
+        extensionTypeMember,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'instance set lowering');
@@ -3838,6 +4471,67 @@ final class KernelToEsmIrLoweringStage
         expression.value,
         thisExpression: thisExpression,
       ),
+    );
+  }
+
+  EsmExpressionIr _lowerExtensionTypeInstanceSet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    EsmExtensionTypeMemberSymbol member,
+    k.InstanceSet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (member.descriptor.kind != k.ExtensionTypeMemberKind.Setter) {
+      throw NewCompilerUnsupported(expression, 'extension type instance set');
+    }
+    return EsmCallIr(
+      callee: EsmIdentifierIr(member.backingName),
+      arguments: [
+        _lowerExtensionTypeInstanceReceiver(
+          world,
+          helpers,
+          locals,
+          member,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.value,
+          thisExpression: thisExpression,
+        ),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerExtensionTypeInstanceReceiver(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    EsmExtensionTypeMemberSymbol member,
+    k.Expression receiver, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final extensionType = world.extensionTypeSymbolFor(member.extensionType);
+    if (extensionType == null) {
+      throw NewCompilerUnsupported(
+        member.descriptor,
+        'extension type receiver',
+      );
+    }
+    return _lowerExtensionTypeRepresentation(
+      helpers,
+      _lowerExpression(
+        world,
+        helpers,
+        locals,
+        receiver,
+        thisExpression: thisExpression,
+      ),
+      extensionType,
     );
   }
 
@@ -4263,6 +4957,20 @@ final class KernelToEsmIrLoweringStage
     if (type is k.RecordType) {
       return _lowerRecordTypeTest(world, helpers, type, value);
     }
+    if (type is k.ExtensionType) {
+      final symbol = world.extensionTypeSymbolFor(
+        type.extensionTypeDeclaration,
+      );
+      final representation = symbol == null
+          ? value
+          : _lowerExtensionTypeRepresentation(helpers, value, symbol);
+      return _lowerTypeTest(
+        world,
+        helpers,
+        type.extensionTypeErasure,
+        representation,
+      );
+    }
     if (type is k.InterfaceType) {
       final target = type.classReference.toStringInternal();
       final targetNode = type.classReference.node;
@@ -4461,6 +5169,7 @@ final class KernelToEsmIrLoweringStage
   bool _isNullableType(k.DartType type) {
     return switch (type) {
       k.InterfaceType() => type.declaredNullability == k.Nullability.nullable,
+      k.ExtensionType() => type.declaredNullability == k.Nullability.nullable,
       k.FunctionType() => type.declaredNullability == k.Nullability.nullable,
       k.RecordType() => type.declaredNullability == k.Nullability.nullable,
       k.NeverType() => type.declaredNullability == k.Nullability.nullable,
@@ -4535,6 +5244,19 @@ final class KernelToEsmIrLoweringStage
     if (helperCall != null) {
       return helperCall;
     }
+    final extensionTypeMember = world.extensionTypeMemberSymbolForReference(
+      expression.targetReference,
+    );
+    if (extensionTypeMember != null) {
+      return _lowerExtensionTypeStaticInvocation(
+        world,
+        helpers,
+        locals,
+        extensionTypeMember,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
     final targetNode = expression.targetReference.node;
     final target =
         (targetNode is k.Procedure ? world.symbolFor(targetNode) : null) ??
@@ -4598,6 +5320,73 @@ final class KernelToEsmIrLoweringStage
       expression.targetReference,
       'external static target',
     );
+  }
+
+  EsmExpressionIr _lowerExtensionTypeStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    EsmExtensionTypeMemberSymbol member,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final kind = member.descriptor.kind;
+    if (kind == k.ExtensionTypeMemberKind.Field) {
+      throw NewCompilerUnsupported(
+        expression,
+        'extension type static invocation',
+      );
+    }
+    if (_isExtensionTypeTearOffReference(member, expression.targetReference) &&
+        !member.descriptor.isStatic &&
+        expression.arguments.positional.length == 1 &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.types.isEmpty) {
+      final extensionType = world.extensionTypeSymbolFor(member.extensionType);
+      if (extensionType == null) {
+        throw NewCompilerUnsupported(
+          member.descriptor,
+          'extension type tear-off',
+        );
+      }
+      return _lowerExtensionTypeInstanceTearOff(
+        world,
+        helpers,
+        member,
+        _lowerExtensionTypeRepresentation(
+          helpers,
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+          extensionType,
+        ),
+      );
+    }
+    return EsmCallIr(
+      callee: EsmIdentifierIr(member.backingName),
+      arguments: _lowerArguments(
+        world,
+        helpers,
+        locals,
+        expression.arguments,
+        thisExpression: thisExpression,
+        contextNode: expression,
+        context: 'extension type static invocation arguments',
+      ),
+    );
+  }
+
+  bool _isExtensionTypeTearOffReference(
+    EsmExtensionTypeMemberSymbol member,
+    k.Reference reference,
+  ) {
+    final tearOffReference = member.tearOffReference;
+    return tearOffReference != null &&
+        kernelReferencePath(tearOffReference) == kernelReferencePath(reference);
   }
 
   EsmExpressionIr? _lowerRuntimeStaticInvocation(

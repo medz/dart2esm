@@ -1843,10 +1843,12 @@ void main() {
         outputPath: output.path,
         workingDirectory: Directory.current,
         runMain: false,
+        allowLegacyOracle: false,
       ),
     );
 
     expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
 
     final nodeRun = await Process.run('node', [
@@ -1902,10 +1904,12 @@ void main() {
         outputPath: output.path,
         workingDirectory: Directory.current,
         runMain: false,
+        allowLegacyOracle: false,
       ),
     );
 
     expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
 
     final nodeRun = await Process.run('node', [

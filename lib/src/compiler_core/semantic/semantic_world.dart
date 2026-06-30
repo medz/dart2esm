@@ -18,12 +18,24 @@ final class EsmSemanticWorld {
     required this.component,
     required this.main,
     required List<EsmClassSymbol> classes,
+    required List<EsmExtensionTypeSymbol> extensionTypes,
     required List<EsmFieldSymbol> fields,
     required List<EsmProcedureSymbol> procedures,
   }) : classes = List.unmodifiable(classes),
+       extensionTypes = List.unmodifiable(extensionTypes),
        fields = List.unmodifiable(fields),
        procedures = List.unmodifiable(procedures),
        _classSymbols = {for (final klass in classes) klass.node: klass},
+       _extensionTypeSymbols = {
+         for (final extensionType in extensionTypes)
+           extensionType.node: extensionType,
+       },
+       _extensionTypeMemberSymbolsByReference = {
+         for (final extensionType in extensionTypes)
+           for (final member in extensionType.members)
+             for (final path in _extensionTypeMemberReferencePaths(member))
+               path: member,
+       },
        _constructorSymbols = {
          for (final klass in classes)
            for (final constructor in klass.constructors)
@@ -68,9 +80,14 @@ final class EsmSemanticWorld {
   final k.Component component;
   final k.Procedure main;
   final List<EsmClassSymbol> classes;
+  final List<EsmExtensionTypeSymbol> extensionTypes;
   final List<EsmFieldSymbol> fields;
   final List<EsmProcedureSymbol> procedures;
   final Map<k.Class, EsmClassSymbol> _classSymbols;
+  final Map<k.ExtensionTypeDeclaration, EsmExtensionTypeSymbol>
+  _extensionTypeSymbols;
+  final Map<String, EsmExtensionTypeMemberSymbol>
+  _extensionTypeMemberSymbolsByReference;
   final Map<k.Constructor, EsmConstructorSymbol> _constructorSymbols;
   final Map<String, EsmConstructorSymbol> _constructorSymbolsByReference;
   final Map<k.Field, EsmInstanceFieldSymbol> _instanceFieldSymbols;
@@ -85,6 +102,20 @@ final class EsmSemanticWorld {
 
   EsmClassSymbol? classSymbolFor(k.Class klass) {
     return _classSymbols[klass];
+  }
+
+  EsmExtensionTypeSymbol? extensionTypeSymbolFor(
+    k.ExtensionTypeDeclaration declaration,
+  ) {
+    return _extensionTypeSymbols[declaration];
+  }
+
+  EsmExtensionTypeMemberSymbol? extensionTypeMemberSymbolForReference(
+    k.Reference reference,
+  ) {
+    return _extensionTypeMemberSymbolsByReference[kernelReferencePath(
+      reference,
+    )];
   }
 
   EsmConstructorSymbol? constructorSymbolFor(k.Constructor constructor) {
@@ -176,6 +207,61 @@ final class EsmClassSymbol {
   final List<EsmStaticFieldSymbol> staticFields;
   final List<EsmInstanceProcedureSymbol> procedures;
   final List<EsmStaticProcedureSymbol> staticProcedures;
+}
+
+final class EsmExtensionTypeSymbol {
+  EsmExtensionTypeSymbol({
+    required this.node,
+    required this.name,
+    required this.export,
+    required this.representationName,
+    required List<EsmExtensionTypeMemberSymbol> members,
+  }) : members = List.unmodifiable(members);
+
+  final k.ExtensionTypeDeclaration node;
+  final String name;
+  final bool export;
+  final String representationName;
+  final List<EsmExtensionTypeMemberSymbol> members;
+}
+
+final class EsmExtensionTypeMemberSymbol {
+  const EsmExtensionTypeMemberSymbol({
+    required this.extensionType,
+    required this.descriptor,
+    required this.name,
+    required this.backingName,
+    required this.mutable,
+  });
+
+  final k.ExtensionTypeDeclaration extensionType;
+  final k.ExtensionTypeMemberDescriptor descriptor;
+  final String name;
+  final String backingName;
+  final bool mutable;
+
+  k.Reference? get memberReference => descriptor.memberReference;
+  k.Reference? get tearOffReference => descriptor.tearOffReference;
+}
+
+Iterable<String> _extensionTypeMemberReferencePaths(
+  EsmExtensionTypeMemberSymbol member,
+) sync* {
+  final memberReference = member.memberReference;
+  if (memberReference != null) {
+    final path = kernelReferencePath(memberReference);
+    yield path;
+    if (member.descriptor.kind == k.ExtensionTypeMemberKind.Field) {
+      yield path.replaceFirst('::@fields::', '::@getters::');
+      if (member.mutable) {
+        yield path.replaceFirst('::@fields::', '::@setters::');
+      }
+    }
+  }
+  final tearOffReference = member.tearOffReference;
+  if (tearOffReference != null) {
+    yield kernelReferencePath(tearOffReference);
+  }
 }
 
 final class EsmConstructorSymbol {
@@ -306,6 +392,22 @@ final class SemanticWorldStage
         );
       }
     }
+    final extensionTypes = <EsmExtensionTypeSymbol>[];
+    for (final library in libraries) {
+      for (final extensionType in library.extensionTypeDeclarations) {
+        extensionTypes.add(
+          _buildExtensionTypeSymbol(
+            allocator,
+            extensionType,
+            export: _exportsExtensionType(
+              mainLibrary,
+              exportedReferences,
+              extensionType,
+            ),
+          ),
+        );
+      }
+    }
     final fields = <EsmFieldSymbol>[];
     for (final library in libraries) {
       for (final field in library.fields) {
@@ -356,6 +458,7 @@ final class SemanticWorldStage
         component: kernel.component,
         main: kernel.main,
         classes: classes,
+        extensionTypes: extensionTypes,
         fields: fields,
         procedures: procedures,
       ),
@@ -456,6 +559,42 @@ final class SemanticWorldStage
     );
   }
 
+  EsmExtensionTypeSymbol _buildExtensionTypeSymbol(
+    JsNameAllocator allocator,
+    k.ExtensionTypeDeclaration extensionType, {
+    required bool export,
+  }) {
+    final usedNames = <String>{};
+    final accessorNames = <String, String>{};
+    return EsmExtensionTypeSymbol(
+      node: extensionType,
+      name: allocator.freshGlobal(extensionType.name),
+      export: export,
+      representationName: _freshMemberName(
+        usedNames,
+        extensionType.representationName,
+      ),
+      members: [
+        for (final descriptor in extensionType.memberDescriptors)
+          if (_extensionTypeMemberKind(descriptor) case final kind?)
+            EsmExtensionTypeMemberSymbol(
+              extensionType: extensionType,
+              descriptor: descriptor,
+              name: _freshProcedureMemberName(
+                usedNames,
+                accessorNames,
+                descriptor.name.text,
+                kind,
+              ),
+              backingName: allocator.freshGlobal(
+                '\$${extensionType.name}_${descriptor.name.text.isEmpty ? 'new' : descriptor.name.text}',
+              ),
+              mutable: _extensionTypeMemberIsMutable(descriptor),
+            ),
+      ],
+    );
+  }
+
   bool _isTopLevelClass(k.Class klass) => !klass.isAnonymousMixin;
 
   bool _isTopLevelField(k.Field field) {
@@ -505,6 +644,28 @@ final class SemanticWorldStage
       k.ProcedureKind.Setter => EsmProcedureKind.setter,
       _ => null,
     };
+  }
+
+  EsmProcedureKind? _extensionTypeMemberKind(
+    k.ExtensionTypeMemberDescriptor descriptor,
+  ) {
+    return switch (descriptor.kind) {
+      k.ExtensionTypeMemberKind.Constructor ||
+      k.ExtensionTypeMemberKind.Factory ||
+      k.ExtensionTypeMemberKind.RedirectingFactory ||
+      k.ExtensionTypeMemberKind.Method ||
+      k.ExtensionTypeMemberKind.Operator => EsmProcedureKind.method,
+      k.ExtensionTypeMemberKind.Getter => EsmProcedureKind.getter,
+      k.ExtensionTypeMemberKind.Setter => EsmProcedureKind.setter,
+      k.ExtensionTypeMemberKind.Field => EsmProcedureKind.getter,
+    };
+  }
+
+  bool _extensionTypeMemberIsMutable(
+    k.ExtensionTypeMemberDescriptor descriptor,
+  ) {
+    final node = descriptor.memberReference?.node;
+    return node is k.Field && node.hasSetter;
   }
 
   String _freshMemberName(Set<String> usedNames, String original) {
@@ -561,6 +722,18 @@ final class SemanticWorldStage
       return _isPublic(klass.name);
     }
     return exportedReferences.contains(klass.reference);
+  }
+
+  bool _exportsExtensionType(
+    k.Library mainLibrary,
+    Set<k.Reference> exportedReferences,
+    k.ExtensionTypeDeclaration extensionType,
+  ) {
+    if (extensionType.enclosingLibrary == mainLibrary) {
+      return _isPublic(extensionType.name);
+    }
+    return exportedReferences.contains(extensionType.reference) &&
+        _isPublic(extensionType.name);
   }
 
   bool _exportsField(

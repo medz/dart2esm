@@ -274,6 +274,7 @@ NormalizationResult _normalizationForModule(
       component: component,
       main: main,
       classes: const [],
+      extensionTypes: const [],
       fields: const [],
       procedures: [
         EsmProcedureSymbol(

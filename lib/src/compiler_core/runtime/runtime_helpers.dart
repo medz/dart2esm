@@ -12,6 +12,7 @@ enum EsmRuntimeHelper {
   equals,
   enumAsNameMap,
   enumByName,
+  extensionTypeRep,
   functionApply,
   intParse,
   iterator,
@@ -52,6 +53,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartEnumAsNameMap',
     '__dartEnumByName',
     '__dartEquals',
+    '__dartExtensionTypeRep',
     '__dartFunctionApply',
     '__dartFormatException',
     '__dartIntParse',
@@ -98,6 +100,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.equals => '__dartEquals',
       EsmRuntimeHelper.enumAsNameMap => '__dartEnumAsNameMap',
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
+      EsmRuntimeHelper.extensionTypeRep => '__dartExtensionTypeRep',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.intParse => '__dartIntParse',
       EsmRuntimeHelper.iterator => '__dartIterator',
@@ -276,6 +279,12 @@ function __dartEnumByName(values, name) {
     if (value.name === name) return value;
   }
   throw new RangeError("No enum value with name " + name);
+}
+'''),
+      EsmRuntimeHelper.extensionTypeRep => EsmRawModuleItemIr('''
+function __dartExtensionTypeRep(value, field) {
+  if (value != null && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, field)) return value[field];
+  return value;
 }
 '''),
       EsmRuntimeHelper.equals => EsmRawModuleItemIr('''
@@ -654,6 +663,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.dynamicSet:
       case EsmRuntimeHelper.enumAsNameMap:
       case EsmRuntimeHelper.enumByName:
+      case EsmRuntimeHelper.extensionTypeRep:
         break;
       case EsmRuntimeHelper.equals:
         _helpers.add(EsmRuntimeHelper.recordShape);

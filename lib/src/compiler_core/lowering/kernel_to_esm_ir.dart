@@ -1739,9 +1739,28 @@ final class KernelToEsmIrLoweringStage {
         ),
         property: expression.name,
       ),
-      k.SymbolLiteral() => EsmCallIr(
-        callee: const EsmIdentifierIr('Symbol'),
-        arguments: [EsmStringLiteralIr(expression.value)],
+      k.SymbolLiteral() => _lowerSymbolLiteral(helpers, expression.value),
+      k.TypeLiteral() => _lowerTypeLiteral(helpers, expression.type),
+      k.EqualsCall() => _lowerEqualsCall(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
+      k.DynamicInvocation() => _lowerDynamicInvocation(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
+      k.InstanceTearOff() => _lowerInstanceTearOff(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
       ),
       k.FunctionExpression() => _lowerFunctionExpression(
         world,
@@ -2096,10 +2115,14 @@ final class KernelToEsmIrLoweringStage {
       return const EsmNullLiteralIr();
     }
     if (constant is k.SymbolConstant) {
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('Symbol'),
-        arguments: [EsmStringLiteralIr(constant.name)],
+      return _lowerSymbolLiteral(
+        helpers,
+        constant.name,
+        libraryReference: constant.libraryReference,
       );
+    }
+    if (constant is k.TypeLiteralConstant) {
+      return _lowerTypeLiteral(helpers, constant.type);
     }
     if (constant is k.ListConstant) {
       return _lowerCanonicalConstant(
@@ -2186,7 +2209,235 @@ final class KernelToEsmIrLoweringStage {
         }
       }
     }
+    if (constant is k.ConstructorTearOffConstant ||
+        constant is k.RedirectingFactoryTearOffConstant) {
+      return _lowerCanonicalConstant(
+        helpers,
+        constant,
+        _lowerConstructorTearOffConstant(world, helpers, constant, context),
+      );
+    }
+    if (constant is k.InstantiationConstant) {
+      return _lowerConstant(world, helpers, constant.tearOffConstant, context);
+    }
+    if (constant is k.TypedefTearOffConstant) {
+      return _lowerConstant(world, helpers, constant.tearOffConstant, context);
+    }
+    if (constant is k.InstanceConstant) {
+      final instance = _lowerInstanceConstant(
+        world,
+        helpers,
+        constant,
+        context,
+      );
+      return _lowerCanonicalConstant(helpers, constant, instance);
+    }
     throw NewCompilerUnsupported(context, 'constant expression lowering');
+  }
+
+  EsmExpressionIr _lowerSymbolLiteral(
+    EsmRuntimeHelperUseSet helpers,
+    String name, {
+    k.Reference? libraryReference,
+  }) {
+    helpers.add(EsmRuntimeHelper.symbol);
+    final key = libraryReference == null
+        ? name
+        : '${kernelReferencePath(libraryReference)}::$name';
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.symbol),
+      arguments: [EsmStringLiteralIr(key), EsmStringLiteralIr(name)],
+    );
+  }
+
+  EsmExpressionIr _lowerTypeLiteral(
+    EsmRuntimeHelperUseSet helpers,
+    k.DartType type,
+  ) {
+    helpers.add(EsmRuntimeHelper.type);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.type),
+      arguments: [EsmStringLiteralIr(_dartTypeName(type))],
+    );
+  }
+
+  String _dartTypeName(k.DartType type) {
+    return switch (type) {
+      k.TypeParameterType() =>
+        '${type.parameter.name ?? 'T'}${_nullabilitySuffix(type.declaredNullability)}',
+      _ => type.toStringInternal(),
+    };
+  }
+
+  String _nullabilitySuffix(k.Nullability nullability) {
+    return switch (nullability) {
+      k.Nullability.nullable => '?',
+      k.Nullability.nonNullable || k.Nullability.undetermined => '',
+    };
+  }
+
+  EsmExpressionIr _lowerInstanceConstant(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.InstanceConstant constant,
+    Object context,
+  ) {
+    final klass = constant.classReference.node;
+    if (klass is! k.Class ||
+        klass.enclosingLibrary.importUri.scheme == 'dart') {
+      throw NewCompilerUnsupported(context, 'constant expression lowering');
+    }
+    final symbol = world.classSymbolFor(klass);
+    if (symbol == null) {
+      throw NewCompilerUnsupported(context, 'constant expression lowering');
+    }
+    final fields = <EsmObjectLiteralPropertyIr>[];
+    for (final entry in constant.fieldValues.entries) {
+      final field = entry.key.node;
+      if (field is! k.Field) {
+        throw NewCompilerUnsupported(context, 'constant expression lowering');
+      }
+      final fieldSymbol = world.instanceFieldSymbolFor(field);
+      if (fieldSymbol == null) {
+        throw NewCompilerUnsupported(context, 'constant expression lowering');
+      }
+      fields.add(
+        EsmObjectLiteralPropertyIr(
+          name: fieldSymbol.name,
+          value: _lowerConstant(world, helpers, entry.value, context),
+        ),
+      );
+    }
+    return EsmCallIr(
+      callee: const EsmPropertyAccessIr(
+        receiver: EsmIdentifierIr('Object'),
+        property: 'freeze',
+      ),
+      arguments: [
+        EsmCallIr(
+          callee: const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Object'),
+            property: 'assign',
+          ),
+          arguments: [
+            EsmCallIr(
+              callee: const EsmPropertyAccessIr(
+                receiver: EsmIdentifierIr('Object'),
+                property: 'create',
+              ),
+              arguments: [
+                EsmPropertyAccessIr(
+                  receiver: EsmIdentifierIr(symbol.name),
+                  property: 'prototype',
+                ),
+              ],
+            ),
+            EsmObjectLiteralIr(fields),
+          ],
+        ),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerConstructorTearOffConstant(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.Constant constant,
+    Object context,
+  ) {
+    final target = switch (constant) {
+      k.ConstructorTearOffConstant() => constant.target,
+      k.RedirectingFactoryTearOffConstant() => constant.target,
+      _ => throw NewCompilerUnsupported(
+        context,
+        'constant expression lowering',
+      ),
+    };
+    final function = target.function;
+    if (function == null || function.asyncMarker != k.AsyncMarker.Sync) {
+      throw NewCompilerUnsupported(context, 'constant expression lowering');
+    }
+    final locals = <k.VariableDeclaration, String>{};
+    final usedParameters = <String>{};
+    final parameters = _bindParameters(
+      world,
+      helpers,
+      locals,
+      usedParameters,
+      function,
+    );
+    return EsmFunctionExpressionIr(
+      parameters: parameters,
+      body: [
+        EsmReturnStatementIr(
+          _lowerConstructorTearOffInvocation(world, target, function, locals),
+        ),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerConstructorTearOffInvocation(
+    EsmSemanticWorld world,
+    k.Member target,
+    k.FunctionNode function,
+    Map<k.VariableDeclaration, String> locals,
+  ) {
+    final arguments = _forwardingArguments(function, locals);
+    if (target is k.Constructor) {
+      final klass = world.classSymbolFor(target.enclosingClass);
+      final constructor = world.constructorSymbolFor(target);
+      if (klass == null || constructor == null) {
+        throw NewCompilerUnsupported(target, 'constructor tear-off target');
+      }
+      if (constructor.name.isEmpty) {
+        return EsmNewIr(
+          callee: EsmIdentifierIr(klass.name),
+          arguments: arguments,
+        );
+      }
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr(klass.name),
+          property: constructor.name,
+        ),
+        arguments: arguments,
+      );
+    }
+    if (target is k.Procedure &&
+        target.kind == k.ProcedureKind.Factory &&
+        target.enclosingClass != null) {
+      final klass = world.classSymbolFor(target.enclosingClass!);
+      final procedure = world.staticProcedureSymbolFor(target);
+      if (klass == null || procedure == null) {
+        throw NewCompilerUnsupported(target, 'constructor tear-off target');
+      }
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr(klass.name),
+          property: procedure.name,
+        ),
+        arguments: arguments,
+      );
+    }
+    throw NewCompilerUnsupported(target, 'constructor tear-off target');
+  }
+
+  List<EsmExpressionIr> _forwardingArguments(
+    k.FunctionNode function,
+    Map<k.VariableDeclaration, String> locals,
+  ) {
+    return [
+      for (final parameter in function.positionalParameters)
+        EsmIdentifierIr(locals[parameter]!),
+      if (function.namedParameters.isNotEmpty)
+        EsmObjectLiteralIr([
+          for (final parameter in function.namedParameters)
+            EsmObjectLiteralPropertyIr(
+              name: parameter.name ?? 'arg',
+              value: EsmIdentifierIr(locals[parameter]!),
+            ),
+        ]),
+    ];
   }
 
   EsmExpressionIr _lowerCanonicalConstant(
@@ -2523,6 +2774,58 @@ final class KernelToEsmIrLoweringStage {
     );
   }
 
+  EsmExpressionIr _lowerDynamicInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.DynamicInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.name.text != 'call' ||
+        expression.arguments.types.isNotEmpty) {
+      throw NewCompilerUnsupported(expression, 'expression lowering');
+    }
+    helpers.add(EsmRuntimeHelper.dynamicCall);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.dynamicCall),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        EsmArrayLiteralIr([
+          for (final argument in expression.arguments.positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ]),
+        if (expression.arguments.named.isEmpty)
+          const EsmNullLiteralIr()
+        else
+          EsmObjectLiteralIr([
+            for (final argument in expression.arguments.named)
+              EsmObjectLiteralPropertyIr(
+                name: argument.name,
+                value: _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  argument.value,
+                  thisExpression: thisExpression,
+                ),
+              ),
+          ]),
+      ],
+    );
+  }
+
   EsmExpressionIr? _lowerCoreInstanceInvocation(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -2535,6 +2838,25 @@ final class KernelToEsmIrLoweringStage {
       return null;
     }
     final target = expression.interfaceTargetReference.toStringInternal();
+    if (expression.name.text == '[]' &&
+        expression.arguments.positional.length == 1) {
+      return EsmComputedPropertyAccessIr(
+        receiver: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        property: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.arguments.positional.single,
+          thisExpression: thisExpression,
+        ),
+      );
+    }
     if (target == 'dart:core::Set::@methods::add' &&
         expression.arguments.positional.length == 1) {
       return EsmCallIr(
@@ -2723,7 +3045,13 @@ final class KernelToEsmIrLoweringStage {
     k.ConstructorInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    final sdkConstructor = _lowerSdkConstructorInvocation(expression);
+    final sdkConstructor = _lowerSdkConstructorInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
     if (sdkConstructor != null) {
       return sdkConstructor;
     }
@@ -2777,23 +3105,151 @@ final class KernelToEsmIrLoweringStage {
   }
 
   EsmExpressionIr? _lowerSdkConstructorInvocation(
-    k.ConstructorInvocation expression,
-  ) {
-    if (expression.arguments.positional.isNotEmpty ||
-        expression.arguments.named.isNotEmpty) {
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.ConstructorInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty) {
       return null;
     }
-    return switch (expression.targetReference.toStringInternal()) {
-      'dart:_compact_hash::_Set::@constructors::' => EsmNewIr(
+    final target = kernelReferencePath(expression.targetReference);
+    if (target == 'dart:_compact_hash::_Set::@constructors::' &&
+        expression.arguments.positional.isEmpty) {
+      return EsmNewIr(
         callee: const EsmIdentifierIr('Set'),
         arguments: const [],
-      ),
-      _ => null,
-    };
+      );
+    }
+    if ((target.startsWith('dart:core::Symbol::') ||
+            target.startsWith('dart:_internal::Symbol::')) &&
+        expression.arguments.positional.length == 1) {
+      final argument = expression.arguments.positional.single;
+      if (argument is k.StringLiteral) {
+        return _lowerSymbolLiteral(helpers, argument.value);
+      }
+      helpers.add(EsmRuntimeHelper.symbol);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.symbol),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    return null;
   }
 
   bool _isSyntheticDefaultConstructor(k.Constructor constructor) {
     return constructor.isSynthetic && constructor.name.text.isEmpty;
+  }
+
+  EsmExpressionIr _lowerEqualsCall(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.EqualsCall expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    helpers.add(EsmRuntimeHelper.equals);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.equals),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.left,
+          thisExpression: thisExpression,
+        ),
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.right,
+          thisExpression: thisExpression,
+        ),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerInstanceTearOff(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceTearOff expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final target = expression.interfaceTargetReference.node;
+    if (target is! k.Procedure) {
+      throw NewCompilerUnsupported(expression, 'instance tear-off target');
+    }
+    final symbol = world.instanceProcedureSymbolFor(target);
+    if (symbol == null || symbol.kind != EsmProcedureKind.method) {
+      throw NewCompilerUnsupported(expression, 'instance tear-off target');
+    }
+    final function = target.function;
+    if (function.asyncMarker != k.AsyncMarker.Sync) {
+      throw NewCompilerUnsupported(expression, 'instance tear-off target');
+    }
+    const receiverName = r'$receiver';
+    final forwardingLocals = <k.VariableDeclaration, String>{};
+    final usedParameters = {receiverName};
+    final parameters = _bindParameters(
+      world,
+      helpers,
+      forwardingLocals,
+      usedParameters,
+      function,
+    );
+    return EsmCallIr(
+      callee: EsmFunctionExpressionIr(
+        parameters: const [],
+        body: [
+          EsmVariableDeclarationIr(
+            name: receiverName,
+            initializer: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+            mutable: false,
+          ),
+          EsmReturnStatementIr(
+            EsmFunctionExpressionIr(
+              parameters: parameters,
+              body: [
+                EsmReturnStatementIr(
+                  EsmCallIr(
+                    callee: EsmPropertyAccessIr(
+                      receiver: const EsmIdentifierIr(receiverName),
+                      property: symbol.name,
+                    ),
+                    arguments: _forwardingArguments(function, forwardingLocals),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      arguments: const [],
+    );
   }
 
   EsmExpressionIr _lowerIsExpression(

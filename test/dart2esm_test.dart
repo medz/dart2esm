@@ -1458,6 +1458,40 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles const value objects through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-const-values-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+
+    for (final id in const [
+      'classes/callable_classes',
+      'classes/constructor_tearoffs',
+      'records/basic_records',
+      'syntax/type_symbol_literals',
+    ]) {
+      final source = File(p.join(fixtureDir.path, '$id.dart'));
+      final expected = File(p.join(fixtureDir.path, '$id.mjs'));
+      final output = File(
+        p.join(tempDir.path, '${id.replaceAll('/', '_')}.mjs'),
+      );
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+          allowLegacyOracle: false,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+      expect(output.readAsStringSync(), expected.readAsStringSync());
+      await _expectSameDartAndNodeOutput(source, output);
+    }
+  });
+
   test('compiles local library imports through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-local-imports-core-',

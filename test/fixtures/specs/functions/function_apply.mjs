@@ -21,6 +21,17 @@ function __dartPrint(value) {
   console.log(value);
 }
 
+const __dartSymbolCache = new Map();
+function __dartSymbol(key, name) {
+  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
+  const value = Object.freeze({
+    name,
+    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },
+  });
+  __dartSymbolCache.set(key, value);
+  return value;
+}
+
 function __dartAs(value, test, typeName) {
   if (test(value)) {
     return value;
@@ -44,9 +55,9 @@ export function invokeDescribe($function, positional, named) {
 export function main() {
   const local = function(value, { add = 0 } = {}) { return value + add; };
   __dartPrint(`positional ${__dartFunctionApply(add, [2, 3], null)}`);
-  __dartPrint(`named ${__dartFunctionApply(describe, ["ada"], new Map([[Symbol("count"), 3], [Symbol("loud"), true]]))}`);
-  __dartPrint(`local ${__dartFunctionApply(local, [4], new Map([[Symbol("add"), 5]]))}`);
-  __dartPrint(`forward ${invokeDescribe(describe, ["dart"], new Map([[Symbol("count"), 2]]))}`);
+  __dartPrint(`named ${__dartFunctionApply(describe, ["ada"], new Map([[__dartSymbol("count", "count"), 3], [__dartSymbol("loud", "loud"), true]]))}`);
+  __dartPrint(`local ${__dartFunctionApply(local, [4], new Map([[__dartSymbol("add", "add"), 5]]))}`);
+  __dartPrint(`forward ${invokeDescribe(describe, ["dart"], new Map([[__dartSymbol("count", "count"), 2]]))}`);
 }
 
 main();

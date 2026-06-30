@@ -4,6 +4,8 @@ enum EsmRuntimeHelper {
   constMap,
   constSet,
   constValue,
+  dynamicCall,
+  equals,
   functionApply,
   lazyField,
   print,
@@ -11,6 +13,8 @@ enum EsmRuntimeHelper {
   isRecord,
   record,
   stringify,
+  symbol,
+  type,
   typeCast,
 }
 
@@ -23,6 +27,8 @@ final class EsmRuntimeHelperRegistry {
     '__dartConstMap',
     '__dartConstSet',
     '__dartConstValues',
+    '__dartDynamicCall',
+    '__dartEquals',
     '__dartFunctionApply',
     '__dartLazyField',
     '__dartIsRecord',
@@ -30,6 +36,10 @@ final class EsmRuntimeHelperRegistry {
     '__dartRecord',
     '__dartRecordShape',
     '__dartStr',
+    '__dartSymbol',
+    '__dartSymbolCache',
+    '__dartType',
+    '__dartTypeCache',
   };
 
   String name(EsmRuntimeHelper helper) {
@@ -37,6 +47,8 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.constMap => '__dartConstMap',
       EsmRuntimeHelper.constSet => '__dartConstSet',
       EsmRuntimeHelper.constValue => '__dartConst',
+      EsmRuntimeHelper.dynamicCall => '__dartDynamicCall',
+      EsmRuntimeHelper.equals => '__dartEquals',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
@@ -44,6 +56,8 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
       EsmRuntimeHelper.stringify => '__dartStr',
+      EsmRuntimeHelper.symbol => '__dartSymbol',
+      EsmRuntimeHelper.type => '__dartType',
       EsmRuntimeHelper.typeCast => '__dartAs',
     };
   }
@@ -81,6 +95,35 @@ function __dartConstMap(entries) {
   Object.defineProperty(map, "delete", { value: throwConst });
   Object.defineProperty(map, "clear", { value: throwConst });
   return Object.freeze(map);
+}
+'''),
+      EsmRuntimeHelper.dynamicCall => EsmRawModuleItemIr('''
+function __dartDynamicCall(receiver, positionalArguments, namedArguments = null) {
+  const args = namedArguments == null ? Array.from(positionalArguments) : [...positionalArguments, namedArguments];
+  if (typeof receiver === "function") return receiver(...args);
+  const call = receiver?.call;
+  if (typeof call === "function") return call.apply(receiver, args);
+  throw new TypeError("Object is not callable");
+}
+'''),
+      EsmRuntimeHelper.equals => EsmRawModuleItemIr('''
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
+  if (__dartIsRecord(left) && __dartIsRecord(right)) {
+    const leftShape = left[__dartRecordShape];
+    const rightShape = right[__dartRecordShape];
+    if (leftShape.length !== rightShape.length) return false;
+    for (let i = 0; i < leftShape.length; i++) {
+      const name = leftShape[i];
+      if (name !== rightShape[i]) return false;
+      if (!__dartEquals(left[name], right[name])) return false;
+    }
+    return true;
+  }
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
 }
 '''),
       EsmRuntimeHelper.functionApply => EsmRawModuleItemIr('''
@@ -206,6 +249,30 @@ function __dartStr(value) {
   return String(value);
 }
 '''),
+      EsmRuntimeHelper.symbol => EsmRawModuleItemIr('''
+const __dartSymbolCache = new Map();
+function __dartSymbol(key, name) {
+  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
+  const value = Object.freeze({
+    name,
+    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },
+  });
+  __dartSymbolCache.set(key, value);
+  return value;
+}
+'''),
+      EsmRuntimeHelper.type => EsmRawModuleItemIr('''
+const __dartTypeCache = new Map();
+function __dartType(name) {
+  if (__dartTypeCache.has(name)) return __dartTypeCache.get(name);
+  const value = Object.freeze({
+    name,
+    toString() { return name; },
+  });
+  __dartTypeCache.set(name, value);
+  return value;
+}
+'''),
       EsmRuntimeHelper.typeCast => EsmFunctionIr(
         name: name(helper),
         export: false,
@@ -249,7 +316,11 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.constValue:
       case EsmRuntimeHelper.constMap:
       case EsmRuntimeHelper.constSet:
+      case EsmRuntimeHelper.dynamicCall:
         break;
+      case EsmRuntimeHelper.equals:
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.isRecord:
         _helpers.add(EsmRuntimeHelper.recordShape);
       case EsmRuntimeHelper.record:
@@ -260,6 +331,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.print:
       case EsmRuntimeHelper.recordShape:
       case EsmRuntimeHelper.stringify:
+      case EsmRuntimeHelper.symbol:
+      case EsmRuntimeHelper.type:
       case EsmRuntimeHelper.typeCast:
         break;
     }

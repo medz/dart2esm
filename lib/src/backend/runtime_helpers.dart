@@ -280,6 +280,34 @@ const _dartIteratorSource = r'''function __dartIterator(iterable) {
   };
 }''';
 
+const _dartConstSource = r'''const __dartConstValues = new Map();
+function __dartConst(key, create) {
+  if (!__dartConstValues.has(key)) {
+    __dartConstValues.set(key, create());
+  }
+  return __dartConstValues.get(key);
+}''';
+
+const _dartConstSetSource = r'''function __dartConstSet(values) {
+  const set = new Set();
+  for (const value of values) __dartSetAdd(set, value);
+  const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
+  Object.defineProperty(set, "add", { value: throwConst });
+  Object.defineProperty(set, "delete", { value: throwConst });
+  Object.defineProperty(set, "clear", { value: throwConst });
+  return Object.freeze(set);
+}''';
+
+const _dartConstMapSource = r'''function __dartConstMap(entries) {
+  const map = new Map();
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
+  Object.defineProperty(map, "set", { value: throwConst });
+  Object.defineProperty(map, "delete", { value: throwConst });
+  Object.defineProperty(map, "clear", { value: throwConst });
+  return Object.freeze(map);
+}''';
+
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
     name: '__dartPrint',
@@ -347,6 +375,23 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     name: '__dartIterator',
     category: EsmRuntimeHelperCategory.collection,
     source: _dartIteratorSource,
+  ),
+  '__dartConst': EsmRuntimeHelperSpec(
+    name: '__dartConst',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartConstSource,
+  ),
+  '__dartConstSet': EsmRuntimeHelperSpec(
+    name: '__dartConstSet',
+    category: EsmRuntimeHelperCategory.collection,
+    dependencies: ['__dartSetAdd'],
+    source: _dartConstSetSource,
+  ),
+  '__dartConstMap': EsmRuntimeHelperSpec(
+    name: '__dartConstMap',
+    category: EsmRuntimeHelperCategory.collection,
+    dependencies: ['__dartMapSet'],
+    source: _dartConstMapSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',

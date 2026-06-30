@@ -17617,55 +17617,9 @@ final class _EsmEmitter {
       helper.writeln('  return Object.freeze(record);');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartConst')) {
-      helper.writeln('const __dartConstValues = new Map();');
-      helper.writeln('function __dartConst(key, create) {');
-      helper.writeln('  if (!__dartConstValues.has(key)) {');
-      helper.writeln('    __dartConstValues.set(key, create());');
-      helper.writeln('  }');
-      helper.writeln('  return __dartConstValues.get(key);');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartConstSet')) {
-      helper.writeln('function __dartConstSet(values) {');
-      helper.writeln('  const set = new Set();');
-      helper.writeln('  for (const value of values) __dartSetAdd(set, value);');
-      helper.writeln(
-        '  const throwConst = () => { throw new TypeError("Cannot modify const Set"); };',
-      );
-      helper.writeln(
-        '  Object.defineProperty(set, "add", { value: throwConst });',
-      );
-      helper.writeln(
-        '  Object.defineProperty(set, "delete", { value: throwConst });',
-      );
-      helper.writeln(
-        '  Object.defineProperty(set, "clear", { value: throwConst });',
-      );
-      helper.writeln('  return Object.freeze(set);');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartConstMap')) {
-      helper.writeln('function __dartConstMap(entries) {');
-      helper.writeln('  const map = new Map();');
-      helper.writeln(
-        '  for (const [key, value] of entries) __dartMapSet(map, key, value);',
-      );
-      helper.writeln(
-        '  const throwConst = () => { throw new TypeError("Cannot modify const Map"); };',
-      );
-      helper.writeln(
-        '  Object.defineProperty(map, "set", { value: throwConst });',
-      );
-      helper.writeln(
-        '  Object.defineProperty(map, "delete", { value: throwConst });',
-      );
-      helper.writeln(
-        '  Object.defineProperty(map, "clear", { value: throwConst });',
-      );
-      helper.writeln('  return Object.freeze(map);');
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartConst');
+    emitRegisteredRuntimeHelper('__dartConstSet');
+    emitRegisteredRuntimeHelper('__dartConstMap');
     emitRegisteredRuntimeHelper('__dartLazyField');
     emitRegisteredRuntimeHelper('__dartIterator');
     return helper.toString();

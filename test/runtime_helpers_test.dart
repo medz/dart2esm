@@ -39,6 +39,18 @@ void main() {
     );
   });
 
+  test('resolves const collection helper dependencies', () {
+    final helpers = resolveEsmRuntimeHelperDependencies({
+      '__dartConstSet',
+      '__dartConstMap',
+    });
+
+    expect(helpers, contains('__dartConstSet'));
+    expect(helpers, contains('__dartSetAdd'));
+    expect(helpers, contains('__dartConstMap'));
+    expect(helpers, contains('__dartMapSet'));
+  });
+
   test('exposes registered helper source definitions', () {
     expect(esmRuntimeHelperSource('__dartPrint'), contains('__dartStr(value)'));
     expect(esmRuntimeHelperSource('__dartStr'), contains('function __dartStr'));
@@ -58,6 +70,18 @@ void main() {
     expect(
       esmRuntimeHelperSource('__dartIterator'),
       contains('function __dartIterator'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartConst'),
+      contains('const __dartConstValues'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartConstSet'),
+      contains('function __dartConstSet'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartConstMap'),
+      contains('function __dartConstMap'),
     );
     expect(esmRuntimeHelperSource('__dartStreamMap'), isNull);
   });

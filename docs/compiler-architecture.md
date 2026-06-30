@@ -152,8 +152,9 @@ Current implementation:
   dependency resolver.
 - `EsmRuntimeHelperUseSet` owns requested helper tracking, dependency closure,
   registered helper source lookup, and legacy stream-runtime classification.
-- Small core/collection helpers such as `__dartLazyField` and `__dartIterator`
-  are emitted from declarative helper specs.
+- Small core/collection helpers such as `__dartConst`, `__dartConstSet`,
+  `__dartConstMap`, `__dartLazyField`, and `__dartIterator` are emitted from
+  declarative helper specs.
 - Some helper source is still emitted inline from `esm_backend.dart`.
 
 Target boundary:

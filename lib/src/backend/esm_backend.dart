@@ -11,6 +11,7 @@ import '../module/extension_type_member_plan.dart';
 import '../names/esm_name_plan.dart';
 import '../names/js_names.dart';
 import '../program/program_model.dart';
+import '../world/sdk_classification.dart';
 import '../world/kernel_analysis.dart';
 import 'runtime_helpers.dart';
 
@@ -328,7 +329,7 @@ final class _EsmEmitter {
     k.Class klass,
     Set<String> declaredInstanceMembers,
   ) {
-    if (_hasDartConvertBase(klass, const {'Codec', 'Encoding'})) {
+    if (hasDartConvertBase(klass, const {'Codec', 'Encoding'})) {
       if (!declaredInstanceMembers.contains('encode')) {
         writeln('encode(input) { return this.encoder.convert(input); }');
       }
@@ -340,7 +341,7 @@ final class _EsmEmitter {
         writeln('fuse(other) { return __dartConverterFuse(this, other); }');
       }
     }
-    if (_hasDartConvertBase(klass, const {'Converter'})) {
+    if (hasDartConvertBase(klass, const {'Converter'})) {
       if (!declaredInstanceMembers.contains('bind')) {
         _usedHelpers.add('__dartConverterBind');
         writeln('bind(stream) { return __dartConverterBind(this, stream); }');
@@ -356,7 +357,7 @@ final class _EsmEmitter {
         );
       }
     }
-    if (_hasDartConvertBase(klass, const {
+    if (hasDartConvertBase(klass, const {
       'StringConversionSink',
       'StringConversionSinkBase',
     })) {
@@ -372,7 +373,7 @@ final class _EsmEmitter {
         );
       }
     }
-    if (_hasDartConvertBase(klass, const {
+    if (hasDartConvertBase(klass, const {
       'ByteConversionSink',
       'ByteConversionSinkBase',
     })) {
@@ -877,8 +878,9 @@ final class _EsmEmitter {
   }
 
   void _emitCoreExceptionDefaults(k.Class klass) {
-    final supertypeName = _directCoreExceptionSuperclassName(klass);
-    final typeName = supertypeName ?? _directCoreExceptionInterfaceName(klass);
+    final supertypeName = directDartCoreExceptionSuperclassName(klass);
+    final typeName =
+        supertypeName ?? directDartCoreExceptionInterfaceName(klass);
     if (typeName == null) {
       return;
     }
@@ -9974,42 +9976,6 @@ final class _EsmEmitter {
 
   bool _hasOnlyNamedArguments(k.Arguments arguments, Set<String> names) {
     return arguments.named.every((argument) => names.contains(argument.name));
-  }
-
-  String? _directCoreExceptionSuperclassName(k.Class klass) {
-    return _coreExceptionSupertypeName(klass.supertype);
-  }
-
-  String? _directCoreExceptionInterfaceName(k.Class klass) {
-    for (final interface in klass.implementedTypes) {
-      final interfaceName = _coreExceptionSupertypeName(interface);
-      if (interfaceName != null) {
-        return interfaceName;
-      }
-    }
-    return null;
-  }
-
-  String? _coreExceptionSupertypeName(k.Supertype? supertype) {
-    if (supertype == null) {
-      return null;
-    }
-    return dartCoreExceptionReferenceName(supertype.className);
-  }
-
-  bool _hasDartConvertBase(k.Class klass, Set<String> names) {
-    bool matches(k.Supertype? supertype) {
-      if (supertype == null) {
-        return false;
-      }
-      final path = kernelReferencePath(supertype.className);
-      return names.any((name) => path == 'dart:convert::$name');
-    }
-
-    if (matches(klass.supertype) || matches(klass.mixedInType)) {
-      return true;
-    }
-    return klass.implementedTypes.any(matches);
   }
 
   String? _emitMathRectangleConstructorInvocation(

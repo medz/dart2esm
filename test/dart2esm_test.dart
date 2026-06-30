@@ -1474,6 +1474,48 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
+  test('compiles core String methods through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-core-string-methods-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  final text = '  hello,dart  ';
+  final trimmed = text.trim();
+  print('basic \${trimmed.codeUnitAt(0)} \${trimmed.substring(1, 4)} '
+      '\${trimmed.startsWith('he')} \${trimmed.endsWith('rt')} '
+      '\${trimmed.indexOf('dart')} \${trimmed.split(',').join('|')}');
+  print('replace \${trimmed.replaceAll('l', 'L').toUpperCase()} '
+      '\${trimmed.replaceFirst('l', 'L')} '
+      '\${trimmed.replaceFirst('l', 'L', 3)} '
+      '\${trimmed.replaceRange(1, 4, 'EL')}');
+  print('meta \${trimmed.contains('l', 3)} \${'7'.padLeft(3, '0')} '
+      '\${'x'.padRight(3, '.')} \${'  left'.trimLeft()} '
+      '\${'right  '.trimRight()} \${trimmed.codeUnits.join('-')}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartStringReplaceFirst'));
+    expect(code, contains('__dartStringReplaceRange'));
+    expect(code, contains('__dartStringCodeUnits'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
   test('compiles const collections through the new core', () async {
     final source = File(
       p.join(fixtureDir.path, 'syntax', 'const_collections.dart'),

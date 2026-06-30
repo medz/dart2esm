@@ -39,6 +39,7 @@ enum EsmRuntimeHelper {
   safeToString,
   setAddAll,
   stringFactory,
+  stringOps,
   stringify,
   symbol,
   throwWithStackTrace,
@@ -105,7 +106,10 @@ final class EsmRuntimeHelperRegistry {
     '__dartRecordShape',
     '__dartSafeToString',
     '__dartSetAddAll',
+    '__dartStringCodeUnits',
     '__dartStringFromCharCodes',
+    '__dartStringReplaceFirst',
+    '__dartStringReplaceRange',
     '__dartStr',
     '__dartSymbol',
     '__dartSymbolCache',
@@ -154,6 +158,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.safeToString => '__dartSafeToString',
       EsmRuntimeHelper.setAddAll => '__dartSetAddAll',
       EsmRuntimeHelper.stringFactory => '__dartStringFromCharCodes',
+      EsmRuntimeHelper.stringOps => '__dartStringReplaceFirst',
       EsmRuntimeHelper.stringify => '__dartStr',
       EsmRuntimeHelper.symbol => '__dartSymbol',
       EsmRuntimeHelper.throwWithStackTrace => '__dartThrowWithStackTrace',
@@ -638,6 +643,24 @@ function __dartStringFromCharCodes(codes, start = 0, end = null) {
   return String.fromCharCode(...values);
 }
 '''),
+      EsmRuntimeHelper.stringOps => EsmRawModuleItemIr('''
+function __dartStringCodeUnits(source) {
+  const text = String(source);
+  return Array.from({ length: text.length }, (_, index) => text.charCodeAt(index));
+}
+function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {
+  const text = String(source);
+  const needle = String(pattern);
+  const index = text.indexOf(needle, Number(startIndex));
+  if (index < 0) return text;
+  return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);
+}
+function __dartStringReplaceRange(source, start, end, replacement) {
+  const text = String(source);
+  const actualEnd = end == null ? text.length : Number(end);
+  return text.slice(0, Number(start)) + String(replacement) + text.slice(actualEnd);
+}
+'''),
       EsmRuntimeHelper.lazyField => EsmRawModuleItemIr('''
 function __dartLazyField(name, initialize, writable, publish = null) {
   let state = 0;
@@ -909,6 +932,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:
       case EsmRuntimeHelper.stringFactory:
+      case EsmRuntimeHelper.stringOps:
         break;
       case EsmRuntimeHelper.equals:
         _helpers.add(EsmRuntimeHelper.recordShape);

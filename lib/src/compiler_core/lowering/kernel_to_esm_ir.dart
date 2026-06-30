@@ -4276,6 +4276,17 @@ final class KernelToEsmIrLoweringStage
     if (numberInvocation != null) {
       return numberInvocation;
     }
+    final stringInvocation = _lowerCoreStringInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (stringInvocation != null) {
+      return stringInvocation;
+    }
     if (expression.name.text == '[]' &&
         expression.arguments.positional.length == 1) {
       final receiver = _lowerExpression(
@@ -4642,17 +4653,153 @@ final class KernelToEsmIrLoweringStage
         arguments: [receiver],
       );
     }
-    final property = switch (target) {
-      'dart:core::String::@methods::toUpperCase' => 'toUpperCase',
-      _ => null,
-    };
-    if (property == null) {
+    return null;
+  }
+
+  EsmExpressionIr? _lowerCoreStringInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty || !_isCoreStringTarget(target)) {
       return null;
     }
-    return EsmCallIr(
-      callee: EsmPropertyAccessIr(receiver: receiver, property: property),
-      arguments: const [],
+    final positional = expression.arguments.positional;
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
     );
+    final noArgMethod = switch (target) {
+      'dart:core::String::@methods::trim' => 'trim',
+      'dart:core::String::@methods::trimLeft' => 'trimStart',
+      'dart:core::String::@methods::trimRight' => 'trimEnd',
+      'dart:core::String::@methods::toUpperCase' => 'toUpperCase',
+      'dart:core::String::@methods::toLowerCase' => 'toLowerCase',
+      _ => null,
+    };
+    if (noArgMethod != null && positional.isEmpty) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(receiver: receiver, property: noArgMethod),
+        arguments: const [],
+      );
+    }
+    final directMethod = switch (target) {
+      'dart:core::String::@methods::codeUnitAt' => 'charCodeAt',
+      'dart:core::String::@methods::substring' => 'substring',
+      'dart:core::String::@methods::startsWith' => 'startsWith',
+      'dart:core::String::@methods::endsWith' => 'endsWith',
+      'dart:core::String::@methods::indexOf' => 'indexOf',
+      'dart:core::String::@methods::split' => 'split',
+      'dart:core::String::@methods::replaceAll' => 'replaceAll',
+      _ => null,
+    };
+    if (directMethod != null &&
+        positional.isNotEmpty &&
+        positional.length <= 2) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(receiver: receiver, property: directMethod),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    if (target == 'dart:core::String::@methods::contains' &&
+        positional.isNotEmpty &&
+        positional.length <= 2) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(receiver: receiver, property: 'includes'),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::String::@methods::padLeft' ||
+            target == 'dart:core::String::@methods::padRight') &&
+        positional.isNotEmpty &&
+        positional.length <= 2) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: receiver,
+          property: target.endsWith('padLeft') ? 'padStart' : 'padEnd',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.first,
+            thisExpression: thisExpression,
+          ),
+          positional.length == 1
+              ? const EsmStringLiteralIr(' ')
+              : _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  positional[1],
+                  thisExpression: thisExpression,
+                ),
+        ],
+      );
+    }
+    if (target == 'dart:core::String::@methods::replaceFirst' &&
+        positional.length >= 2 &&
+        positional.length <= 3) {
+      helpers.add(EsmRuntimeHelper.stringOps);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.stringOps),
+        arguments: [
+          receiver,
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    if (target == 'dart:core::String::@methods::replaceRange' &&
+        positional.length == 3) {
+      helpers.add(EsmRuntimeHelper.stringOps);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartStringReplaceRange'),
+        arguments: [
+          receiver,
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    return null;
   }
 
   EsmExpressionIr? _lowerCoreCollectionInstanceInvocation(
@@ -5072,6 +5219,13 @@ final class KernelToEsmIrLoweringStage
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
         operator: '>',
         right: const EsmNumberLiteralIr(0),
+      );
+    }
+    if (target == 'dart:core::String::@getters::codeUnits') {
+      helpers.add(EsmRuntimeHelper.stringOps);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartStringCodeUnits'),
+        arguments: [receiver],
       );
     }
     final numberGet = _lowerCoreNumberInstanceGet(helpers, receiver, target);
@@ -6041,6 +6195,10 @@ final class KernelToEsmIrLoweringStage
         target == 'dart:core::int::@methods::compareTo' ||
         target == 'dart:core::double::@methods::compareTo' ||
         target == 'dart:core::String::@methods::compareTo';
+  }
+
+  bool _isCoreStringTarget(String target) {
+    return target.startsWith('dart:core::String::@methods::');
   }
 
   EsmExpressionIr _andAll(List<EsmExpressionIr> expressions) {

@@ -1228,6 +1228,7 @@ class WindowsStyle extends InternalStyle {
 
 class PathException {
   constructor(message) {
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "Exception", writable: true, configurable: true });
     this.message = message;
   }
   toString() {

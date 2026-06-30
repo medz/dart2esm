@@ -1225,6 +1225,22 @@ final class _EsmEmitter {
     }
   }
 
+  void _emitCoreExceptionDefaults(k.Class klass) {
+    final supertypeName = _directCoreExceptionSuperclassName(klass);
+    final typeName = supertypeName ?? _directCoreExceptionInterfaceName(klass);
+    if (typeName == null) {
+      return;
+    }
+    writeln(
+      'Object.defineProperty($_thisExpression, "__dartCoreErrorType", { value: ${jsonEncode(typeName)}, writable: true, configurable: true });',
+    );
+    if (supertypeName == 'FormatException') {
+      writeln('$_thisExpression.message = "";');
+      writeln('$_thisExpression.source = null;');
+      writeln('$_thisExpression.offset = null;');
+    }
+  }
+
   void _emitDefaultConstructor(k.Class klass) {
     final hasJsSuperclass = _hasJsSuperclass(klass);
     final hasInterfaceMarkers = _interfaceMarkersForClass(klass).isNotEmpty;
@@ -1700,6 +1716,9 @@ final class _EsmEmitter {
       case k.AssertInitializer():
         break;
       case k.SuperInitializer():
+        if (_emitCoreExceptionSuperInitializer(initializer)) {
+          return;
+        }
         if (initializer.isSynthetic) {
           return;
         }
@@ -1731,6 +1750,29 @@ final class _EsmEmitter {
       throw UnsupportedKernelNode(initializer, 'named super initializer');
     }
     writeln('super(${_emitArguments(initializer.arguments)});');
+    return true;
+  }
+
+  bool _emitCoreExceptionSuperInitializer(k.SuperInitializer initializer) {
+    final typeName = _coreExceptionConstructorTypeName(
+      initializer.targetReference,
+    );
+    if (typeName == null) {
+      return false;
+    }
+    if (typeName == 'FormatException') {
+      final positional = initializer.arguments.positional;
+      writeln(
+        '$_thisExpression.message = ${positional.isEmpty ? '""' : emitExpression(positional[0])};',
+      );
+      writeln(
+        '$_thisExpression.source = ${positional.length < 2 ? 'null' : emitExpression(positional[1])};',
+      );
+      writeln(
+        '$_thisExpression.offset = ${positional.length < 3 ? 'null' : emitExpression(positional[2])};',
+      );
+      return true;
+    }
     return true;
   }
 
@@ -1828,6 +1870,7 @@ final class _EsmEmitter {
     k.Class klass, {
     Set<k.Field> skipFields = const {},
   }) {
+    _emitCoreExceptionDefaults(klass);
     for (final field in klass.fields) {
       if (field.isStatic || (skipFields.contains(field) && !field.isLate)) {
         continue;
@@ -10289,6 +10332,47 @@ final class _EsmEmitter {
     ).startsWith('dart:core::Object::@constructors::');
   }
 
+  String? _directCoreExceptionSuperclassName(k.Class klass) {
+    return _coreExceptionSupertypeName(klass.supertype);
+  }
+
+  String? _directCoreExceptionInterfaceName(k.Class klass) {
+    for (final interface in klass.implementedTypes) {
+      final interfaceName = _coreExceptionSupertypeName(interface);
+      if (interfaceName != null) {
+        return interfaceName;
+      }
+    }
+    return null;
+  }
+
+  String? _coreExceptionSupertypeName(k.Supertype? supertype) {
+    if (supertype == null) {
+      return null;
+    }
+    return _coreExceptionReferenceName(supertype.className);
+  }
+
+  String? _coreExceptionReferenceName(k.Reference reference) {
+    final path = _referencePath(reference);
+    for (final name in _coreExceptionTypeNames) {
+      if (path == 'dart:core::$name') {
+        return name;
+      }
+    }
+    return null;
+  }
+
+  String? _coreExceptionConstructorTypeName(k.Reference reference) {
+    final path = _referencePath(reference);
+    for (final name in _coreExceptionTypeNames) {
+      if (path.startsWith('dart:core::$name::@constructors::')) {
+        return name;
+      }
+    }
+    return null;
+  }
+
   bool _isCoreClass(k.Reference reference, String name) {
     return _referencePath(reference) == 'dart:core::$name';
   }
@@ -10953,10 +11037,13 @@ final class _EsmEmitter {
   }
 
   void _declareVariable(k.VariableDeclaration variable) {
-    _variableNames.putIfAbsent(
+    final name = _variableNames.putIfAbsent(
       variable,
       () => _freshScopedName(variable.name ?? 'v'),
     );
+    if (_localNameScopes.isNotEmpty) {
+      _localNameScopes.last.add(name);
+    }
   }
 
   String _variableName(k.VariableDeclaration variable) {
@@ -17866,6 +17953,7 @@ const _binaryOperators = {
 };
 
 const _reservedNames = {
+  'arguments',
   'await',
   'break',
   'case',
@@ -17878,8 +17966,11 @@ const _reservedNames = {
   'delete',
   'do',
   'else',
+  'enum',
+  'eval',
   'export',
   'extends',
+  'false',
   'finally',
   'for',
   'function',
@@ -17891,6 +17982,7 @@ const _reservedNames = {
   'interface',
   'let',
   'new',
+  'null',
   'package',
   'private',
   'protected',
@@ -17901,6 +17993,7 @@ const _reservedNames = {
   'switch',
   'this',
   'throw',
+  'true',
   'try',
   'typeof',
   'var',
@@ -17908,6 +18001,21 @@ const _reservedNames = {
   'while',
   'with',
   'yield',
+};
+
+const _coreExceptionTypeNames = {
+  'Exception',
+  'FormatException',
+  'ArgumentError',
+  'RangeError',
+  'IndexError',
+  'StateError',
+  'UnsupportedError',
+  'UnimplementedError',
+  'Error',
+  'TypeError',
+  'NoSuchMethodError',
+  'ConcurrentModificationError',
 };
 
 const _generatedGlobalNames = {

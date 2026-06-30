@@ -6411,6 +6411,7 @@ class WindowsStyle extends InternalStyle {
 
 class PathException {
   constructor(message) {
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "Exception", writable: true, configurable: true });
     this.message = message;
   }
   toString() {
@@ -9309,6 +9310,7 @@ class _FileSpan extends SourceSpanMixin {
 
 class SourceSpanException {
   constructor(_message, _span) {
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "Exception", writable: true, configurable: true });
     this._message = _message;
     this._span = _span;
   }
@@ -9329,6 +9331,7 @@ class SourceSpanException {
 class SourceSpanFormatException extends SourceSpanException {
   constructor(message, span, source = null) {
     super(message, span);
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "FormatException", writable: true, configurable: true });
     this.source = source;
   }
   get offset() {
@@ -9368,6 +9371,7 @@ class MultiSourceSpanException extends SourceSpanException {
 class MultiSourceSpanFormatException extends MultiSourceSpanException {
   constructor(message, span, primaryLabel, secondarySpans, source = null) {
     super(message, span, primaryLabel, secondarySpans);
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "FormatException", writable: true, configurable: true });
     this.source = source;
   }
   get offset() {

@@ -727,6 +727,7 @@ function __dartIterator(iterable) {
 
 class MimeMultipartException {
   constructor(message = "") {
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "Exception", writable: true, configurable: true });
     this.message = message;
   }
   toString() {

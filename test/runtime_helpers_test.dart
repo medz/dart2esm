@@ -59,6 +59,17 @@ void main() {
     expect(helpers, contains('__dartIsRecord'));
   });
 
+  test('resolves JS optional argument helper dependencies', () {
+    final helpers = resolveEsmRuntimeHelperDependencies({
+      '__dartJsCallMethodOptional',
+      '__dartJsConstructOptional',
+    });
+
+    expect(helpers, contains('__dartJsCallMethodOptional'));
+    expect(helpers, contains('__dartJsConstructOptional'));
+    expect(helpers, contains('__dartJsTrimOptionalArgs'));
+  });
+
   test('exposes registered helper source definitions', () {
     expect(esmRuntimeHelperSource('__dartPrint'), contains('__dartStr(value)'));
     expect(esmRuntimeHelperSource('__dartStr'), contains('function __dartStr'));
@@ -115,6 +126,34 @@ void main() {
     expect(
       esmRuntimeHelperSource('__dartRecord'),
       contains('function __dartRecord'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartNullCheck'),
+      contains('function __dartNullCheck'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartExtensionTypeRep'),
+      contains('function __dartExtensionTypeRep'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartJsNumberToDartInt'),
+      contains('function __dartJsNumberToDartInt'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartJsTrimOptionalArgs'),
+      contains('function __dartJsTrimOptionalArgs'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartJsCallMethodOptional'),
+      contains('__dartJsTrimOptionalArgs(args)'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartJsInstanceOfString'),
+      contains('function __dartJsInstanceOfString'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartJsConstructOptional'),
+      contains('__dartJsTrimOptionalArgs(args)'),
     );
     expect(esmRuntimeHelperSource('__dartStreamMap'), isNull);
   });

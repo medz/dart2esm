@@ -13666,16 +13666,7 @@ final class _EsmEmitter {
       helper.writeln('  return value;');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartNullCheck')) {
-      helper.writeln('function __dartNullCheck(value) {');
-      helper.writeln('  if (value == null) {');
-      helper.writeln(
-        '    throw new TypeError("Null check operator used on a null value");',
-      );
-      helper.writeln('  }');
-      helper.writeln('  return value;');
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartNullCheck');
     if (_usedHelpers.contains('__dartAs')) {
       helper.writeln('function __dartAs(value, test, typeName) {');
       helper.writeln('  if (test(value)) return value;');
@@ -13684,65 +13675,12 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartExtensionTypeRep')) {
-      helper.writeln('function __dartExtensionTypeRep(value, field) {');
-      helper.writeln(
-        '  if (value != null && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, field)) return value[field];',
-      );
-      helper.writeln('  return value;');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartJsNumberToDartInt')) {
-      helper.writeln('function __dartJsNumberToDartInt(value) {');
-      helper.writeln('  if (Number.isInteger(value)) return value;');
-      helper.writeln(
-        '  throw new TypeError("JavaScript number is not a Dart int");',
-      );
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartJsCallMethodOptional') ||
-        _usedHelpers.contains('__dartJsConstructOptional')) {
-      helper.writeln('function __dartJsTrimOptionalArgs(args) {');
-      helper.writeln('  const values = Array.from(args);');
-      helper.writeln(
-        '  while (values.length > 0 && values[values.length - 1] == null) values.pop();',
-      );
-      helper.writeln('  return values;');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartJsCallMethodOptional')) {
-      helper.writeln(
-        'function __dartJsCallMethodOptional(receiver, method, args) {',
-      );
-      helper.writeln(
-        '  return receiver[method](...__dartJsTrimOptionalArgs(args));',
-      );
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartJsInstanceOfString')) {
-      helper.writeln(
-        'function __dartJsInstanceOfString(value, constructorName) {',
-      );
-      helper.writeln('  if (constructorName == null) return false;');
-      helper.writeln('  const text = String(constructorName);');
-      helper.writeln('  if (text.length === 0) return false;');
-      helper.writeln('  let constructor = globalThis;');
-      helper.writeln('  for (const part of text.split(".")) {');
-      helper.writeln('    constructor = constructor?.[part];');
-      helper.writeln('    if (constructor == null) return false;');
-      helper.writeln('  }');
-      helper.writeln(
-        '  return typeof constructor === "function" && value instanceof constructor;',
-      );
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartJsConstructOptional')) {
-      helper.writeln('function __dartJsConstructOptional(constructor, args) {');
-      helper.writeln(
-        '  return new constructor(...__dartJsTrimOptionalArgs(args));',
-      );
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartExtensionTypeRep');
+    emitRegisteredRuntimeHelper('__dartJsNumberToDartInt');
+    emitRegisteredRuntimeHelper('__dartJsTrimOptionalArgs');
+    emitRegisteredRuntimeHelper('__dartJsCallMethodOptional');
+    emitRegisteredRuntimeHelper('__dartJsInstanceOfString');
+    emitRegisteredRuntimeHelper('__dartJsConstructOptional');
     if (_usedHelpers.contains('__dartJsExportFunction') ||
         _usedHelpers.contains('__dartJsExportCaptureThis') ||
         _usedHelpers.contains('__dartJsExportedFunctionToDart') ||

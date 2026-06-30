@@ -357,6 +357,55 @@ const _dartRecordSource = r'''function __dartRecord(positional, named) {
   return Object.freeze(record);
 }''';
 
+const _dartNullCheckSource = r'''function __dartNullCheck(value) {
+  if (value == null) {
+    throw new TypeError("Null check operator used on a null value");
+  }
+  return value;
+}''';
+
+const _dartExtensionTypeRepSource =
+    r'''function __dartExtensionTypeRep(value, field) {
+  if (value != null && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, field)) return value[field];
+  return value;
+}''';
+
+const _dartJsNumberToDartIntSource =
+    r'''function __dartJsNumberToDartInt(value) {
+  if (Number.isInteger(value)) return value;
+  throw new TypeError("JavaScript number is not a Dart int");
+}''';
+
+const _dartJsTrimOptionalArgsSource =
+    r'''function __dartJsTrimOptionalArgs(args) {
+  const values = Array.from(args);
+  while (values.length > 0 && values[values.length - 1] == null) values.pop();
+  return values;
+}''';
+
+const _dartJsCallMethodOptionalSource =
+    r'''function __dartJsCallMethodOptional(receiver, method, args) {
+  return receiver[method](...__dartJsTrimOptionalArgs(args));
+}''';
+
+const _dartJsInstanceOfStringSource =
+    r'''function __dartJsInstanceOfString(value, constructorName) {
+  if (constructorName == null) return false;
+  const text = String(constructorName);
+  if (text.length === 0) return false;
+  let constructor = globalThis;
+  for (const part of text.split(".")) {
+    constructor = constructor?.[part];
+    if (constructor == null) return false;
+  }
+  return typeof constructor === "function" && value instanceof constructor;
+}''';
+
+const _dartJsConstructOptionalSource =
+    r'''function __dartJsConstructOptional(constructor, args) {
+  return new constructor(...__dartJsTrimOptionalArgs(args));
+}''';
+
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
     name: '__dartPrint',
@@ -478,6 +527,43 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     category: EsmRuntimeHelperCategory.core,
     dependencies: ['__dartRecordShape', '__dartIsRecord'],
     source: _dartRecordSource,
+  ),
+  '__dartNullCheck': EsmRuntimeHelperSpec(
+    name: '__dartNullCheck',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartNullCheckSource,
+  ),
+  '__dartExtensionTypeRep': EsmRuntimeHelperSpec(
+    name: '__dartExtensionTypeRep',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartExtensionTypeRepSource,
+  ),
+  '__dartJsNumberToDartInt': EsmRuntimeHelperSpec(
+    name: '__dartJsNumberToDartInt',
+    category: EsmRuntimeHelperCategory.jsInterop,
+    source: _dartJsNumberToDartIntSource,
+  ),
+  '__dartJsTrimOptionalArgs': EsmRuntimeHelperSpec(
+    name: '__dartJsTrimOptionalArgs',
+    category: EsmRuntimeHelperCategory.jsInterop,
+    source: _dartJsTrimOptionalArgsSource,
+  ),
+  '__dartJsCallMethodOptional': EsmRuntimeHelperSpec(
+    name: '__dartJsCallMethodOptional',
+    category: EsmRuntimeHelperCategory.jsInterop,
+    dependencies: ['__dartJsTrimOptionalArgs'],
+    source: _dartJsCallMethodOptionalSource,
+  ),
+  '__dartJsInstanceOfString': EsmRuntimeHelperSpec(
+    name: '__dartJsInstanceOfString',
+    category: EsmRuntimeHelperCategory.jsInterop,
+    source: _dartJsInstanceOfStringSource,
+  ),
+  '__dartJsConstructOptional': EsmRuntimeHelperSpec(
+    name: '__dartJsConstructOptional',
+    category: EsmRuntimeHelperCategory.jsInterop,
+    dependencies: ['__dartJsTrimOptionalArgs'],
+    source: _dartJsConstructOptionalSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',

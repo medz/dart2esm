@@ -23,7 +23,7 @@ import 'sdk_legacy_js_invocations.dart';
 import 'sdk_static_gets.dart';
 import 'sdk_static_invocations.dart';
 import 'sdk_text_instances.dart';
-import 'sdk_typed_data_instances.dart';
+import 'sdk_typed_data_invocations.dart';
 import 'sdk_web_invocations.dart';
 
 EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
@@ -3308,10 +3308,9 @@ final class _EsmEmitter {
     if (mathInvocation != null) {
       return mathInvocation;
     }
-    final typedDataInvocation = _emitTypedDataStaticInvocation(
-      expression,
-      positionalArgs,
-    );
+    final typedDataInvocation = DartSdkTypedDataStaticInvocationEmitter(
+      helpers: _usedHelpers,
+    ).emitStaticInvocation(expression, positionalArgs);
     if (typedDataInvocation != null) {
       return typedDataInvocation;
     }
@@ -4436,10 +4435,13 @@ final class _EsmEmitter {
         'NoSuchMethodError' ||
         'ConcurrentModificationError' ||
         'TypeError' => _emitCoreErrorTypeTest(operand, typeName),
-        _ =>
-          _typedArrayConstructorName(typeName) != null
-              ? '$operand instanceof ${_typedArrayConstructorName(typeName)}'
-              : throw UnsupportedKernelNode(node, 'type test $typeName'),
+        _ => () {
+          final constructor = dartTypedDataArrayConstructorName(typeName);
+          if (constructor != null) {
+            return '$operand instanceof $constructor';
+          }
+          throw UnsupportedKernelNode(node, 'type test $typeName');
+        }(),
       };
     }
     throw UnsupportedKernelNode(node, 'type test ${type.runtimeType} $type');
@@ -5844,197 +5846,6 @@ final class _EsmEmitter {
         'Math.atan2(${positionalArgs[0]}, ${positionalArgs[1]})',
       'exp' when positionalArgs.length == 1 => 'Math.exp(${positionalArgs[0]})',
       'log' when positionalArgs.length == 1 => 'Math.log(${positionalArgs[0]})',
-      _ => null,
-    };
-  }
-
-  String? _emitTypedDataStaticInvocation(
-    k.StaticInvocation expression,
-    List<String> positionalArgs,
-  ) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:typed_data::')) {
-      return null;
-    }
-    final parts = path.split('::');
-    if (parts.length < 4 || parts[2] != '@factories') {
-      return null;
-    }
-    if (parts[1] == 'Int32x4' && parts.last.isEmpty) {
-      if (positionalArgs.length != 4) {
-        return null;
-      }
-      return 'Object.freeze({ __dartType: "Int32x4", x: ${positionalArgs[0]}, y: ${positionalArgs[1]}, z: ${positionalArgs[2]}, w: ${positionalArgs[3]} })';
-    }
-    if (parts[1] == 'Float32x4') {
-      if (parts.last == 'zero' && positionalArgs.isEmpty) {
-        return 'Object.freeze({ __dartType: "Float32x4", x: 0, y: 0, z: 0, w: 0 })';
-      }
-      if (parts.last.isEmpty && positionalArgs.length == 4) {
-        return 'Object.freeze({ __dartType: "Float32x4", x: ${positionalArgs[0]}, y: ${positionalArgs[1]}, z: ${positionalArgs[2]}, w: ${positionalArgs[3]} })';
-      }
-      return null;
-    }
-    if (parts[1] == 'ByteData') {
-      final factoryName = parts.last;
-      if (factoryName.isEmpty && positionalArgs.length == 1) {
-        return 'new DataView(new ArrayBuffer(${positionalArgs.single}))';
-      }
-      if (factoryName == 'view') {
-        return _emitTypedDataView('DataView', positionalArgs);
-      }
-      if (factoryName == 'sublistView') {
-        return _emitTypedDataSublistView(
-          'DataView',
-          bytesPerElement: 1,
-          positionalArgs: positionalArgs,
-        );
-      }
-      return null;
-    }
-    if (parts[1] == 'Int32x4List' || parts[1] == 'Float32x4List') {
-      final factoryName = parts.last;
-      if (factoryName == 'fromList' && positionalArgs.length == 1) {
-        return 'Array.from(${positionalArgs.single})';
-      }
-      if (factoryName.isEmpty && positionalArgs.length == 1) {
-        return 'new Array(${positionalArgs.single}).fill(null)';
-      }
-      return null;
-    }
-    final constructor = _typedArrayConstructorName(parts[1]);
-    if (constructor == null) {
-      return null;
-    }
-    final factoryName = parts.last;
-    if (factoryName == 'fromList' && positionalArgs.length == 1) {
-      if (constructor == 'BigInt64Array' || constructor == 'BigUint64Array') {
-        final literal = _emitBigIntTypedDataListArgument(
-          expression.arguments.positional.single,
-        );
-        if (literal != null) {
-          return '$constructor.from($literal)';
-        }
-        return '$constructor.from(${positionalArgs.single}, (value) => BigInt(value))';
-      }
-      return '$constructor.from(${positionalArgs.single})';
-    }
-    if (factoryName == 'view') {
-      return _emitTypedDataView(constructor, positionalArgs);
-    }
-    if (factoryName == 'sublistView') {
-      final bytesPerElement = _typedArrayBytesPerElement(parts[1]);
-      if (bytesPerElement == null) {
-        return null;
-      }
-      return _emitTypedDataSublistView(
-        constructor,
-        bytesPerElement: bytesPerElement,
-        positionalArgs: positionalArgs,
-      );
-    }
-    if (factoryName.isEmpty && positionalArgs.length == 1) {
-      return 'new $constructor(${positionalArgs.single})';
-    }
-    return null;
-  }
-
-  String? _emitBigIntTypedDataListArgument(k.Expression expression) {
-    switch (expression) {
-      case k.ListLiteral(:final expressions):
-        final values = <String>[];
-        for (final expression in expressions) {
-          final value = _emitBigIntTypedDataListElement(expression);
-          if (value == null) {
-            return null;
-          }
-          values.add(value);
-        }
-        return '[${values.join(', ')}]';
-      case k.ConstantExpression(:final constant):
-        if (constant is! k.ListConstant) {
-          return null;
-        }
-        final values = <String>[];
-        for (final entry in constant.entries) {
-          if (entry is! k.IntConstant) {
-            return null;
-          }
-          values.add(_emitBigIntLiteral(entry.value.toString()));
-        }
-        return '[${values.join(', ')}]';
-      default:
-        return null;
-    }
-  }
-
-  String? _emitBigIntTypedDataListElement(k.Expression expression) {
-    return switch (expression) {
-      k.IntLiteral(:final value) => _emitBigIntLiteral(value.toString()),
-      k.ConstantExpression(:final constant) when constant is k.IntConstant =>
-        _emitBigIntLiteral(constant.value.toString()),
-      _ => null,
-    };
-  }
-
-  String _emitBigIntLiteral(String decimal) {
-    if (decimal.startsWith('-')) {
-      return '(-${decimal.substring(1)}n)';
-    }
-    return '${decimal}n';
-  }
-
-  String? _emitTypedDataView(String constructor, List<String> positionalArgs) {
-    if (positionalArgs.isEmpty || positionalArgs.length > 3) {
-      return null;
-    }
-    final args = <String>[positionalArgs[0]];
-    if (positionalArgs.length >= 2) {
-      args.add(positionalArgs[1]);
-    }
-    if (positionalArgs.length >= 3 && positionalArgs[2] != 'null') {
-      args.add(positionalArgs[2]);
-    }
-    return 'new $constructor(${args.join(', ')})';
-  }
-
-  String? _emitTypedDataSublistView(
-    String constructor, {
-    required int bytesPerElement,
-    required List<String> positionalArgs,
-  }) {
-    if (positionalArgs.isEmpty || positionalArgs.length > 3) {
-      return null;
-    }
-    _usedHelpers.add('__dartTypedDataSublistView');
-    final start = positionalArgs.length >= 2 ? positionalArgs[1] : '0';
-    final end = positionalArgs.length >= 3 ? positionalArgs[2] : 'null';
-    return '__dartTypedDataSublistView(${positionalArgs[0]}, $start, $end, $constructor, $bytesPerElement)';
-  }
-
-  String? _typedArrayConstructorName(String dartTypeName) {
-    return switch (dartTypeName) {
-      'Int8List' => 'Int8Array',
-      'Uint8List' => 'Uint8Array',
-      'Uint8ClampedList' => 'Uint8ClampedArray',
-      'Int16List' => 'Int16Array',
-      'Uint16List' => 'Uint16Array',
-      'Int32List' => 'Int32Array',
-      'Uint32List' => 'Uint32Array',
-      'Int64List' => 'BigInt64Array',
-      'Uint64List' => 'BigUint64Array',
-      'Float32List' => 'Float32Array',
-      'Float64List' => 'Float64Array',
-      _ => null,
-    };
-  }
-
-  int? _typedArrayBytesPerElement(String dartTypeName) {
-    return switch (dartTypeName) {
-      'Int8List' || 'Uint8List' || 'Uint8ClampedList' => 1,
-      'Int16List' || 'Uint16List' => 2,
-      'Int32List' || 'Uint32List' || 'Float32List' => 4,
-      'Int64List' || 'Uint64List' || 'Float64List' => 8,
       _ => null,
     };
   }

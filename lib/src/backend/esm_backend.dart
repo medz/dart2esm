@@ -17428,20 +17428,8 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartRoundToInt')) {
-      helper.writeln('function __dartRoundToInt(value) {');
-      helper.writeln(
-        '  return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5);',
-      );
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartNumClamp')) {
-      helper.writeln('function __dartNumClamp(value, lower, upper) {');
-      helper.writeln('  if (value < lower) return lower;');
-      helper.writeln('  if (value > upper) return upper;');
-      helper.writeln('  return value;');
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartRoundToInt');
+    emitRegisteredRuntimeHelper('__dartNumClamp');
     if (_usedHelpers.contains('__dartIntGcd')) {
       helper.writeln('function __dartIntGcd(left, right) {');
       helper.writeln('  let a = Math.abs(Math.trunc(left));');
@@ -17574,16 +17562,8 @@ final class _EsmEmitter {
       helper.writeln('  return __dartObjectHash([sum, xor, count]);');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartTruncDiv')) {
-      helper.writeln('function __dartTruncDiv(left, right) {');
-      helper.writeln('  return Math.trunc(left / right);');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartShr')) {
-      helper.writeln('function __dartShr(left, right) {');
-      helper.writeln('  return Math.floor(left / (2 ** right));');
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartTruncDiv');
+    emitRegisteredRuntimeHelper('__dartShr');
     if (_usedHelpers.contains('__dartRecord')) {
       helper.writeln('function __dartRecord(positional, named) {');
       helper.writeln('  const record = {};');

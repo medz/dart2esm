@@ -308,6 +308,24 @@ const _dartConstMapSource = r'''function __dartConstMap(entries) {
   return Object.freeze(map);
 }''';
 
+const _dartRoundToIntSource = r'''function __dartRoundToInt(value) {
+  return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5);
+}''';
+
+const _dartNumClampSource = r'''function __dartNumClamp(value, lower, upper) {
+  if (value < lower) return lower;
+  if (value > upper) return upper;
+  return value;
+}''';
+
+const _dartTruncDivSource = r'''function __dartTruncDiv(left, right) {
+  return Math.trunc(left / right);
+}''';
+
+const _dartShrSource = r'''function __dartShr(left, right) {
+  return Math.floor(left / (2 ** right));
+}''';
+
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
     name: '__dartPrint',
@@ -392,6 +410,26 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     category: EsmRuntimeHelperCategory.collection,
     dependencies: ['__dartMapSet'],
     source: _dartConstMapSource,
+  ),
+  '__dartRoundToInt': EsmRuntimeHelperSpec(
+    name: '__dartRoundToInt',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartRoundToIntSource,
+  ),
+  '__dartNumClamp': EsmRuntimeHelperSpec(
+    name: '__dartNumClamp',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartNumClampSource,
+  ),
+  '__dartTruncDiv': EsmRuntimeHelperSpec(
+    name: '__dartTruncDiv',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartTruncDivSource,
+  ),
+  '__dartShr': EsmRuntimeHelperSpec(
+    name: '__dartShr',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartShrSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',

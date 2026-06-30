@@ -83,6 +83,19 @@ void main() {
       esmRuntimeHelperSource('__dartConstMap'),
       contains('function __dartConstMap'),
     );
+    expect(
+      esmRuntimeHelperSource('__dartRoundToInt'),
+      contains('function __dartRoundToInt'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartNumClamp'),
+      contains('function __dartNumClamp'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartTruncDiv'),
+      contains('function __dartTruncDiv'),
+    );
+    expect(esmRuntimeHelperSource('__dartShr'), contains('function __dartShr'));
     expect(esmRuntimeHelperSource('__dartStreamMap'), isNull);
   });
 

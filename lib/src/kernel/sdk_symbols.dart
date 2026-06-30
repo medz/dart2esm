@@ -13,11 +13,47 @@ enum LegacyJsFactorySymbol {
 
 enum JsInteropStaticGetSymbol { globalThis, objectPrototype }
 
+const dartCoreExceptionTypeNames = {
+  'Exception',
+  'FormatException',
+  'ArgumentError',
+  'RangeError',
+  'IndexError',
+  'StateError',
+  'UnsupportedError',
+  'UnimplementedError',
+  'Error',
+  'TypeError',
+  'NoSuchMethodError',
+  'ConcurrentModificationError',
+};
+
+const dartCoreErrorTypeNames = {
+  'Exception',
+  'FormatException',
+  'ArgumentError',
+  'RangeError',
+  'IndexError',
+  'StateError',
+  'UnsupportedError',
+  'UnimplementedError',
+  'Error',
+  'AssertionError',
+  'ReachabilityError',
+  'NoSuchMethodError',
+  'ConcurrentModificationError',
+  'TypeError',
+};
+
 bool kernelPathHasMember(String path, String name) {
   return path.contains('::@methods::$name') ||
       path.contains('::@getters::$name') ||
       path.contains('::@setters::$name') ||
       path.endsWith('::$name');
+}
+
+bool isDartCoreReference(k.Reference reference, String namespace, String name) {
+  return kernelReferencePath(reference) == 'dart:core::$namespace::$name';
 }
 
 bool isDartSdkLibraryClassMember(
@@ -44,6 +80,67 @@ bool isDartCoreNumberMember(k.Reference reference, String name) {
   return isDartCoreMember(reference, 'num', name) ||
       isDartCoreMember(reference, 'int', name) ||
       isDartCoreMember(reference, 'double', name);
+}
+
+bool isDartCoreGrowableListLiteral(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:core::_GrowableList::@factories::dart:core::_literal');
+}
+
+bool isDartCoreGrowableListFactory(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:core::_GrowableList::@factories::');
+}
+
+bool isDartCoreObjectConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:core::Object::@constructors::');
+}
+
+String? dartCoreExceptionReferenceName(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  for (final name in dartCoreExceptionTypeNames) {
+    if (path == 'dart:core::$name') {
+      return name;
+    }
+  }
+  return null;
+}
+
+String? dartCoreExceptionConstructorTypeName(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  for (final name in dartCoreExceptionTypeNames) {
+    if (path.startsWith('dart:core::$name::@constructors::')) {
+      return name;
+    }
+  }
+  return null;
+}
+
+String? dartCoreErrorConstructorName(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  if (path.startsWith('dart:_internal::ReachabilityError::@constructors::')) {
+    return 'ReachabilityError';
+  }
+  for (final name in dartCoreErrorTypeNames) {
+    if (path.startsWith('dart:core::$name::@constructors::')) {
+      return name;
+    }
+  }
+  return null;
+}
+
+String? dartCoreErrorFactoryName(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  for (final name in dartCoreErrorTypeNames) {
+    if (path.startsWith('dart:core::$name::@factories::')) {
+      return name;
+    }
+  }
+  return null;
 }
 
 bool isDartCoreUriMember(k.Reference reference, String name) {
@@ -256,6 +353,150 @@ bool isDartTypedDataByteBufferMember(k.Reference reference, String name) {
   final path = kernelReferencePath(reference);
   return path.startsWith('dart:typed_data::ByteBuffer::') &&
       (path.contains('::@methods::$name') || path.endsWith('::$name'));
+}
+
+bool isDartCompactHashSetConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:_compact_hash::_Set::@constructors::');
+}
+
+bool isDartAsyncStreamIteratorConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:async::_StreamIterator::@constructors::');
+}
+
+bool isDartListIteratorConstructorReference(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('dart:_internal::ListIterator::@constructors::') ||
+      path.startsWith('dart:collection::ListIterator::@constructors::');
+}
+
+bool isDartFollowedByIterableConstructorReference(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith(
+        'dart:_internal::FollowedByIterable::@constructors::',
+      ) ||
+      path.startsWith(
+        'dart:_internal::EfficientLengthFollowedByIterable::@constructors::',
+      );
+}
+
+bool isDartMappedIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::MappedIterable::@constructors::') ||
+      path.startsWith(
+        'dart:_internal::EfficientLengthMappedIterable::@constructors::',
+      ) ||
+      path.startsWith('dart:_internal::MappedListIterable::@constructors::');
+}
+
+bool isDartWhereIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::WhereIterable::@constructors::');
+}
+
+bool isDartExpandIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::ExpandIterable::@constructors::');
+}
+
+bool isDartTakeIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::TakeIterable::@constructors::') ||
+      path.startsWith(
+        'dart:_internal::EfficientLengthTakeIterable::@constructors::',
+      );
+}
+
+bool isDartSkipIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::SkipIterable::@constructors::') ||
+      path.startsWith(
+        'dart:_internal::EfficientLengthSkipIterable::@constructors::',
+      );
+}
+
+bool isDartSubListIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::SubListIterable::@constructors::');
+}
+
+bool isDartTakeWhileIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::TakeWhileIterable::@constructors::');
+}
+
+bool isDartSkipWhileIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::SkipWhileIterable::@constructors::');
+}
+
+bool isDartWhereTypeIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::WhereTypeIterable::@constructors::');
+}
+
+bool isDartNonNullsIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::NonNullsIterable::@constructors::');
+}
+
+bool isDartIndexedIterableConstructorPath(String path) {
+  return path.startsWith('dart:_internal::IndexedIterable::@constructors::') ||
+      path.startsWith(
+        'dart:_internal::EfficientLengthIndexedIterable::@constructors::',
+      );
+}
+
+bool isDartListMapViewConstructorPath(String path) {
+  return path.startsWith('dart:_internal::ListMapView::@constructors::');
+}
+
+bool isDartListIndicesIterableConstructorPath(String path) {
+  return path.startsWith(
+    'dart:_internal::_ListIndicesIterable::@constructors::',
+  );
+}
+
+bool isDartReversedListIterableConstructorPath(String path) {
+  return path.startsWith(
+    'dart:_internal::ReversedListIterable::@constructors::',
+  );
+}
+
+bool isDartCoreExpandoConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:core::Expando::@constructors::');
+}
+
+bool isDartCoreWeakReferenceConstructorReference(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('dart:core::WeakReference::@constructors::') ||
+      path.startsWith('dart:core::_WeakReference::@constructors::');
+}
+
+bool isDartCoreFinalizerConstructorReference(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('dart:core::Finalizer::@constructors::') ||
+      path.startsWith('dart:core::_FinalizerImpl::@constructors::');
+}
+
+bool isDartInternalSymbolConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:_internal::Symbol::@constructors::');
+}
+
+bool isDartMathPointConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:math::Point::@constructors::');
+}
+
+bool isDartCollectionQueueConstructorReference(k.Reference reference) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('dart:collection::Queue::@constructors::') ||
+      path.startsWith('dart:collection::ListQueue::@constructors::') ||
+      path.startsWith('dart:collection::DoubleLinkedQueue::@constructors::');
+}
+
+bool isDartEmptyIterableConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:_internal::EmptyIterable::@constructors::');
 }
 
 LegacyJsFactorySymbol? legacyJsFactorySymbol(k.Reference reference) {

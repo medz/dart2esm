@@ -22,7 +22,11 @@ final class RuntimeLinkerStage {
   final EsmRuntimeHelperRegistry runtimeHelpers;
 
   RuntimeLinkResult link(NormalizationResult normalized) {
-    final helpers = normalized.lowering.runtimeHelpers;
+    final helperUseSet = EsmRuntimeHelperUseSet();
+    for (final helper in normalized.lowering.runtimeHelpers) {
+      helperUseSet.add(helper);
+    }
+    final helpers = helperUseSet.toList();
     return RuntimeLinkResult(
       normalization: normalized,
       module: EsmModuleIr(

@@ -28,13 +28,33 @@ function __dartEquals(left, right) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
 }
 
 const __dartRecordShape = Symbol("dart.recordShape");
 
 function __dartIsRecord(value) {
   return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 export class Box {
@@ -52,7 +72,7 @@ export class Box {
     return Box.named(value);
   }
   describe() {
-    return `${this.label}:${this.value}`;
+    return `${__dartStr(this.label)}:${__dartStr(this.value)}`;
   }
 }
 
@@ -62,7 +82,7 @@ export class Options {
     this.label = label;
   }
   describe() {
-    return `${this.label}:${this.value}`;
+    return `${__dartStr(this.label)}:${__dartStr(this.value)}`;
   }
 }
 
@@ -71,19 +91,39 @@ export class Holder {
     this.value = value;
   }
   describe() {
-    return `${this.value}`;
+    return `${__dartStr(this.value)}`;
   }
 }
 
 export function main() {
-  const unnamed = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); });
-  const unnamedAgain = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); });
-  const named = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) { return Box.named(value); });
-  const alias = __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) { return Box.alias(value); });
-  const aliasType = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); });
-  const options = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Options.)\"]", () => function(value, { label = "options" } = {}) { return new Options(value, { label: label }); });
-  const intHolder = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Holder.)\"]", () => function(value) { return new Holder(value); });
-  const constMakers = __dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) { return Box.named(value); }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) { return Box.alias(value); })]));
+  const unnamed = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  });
+  const unnamedAgain = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  });
+  const named = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) {
+    return Box.named(value);
+  });
+  const alias = __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) {
+    return Box.alias(value);
+  });
+  const aliasType = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  });
+  const options = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Options.)\"]", () => function(value, { label = "options" } = {}) {
+    return new Options(value, { label: label });
+  });
+  const intHolder = __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Holder.)\"]", () => function(value) {
+    return new Holder(value);
+  });
+  const constMakers = __dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) {
+    return Box.named(value);
+  }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) {
+    return Box.alias(value);
+  })]));
   __dartPrint(unnamed(1).describe());
   __dartPrint(named(2).describe());
   __dartPrint(alias(3).describe());
@@ -91,11 +131,31 @@ export function main() {
   __dartPrint(options(5).describe());
   __dartPrint(options(6, { label: "custom" }).describe());
   __dartPrint(intHolder(7).describe());
-  __dartPrint(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) { return Box.named(value); }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) { return Box.alias(value); })]))[0](8).describe());
-  __dartPrint(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) { return Box.named(value); }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) { return Box.alias(value); })]))[1](9).describe());
-  __dartPrint(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) { return Box.named(value); }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) { return Box.alias(value); })]))[2](10).describe());
+  __dartPrint(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) {
+    return Box.named(value);
+  }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) {
+    return Box.alias(value);
+  })]))[0](8).describe());
+  __dartPrint(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) {
+    return Box.named(value);
+  }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) {
+    return Box.alias(value);
+  })]))[1](9).describe());
+  __dartPrint(__dartConst("[\"list\",\"FunctionType(Box Function(int))\",[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"],[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"],[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]]", () => Object.freeze([__dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  }), __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.named)\"]", () => function(value) {
+    return Box.named(value);
+  }), __dartConst("[\"RedirectingFactoryTearOffConstant\",\"RedirectingFactoryTearOffConstant(Box.alias)\"]", () => function(value) {
+    return Box.alias(value);
+  })]))[2](10).describe());
   __dartPrint(__dartEquals(unnamed, unnamedAgain));
-  __dartPrint(__dartEquals(unnamed, __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) { return new Box(value); })));
+  __dartPrint(__dartEquals(unnamed, __dartConst("[\"ConstructorTearOffConstant\",\"ConstructorTearOffConstant(Box.)\"]", () => function(value) {
+    return new Box(value);
+  })));
 }
 
 main();

@@ -9,7 +9,27 @@ function __dartConst(key, create) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 export class Point {
@@ -27,7 +47,7 @@ export class Point {
     return this.x + this.y;
   }
   describe() {
-    return `${this.x},${this.y}`;
+    return `${__dartStr(this.x)},${__dartStr(this.y)}`;
   }
 }
 
@@ -57,8 +77,8 @@ export function hide(value) {
 export function main() {
   const maybePoint = hide(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))));
   const maybeAdder = hide(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 10 }))));
-  __dartPrint(`${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))).describe()} ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))).sum} ${maybePoint instanceof Point}`);
-  __dartPrint(`${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 0, Point.y: 0})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 0, y: 0 }))).describe()} ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 10 }))).call(5)} ${maybeAdder instanceof Adder}`);
+  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))).describe())} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))).sum)} ${__dartStr(maybePoint instanceof Point)}`);
+  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 0, Point.y: 0})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 0, y: 0 }))).describe())} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 10 }))).call(5))} ${__dartStr(maybeAdder instanceof Adder)}`);
   __dartPrint(Object.is(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 })))));
   __dartPrint(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Positive{Positive.value: 4})\"]", () => Object.freeze(Object.assign(Object.create(Positive.prototype), { value: 4 }))).value);
 }

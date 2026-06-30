@@ -20,13 +20,33 @@ function __dartEquals(left, right) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
 }
 
 const __dartRecordShape = Symbol("dart.recordShape");
 
 function __dartIsRecord(value) {
   return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 export class ParseIssue {
@@ -62,16 +82,16 @@ export function classify(kind) {
   } catch ($error) {
     if ($error instanceof ParseIssue) {
       const error = $error;
-      return `parse:${error.message}`;
+      return `parse:${__dartStr(error.message)}`;
     } else {
       if ($error instanceof NotFound) {
         const error = $error;
         const stack = ($error?.stack ?? "<javascript stack unavailable>");
-        return `missing:${error.path}:${(__dartEquals(String(stack), "") ? "missing" : "trace")}`;
+        return `missing:${__dartStr(error.path)}:${__dartStr((__dartEquals(String(stack), "") ? "missing" : "trace"))}`;
       } else {
         if (typeof $error === "string") {
           const error = $error;
-          return `string:${error}`;
+          return `string:${__dartStr(error)}`;
         } else {
           if ($error != null) {
             const error = $error;
@@ -93,14 +113,14 @@ export function runFinally() {
     } catch ($error) {
       if ($error != null) {
         const error = $error;
-        __dartPrint(`caught:${state}`);
+        __dartPrint(`caught:${__dartStr(state)}`);
         state = "caught";
       } else {
         throw $error;
       }
     }
   } finally {
-    __dartPrint(`finally:${state}`);
+    __dartPrint(`finally:${__dartStr(state)}`);
   }
 }
 
@@ -123,7 +143,7 @@ export function rethrowFlow() {
   } catch ($error) {
     if ($error instanceof NotFound) {
       const error = $error;
-      return `rethrow:${error.path}`;
+      return `rethrow:${__dartStr(error.path)}`;
     } else {
       throw $error;
     }

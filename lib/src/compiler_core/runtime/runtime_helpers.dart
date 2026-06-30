@@ -6,17 +6,26 @@ enum EsmRuntimeHelper {
   constSet,
   constValue,
   dynamicCall,
+  dynamicGet,
+  dynamicInvoke,
+  dynamicSet,
   equals,
   enumAsNameMap,
   enumByName,
   functionApply,
+  iterator,
   lazyField,
+  listAdd,
+  listAddAll,
+  mapAddAll,
+  mapSet,
   nullCheck,
   print,
   recordShape,
   isRecord,
   record,
   safeToString,
+  setAddAll,
   stringify,
   symbol,
   throwWithStackTrace,
@@ -35,11 +44,19 @@ final class EsmRuntimeHelperRegistry {
     '__dartConstSet',
     '__dartConstValues',
     '__dartDynamicCall',
+    '__dartDynamicGet',
+    '__dartDynamicInvoke',
+    '__dartDynamicSet',
     '__dartEnumAsNameMap',
     '__dartEnumByName',
     '__dartEquals',
     '__dartFunctionApply',
+    '__dartIterator',
     '__dartLazyField',
+    '__dartListAdd',
+    '__dartListAddAll',
+    '__dartMapAddAll',
+    '__dartMapSet',
     '__dartIsRecord',
     '__dartIsCoreError',
     '__dartNullCheck',
@@ -47,6 +64,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartRecord',
     '__dartRecordShape',
     '__dartSafeToString',
+    '__dartSetAddAll',
     '__dartStr',
     '__dartSymbol',
     '__dartSymbolCache',
@@ -62,17 +80,26 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.constSet => '__dartConstSet',
       EsmRuntimeHelper.constValue => '__dartConst',
       EsmRuntimeHelper.dynamicCall => '__dartDynamicCall',
+      EsmRuntimeHelper.dynamicGet => '__dartDynamicGet',
+      EsmRuntimeHelper.dynamicInvoke => '__dartDynamicInvoke',
+      EsmRuntimeHelper.dynamicSet => '__dartDynamicSet',
       EsmRuntimeHelper.equals => '__dartEquals',
       EsmRuntimeHelper.enumAsNameMap => '__dartEnumAsNameMap',
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
+      EsmRuntimeHelper.iterator => '__dartIterator',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
+      EsmRuntimeHelper.listAdd => '__dartListAdd',
+      EsmRuntimeHelper.listAddAll => '__dartListAddAll',
+      EsmRuntimeHelper.mapAddAll => '__dartMapAddAll',
+      EsmRuntimeHelper.mapSet => '__dartMapSet',
       EsmRuntimeHelper.nullCheck => '__dartNullCheck',
       EsmRuntimeHelper.print => '__dartPrint',
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
       EsmRuntimeHelper.safeToString => '__dartSafeToString',
+      EsmRuntimeHelper.setAddAll => '__dartSetAddAll',
       EsmRuntimeHelper.stringify => '__dartStr',
       EsmRuntimeHelper.symbol => '__dartSymbol',
       EsmRuntimeHelper.throwWithStackTrace => '__dartThrowWithStackTrace',
@@ -148,6 +175,80 @@ function __dartDynamicCall(receiver, positionalArguments, namedArguments = null)
   throw new TypeError("Object is not callable");
 }
 '''),
+      EsmRuntimeHelper.dynamicGet => EsmRawModuleItemIr('''
+function __dartDynamicGet(receiver, name) {
+  if (receiver == null) throw new TypeError("Cannot read property " + name + " of " + receiver);
+  if ((receiver instanceof Set || receiver instanceof Map) && name === "length") return receiver.size;
+  const value = receiver[name];
+  return typeof value === "function" ? value.bind(receiver) : value;
+}
+'''),
+      EsmRuntimeHelper.dynamicSet => EsmRawModuleItemIr('''
+function __dartDynamicSet(receiver, name, value) {
+  if (receiver == null) throw new TypeError("Cannot set property " + name + " of " + receiver);
+  receiver[name] = value;
+  return value;
+}
+'''),
+      EsmRuntimeHelper.dynamicInvoke => EsmRawModuleItemIr('''
+function __dartDynamicInvoke(receiver, name, positionalArguments, namedArguments = null) {
+  if (receiver == null) throw new TypeError("Cannot call " + name + " on " + receiver);
+  const args = namedArguments == null ? Array.from(positionalArguments) : [...positionalArguments, namedArguments];
+  if (name === "[]") {
+    const key = args[0];
+    if (receiver instanceof Map) {
+      return receiver.has(key) ? receiver.get(key) : null;
+    }
+    return receiver[key];
+  }
+  if (name === "[]=") {
+    const key = args[0];
+    const value = args[1];
+    if (receiver instanceof Map) {
+      receiver.set(key, value);
+      return value;
+    }
+    receiver[key] = value;
+    return value;
+  }
+  if (receiver instanceof Map) {
+    if (name === "containsKey") return receiver.has(args[0]);
+    if (name === "remove") {
+      const key = args[0];
+      const value = receiver.has(key) ? receiver.get(key) : null;
+      receiver.delete(key);
+      return value;
+    }
+  }
+  if (receiver instanceof Set) {
+    if (name === "add") {
+      const value = args[0];
+      const hadValue = receiver.has(value);
+      receiver.add(value);
+      return !hadValue;
+    }
+    if (name === "contains") return receiver.has(args[0]);
+    if (name === "remove") return receiver.delete(args[0]);
+  }
+  if (Array.isArray(receiver)) {
+    if (name === "add") {
+      receiver.push(args[0]);
+      return null;
+    }
+    if (name === "addAll") {
+      receiver.push(...Array.from(args[0]));
+      return null;
+    }
+    if (name === "contains") return receiver.includes(args[0]);
+  }
+  if (typeof receiver === "string" && name === "contains") {
+    return receiver.includes(args[0]);
+  }
+  const member = receiver[name];
+  if (typeof member === "function") return member.apply(receiver, args);
+  throw new TypeError("Object has no method " + name);
+}
+'''),
       EsmRuntimeHelper.enumAsNameMap => EsmRawModuleItemIr('''
 function __dartEnumAsNameMap(values) {
   const map = new Map();
@@ -201,6 +302,26 @@ function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
   return fn(...args);
 }
 '''),
+      EsmRuntimeHelper.iterator => EsmRawModuleItemIr('''
+function __dartIterator(iterable) {
+  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
+    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
+    : Array.from(iterable);
+  let index = -1;
+  return {
+    current: undefined,
+    moveNext() {
+      index++;
+      if (index < values.length) {
+        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        return true;
+      }
+      this.current = undefined;
+      return false;
+    },
+  };
+}
+'''),
       EsmRuntimeHelper.recordShape => const EsmRawModuleItemIr(
         'const __dartRecordShape = Symbol("dart.recordShape");',
       ),
@@ -251,6 +372,12 @@ function __dartSafeToString(value) {
   }
 }
 '''),
+      EsmRuntimeHelper.setAddAll => EsmRawModuleItemIr('''
+function __dartSetAddAll(set, values) {
+  for (const value of values) set.add(value);
+  return null;
+}
+'''),
       EsmRuntimeHelper.lazyField => EsmRawModuleItemIr('''
 function __dartLazyField(name, initialize, writable, publish = null) {
   let state = 0;
@@ -286,6 +413,30 @@ function __dartLazyField(name, initialize, writable, publish = null) {
   return { get, set };
 }
 '''),
+      EsmRuntimeHelper.listAdd => EsmRawModuleItemIr('''
+function __dartListAdd(list, value) {
+  list.push(value);
+  return null;
+}
+'''),
+      EsmRuntimeHelper.listAddAll => EsmRawModuleItemIr('''
+function __dartListAddAll(list, values) {
+  list.push(...Array.from(values));
+  return null;
+}
+'''),
+      EsmRuntimeHelper.mapSet => EsmRawModuleItemIr('''
+function __dartMapSet(map, key, value) {
+  map.set(key, value);
+  return null;
+}
+'''),
+      EsmRuntimeHelper.mapAddAll => EsmRawModuleItemIr('''
+function __dartMapAddAll(map, entries) {
+  for (const [key, value] of entries) map.set(key, value);
+  return null;
+}
+'''),
       EsmRuntimeHelper.nullCheck => EsmRawModuleItemIr('''
 function __dartNullCheck(value) {
   if (value == null) throw new TypeError("Null check operator used on a null value");
@@ -303,7 +454,12 @@ function __dartNullCheck(value) {
                 receiver: EsmIdentifierIr('console'),
                 property: 'log',
               ),
-              arguments: [EsmIdentifierIr('value')],
+              arguments: [
+                EsmCallIr(
+                  callee: EsmIdentifierIr('__dartStr'),
+                  arguments: [EsmIdentifierIr('value')],
+                ),
+              ],
             ),
           ),
         ],
@@ -406,6 +562,9 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.constMap:
       case EsmRuntimeHelper.constSet:
       case EsmRuntimeHelper.dynamicCall:
+      case EsmRuntimeHelper.dynamicGet:
+      case EsmRuntimeHelper.dynamicInvoke:
+      case EsmRuntimeHelper.dynamicSet:
       case EsmRuntimeHelper.enumAsNameMap:
       case EsmRuntimeHelper.enumByName:
         break;
@@ -418,11 +577,18 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.functionApply:
+      case EsmRuntimeHelper.iterator:
       case EsmRuntimeHelper.lazyField:
+      case EsmRuntimeHelper.listAdd:
+      case EsmRuntimeHelper.listAddAll:
+      case EsmRuntimeHelper.mapAddAll:
+      case EsmRuntimeHelper.mapSet:
       case EsmRuntimeHelper.nullCheck:
       case EsmRuntimeHelper.print:
+        _helpers.add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.recordShape:
       case EsmRuntimeHelper.safeToString:
+      case EsmRuntimeHelper.setAddAll:
       case EsmRuntimeHelper.stringify:
       case EsmRuntimeHelper.symbol:
       case EsmRuntimeHelper.throwWithStackTrace:

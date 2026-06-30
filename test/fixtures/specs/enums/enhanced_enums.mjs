@@ -61,7 +61,27 @@ function __dartNullCheck(value) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 export class Status {
@@ -80,32 +100,92 @@ export class Status {
     return this.code < 400;
   }
   describe() {
-    return `${this.name}:${this.code}:${this.label}`;
+    return `${__dartStr(this.name)}:${__dartStr(this.code)}:${__dartStr(this.label)}`;
   }
   toString() {
     return `Status.${this.__dartEnumName}`;
   }
 }
 
-const $Status_ready = __dartLazyField("Status.ready", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))), false);
-Object.defineProperty(Status, "ready", { get: function() { return $Status_ready.get(); }, set: function(value) { $Status_ready.set(value); }, enumerable: true });
-const $Status_failed = __dartLazyField("Status.failed", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } }))), false);
-Object.defineProperty(Status, "failed", { get: function() { return $Status_failed.get(); }, set: function(value) { $Status_failed.set(value); }, enumerable: true });
-const $Status_fallback = __dartLazyField("Status.fallback", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } }))), false);
-Object.defineProperty(Status, "fallback", { get: function() { return $Status_fallback.get(); }, set: function(value) { $Status_fallback.set(value); }, enumerable: true });
-const $Status_values = __dartLazyField("Status.values", () => __dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } })))])), false);
-Object.defineProperty(Status, "values", { get: function() { return $Status_values.get(); }, set: function(value) { $Status_values.set(value); }, enumerable: true });
+const $Status_ready = __dartLazyField("Status.ready", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+  return "Status.ready";
+} }))), false);
+Object.defineProperty(Status, "ready", { get: function() {
+  return $Status_ready.get();
+}, set: function(value) {
+  $Status_ready.set(value);
+}, enumerable: true });
+const $Status_failed = __dartLazyField("Status.failed", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+  return "Status.failed";
+} }))), false);
+Object.defineProperty(Status, "failed", { get: function() {
+  return $Status_failed.get();
+}, set: function(value) {
+  $Status_failed.set(value);
+}, enumerable: true });
+const $Status_fallback = __dartLazyField("Status.fallback", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+  return "Status.failed";
+} }))), false);
+Object.defineProperty(Status, "fallback", { get: function() {
+  return $Status_fallback.get();
+}, set: function(value) {
+  $Status_fallback.set(value);
+}, enumerable: true });
+const $Status_values = __dartLazyField("Status.values", () => __dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+  return "Status.ready";
+} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+  return "Status.failed";
+} })))])), false);
+Object.defineProperty(Status, "values", { get: function() {
+  return $Status_values.get();
+}, set: function(value) {
+  $Status_values.set(value);
+}, enumerable: true });
 export function main() {
-  __dartPrint(`entry ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))).name} ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))).index}`);
-  __dartPrint(`fields ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } }))).code} ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } }))).label}`);
-  __dartPrint(`getter ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))).ok} ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } }))).ok}`);
-  __dartPrint(`method ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))).describe()}`);
-  __dartPrint(`values ${__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } })))])).length} ${__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } })))]))[1].name}`);
-  const byName = __dartEnumByName(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } })))])), "ready");
-  const nameMap = __dartEnumAsNameMap(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() { return "Status.ready"; } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } })))])));
-  __dartPrint(`byName ${byName.code} ${__dartNullCheck(nameMap.get("failed")).label}`);
-  __dartPrint(`static ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } }))).name} ${Status.isErrorCode(500)}`);
-  __dartPrint(`string ${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() { return "Status.failed"; } })))}`);
+  __dartPrint(`entry ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))).name)} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))).index)}`);
+  __dartPrint(`fields ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } }))).code)} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } }))).label)}`);
+  __dartPrint(`getter ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))).ok)} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } }))).ok)}`);
+  __dartPrint(`method ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))).describe())}`);
+  __dartPrint(`values ${__dartStr(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } })))])).length)} ${__dartStr(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } })))]))[1].name)}`);
+  const byName = __dartEnumByName(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } })))])), "ready");
+  const nameMap = __dartEnumAsNameMap(__dartConst("[\"list\",\"InterfaceType(Status)\",[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 200, Status.label: \\\"Ready\\\", _Enum.index: 0, _Enum._name: \\\"ready\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 200, label: "Ready", index: 0, __dartEnumName: "ready", name: "ready", toString: function() {
+    return "Status.ready";
+  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } })))])));
+  __dartPrint(`byName ${__dartStr(byName.code)} ${__dartStr(__dartNullCheck(nameMap.get("failed")).label)}`);
+  __dartPrint(`static ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } }))).name)} ${__dartStr(Status.isErrorCode(500))}`);
+  __dartPrint(`string ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
+    return "Status.failed";
+  } }))))}`);
 }
 
 main();

@@ -20,13 +20,33 @@ function __dartEquals(left, right) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
 }
 
 const __dartRecordShape = Symbol("dart.recordShape");
 
 function __dartIsRecord(value) {
   return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 const __dartSymbolCache = new Map();
@@ -60,7 +80,7 @@ export function describeTypes() {
   const symbol = __dartSymbol("hello", "hello");
   const constructedSymbol = __dartSymbol("hello", "hello");
   const memberSymbol = __dartSymbol("foo.bar", "foo.bar");
-  return `${stringType} ${listType} ${mapType} ${symbol} ${memberSymbol} ${__dartEquals(symbol, __dartSymbol("hello", "hello"))} ${__dartEquals(constructedSymbol, symbol)} ${__dartEquals(stringType, __dartType("String"))}`;
+  return `${__dartStr(stringType)} ${__dartStr(listType)} ${__dartStr(mapType)} ${__dartStr(symbol)} ${__dartStr(memberSymbol)} ${__dartStr(__dartEquals(symbol, __dartSymbol("hello", "hello")))} ${__dartStr(__dartEquals(constructedSymbol, symbol))} ${__dartStr(__dartEquals(stringType, __dartType("String")))}`;
 }
 
 export function main() {

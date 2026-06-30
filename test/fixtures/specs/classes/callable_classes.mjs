@@ -17,7 +17,27 @@ function __dartDynamicCall(receiver, positionalArguments, namedArguments = null)
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 export class Adder {
@@ -37,9 +57,16 @@ export function apply(fn, value) {
 export function main() {
   const add3 = new Adder(3);
   let dynamicAdder = add3;
-  let dynamicFunction = function(value) { return value * 2; };
-  __dartPrint(`${__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 }))).call(5)} ${add3.call(5)} ${apply(function() { const $receiver = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 }))); return function(value) { return $receiver.call(value); }; }(), 6)}`);
-  __dartPrint(`${__dartDynamicCall(dynamicAdder, [4], null)} ${__dartDynamicCall(dynamicFunction, [4], null)}`);
+  let dynamicFunction = function(value) {
+    return value * 2;
+  };
+  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 }))).call(5))} ${__dartStr(add3.call(5))} ${__dartStr(apply(function() {
+    const $receiver = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 })));
+    return function(value) {
+      return $receiver.call(value);
+    };
+  }(), 6))}`);
+  __dartPrint(`${__dartStr(__dartDynamicCall(dynamicAdder, [4], null))} ${__dartStr(__dartDynamicCall(dynamicFunction, [4], null))}`);
 }
 
 main();

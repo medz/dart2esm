@@ -28,7 +28,7 @@ function __dartEquals(left, right) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
 }
 
 const __dartRecordShape = Symbol("dart.recordShape");
@@ -61,27 +61,50 @@ function __dartRecord(positional, named) {
   return Object.freeze(record);
 }
 
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
+}
+
 export const fixedRecord = __dartConst("[\"record\",[\"int\",\"4\"],[\"named\",\"label\",[\"string\",\"four\"]]]", () => __dartRecord([4], { label: "four" }));
 export function makeNamed(value) {
-  return __dartRecord([], { label: `v${value}`, value: value });
+  return __dartRecord([], { label: `v${__dartStr(value)}`, value: value });
 }
 
 export function makeMixed(value) {
-  return __dartRecord([value], { label: `v${value}` });
+  return __dartRecord([value], { label: `v${__dartStr(value)}` });
 }
 
 export function main() {
   const pair = __dartRecord([1, "two"], {  });
-  __dartPrint(`pair ${pair.$1} ${pair.$2}`);
+  __dartPrint(`pair ${__dartStr(pair.$1)} ${__dartStr(pair.$2)}`);
   const named = makeNamed(2);
-  __dartPrint(`named ${named.label} ${named.value}`);
+  __dartPrint(`named ${__dartStr(named.label)} ${__dartStr(named.value)}`);
   const mixed = makeMixed(3);
-  __dartPrint(`mixed ${mixed.$1} ${mixed.label}`);
-  __dartPrint(`record ${mixed}`);
-  __dartPrint(`equals ${__dartEquals(mixed, __dartRecord([3], { label: "v3" }))}`);
-  const ordered = (function() { const v = 1; return __dartRecord([], { a: 2, z: v }); })();
-  __dartPrint(`ordered ${ordered}`);
-  __dartPrint(`ordered equals ${__dartEquals(ordered, __dartRecord([], { a: 2, z: 1 }))}`);
+  __dartPrint(`mixed ${__dartStr(mixed.$1)} ${__dartStr(mixed.label)}`);
+  __dartPrint(`record ${__dartStr(mixed)}`);
+  __dartPrint(`equals ${__dartStr(__dartEquals(mixed, __dartRecord([3], { label: "v3" })))}`);
+  const ordered = (function() {
+    const v = 1;
+    return __dartRecord([], { a: 2, z: v });
+  })();
+  __dartPrint(`ordered ${__dartStr(ordered)}`);
+  __dartPrint(`ordered equals ${__dartStr(__dartEquals(ordered, __dartRecord([], { a: 2, z: 1 })))}`);
 }
 
 main();

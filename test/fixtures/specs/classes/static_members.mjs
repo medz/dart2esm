@@ -35,7 +35,27 @@ function __dartLazyField(name, initialize, writable, publish = null) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 export class Accumulator {
@@ -55,27 +75,39 @@ export class Accumulator {
 }
 
 const $Accumulator_offset = __dartLazyField("Accumulator.offset", () => 3, false);
-Object.defineProperty(Accumulator, "offset", { get: function() { return $Accumulator_offset.get(); }, set: function(value) { $Accumulator_offset.set(value); }, enumerable: true });
+Object.defineProperty(Accumulator, "offset", { get: function() {
+  return $Accumulator_offset.get();
+}, set: function(value) {
+  $Accumulator_offset.set(value);
+}, enumerable: true });
 const $Accumulator_total = __dartLazyField("Accumulator.total", () => init("total", 10), true);
-Object.defineProperty(Accumulator, "total", { get: function() { return $Accumulator_total.get(); }, set: function(value) { $Accumulator_total.set(value); }, enumerable: true });
+Object.defineProperty(Accumulator, "total", { get: function() {
+  return $Accumulator_total.get();
+}, set: function(value) {
+  $Accumulator_total.set(value);
+}, enumerable: true });
 const $Accumulator_readonly = __dartLazyField("Accumulator.readonly", () => init("readonly", 40), false);
-Object.defineProperty(Accumulator, "readonly", { get: function() { return $Accumulator_readonly.get(); }, set: function(value) { $Accumulator_readonly.set(value); }, enumerable: true });
+Object.defineProperty(Accumulator, "readonly", { get: function() {
+  return $Accumulator_readonly.get();
+}, set: function(value) {
+  $Accumulator_readonly.set(value);
+}, enumerable: true });
 export let initCount = 0;
 export function init(name, value) {
-  __dartPrint(`init ${name}`);
+  __dartPrint(`init ${__dartStr(name)}`);
   initCount = initCount + 1;
   return value;
 }
 
 export function main() {
   __dartPrint("offset 3");
-  __dartPrint(`first ${Accumulator.total}`);
-  __dartPrint(`bump ${Accumulator.bump(4)}`);
+  __dartPrint(`first ${__dartStr(Accumulator.total)}`);
+  __dartPrint(`bump ${__dartStr(Accumulator.bump(4))}`);
   const accumulator = new Accumulator(5);
-  __dartPrint(`instance ${accumulator.addToTotal()}`);
-  __dartPrint(`double ${Accumulator.doubledTotal}`);
-  __dartPrint(`readonly ${Accumulator.readonly}`);
-  __dartPrint(`count ${initCount}`);
+  __dartPrint(`instance ${__dartStr(accumulator.addToTotal())}`);
+  __dartPrint(`double ${__dartStr(Accumulator.doubledTotal)}`);
+  __dartPrint(`readonly ${__dartStr(Accumulator.readonly)}`);
+  __dartPrint(`count ${__dartStr(initCount)}`);
 }
 
 main();

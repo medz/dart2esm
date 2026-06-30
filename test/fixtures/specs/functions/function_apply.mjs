@@ -18,7 +18,27 @@ function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 const __dartSymbolCache = new Map();
@@ -44,7 +64,7 @@ export function add(left, right) {
 }
 
 export function describe(name, { count = 1, loud = false } = {}) {
-  const value = `${name}:${count}`;
+  const value = `${__dartStr(name)}:${__dartStr(count)}`;
   return (loud ? value.toUpperCase() : value);
 }
 
@@ -53,11 +73,13 @@ export function invokeDescribe($function, positional, named) {
 }
 
 export function main() {
-  const local = function(value, { add = 0 } = {}) { return value + add; };
-  __dartPrint(`positional ${__dartFunctionApply(add, [2, 3], null)}`);
-  __dartPrint(`named ${__dartFunctionApply(describe, ["ada"], new Map([[__dartSymbol("count", "count"), 3], [__dartSymbol("loud", "loud"), true]]))}`);
-  __dartPrint(`local ${__dartFunctionApply(local, [4], new Map([[__dartSymbol("add", "add"), 5]]))}`);
-  __dartPrint(`forward ${invokeDescribe(describe, ["dart"], new Map([[__dartSymbol("count", "count"), 2]]))}`);
+  const local = function(value, { add = 0 } = {}) {
+    return value + add;
+  };
+  __dartPrint(`positional ${__dartStr(__dartFunctionApply(add, [2, 3], null))}`);
+  __dartPrint(`named ${__dartStr(__dartFunctionApply(describe, ["ada"], new Map([[__dartSymbol("count", "count"), 3], [__dartSymbol("loud", "loud"), true]])))}`);
+  __dartPrint(`local ${__dartStr(__dartFunctionApply(local, [4], new Map([[__dartSymbol("add", "add"), 5]])))}`);
+  __dartPrint(`forward ${__dartStr(invokeDescribe(describe, ["dart"], new Map([[__dartSymbol("count", "count"), 2]])))}`);
 }
 
 main();

@@ -42,7 +42,7 @@ function __dartEquals(left, right) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
 }
 
 const __dartRecordShape = Symbol("dart.recordShape");
@@ -65,6 +65,26 @@ function __dartSafeToString(value) {
     const typeName = value != null && value.constructor && value.constructor.name ? value.constructor.name : "Object";
     return "Instance of '" + typeName + "'";
   }
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 function __dartThrowWithStackTrace(error, stackTrace) {
@@ -104,11 +124,11 @@ export function classify(kind) {
   } catch ($error) {
     if (__dartIsCoreError($error, "FormatException")) {
       const error = $error;
-      return `format:${String(error)}`;
+      return `format:${__dartStr(String(error))}`;
     } else {
       if (__dartIsCoreError($error, "Exception")) {
         const error = $error;
-        return `exception:${String(error)}`;
+        return `exception:${__dartStr(String(error))}`;
       } else {
         if (__dartIsCoreError($error, "Error")) {
           const __wc0_formal = $error;
@@ -116,7 +136,7 @@ export function classify(kind) {
         } else {
           if ($error != null) {
             const error = $error;
-            return `fallback:${error}`;
+            return `fallback:${__dartStr(error)}`;
           } else {
             throw $error;
           }
@@ -144,19 +164,19 @@ export function classifyConstructed(kind) {
   } catch ($error) {
     if (__dartIsCoreError($error, "RangeError")) {
       const error = $error;
-      return `range:${String(error).includes("5")}`;
+      return `range:${__dartStr(String(error).includes("5"))}`;
     } else {
       if (__dartIsCoreError($error, "ArgumentError")) {
         const error = $error;
-        return `argument:${String(error).includes("name")}`;
+        return `argument:${__dartStr(String(error).includes("name"))}`;
       } else {
         if (__dartIsCoreError($error, "StateError")) {
           const error = $error;
-          return `state:${String(error).includes("bad")}`;
+          return `state:${__dartStr(String(error).includes("bad"))}`;
         } else {
           if (__dartIsCoreError($error, "Error")) {
             const error = $error;
-            return `error:${String(error).includes((__dartEquals(kind, "unsupported") ? "nope" : "later"))}`;
+            return `error:${__dartStr(String(error).includes((__dartEquals(kind, "unsupported") ? "nope" : "later")))}`;
           } else {
             throw $error;
           }
@@ -175,7 +195,7 @@ export function stackAndErrorStatics() {
     if ($error != null) {
       const error = $error;
       const stackTrace = ($error?.stack ?? "<javascript stack unavailable>");
-      return `stack:${String(stack).length > 0}:${safe.includes("BrokenToString")}:${error}:${String(stackTrace).length > 0}`;
+      return `stack:${__dartStr(String(stack).length > 0)}:${__dartStr(safe.includes("BrokenToString"))}:${__dartStr(error)}:${__dartStr(String(stackTrace).length > 0)}`;
     } else {
       throw $error;
     }

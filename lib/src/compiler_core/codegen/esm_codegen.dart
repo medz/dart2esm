@@ -372,32 +372,15 @@ final class _EsmIrPrinter {
 
   String _emitFunctionExpression(EsmFunctionExpressionIr expression) {
     final parameters = expression.parameters.map(_emitParameter).join(', ');
-    final body = expression.body.map(_emitInlineStatement).join(' ');
-    return 'function($parameters) { $body }';
-  }
-
-  String _emitInlineStatement(EsmStatementIr statement) {
-    return switch (statement) {
-      EsmExpressionStatementIr() => '${_emitExpression(statement.expression)};',
-      EsmVariableDeclarationIr() => _emitInlineVariableDeclaration(statement),
-      EsmReturnStatementIr() =>
-        statement.expression == null
-            ? 'return;'
-            : 'return ${_emitExpression(statement.expression!)};',
-      EsmThrowStatementIr() =>
-        'throw ${_emitExpression(statement.expression)};',
-      _ => throw StateError(
-        'Expression codegen cannot inline ${statement.runtimeType}.',
-      ),
-    };
-  }
-
-  String _emitInlineVariableDeclaration(EsmVariableDeclarationIr statement) {
-    final keyword = statement.mutable ? 'let' : 'const';
-    final initializer = statement.initializer;
-    return initializer == null
-        ? '$keyword ${statement.name};'
-        : '$keyword ${statement.name} = ${_emitExpression(initializer)};';
+    if (expression.body.isEmpty) {
+      return 'function($parameters) {}';
+    }
+    final bodyPrinter = _EsmIrPrinter().._indent = _indent + 1;
+    for (final statement in expression.body) {
+      bodyPrinter._emitStatement(statement);
+    }
+    final body = bodyPrinter._buffer.toString().trimRight();
+    return 'function($parameters) {\n$body\n${'  ' * _indent}}';
   }
 
   String _emitObjectPropertyName(String name) {

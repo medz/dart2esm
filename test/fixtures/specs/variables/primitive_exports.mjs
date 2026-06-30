@@ -27,7 +27,27 @@ function __dartConst(key, create) {
 }
 
 function __dartPrint(value) {
-  console.log(value);
+  console.log(__dartStr(value));
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
 }
 
 export const a = 1;
@@ -42,9 +62,9 @@ function _privateLabel() {
 }
 
 export function main() {
-  __dartPrint(`a ${a}`);
+  __dartPrint(`a ${__dartStr(a)}`);
   __dartPrint("b 2");
-  __dartPrint(`c ${c}`);
+  __dartPrint(`c ${__dartStr(c)}`);
   __dartPrint(_privateLabel());
 }
 

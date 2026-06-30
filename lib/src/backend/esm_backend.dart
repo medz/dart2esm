@@ -4,6 +4,7 @@ import 'package:kernel/kernel.dart' as k;
 
 import '../js_ast/js_ast.dart';
 import '../kernel/kernel_references.dart';
+import '../kernel/sdk_symbols.dart';
 import '../lowering/lowering.dart';
 import '../module/class_runtime_plan.dart';
 import '../module/esm_module_plan.dart';
@@ -3653,34 +3654,28 @@ final class _EsmEmitter {
     k.Procedure target,
     List<String> positionalArgs,
   ) {
-    final path = kernelReferencePath(target.reference);
-    if (path == 'dart:js::JsObject::@factories::' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2) {
-      final args = positionalArgs.length == 2 ? positionalArgs[1] : '[]';
-      return 'new ${positionalArgs[0]}(...Array.from($args ?? []))';
-    }
-    if (path == 'dart:js::JsObject::@factories::fromBrowserObject' &&
-        positionalArgs.length == 1) {
-      return positionalArgs.single;
-    }
-    if (path == 'dart:js::JsObject::@factories::jsify' &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartJsify');
-      return '__dartJsify(${positionalArgs.single})';
-    }
-    if (path == 'dart:js::JsArray::@factories::' && positionalArgs.isEmpty) {
-      return '[]';
-    }
-    if (path == 'dart:js::JsArray::@factories::from' &&
-        positionalArgs.length == 1) {
-      return 'Array.from(${positionalArgs.single})';
-    }
-    if (path == 'dart:js::JsFunction::@factories::withThis' &&
-        positionalArgs.length == 1) {
-      return '(function(...args) { return (${positionalArgs.single})(this, ...args); })';
-    }
-    return null;
+    return switch (legacyJsFactorySymbol(target.reference)) {
+      LegacyJsFactorySymbol.jsObject
+          when positionalArgs.isNotEmpty && positionalArgs.length <= 2 =>
+        'new ${positionalArgs[0]}(...Array.from(${positionalArgs.length == 2 ? positionalArgs[1] : '[]'} ?? []))',
+      LegacyJsFactorySymbol.jsObjectFromBrowserObject
+          when positionalArgs.length == 1 =>
+        positionalArgs.single,
+      LegacyJsFactorySymbol.jsObjectJsify when positionalArgs.length == 1 =>
+        _emitJsify(positionalArgs.single),
+      LegacyJsFactorySymbol.jsArray when positionalArgs.isEmpty => '[]',
+      LegacyJsFactorySymbol.jsArrayFrom when positionalArgs.length == 1 =>
+        'Array.from(${positionalArgs.single})',
+      LegacyJsFactorySymbol.jsFunctionWithThis
+          when positionalArgs.length == 1 =>
+        '(function(...args) { return (${positionalArgs.single})(this, ...args); })',
+      _ => null,
+    };
+  }
+
+  String _emitJsify(String value) {
+    _usedHelpers.add('__dartJsify');
+    return '__dartJsify($value)';
   }
 
   String _emitFactoryTargetCall(k.Procedure target, String args) {
@@ -4424,16 +4419,15 @@ final class _EsmEmitter {
   }
 
   String? _emitJsInteropStaticGet(k.StaticGet expression) {
+    switch (jsInteropStaticGetSymbol(expression.targetReference)) {
+      case JsInteropStaticGetSymbol.globalThis:
+        return 'globalThis';
+      case JsInteropStaticGetSymbol.objectPrototype:
+        return 'Object.prototype';
+      case null:
+        break;
+    }
     final path = kernelReferencePath(expression.targetReference);
-    if (path == 'dart:_js_helper::@getters::staticInteropGlobalContext' ||
-        path == 'dart:js_interop::@getters::globalContext' ||
-        path == 'dart:js_util::@getters::globalThis' ||
-        path == 'dart:js::@getters::context') {
-      return 'globalThis';
-    }
-    if (path == 'dart:js_util::@getters::objectPrototype') {
-      return 'Object.prototype';
-    }
     if (path == 'dart:html::@getters::window') {
       return 'globalThis.window';
     }
@@ -4449,9 +4443,9 @@ final class _EsmEmitter {
     if (path == 'dart:indexed_db::IdbFactory::@getters::supported') {
       return '(!!(globalThis.window?.indexedDB || globalThis.window?.webkitIndexedDB || globalThis.window?.mozIndexedDB || globalThis.indexedDB))';
     }
-    if (path.startsWith('dart:js_interop::JSSymbol::@getters::')) {
-      final name = path.split('::').last;
-      return switch (name) {
+    final symbolName = jsSymbolStaticGetterName(expression.targetReference);
+    if (symbolName != null) {
+      return switch (symbolName) {
         'asyncIterator' => 'Symbol.asyncIterator',
         'hasInstance' => 'Symbol.hasInstance',
         'isConcatSpreadable' => 'Symbol.isConcatSpreadable',

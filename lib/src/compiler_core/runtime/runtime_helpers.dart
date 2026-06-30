@@ -8,6 +8,7 @@ enum EsmRuntimeHelper {
   constMap,
   constSet,
   constValue,
+  doubleParse,
   dynamicCall,
   dynamicGet,
   dynamicInvoke,
@@ -22,6 +23,7 @@ enum EsmRuntimeHelper {
   lazyField,
   listAdd,
   listAddAll,
+  listFactory,
   mapAddAll,
   mapContainsKey,
   mapSet,
@@ -36,6 +38,7 @@ enum EsmRuntimeHelper {
   record,
   safeToString,
   setAddAll,
+  stringFactory,
   stringify,
   symbol,
   throwWithStackTrace,
@@ -56,6 +59,8 @@ final class EsmRuntimeHelperRegistry {
     '__dartConstMap',
     '__dartConstSet',
     '__dartConstValues',
+    '__dartDoubleParse',
+    '__dartDoubleTryParse',
     '__dartDynamicCall',
     '__dartDynamicGet',
     '__dartDynamicInvoke',
@@ -70,8 +75,12 @@ final class EsmRuntimeHelperRegistry {
     '__dartIntTryParse',
     '__dartIterator',
     '__dartLazyField',
+    '__dartFixedList',
     '__dartListAdd',
     '__dartListAddAll',
+    '__dartListFilled',
+    '__dartListOf',
+    '__dartUnmodifiableList',
     '__dartMapAddAll',
     '__dartMapContainsKey',
     '__dartMapSet',
@@ -84,6 +93,8 @@ final class EsmRuntimeHelperRegistry {
     '__dartHashValue',
     '__dartIdentityHashes',
     '__dartNextIdentityHash',
+    '__dartNumParse',
+    '__dartNumTryParse',
     '__dartIsRecord',
     '__dartIsCoreError',
     '__dartNullCheck',
@@ -94,6 +105,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartRecordShape',
     '__dartSafeToString',
     '__dartSetAddAll',
+    '__dartStringFromCharCodes',
     '__dartStr',
     '__dartSymbol',
     '__dartSymbolCache',
@@ -111,6 +123,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.constMap => '__dartConstMap',
       EsmRuntimeHelper.constSet => '__dartConstSet',
       EsmRuntimeHelper.constValue => '__dartConst',
+      EsmRuntimeHelper.doubleParse => '__dartDoubleParse',
       EsmRuntimeHelper.dynamicCall => '__dartDynamicCall',
       EsmRuntimeHelper.dynamicGet => '__dartDynamicGet',
       EsmRuntimeHelper.dynamicInvoke => '__dartDynamicInvoke',
@@ -126,6 +139,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.lazyField => '__dartLazyField',
       EsmRuntimeHelper.listAdd => '__dartListAdd',
       EsmRuntimeHelper.listAddAll => '__dartListAddAll',
+      EsmRuntimeHelper.listFactory => '__dartListOf',
       EsmRuntimeHelper.mapAddAll => '__dartMapAddAll',
       EsmRuntimeHelper.mapContainsKey => '__dartMapContainsKey',
       EsmRuntimeHelper.mapSet => '__dartMapSet',
@@ -139,6 +153,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
       EsmRuntimeHelper.safeToString => '__dartSafeToString',
       EsmRuntimeHelper.setAddAll => '__dartSetAddAll',
+      EsmRuntimeHelper.stringFactory => '__dartStringFromCharCodes',
       EsmRuntimeHelper.stringify => '__dartStr',
       EsmRuntimeHelper.symbol => '__dartSymbol',
       EsmRuntimeHelper.throwWithStackTrace => '__dartThrowWithStackTrace',
@@ -224,6 +239,36 @@ function __dartConst(key, create) {
     __dartConstValues.set(key, create());
   }
   return __dartConstValues.get(key);
+}
+'''),
+      EsmRuntimeHelper.doubleParse => EsmRawModuleItemIr(r'''
+function __dartDoubleTryParse(source) {
+  const text = String(source).trim();
+  if (text.length === 0) return null;
+  if (/^[+-]?NaN$/i.test(text)) return NaN;
+  const value = Number(text);
+  return Number.isNaN(value) ? null : value;
+}
+function __dartDoubleParse(source) {
+  const value = __dartDoubleTryParse(source);
+  if (value === null) {
+    const error = new Error("Invalid double literal");
+    error.name = "FormatException";
+    throw error;
+  }
+  return value;
+}
+function __dartNumTryParse(source) {
+  return __dartDoubleTryParse(source);
+}
+function __dartNumParse(source) {
+  const value = __dartNumTryParse(source);
+  if (value === null) {
+    const error = new Error("Invalid number literal");
+    error.name = "FormatException";
+    throw error;
+  }
+  return value;
 }
 '''),
       EsmRuntimeHelper.constSet => EsmRawModuleItemIr('''
@@ -587,6 +632,12 @@ function __dartSetAddAll(set, values) {
   return null;
 }
 '''),
+      EsmRuntimeHelper.stringFactory => EsmRawModuleItemIr('''
+function __dartStringFromCharCodes(codes, start = 0, end = null) {
+  const values = Array.from(codes).slice(Number(start), end == null ? undefined : Number(end));
+  return String.fromCharCode(...values);
+}
+'''),
       EsmRuntimeHelper.lazyField => EsmRawModuleItemIr('''
 function __dartLazyField(name, initialize, writable, publish = null) {
   let state = 0;
@@ -632,6 +683,24 @@ function __dartListAdd(list, value) {
 function __dartListAddAll(list, values) {
   list.push(...Array.from(values));
   return null;
+}
+'''),
+      EsmRuntimeHelper.listFactory => EsmRawModuleItemIr('''
+function __dartFixedList(values) {
+  const list = Array.from(values);
+  Object.preventExtensions(list);
+  return list;
+}
+function __dartListOf(values, growable = true) {
+  const list = Array.from(values);
+  return growable ? list : __dartFixedList(list);
+}
+function __dartListFilled(length, fill, growable = false) {
+  const list = Array(Number(length)).fill(fill);
+  return growable ? list : __dartFixedList(list);
+}
+function __dartUnmodifiableList(values) {
+  return Object.freeze(Array.from(values));
 }
 '''),
       EsmRuntimeHelper.mapSet => EsmRawModuleItemIr('''
@@ -826,6 +895,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.compare:
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
+      case EsmRuntimeHelper.doubleParse:
       case EsmRuntimeHelper.constMap:
       case EsmRuntimeHelper.constSet:
       case EsmRuntimeHelper.dynamicCall:
@@ -835,8 +905,10 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.enumAsNameMap:
       case EsmRuntimeHelper.enumByName:
       case EsmRuntimeHelper.extensionTypeRep:
+      case EsmRuntimeHelper.listFactory:
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:
+      case EsmRuntimeHelper.stringFactory:
         break;
       case EsmRuntimeHelper.equals:
         _helpers.add(EsmRuntimeHelper.recordShape);

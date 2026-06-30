@@ -1352,13 +1352,17 @@ void main() {
 void main() {
   final parsed = int.parse('42');
   final fallback = int.tryParse('nope') ?? -1;
+  final parsedDouble = double.parse('3.5');
+  final maybeDouble = double.tryParse('bad') ?? 1.25;
+  final parsedNum = num.parse('7.25');
   final even = parsed.isEven;
   final odd = fallback.isOdd;
   final numberCompare = parsed.compareTo(fallback);
   final textCompare = 'b'.compareTo('a');
   final stableHash = parsed.hashCode == 42.hashCode;
   print('numbers \$parsed \$fallback \$even \$odd '
-      '\$numberCompare \$textCompare \$stableHash');
+      '\$numberCompare \$textCompare \$stableHash '
+      '\$parsedDouble \$maybeDouble \$parsedNum');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1376,9 +1380,97 @@ void main() {
     expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
     final code = output.readAsStringSync();
     expect(code, contains('__dartIntTryParse'));
+    expect(code, contains('__dartDoubleTryParse'));
+    expect(code, contains('__dartNumParse'));
     expect(code, contains('__dartCompare'));
     expect(code, contains('__dartHashValue'));
     expect(code, contains('Math.trunc(parsed) % 2 === 0'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
+  test('compiles core List factories through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-core-list-factories-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  final fromSet = List<int>.of({1, 2, 3});
+  final fixed = List<int>.filled(2, 7);
+  fixed[0] = 8;
+  var fixedAddFailed = false;
+  try {
+    fixed.add(9);
+  } catch (_) {
+    fixedAddFailed = true;
+  }
+  final growable = List<int>.empty(growable: true);
+  growable.add(1);
+  final fixedCopy = [1, 2, 3].toList(growable: false);
+  fixedCopy[1] = 5;
+  var fixedCopyAddFailed = false;
+  try {
+    fixedCopy.add(4);
+  } catch (_) {
+    fixedCopyAddFailed = true;
+  }
+  final unmodifiable = List<int>.unmodifiable(fromSet);
+  print('lists \${fromSet.join(':')} \${fixed.join(',')} '
+      '\$fixedAddFailed \${growable.first} \${fixedCopy.join(',')} '
+      '\$fixedCopyAddFailed \${unmodifiable.first} \${unmodifiable.last}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartListOf'));
+    expect(code, contains('__dartListFilled'));
+    expect(code, contains('__dartUnmodifiableList'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
+  test('compiles core String factories through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-core-string-factories-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  final char = String.fromCharCode(65);
+  final chars = String.fromCharCodes([68, 97, 114, 116]);
+  final slice = String.fromCharCodes([120, 68, 97, 114, 116, 121], 1, 5);
+  print('strings \$char \$chars \$slice');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('String.fromCharCode(65)'));
+    expect(code, contains('__dartStringFromCharCodes'));
     await _expectSameDartAndNodeOutput(input, output);
   });
 
@@ -2447,9 +2539,14 @@ Future<void> _expectSameDartAndNodeOutput(File input, File output) async {
   final nodeRun = await Process.run('node', [
     output.path,
   ], workingDirectory: output.parent.path);
-  expect(nodeRun.exitCode, dartRun.exitCode);
-  expect(nodeRun.stdout, dartRun.stdout);
-  expect(nodeRun.stderr, dartRun.stderr);
+  final reason =
+      'dart stdout:\n${dartRun.stdout}\n'
+      'dart stderr:\n${dartRun.stderr}\n'
+      'node stdout:\n${nodeRun.stdout}\n'
+      'node stderr:\n${nodeRun.stderr}';
+  expect(nodeRun.exitCode, dartRun.exitCode, reason: reason);
+  expect(nodeRun.stdout, dartRun.stdout, reason: reason);
+  expect(nodeRun.stderr, dartRun.stderr, reason: reason);
 }
 
 final class _GoldenFixture {

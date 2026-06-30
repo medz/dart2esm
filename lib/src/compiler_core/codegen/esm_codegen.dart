@@ -131,6 +131,10 @@ final class _EsmIrPrinter {
       EsmIdentifierIr() => expression.name,
       EsmStringLiteralIr() => jsonEncode(expression.value),
       EsmStringConcatenationIr() => _emitStringConcatenation(expression),
+      EsmAssignmentIr() =>
+        '${_emitExpression(expression.target)} = ${_emitExpression(expression.value)}',
+      EsmBinaryIr() =>
+        '${_emitExpression(expression.left)} ${expression.operator} ${_emitExpression(expression.right)}',
       EsmNumberLiteralIr() => _emitNumber(expression.value),
       EsmBooleanLiteralIr() => expression.value ? 'true' : 'false',
       EsmNullLiteralIr() => 'null',

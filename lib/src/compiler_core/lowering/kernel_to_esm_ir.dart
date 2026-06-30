@@ -172,6 +172,13 @@ final class KernelToEsmIrLoweringStage {
         expression,
       ),
       k.VariableGet() => _lowerVariableGet(locals, expression),
+      k.VariableSet() => _lowerVariableSet(world, helpers, locals, expression),
+      k.InstanceInvocation() => _lowerInstanceInvocation(
+        world,
+        helpers,
+        locals,
+        expression,
+      ),
       k.StringLiteral() => EsmStringLiteralIr(expression.value),
       k.StringConcatenation() => EsmStringConcatenationIr([
         for (final part in expression.expressions)
@@ -183,6 +190,47 @@ final class KernelToEsmIrLoweringStage {
       k.NullLiteral() => const EsmNullLiteralIr(),
       _ => throw NewCompilerUnsupported(expression, 'expression lowering'),
     };
+  }
+
+  EsmExpressionIr _lowerVariableSet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.VariableSet expression,
+  ) {
+    final name = locals[expression.variable];
+    if (name == null) {
+      throw NewCompilerUnsupported(expression, 'unbound variable set');
+    }
+    return EsmAssignmentIr(
+      target: EsmIdentifierIr(name),
+      value: _lowerExpression(world, helpers, locals, expression.value),
+    );
+  }
+
+  EsmExpressionIr _lowerInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+  ) {
+    final operator = expression.name.text;
+    if (!_binaryOperators.contains(operator) ||
+        expression.arguments.positional.length != 1 ||
+        expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      throw NewCompilerUnsupported(expression, 'instance invocation lowering');
+    }
+    return EsmBinaryIr(
+      left: _lowerExpression(world, helpers, locals, expression.receiver),
+      operator: operator,
+      right: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.arguments.positional.single,
+      ),
+    );
   }
 
   EsmExpressionIr _lowerStaticInvocation(
@@ -279,3 +327,5 @@ final class KernelToEsmIrLoweringStage {
     return candidate;
   }
 }
+
+const _binaryOperators = {'+', '-', '*', '/', '%', '<', '<=', '>', '>='};

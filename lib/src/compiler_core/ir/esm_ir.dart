@@ -98,6 +98,25 @@ final class EsmStringConcatenationIr extends EsmExpressionIr {
   final List<EsmExpressionIr> expressions;
 }
 
+final class EsmAssignmentIr extends EsmExpressionIr {
+  const EsmAssignmentIr({required this.target, required this.value});
+
+  final EsmIdentifierIr target;
+  final EsmExpressionIr value;
+}
+
+final class EsmBinaryIr extends EsmExpressionIr {
+  const EsmBinaryIr({
+    required this.left,
+    required this.operator,
+    required this.right,
+  });
+
+  final EsmExpressionIr left;
+  final String operator;
+  final EsmExpressionIr right;
+}
+
 final class EsmNumberLiteralIr extends EsmExpressionIr {
   const EsmNumberLiteralIr(this.value);
 

@@ -34,7 +34,7 @@ final class EsmClassIr extends EsmModuleItemIr {
 final class EsmClassConstructorIr extends EsmIrNode {
   const EsmClassConstructorIr({required this.parameters, required this.body});
 
-  final List<String> parameters;
+  final List<EsmParameterIr> parameters;
   final List<EsmStatementIr> body;
 }
 
@@ -50,7 +50,7 @@ final class EsmClassMethodIr extends EsmIrNode {
   final String name;
   final EsmClassMethodKindIr kind;
   final bool isStatic;
-  final List<String> parameters;
+  final List<EsmParameterIr> parameters;
   final List<EsmStatementIr> body;
 }
 
@@ -66,8 +66,37 @@ final class EsmFunctionIr extends EsmModuleItemIr {
 
   final String name;
   final bool export;
-  final List<String> parameters;
+  final List<EsmParameterIr> parameters;
   final List<EsmStatementIr> body;
+}
+
+sealed class EsmParameterIr extends EsmIrNode {
+  const EsmParameterIr();
+}
+
+final class EsmIdentifierParameterIr extends EsmParameterIr {
+  const EsmIdentifierParameterIr({required this.name, this.defaultValue});
+
+  final String name;
+  final EsmExpressionIr? defaultValue;
+}
+
+final class EsmObjectPatternParameterIr extends EsmParameterIr {
+  const EsmObjectPatternParameterIr({required this.bindings});
+
+  final List<EsmObjectPatternBindingIr> bindings;
+}
+
+final class EsmObjectPatternBindingIr extends EsmIrNode {
+  const EsmObjectPatternBindingIr({
+    required this.property,
+    required this.name,
+    this.defaultValue,
+  });
+
+  final String property;
+  final String name;
+  final EsmExpressionIr? defaultValue;
 }
 
 sealed class EsmStatementIr extends EsmModuleItemIr {
@@ -239,6 +268,19 @@ final class EsmArrayLiteralIr extends EsmExpressionIr {
   const EsmArrayLiteralIr(this.elements);
 
   final List<EsmExpressionIr> elements;
+}
+
+final class EsmObjectLiteralIr extends EsmExpressionIr {
+  const EsmObjectLiteralIr(this.properties);
+
+  final List<EsmObjectLiteralPropertyIr> properties;
+}
+
+final class EsmObjectLiteralPropertyIr extends EsmIrNode {
+  const EsmObjectLiteralPropertyIr({required this.name, required this.value});
+
+  final String name;
+  final EsmExpressionIr value;
 }
 
 final class EsmCallIr extends EsmExpressionIr {

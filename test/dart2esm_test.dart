@@ -639,6 +639,56 @@ main();
     },
   );
 
+  test('compiles redirecting constructors through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'classes', 'redirecting_constructors.dart'),
+    );
+    final expected = File(
+      p.join(fixtureDir.path, 'classes', 'redirecting_constructors.mjs'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-redirecting-constructors-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+
+    final nodeResult = await Process.run('node', [output.path]);
+    expect(
+      nodeResult.exitCode,
+      0,
+      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+    );
+    expect(
+      (nodeResult.stdout as String).trim(),
+      'point:0,0\n'
+      'alias:4,5\n'
+      'default:0,1\n'
+      'mirror:5,5\n'
+      '0..10\n'
+      '5..15\n'
+      'default:1:true\n'
+      'from:2:true\n'
+      'off:3:false\n'
+      'animal Rex dog! 4\n'
+      'animal Tiny dog! 1 toy ball\n'
+      'point:0,0 red\n'
+      'default:0,1 wrapped',
+    );
+  });
+
   test('compiles if/else control flow through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-if-core-');
     addTearDown(() => tempDir.deleteSync(recursive: true));

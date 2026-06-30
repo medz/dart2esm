@@ -68,7 +68,9 @@ final class _EsmIrPrinter {
     _indent++;
     final constructor = klass.constructor;
     if (constructor != null) {
-      _writeIndented('constructor(${constructor.parameters.join(', ')}) {');
+      _writeIndented(
+        'constructor(${constructor.parameters.map(_emitParameter).join(', ')}) {',
+      );
       _indent++;
       for (final statement in constructor.body) {
         _emitStatement(statement);
@@ -91,7 +93,7 @@ final class _EsmIrPrinter {
       EsmClassMethodKindIr.setter => 'set ',
     };
     _writeIndented(
-      '$staticPrefix$prefix${method.name}(${method.parameters.join(', ')}) {',
+      '$staticPrefix$prefix${method.name}(${method.parameters.map(_emitParameter).join(', ')}) {',
     );
     _indent++;
     for (final statement in method.body) {
@@ -104,7 +106,7 @@ final class _EsmIrPrinter {
   void _emitFunction(EsmFunctionIr function) {
     final exportPrefix = function.export ? 'export ' : '';
     _writeIndented(
-      '${exportPrefix}function ${function.name}(${function.parameters.join(', ')}) {',
+      '${exportPrefix}function ${function.name}(${function.parameters.map(_emitParameter).join(', ')}) {',
     );
     _indent++;
     for (final statement in function.body) {
@@ -259,6 +261,26 @@ final class _EsmIrPrinter {
         : '${initializer.name} = ${_emitExpression(value)}';
   }
 
+  String _emitParameter(EsmParameterIr parameter) {
+    return switch (parameter) {
+      EsmIdentifierParameterIr() =>
+        parameter.defaultValue == null
+            ? parameter.name
+            : '${parameter.name} = ${_emitExpression(parameter.defaultValue!)}',
+      EsmObjectPatternParameterIr() =>
+        '{ ${parameter.bindings.map(_emitObjectPatternBinding).join(', ')} } = {}',
+    };
+  }
+
+  String _emitObjectPatternBinding(EsmObjectPatternBindingIr binding) {
+    final property = _emitObjectPropertyName(binding.property);
+    final name = binding.property == binding.name ? '' : ': ${binding.name}';
+    final defaultValue = binding.defaultValue == null
+        ? ''
+        : ' = ${_emitExpression(binding.defaultValue!)}';
+    return '$property$name$defaultValue';
+  }
+
   String _emitExpression(EsmExpressionIr expression) {
     return switch (expression) {
       EsmIdentifierIr() => expression.name,
@@ -273,6 +295,8 @@ final class _EsmIrPrinter {
       EsmNullLiteralIr() => 'null',
       EsmArrayLiteralIr() =>
         '[${expression.elements.map(_emitExpression).join(', ')}]',
+      EsmObjectLiteralIr() =>
+        '{ ${expression.properties.map(_emitObjectLiteralProperty).join(', ')} }',
       EsmCallIr() =>
         '${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmNewIr() =>
@@ -283,6 +307,16 @@ final class _EsmIrPrinter {
       EsmNewTargetIr() => 'new.target',
       EsmSuperIr() => 'super',
     };
+  }
+
+  String _emitObjectLiteralProperty(EsmObjectLiteralPropertyIr property) {
+    return '${_emitObjectPropertyName(property.name)}: ${_emitExpression(property.value)}';
+  }
+
+  String _emitObjectPropertyName(String name) {
+    return RegExp(r'^[A-Za-z_$][\w$]*$').hasMatch(name)
+        ? name
+        : jsonEncode(name);
   }
 
   String _emitStringConcatenation(EsmStringConcatenationIr expression) {

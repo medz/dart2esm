@@ -152,28 +152,27 @@ describe('classes/redirecting_constructors.mjs', () => {
       .filter(
         (line) =>
           line.startsWith('return Reflect.construct(Point') ||
-          line.startsWith('return $Point_named($newTarget') ||
-          line.startsWith('return $Pair_named(new.target') ||
-          line.startsWith('return $Pair_named($newTarget') ||
-          line.startsWith('return $Range_between($newTarget') ||
-          line.startsWith('return $Options_named($newTarget') ||
-          line.startsWith('return $Dog_full($newTarget') ||
-          line.startsWith('return $Puppy_full($newTarget') ||
-          line.startsWith('const $self = $Point_zero'),
+          line.startsWith('return Point.named.call') ||
+          line.startsWith('return Pair.named.call') ||
+          line.startsWith('return Range.between.call') ||
+          line.startsWith('return Options.named.call') ||
+          line.startsWith('return Dog.full.call') ||
+          line.startsWith('return Puppy.full.call') ||
+          line.startsWith('const $self = Point.zero.call'),
       );
 
     expect(shapeLines).toEqual([
-      'return Reflect.construct(Point, [0, 0], $newTarget);',
-      'return $Point_named($newTarget, value, (value + 1), "alias");',
-      'return $Pair_named(new.target, 0, 1, "default");',
-      'return $Pair_named($newTarget, value, value, "mirror");',
-      'return $Range_between($newTarget, start, (start + 10));',
-      'return $Options_named($newTarget, { count: 1 });',
-      'return $Options_named($newTarget, { count: count, label: label });',
-      'return $Options_named($newTarget, { count: count, label: "off", enabled: false });',
-      'return $Dog_full($newTarget, name, age, "dog");',
-      'return $Puppy_full($newTarget, name, 1, "ball");',
-      'const $self = $Point_zero($newTarget);',
+      'return Reflect.construct(Point, [0, 0], this);',
+      'return Point.named.call(this, value, value + 1, "alias");',
+      'return Pair.named.call(new.target, 0, 1, "default");',
+      'return Pair.named.call(this, value, value, "mirror");',
+      'return Range.between.call(this, start, start + 10);',
+      'return Options.named.call(this, { count: 1 });',
+      'return Options.named.call(this, { count: count, label: label });',
+      'return Options.named.call(this, { count: count, label: "off", enabled: false });',
+      'return Dog.full.call(this, name, age, "dog");',
+      'return Puppy.full.call(this, name, 1, "ball");',
+      'const $self = Point.zero.call(this);',
     ]);
   });
 });

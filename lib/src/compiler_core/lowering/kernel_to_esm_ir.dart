@@ -141,6 +141,10 @@ final class KernelToEsmIrLoweringStage {
       ),
       k.VariableGet() => _lowerVariableGet(locals, expression),
       k.StringLiteral() => EsmStringLiteralIr(expression.value),
+      k.StringConcatenation() => EsmStringConcatenationIr([
+        for (final part in expression.expressions)
+          _lowerExpression(world, helpers, locals, part),
+      ]),
       k.IntLiteral() => EsmNumberLiteralIr(expression.value),
       k.DoubleLiteral() => EsmNumberLiteralIr(expression.value),
       k.BoolLiteral() => EsmBooleanLiteralIr(expression.value),

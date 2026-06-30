@@ -73,6 +73,12 @@ final class EsmStringLiteralIr extends EsmExpressionIr {
   final String value;
 }
 
+final class EsmStringConcatenationIr extends EsmExpressionIr {
+  const EsmStringConcatenationIr(this.expressions);
+
+  final List<EsmExpressionIr> expressions;
+}
+
 final class EsmNumberLiteralIr extends EsmExpressionIr {
   const EsmNumberLiteralIr(this.value);
 

@@ -95,12 +95,38 @@ final class _EsmIrPrinter {
     return switch (expression) {
       EsmIdentifierIr() => expression.name,
       EsmStringLiteralIr() => jsonEncode(expression.value),
+      EsmStringConcatenationIr() => _emitStringConcatenation(expression),
       EsmNumberLiteralIr() => _emitNumber(expression.value),
       EsmBooleanLiteralIr() => expression.value ? 'true' : 'false',
       EsmNullLiteralIr() => 'null',
       EsmCallIr() =>
         '${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
     };
+  }
+
+  String _emitStringConcatenation(EsmStringConcatenationIr expression) {
+    if (expression.expressions.isEmpty) {
+      return '""';
+    }
+    final buffer = StringBuffer('`');
+    for (final part in expression.expressions) {
+      if (part case EsmStringLiteralIr()) {
+        buffer.write(_escapeTemplateText(part.value));
+      } else {
+        buffer.write(r'${');
+        buffer.write(_emitExpression(part));
+        buffer.write('}');
+      }
+    }
+    buffer.write('`');
+    return buffer.toString();
+  }
+
+  String _escapeTemplateText(String value) {
+    return value
+        .replaceAll(r'\', r'\\')
+        .replaceAll('`', r'\`')
+        .replaceAll(r'${', r'\${');
   }
 
   String _emitNumber(num value) {

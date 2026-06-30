@@ -167,7 +167,8 @@ export function main() {
     final input = File(p.join(tempDir.path, 'main.dart'))
       ..writeAsStringSync('''
 void main() {
-  print('new core');
+  final target = 'core';
+  print('new \$target');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -191,7 +192,8 @@ function __dartPrint(value) {
 }
 
 export function main() {
-  __dartPrint("new core");
+  const target = "core";
+  __dartPrint(`new \${target}`);
 }
 
 main();

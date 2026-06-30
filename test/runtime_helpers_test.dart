@@ -42,6 +42,11 @@ void main() {
   test('exposes registered helper source definitions', () {
     expect(esmRuntimeHelperSource('__dartPrint'), contains('__dartStr(value)'));
     expect(esmRuntimeHelperSource('__dartStr'), contains('function __dartStr'));
+    expect(
+      esmRuntimeHelperSource('__dartStringBuffer'),
+      contains('function __dartStringBuffer'),
+    );
+    expect(esmRuntimeHelperSource('__dartFinalizer'), contains('detachTokens'));
     expect(esmRuntimeHelperSource('__dartStreamMap'), isNull);
   });
 

@@ -99,6 +99,77 @@ const _dartPrintSource = r'''function __dartPrint(value) {
   console.log(__dartStr(value));
 }''';
 
+const _dartStringBufferSource = r'''function __dartStringBuffer(initial = "") {
+  let value = initial == null ? "" : String(initial);
+  return {
+    write(next) { value += String(next); },
+    writeAll(values, separator = "") { const parts = []; if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") { for (let index = 0; index < values.length; index++) parts.push(String(values["[]"](index))); } else { for (const item of values) parts.push(String(item)); } value += parts.join(String(separator)); },
+    writeCharCode(charCode) { value += String.fromCodePoint(charCode); },
+    writeln(next = "") { value += String(next) + "\n"; },
+    clear() { value = ""; },
+    toString() { return value; },
+    get length() { return value.length; },
+    get isEmpty() { return value.length === 0; },
+    get isNotEmpty() { return value.length !== 0; },
+  };
+}''';
+
+const _dartExpandoSource = r'''function __dartExpando(name = null) {
+  const values = new WeakMap();
+  const expando = {
+    get(object) { return values.has(object) ? values.get(object) : null; },
+    set(object, value) { values.set(object, value); return null; },
+    toString() { return name == null ? "Expando" : "Expando:" + String(name); },
+  };
+  Object.defineProperty(expando, "__dartType", { value: "Expando" });
+  return Object.freeze(expando);
+}''';
+
+const _dartWeakReferenceSource = r'''function __dartWeakReference(target) {
+  const ref = typeof WeakRef === "function" ? new WeakRef(target) : { deref() { return target; } };
+  const weak = {
+    get target() { return ref.deref() ?? null; },
+    toString() { return "WeakReference"; },
+  };
+  Object.defineProperty(weak, "__dartType", { value: "WeakReference" });
+  return Object.freeze(weak);
+}''';
+
+const _dartFinalizerSource = r'''function __dartFinalizer(callback) {
+  const registry = typeof FinalizationRegistry === "function" ? new FinalizationRegistry(callback) : null;
+  const detachTokens = new Map();
+  const finalizer = {
+    attach(value, token, options = {}) {
+      if (registry != null) {
+        const detach = options.detach ?? null;
+        let unregisterToken = undefined;
+        if (detach != null) {
+          unregisterToken = detachTokens.get(detach);
+          if (unregisterToken == null) {
+            unregisterToken = {};
+            detachTokens.set(detach, unregisterToken);
+          }
+        }
+        registry.register(value, token, unregisterToken);
+      }
+      return null;
+    },
+    detach(detach) {
+      if (registry != null) {
+        const unregisterToken = detachTokens.get(detach);
+        if (unregisterToken != null) {
+          registry.unregister(unregisterToken);
+          detachTokens.delete(detach);
+        }
+      }
+      return null;
+    },
+    toString() { return "Finalizer"; },
+  };
+  Object.defineProperty(finalizer, "__dartType", { value: "Finalizer" });
+  return Object.freeze(finalizer);
+}''';
+
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
     name: '__dartPrint',
@@ -131,6 +202,26 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     name: '__dartThrowWithStackTrace',
     category: EsmRuntimeHelperCategory.core,
     source: _dartThrowWithStackTraceSource,
+  ),
+  '__dartStringBuffer': EsmRuntimeHelperSpec(
+    name: '__dartStringBuffer',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartStringBufferSource,
+  ),
+  '__dartExpando': EsmRuntimeHelperSpec(
+    name: '__dartExpando',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartExpandoSource,
+  ),
+  '__dartWeakReference': EsmRuntimeHelperSpec(
+    name: '__dartWeakReference',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartWeakReferenceSource,
+  ),
+  '__dartFinalizer': EsmRuntimeHelperSpec(
+    name: '__dartFinalizer',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartFinalizerSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',

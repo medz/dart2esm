@@ -26,6 +26,31 @@ final class EsmClassRuntimePlan {
   bool isInterfaceBaseClass(k.Class klass) {
     return interfaceBaseClasses.contains(klass);
   }
+
+  k.Class? jsSuperclassFor(k.Class klass) {
+    final supertype = klass.supertype;
+    if (supertype == null ||
+        isKernelCoreClassReference(supertype.className, 'Object')) {
+      return jsInterfaceSuperclassFor(klass);
+    }
+    if (isDartSdkReference(supertype.className)) {
+      return null;
+    }
+    final node = supertype.className.node;
+    return node is k.Class ? node : null;
+  }
+
+  bool hasJsSuperclass(k.Class klass) {
+    return jsSuperclassFor(klass) != null;
+  }
+
+  Set<k.Class> effectiveInterfaceMarkersFor(k.Class klass) {
+    final interfaces = interfaceMarkersFor(klass);
+    if (!isInterfaceBaseClass(klass)) {
+      return interfaces;
+    }
+    return Set.unmodifiable({...interfaces, klass});
+  }
 }
 
 EsmClassRuntimePlan buildEsmClassRuntimePlan(Iterable<k.Class> classes) {

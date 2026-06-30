@@ -153,8 +153,47 @@ void main() {
         plan.classRuntime.jsInterfaceSuperclassFor(mixinApplication),
         same(mixinBase),
       );
+      expect(
+        plan.classRuntime.jsSuperclassFor(mixinApplication),
+        same(mixinBase),
+      );
+      expect(
+        plan.classRuntime.effectiveInterfaceMarkersFor(interface),
+        containsAll([interface]),
+      );
     },
   );
+
+  test('plans direct JS superclass from local class hierarchy', () {
+    final libraryUri = Uri.parse('package:sample/main.dart');
+    final library = k.Library(libraryUri, fileUri: libraryUri);
+    final base = k.Class(name: 'Base', fileUri: libraryUri);
+    final derived = k.Class(
+      name: 'Derived',
+      supertype: k.Supertype(base, const []),
+      fileUri: libraryUri,
+    );
+    library.addClass(base);
+    library.addClass(derived);
+
+    final world = EsmProgramPlan(
+      libraries: {library},
+      classes: {base, derived},
+      extensionTypes: const {},
+      topLevelFields: const {},
+      topLevelProcedures: const {},
+    );
+
+    final plan = buildEsmModulePlan(
+      orderedLibraries: [library],
+      world: world,
+      exportNamesByLibrary: const {},
+    );
+
+    expect(plan.classRuntime.jsSuperclassFor(derived), same(base));
+    expect(plan.classRuntime.hasJsSuperclass(derived), isTrue);
+    expect(plan.classRuntime.hasJsSuperclass(base), isFalse);
+  });
 }
 
 k.Field _field(String name) {

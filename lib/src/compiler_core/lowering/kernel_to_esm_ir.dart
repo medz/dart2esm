@@ -20,6 +20,7 @@ final class KernelToEsmIrLoweringStage {
     final world = semantic.world;
     final helpers = EsmRuntimeHelperUseSet();
     final items = <EsmModuleItemIr>[
+      for (final field in world.fields) _lowerField(world, helpers, field),
       for (final procedure in world.procedures)
         _lowerProcedure(world, helpers, procedure),
       if (runMain)
@@ -33,6 +34,27 @@ final class KernelToEsmIrLoweringStage {
     return LoweringResult(
       semantic: semantic,
       module: EsmModuleIr(items: items, runtimeHelpers: helpers.toList()),
+    );
+  }
+
+  EsmVariableDeclarationIr _lowerField(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmFieldSymbol field,
+  ) {
+    final initializer = field.node.initializer;
+    return EsmVariableDeclarationIr(
+      name: field.name,
+      initializer: initializer == null
+          ? null
+          : _lowerExpression(
+              world,
+              helpers,
+              const <k.VariableDeclaration, String>{},
+              initializer,
+            ),
+      mutable: field.mutable,
+      export: field.export,
     );
   }
 
@@ -111,6 +133,9 @@ final class KernelToEsmIrLoweringStage {
       ],
       k.DoStatement() => [
         _lowerDoStatement(world, helpers, locals, labels, statement),
+      ],
+      k.SwitchStatement() => [
+        _lowerSwitchStatement(world, helpers, locals, labels, statement),
       ],
       k.ForStatement() => [
         _lowerForStatement(world, helpers, locals, labels, statement),
@@ -201,6 +226,50 @@ final class KernelToEsmIrLoweringStage {
     );
   }
 
+  EsmSwitchStatementIr _lowerSwitchStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    k.SwitchStatement statement,
+  ) {
+    return EsmSwitchStatementIr(
+      expression: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        statement.expression,
+      ),
+      cases: [
+        for (final switchCase in statement.cases)
+          _lowerSwitchCase(world, helpers, locals, labels, switchCase),
+      ],
+    );
+  }
+
+  EsmSwitchCaseIr _lowerSwitchCase(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    k.SwitchCase switchCase,
+  ) {
+    return EsmSwitchCaseIr(
+      expressions: [
+        for (final expression in switchCase.expressions)
+          _lowerExpression(world, helpers, locals, expression),
+      ],
+      isDefault: switchCase.isDefault,
+      body: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        switchCase.body,
+      ),
+    );
+  }
+
   EsmForStatementIr _lowerForStatement(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -267,6 +336,7 @@ final class KernelToEsmIrLoweringStage {
         locals,
         expression,
       ),
+      k.ConstantExpression() => _lowerConstantExpression(expression),
       k.VariableGet() => _lowerVariableGet(locals, expression),
       k.VariableSet() => _lowerVariableSet(world, helpers, locals, expression),
       k.InstanceInvocation() => _lowerInstanceInvocation(
@@ -286,6 +356,26 @@ final class KernelToEsmIrLoweringStage {
       k.NullLiteral() => const EsmNullLiteralIr(),
       _ => throw NewCompilerUnsupported(expression, 'expression lowering'),
     };
+  }
+
+  EsmExpressionIr _lowerConstantExpression(k.ConstantExpression expression) {
+    final constant = expression.constant;
+    if (constant is k.IntConstant) {
+      return EsmNumberLiteralIr(constant.value);
+    }
+    if (constant is k.DoubleConstant) {
+      return EsmNumberLiteralIr(constant.value);
+    }
+    if (constant is k.StringConstant) {
+      return EsmStringLiteralIr(constant.value);
+    }
+    if (constant is k.BoolConstant) {
+      return EsmBooleanLiteralIr(constant.value);
+    }
+    if (constant is k.NullConstant) {
+      return const EsmNullLiteralIr();
+    }
+    throw NewCompilerUnsupported(expression, 'constant expression lowering');
   }
 
   EsmExpressionIr _lowerVariableSet(

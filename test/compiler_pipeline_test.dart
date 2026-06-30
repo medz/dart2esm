@@ -63,11 +63,21 @@ main();
   test('can reject unsupported Kernel without invoking the legacy oracle', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
+    final target = k.SwitchCase(
+      [k.IntLiteral(0)],
+      [k.TreeNode.noOffset],
+      k.EmptyStatement(),
+    );
     final main = _procedure(
       'main',
       body: k.Block([
         k.SwitchStatement(k.IntLiteral(0), [
-          k.SwitchCase.defaultCase(k.EmptyStatement()),
+          target,
+          k.SwitchCase(
+            [k.IntLiteral(1)],
+            [k.TreeNode.noOffset],
+            k.Block([k.ContinueSwitchStatement(target)]),
+          ),
         ]),
       ]),
     );

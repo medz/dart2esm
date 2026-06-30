@@ -57,11 +57,13 @@ final class EsmVariableDeclarationIr extends EsmStatementIr {
     required this.name,
     required this.initializer,
     required this.mutable,
+    this.export = false,
   });
 
   final String name;
   final EsmExpressionIr? initializer;
   final bool mutable;
+  final bool export;
 }
 
 final class EsmIfStatementIr extends EsmStatementIr {
@@ -88,6 +90,25 @@ final class EsmDoStatementIr extends EsmStatementIr {
 
   final List<EsmStatementIr> body;
   final EsmExpressionIr condition;
+}
+
+final class EsmSwitchStatementIr extends EsmStatementIr {
+  const EsmSwitchStatementIr({required this.expression, required this.cases});
+
+  final EsmExpressionIr expression;
+  final List<EsmSwitchCaseIr> cases;
+}
+
+final class EsmSwitchCaseIr extends EsmIrNode {
+  const EsmSwitchCaseIr({
+    required this.expressions,
+    required this.isDefault,
+    required this.body,
+  });
+
+  final List<EsmExpressionIr> expressions;
+  final bool isDefault;
+  final List<EsmStatementIr> body;
 }
 
 final class EsmForStatementIr extends EsmStatementIr {

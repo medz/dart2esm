@@ -79,11 +79,12 @@ final class _EsmIrPrinter {
         _writeIndented('break ${statement.label};');
       case EsmVariableDeclarationIr():
         final keyword = statement.mutable ? 'let' : 'const';
+        final exportPrefix = statement.export ? 'export ' : '';
         final initializer = statement.initializer;
         _writeIndented(
           initializer == null
-              ? '$keyword ${statement.name};'
-              : '$keyword ${statement.name} = ${_emitExpression(initializer)};',
+              ? '$exportPrefix$keyword ${statement.name};'
+              : '$exportPrefix$keyword ${statement.name} = ${_emitExpression(initializer)};',
         );
       case EsmIfStatementIr():
         _emitIfStatement(statement);
@@ -91,6 +92,8 @@ final class _EsmIrPrinter {
         _emitWhileStatement(statement);
       case EsmDoStatementIr():
         _emitDoStatement(statement);
+      case EsmSwitchStatementIr():
+        _emitSwitchStatement(statement);
       case EsmForStatementIr():
         _emitForStatement(statement);
       case EsmReturnStatementIr():
@@ -152,6 +155,30 @@ final class _EsmIrPrinter {
     }
     _indent--;
     _writeIndented('} while (${_emitExpression(statement.condition)});');
+  }
+
+  void _emitSwitchStatement(EsmSwitchStatementIr statement) {
+    _writeIndented('switch (${_emitExpression(statement.expression)}) {');
+    _indent++;
+    for (final switchCase in statement.cases) {
+      _emitSwitchCase(switchCase);
+    }
+    _indent--;
+    _writeIndented('}');
+  }
+
+  void _emitSwitchCase(EsmSwitchCaseIr switchCase) {
+    for (final expression in switchCase.expressions) {
+      _writeIndented('case ${_emitExpression(expression)}:');
+    }
+    if (switchCase.isDefault) {
+      _writeIndented('default:');
+    }
+    _indent++;
+    for (final child in switchCase.body) {
+      _emitStatement(child);
+    }
+    _indent--;
   }
 
   void _emitForStatement(EsmForStatementIr statement) {

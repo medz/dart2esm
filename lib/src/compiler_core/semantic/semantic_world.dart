@@ -16,14 +16,17 @@ final class EsmSemanticWorld {
   EsmSemanticWorld({
     required this.component,
     required this.main,
+    required List<EsmFieldSymbol> fields,
     required List<EsmProcedureSymbol> procedures,
-  }) : procedures = List.unmodifiable(procedures),
+  }) : fields = List.unmodifiable(fields),
+       procedures = List.unmodifiable(procedures),
        _procedureSymbols = {
          for (final procedure in procedures) procedure.node: procedure,
        };
 
   final k.Component component;
   final k.Procedure main;
+  final List<EsmFieldSymbol> fields;
   final List<EsmProcedureSymbol> procedures;
   final Map<k.Procedure, EsmProcedureSymbol> _procedureSymbols;
 
@@ -38,6 +41,20 @@ final class EsmSemanticWorld {
     }
     return symbol;
   }
+}
+
+final class EsmFieldSymbol {
+  const EsmFieldSymbol({
+    required this.node,
+    required this.name,
+    required this.export,
+    required this.mutable,
+  });
+
+  final k.Field node;
+  final String name;
+  final bool export;
+  final bool mutable;
 }
 
 final class EsmProcedureSymbol {
@@ -60,6 +77,20 @@ final class SemanticWorldStage {
     final allocator = JsNameAllocator(
       generatedGlobalNames: esmRuntimeHelperGlobalNames,
     );
+    final fields = <EsmFieldSymbol>[];
+    for (final field in mainLibrary.fields) {
+      if (!_isTopLevelField(field)) {
+        continue;
+      }
+      fields.add(
+        EsmFieldSymbol(
+          node: field,
+          name: allocator.freshGlobal(field.name.text),
+          export: _isPublic(field.name.text),
+          mutable: field.hasSetter,
+        ),
+      );
+    }
     final procedures = <EsmProcedureSymbol>[];
     for (final procedure in mainLibrary.procedures) {
       if (!_isTopLevelMethod(procedure)) {
@@ -81,9 +112,14 @@ final class SemanticWorldStage {
       world: EsmSemanticWorld(
         component: kernel.component,
         main: kernel.main,
+        fields: fields,
         procedures: procedures,
       ),
     );
+  }
+
+  bool _isTopLevelField(k.Field field) {
+    return field.isStatic && !field.isExternal && !field.isExtensionTypeMember;
   }
 
   bool _isTopLevelMethod(k.Procedure procedure) {

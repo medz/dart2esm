@@ -159,6 +159,44 @@ void main() {
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
   });
 
+  test('CLI --metrics prints generated ESM size metrics', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
+      ),
+      expectedEsm: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.mjs'),
+      ),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-metrics-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'basic_functions.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [fixture.source.path, '-o', output.path, '--no-run-main', '--metrics'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.success);
+    expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+    expect(
+      File(p.join(tempDir.path, 'stdout.log')).readAsStringSync(),
+      matches(
+        RegExp(
+          r'^Metrics \(dart2esm\): raw=\d+ bytes; gzip=\d+ bytes; lines=\d+; helpers=\d+\.\n$',
+        ),
+      ),
+    );
+  });
+
   test('compile options pass environment defines to CFE', () async {
     final fixture = File(
       p.join(fixtureDir.path, 'libraries', 'environment.dart'),

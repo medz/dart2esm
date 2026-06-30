@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dart2esm/src/backend/esm_backend.dart';
+import 'package:dart2esm/src/diagnostics/metrics.dart';
 import 'package:dart2esm/src/kernel/kernel_header.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
@@ -31,6 +32,14 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
     final backendResult = emitEsm(component, runMain: options.runMain);
     output.parent.createSync(recursive: true);
     output.writeAsStringSync(backendResult.code);
+    final collectMetrics =
+        options.collectMetrics || options.compareDart2JsMetrics;
+    final esmMetrics = collectMetrics
+        ? CodeSizeMetrics.fromCode('dart2esm', backendResult.code)
+        : null;
+    final dart2jsMetrics = options.compareDart2JsMetrics
+        ? await _compileDart2JsMetrics(input, options, tempDir)
+        : null;
     return Dart2EsmResult(
       success: true,
       diagnostics: [
@@ -38,6 +47,8 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
         'Kernel libraries: ${component.libraries.length}; main: ${component.mainMethod?.name.text ?? 'none'}.',
         ...backendResult.diagnostics,
       ],
+      esmMetrics: esmMetrics,
+      dart2jsMetrics: dart2jsMetrics,
     );
   } on UnsupportedKernelNode catch (error) {
     return Dart2EsmResult(success: false, diagnostics: [error.toString()]);
@@ -182,6 +193,48 @@ Dart2EsmException _kernelBuildException(File input, ProcessResult result) {
   );
 }
 
+Future<CodeSizeMetrics> _compileDart2JsMetrics(
+  File input,
+  Dart2EsmOptions options,
+  Directory tempDir,
+) async {
+  if (!input.path.endsWith('.dart')) {
+    throw Dart2EsmUsageException(
+      'dart2js metrics comparison requires a Dart source input: ${input.path}',
+    );
+  }
+
+  final output = File(p.join(tempDir.path, 'dart2js-baseline.js'));
+  final args = [
+    'compile',
+    'js',
+    '-O2',
+    '-o',
+    output.path,
+    if (options.packagesPath case final packagesPath?)
+      '--packages=${_resolveFile(options.workingDirectory, packagesPath).path}',
+    for (final define in options.environmentDefines) '-D$define',
+    input.path,
+  ];
+  final result = await Process.run(
+    Platform.resolvedExecutable,
+    args,
+    workingDirectory: options.workingDirectory.path,
+  );
+  if (result.exitCode != 0) {
+    throw Dart2EsmException(
+      [
+        'dart2js failed while compiling metrics baseline for ${input.path}.',
+        if ((result.stdout as String).trim().isNotEmpty)
+          (result.stdout as String).trim(),
+        if ((result.stderr as String).trim().isNotEmpty)
+          (result.stderr as String).trim(),
+      ].join('\n'),
+    );
+  }
+  return measureCodeSizeFile('dart2js -O2', output);
+}
+
 final class Dart2EsmOptions {
   const Dart2EsmOptions({
     required this.inputPath,
@@ -190,6 +243,8 @@ final class Dart2EsmOptions {
     this.packagesPath,
     this.environmentDefines = const [],
     this.runMain = true,
+    this.collectMetrics = false,
+    this.compareDart2JsMetrics = false,
   });
 
   final String inputPath;
@@ -198,13 +253,22 @@ final class Dart2EsmOptions {
   final String? packagesPath;
   final List<String> environmentDefines;
   final bool runMain;
+  final bool collectMetrics;
+  final bool compareDart2JsMetrics;
 }
 
 final class Dart2EsmResult {
-  const Dart2EsmResult({required this.success, required this.diagnostics});
+  const Dart2EsmResult({
+    required this.success,
+    required this.diagnostics,
+    this.esmMetrics,
+    this.dart2jsMetrics,
+  });
 
   final bool success;
   final List<String> diagnostics;
+  final CodeSizeMetrics? esmMetrics;
+  final CodeSizeMetrics? dart2jsMetrics;
 }
 
 class Dart2EsmException implements Exception {

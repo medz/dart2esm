@@ -1,6 +1,8 @@
 # Diagnostics
 
-This module will own structured compiler diagnostics and metrics, including
-reachability counts, helper/runtime size share, raw and gzip output size, and
-dart2js comparison data.
+This module owns structured compiler diagnostics and metrics. The initial
+metrics pass reports raw/gzip output size, line count, emitted helper count, and
+optional `dart compile js -O2` comparison ratios.
 
+Future diagnostics work should add reachability counts and helper/runtime size
+share without pushing that accounting back into backend emission.

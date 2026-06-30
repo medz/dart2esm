@@ -28,6 +28,14 @@ dart2esm lib/example.dart -o dist/example.mjs --no-run-main
 Pass compile-time environment declarations with `-Dkey=value` or
 `--define=key=value`; multiple values can be repeated or comma-separated.
 
+Use `--metrics` to print raw/gzip size, line count, and emitted helper count for
+the generated ESM module. Add `--compare-dart2js` to also compile the same Dart
+source with `dart compile js -O2` and print dart2esm/dart2js size ratios:
+
+```sh
+dart2esm lib/example.dart -o dist/example.mjs --metrics --compare-dart2js
+```
+
 You can also compile an existing Kernel component:
 
 ```sh

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:dart2esm/dart2esm.dart';
 import 'package:dart2esm/src/compiler.dart';
+import 'package:dart2esm/src/diagnostics/metrics.dart';
 
 Future<int> runDart2Esm(
   List<String> args, {
@@ -50,6 +51,8 @@ Future<int> runDart2Esm(
   }
 
   try {
+    final printMetrics =
+        results['metrics'] as bool || results['compare-dart2js'] as bool;
     final result = await compileDartToEsm(
       Dart2EsmOptions(
         inputPath: rest.single,
@@ -58,10 +61,21 @@ Future<int> runDart2Esm(
         packagesPath: results['packages'] as String?,
         environmentDefines: results['define'] as List<String>,
         runMain: results['run-main'] as bool,
+        collectMetrics: printMetrics,
+        compareDart2JsMetrics: results['compare-dart2js'] as bool,
       ),
     );
     for (final diagnostic in result.diagnostics) {
       err.writeln(diagnostic);
+    }
+    final esmMetrics = result.esmMetrics;
+    if (result.success && esmMetrics != null) {
+      for (final line in formatCodeSizeMetricsReport(
+        dart2esm: esmMetrics,
+        dart2js: result.dart2jsMetrics,
+      )) {
+        out.writeln(line);
+      }
     }
     return result.success ? ExitCode.success : ExitCode.software;
   } on Dart2EsmUsageException catch (error) {
@@ -97,6 +111,18 @@ ArgParser _buildParser() {
       'run-main',
       defaultsTo: true,
       help: 'Emit a top-level main() invocation after module declarations.',
+    )
+    ..addFlag(
+      'metrics',
+      defaultsTo: false,
+      negatable: false,
+      help: 'Print raw/gzip/line/helper metrics for the generated ESM.',
+    )
+    ..addFlag(
+      'compare-dart2js',
+      defaultsTo: false,
+      negatable: false,
+      help: 'Also compile with dart compile js -O2 and print size ratios.',
     )
     ..addFlag('version', negatable: false, help: 'Print the dart2esm version.')
     ..addFlag(

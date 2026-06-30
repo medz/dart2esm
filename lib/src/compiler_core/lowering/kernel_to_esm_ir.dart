@@ -81,6 +81,9 @@ final class KernelToEsmIrLoweringStage {
         for (final child in statement.statements)
           ..._lowerStatementList(world, locals, child),
       ],
+      k.VariableDeclaration() => [
+        _lowerVariableDeclaration(world, locals, statement),
+      ],
       k.EmptyStatement() => const [],
       k.ExpressionStatement() => [
         EsmExpressionStatementIr(
@@ -96,6 +99,23 @@ final class KernelToEsmIrLoweringStage {
       ],
       _ => throw NewCompilerUnsupported(statement, 'statement lowering'),
     };
+  }
+
+  EsmVariableDeclarationIr _lowerVariableDeclaration(
+    EsmSemanticWorld world,
+    Map<k.VariableDeclaration, String> locals,
+    k.VariableDeclaration statement,
+  ) {
+    final name = _freshIn(locals.values.toSet(), statement.name ?? 'v');
+    locals[statement] = name;
+    final initializer = statement.initializer;
+    return EsmVariableDeclarationIr(
+      name: name,
+      initializer: initializer == null
+          ? null
+          : _lowerExpression(world, locals, initializer),
+      mutable: statement.isAssignable,
+    );
   }
 
   EsmExpressionIr _lowerExpression(

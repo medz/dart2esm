@@ -64,6 +64,14 @@ final class _EsmIrPrinter {
     switch (statement) {
       case EsmExpressionStatementIr():
         _writeIndented('${_emitExpression(statement.expression)};');
+      case EsmVariableDeclarationIr():
+        final keyword = statement.mutable ? 'let' : 'const';
+        final initializer = statement.initializer;
+        _writeIndented(
+          initializer == null
+              ? '$keyword ${statement.name};'
+              : '$keyword ${statement.name} = ${_emitExpression(initializer)};',
+        );
       case EsmReturnStatementIr():
         final expression = statement.expression;
         _writeIndented(

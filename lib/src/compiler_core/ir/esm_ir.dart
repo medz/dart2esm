@@ -36,6 +36,18 @@ final class EsmExpressionStatementIr extends EsmStatementIr {
   final EsmExpressionIr expression;
 }
 
+final class EsmVariableDeclarationIr extends EsmStatementIr {
+  const EsmVariableDeclarationIr({
+    required this.name,
+    required this.initializer,
+    required this.mutable,
+  });
+
+  final String name;
+  final EsmExpressionIr? initializer;
+  final bool mutable;
+}
+
 final class EsmReturnStatementIr extends EsmStatementIr {
   const EsmReturnStatementIr(this.expression);
 

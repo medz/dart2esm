@@ -14,11 +14,17 @@ void main() {
       body: k.Block([k.ReturnStatement(k.VariableGet(helperParameter))]),
       positionalParameters: [helperParameter],
     );
+    final message = k.VariableDeclaration(
+      'message',
+      initializer: k.StringLiteral('ok'),
+      isFinal: true,
+    );
     final main = _procedure(
       'main',
       body: k.Block([
+        message,
         k.ExpressionStatement(
-          k.StaticInvocation(helper, k.Arguments([k.StringLiteral('ok')])),
+          k.StaticInvocation(helper, k.Arguments([k.VariableGet(message)])),
         ),
       ]),
     );
@@ -46,7 +52,8 @@ export function helper(value) {
 }
 
 export function main() {
-  helper("ok");
+  const message = "ok";
+  helper(message);
 }
 
 main();
@@ -59,7 +66,7 @@ main();
     final main = _procedure(
       'main',
       body: k.Block([
-        k.VariableDeclaration('value', initializer: k.IntLiteral(1)),
+        k.IfStatement(k.BoolLiteral(true), k.EmptyStatement(), null),
       ]),
     );
     library.addProcedure(main);

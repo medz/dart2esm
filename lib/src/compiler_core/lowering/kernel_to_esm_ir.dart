@@ -1563,8 +1563,17 @@ final class KernelToEsmIrLoweringStage {
     }
     final constructor = world.constructorSymbolFor(target);
     final klass = world.classSymbolFor(target.enclosingClass);
-    if (constructor == null || klass == null) {
+    if (klass == null) {
       throw NewCompilerUnsupported(expression, 'constructor invocation');
+    }
+    if (constructor == null) {
+      if (!_isSyntheticDefaultConstructor(target) ||
+          expression.arguments.positional.isNotEmpty ||
+          expression.arguments.named.isNotEmpty ||
+          expression.arguments.types.isNotEmpty) {
+        throw NewCompilerUnsupported(expression, 'constructor invocation');
+      }
+      return EsmNewIr(callee: EsmIdentifierIr(klass.name), arguments: const []);
     }
     if (constructor.name.isNotEmpty) {
       return EsmCallIr(
@@ -1595,6 +1604,10 @@ final class KernelToEsmIrLoweringStage {
         context: 'constructor invocation arguments',
       ),
     );
+  }
+
+  bool _isSyntheticDefaultConstructor(k.Constructor constructor) {
+    return constructor.isSynthetic && constructor.name.text.isEmpty;
   }
 
   EsmExpressionIr _lowerIsExpression(

@@ -3644,6 +3644,10 @@ final class KernelToEsmIrLoweringStage
   }
 
   EsmExpressionIr? _lowerRuntimeStaticGet(k.StaticGet expression) {
+    final developerGet = _lowerDeveloperStaticGet(expression);
+    if (developerGet != null) {
+      return developerGet;
+    }
     final target = kernelReferencePath(expression.targetReference);
     final bigIntConstant = switch (target) {
       'dart:core::BigInt::@getters::zero' => 0,
@@ -3664,6 +3668,46 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerDeveloperStaticGet(k.StaticGet expression) {
+    switch (dartDeveloperStaticGetSymbol(expression.targetReference)) {
+      case DartDeveloperStaticGetSymbol.timelineNow:
+        return const EsmCallIr(
+          callee: EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Math'),
+            property: 'trunc',
+          ),
+          arguments: [
+            EsmBinaryIr(
+              left: EsmCallIr(
+                callee: EsmPropertyAccessIr(
+                  receiver: EsmIdentifierIr('Date'),
+                  property: 'now',
+                ),
+                arguments: [],
+              ),
+              operator: '*',
+              right: EsmNumberLiteralIr(1000),
+            ),
+          ],
+        );
+      case DartDeveloperStaticGetSymbol.extensionStreamHasListener:
+        return const EsmBooleanLiteralIr(false);
+      case DartDeveloperStaticGetSymbol.reachabilityBarrier:
+        return const EsmNumberLiteralIr(0);
+      case DartDeveloperStaticGetSymbol.nativeRuntimeBuildId:
+        return const EsmNullLiteralIr();
+      case DartDeveloperStaticGetSymbol.userTagDefaultTag:
+        return const EsmObjectLiteralIr([
+          EsmObjectLiteralPropertyIr(
+            name: 'label',
+            value: EsmStringLiteralIr('Default'),
+          ),
+        ]);
+      case null:
+        return null;
+    }
   }
 
   EsmExpressionIr _lowerExtensionTypeStaticGet(
@@ -5625,6 +5669,16 @@ final class KernelToEsmIrLoweringStage
     if (coreObjectStatic != null) {
       return coreObjectStatic;
     }
+    final developerStatic = _lowerDeveloperStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (developerStatic != null) {
+      return developerStatic;
+    }
     if (_isCoreFunctionApply(expression.targetReference)) {
       return _lowerCoreFunctionApply(
         world,
@@ -5660,6 +5714,137 @@ final class KernelToEsmIrLoweringStage
         expression,
         thisExpression: thisExpression,
       );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerDeveloperStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    switch (dartDeveloperStaticInvocationSymbol(expression.targetReference)) {
+      case DartDeveloperStaticInvocationSymbol.debugger:
+        return _lowerNamedArgument(
+              world,
+              helpers,
+              locals,
+              expression.arguments,
+              'when',
+              thisExpression: thisExpression,
+            ) ??
+            const EsmBooleanLiteralIr(true);
+      case DartDeveloperStaticInvocationSymbol.inspect:
+        final positional = expression.arguments.positional;
+        if (positional.isEmpty) {
+          return const EsmNullLiteralIr();
+        }
+        return _lowerExpression(
+          world,
+          helpers,
+          locals,
+          positional.first,
+          thisExpression: thisExpression,
+        );
+      case DartDeveloperStaticInvocationSymbol.timelineTimeSync:
+        final positional = expression.arguments.positional;
+        if (positional.length < 2) {
+          return const EsmNullLiteralIr();
+        }
+        return EsmCallIr(
+          callee: EsmParenthesizedIr(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional[1],
+              thisExpression: thisExpression,
+            ),
+          ),
+          arguments: const [],
+        );
+      case DartDeveloperStaticInvocationSymbol.flowBegin:
+        return EsmObjectLiteralIr([
+          EsmObjectLiteralPropertyIr(
+            name: 'id',
+            value:
+                _lowerNamedArgument(
+                  world,
+                  helpers,
+                  locals,
+                  expression.arguments,
+                  'id',
+                  thisExpression: thisExpression,
+                ) ??
+                const EsmNumberLiteralIr(0),
+          ),
+        ]);
+      case DartDeveloperStaticInvocationSymbol.flowStep:
+      case DartDeveloperStaticInvocationSymbol.flowEnd:
+        return EsmObjectLiteralIr([
+          EsmObjectLiteralPropertyIr(
+            name: 'id',
+            value: expression.arguments.positional.isEmpty
+                ? const EsmNumberLiteralIr(0)
+                : _lowerExpression(
+                    world,
+                    helpers,
+                    locals,
+                    expression.arguments.positional.first,
+                    thisExpression: thisExpression,
+                  ),
+          ),
+        ]);
+      case DartDeveloperStaticInvocationSymbol.serviceGetInfo:
+      case DartDeveloperStaticInvocationSymbol.serviceControlWebServer:
+        return const EsmCallIr(
+          callee: EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Promise'),
+            property: 'resolve',
+          ),
+          arguments: [
+            EsmObjectLiteralIr([
+              EsmObjectLiteralPropertyIr(
+                name: 'type',
+                value: EsmStringLiteralIr('VM'),
+              ),
+            ]),
+          ],
+        );
+      case DartDeveloperStaticInvocationSymbol.serviceGetIsolateId:
+      case DartDeveloperStaticInvocationSymbol.serviceGetObjectId:
+      case DartDeveloperStaticInvocationSymbol.log:
+      case DartDeveloperStaticInvocationSymbol.postEvent:
+      case DartDeveloperStaticInvocationSymbol.registerExtension:
+      case DartDeveloperStaticInvocationSymbol.timelineStartSync:
+      case DartDeveloperStaticInvocationSymbol.timelineFinishSync:
+      case DartDeveloperStaticInvocationSymbol.timelineInstantSync:
+        return const EsmNullLiteralIr();
+      case null:
+        return null;
+    }
+  }
+
+  EsmExpressionIr? _lowerNamedArgument(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.Arguments arguments,
+    String name, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    for (final argument in arguments.named) {
+      if (argument.name == name) {
+        return _lowerExpression(
+          world,
+          helpers,
+          locals,
+          argument.value,
+          thisExpression: thisExpression,
+        );
+      }
     }
     return null;
   }

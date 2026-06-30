@@ -158,6 +158,91 @@ DartCoreObjectStaticInvocationSymbol? dartCoreObjectStaticInvocationSymbol(
   };
 }
 
+enum DartDeveloperStaticInvocationSymbol {
+  debugger,
+  inspect,
+  log,
+  postEvent,
+  registerExtension,
+  timelineStartSync,
+  timelineFinishSync,
+  timelineInstantSync,
+  timelineTimeSync,
+  flowBegin,
+  flowStep,
+  flowEnd,
+  serviceGetInfo,
+  serviceControlWebServer,
+  serviceGetIsolateId,
+  serviceGetObjectId,
+}
+
+DartDeveloperStaticInvocationSymbol? dartDeveloperStaticInvocationSymbol(
+  k.Reference reference,
+) {
+  return switch (kernelReferencePath(reference)) {
+    'dart:developer::@methods::debugger' =>
+      DartDeveloperStaticInvocationSymbol.debugger,
+    'dart:developer::@methods::inspect' =>
+      DartDeveloperStaticInvocationSymbol.inspect,
+    'dart:developer::@methods::log' => DartDeveloperStaticInvocationSymbol.log,
+    'dart:developer::@methods::postEvent' =>
+      DartDeveloperStaticInvocationSymbol.postEvent,
+    'dart:developer::@methods::registerExtension' =>
+      DartDeveloperStaticInvocationSymbol.registerExtension,
+    'dart:developer::Timeline::@methods::startSync' =>
+      DartDeveloperStaticInvocationSymbol.timelineStartSync,
+    'dart:developer::Timeline::@methods::finishSync' =>
+      DartDeveloperStaticInvocationSymbol.timelineFinishSync,
+    'dart:developer::Timeline::@methods::instantSync' =>
+      DartDeveloperStaticInvocationSymbol.timelineInstantSync,
+    'dart:developer::Timeline::@methods::timeSync' =>
+      DartDeveloperStaticInvocationSymbol.timelineTimeSync,
+    'dart:developer::Flow::@methods::begin' =>
+      DartDeveloperStaticInvocationSymbol.flowBegin,
+    'dart:developer::Flow::@methods::step' =>
+      DartDeveloperStaticInvocationSymbol.flowStep,
+    'dart:developer::Flow::@methods::end' =>
+      DartDeveloperStaticInvocationSymbol.flowEnd,
+    'dart:developer::Service::@methods::getInfo' =>
+      DartDeveloperStaticInvocationSymbol.serviceGetInfo,
+    'dart:developer::Service::@methods::controlWebServer' =>
+      DartDeveloperStaticInvocationSymbol.serviceControlWebServer,
+    'dart:developer::Service::@methods::getIsolateId' ||
+    'dart:developer::Service::@methods::getIsolateID' =>
+      DartDeveloperStaticInvocationSymbol.serviceGetIsolateId,
+    'dart:developer::Service::@methods::getObjectId' =>
+      DartDeveloperStaticInvocationSymbol.serviceGetObjectId,
+    _ => null,
+  };
+}
+
+enum DartDeveloperStaticGetSymbol {
+  timelineNow,
+  extensionStreamHasListener,
+  reachabilityBarrier,
+  nativeRuntimeBuildId,
+  userTagDefaultTag,
+}
+
+DartDeveloperStaticGetSymbol? dartDeveloperStaticGetSymbol(
+  k.Reference reference,
+) {
+  return switch (kernelReferencePath(reference)) {
+    'dart:developer::Timeline::@getters::now' =>
+      DartDeveloperStaticGetSymbol.timelineNow,
+    'dart:developer::@getters::extensionStreamHasListener' =>
+      DartDeveloperStaticGetSymbol.extensionStreamHasListener,
+    'dart:developer::@getters::reachabilityBarrier' =>
+      DartDeveloperStaticGetSymbol.reachabilityBarrier,
+    'dart:developer::NativeRuntime::@getters::buildId' =>
+      DartDeveloperStaticGetSymbol.nativeRuntimeBuildId,
+    'dart:developer::UserTag::@getters::defaultTag' =>
+      DartDeveloperStaticGetSymbol.userTagDefaultTag,
+    _ => null,
+  };
+}
+
 bool isDartSdkLibraryClassMember(
   k.Reference reference,
   String libraryUri,

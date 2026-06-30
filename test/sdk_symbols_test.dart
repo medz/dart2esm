@@ -149,6 +149,47 @@ void main() {
     );
   });
 
+  test('classifies dart:developer symbols', () {
+    expect(
+      dartDeveloperStaticInvocationSymbol(
+        _reference('dart:developer::@methods::inspect'),
+      ),
+      DartDeveloperStaticInvocationSymbol.inspect,
+    );
+    expect(
+      dartDeveloperStaticInvocationSymbol(
+        _reference('dart:developer::Timeline::@methods::timeSync'),
+      ),
+      DartDeveloperStaticInvocationSymbol.timelineTimeSync,
+    );
+    expect(
+      dartDeveloperStaticInvocationSymbol(
+        _reference('dart:developer::Service::@methods::getIsolateID'),
+      ),
+      DartDeveloperStaticInvocationSymbol.serviceGetIsolateId,
+    );
+    expect(
+      dartDeveloperStaticInvocationSymbol(_reference('dart:core::Object')),
+      isNull,
+    );
+    expect(
+      dartDeveloperStaticGetSymbol(
+        _reference('dart:developer::Timeline::@getters::now'),
+      ),
+      DartDeveloperStaticGetSymbol.timelineNow,
+    );
+    expect(
+      dartDeveloperStaticGetSymbol(
+        _reference('dart:developer::UserTag::@getters::defaultTag'),
+      ),
+      DartDeveloperStaticGetSymbol.userTagDefaultTag,
+    );
+    expect(
+      dartDeveloperStaticGetSymbol(_reference('dart:core::Object')),
+      isNull,
+    );
+  });
+
   test('classifies dart:core object and collection members', () {
     expect(
       isDartCoreWeakReferenceMember(

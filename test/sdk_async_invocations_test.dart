@@ -1,9 +1,84 @@
 import 'package:dart2esm/src/backend/runtime_helpers.dart';
-import 'package:dart2esm/src/backend/sdk_async_instances.dart';
+import 'package:dart2esm/src/backend/sdk_async_invocations.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {
+  test('emits Future static helpers with named options', () {
+    final helpers = EsmRuntimeHelperUseSet();
+    final emitter = _emitter(helpers);
+
+    final output = emitter.emitStaticInvocation(
+      _staticInvocation(
+        'dart:async::Future::@methods::wait',
+        k.Arguments(
+          const [],
+          named: [
+            k.NamedExpression('eagerError', k.BoolLiteral(true)),
+            k.NamedExpression('cleanUp', k.StringLiteral('clean')),
+          ],
+        ),
+      ),
+      ['futures'],
+    );
+
+    expect(output, '__dartFutureWait(futures, true, "clean")');
+    expect(helpers, contains('__dartFutureWait'));
+  });
+
+  test('emits async controller and stream factories', () {
+    final helpers = EsmRuntimeHelperUseSet();
+    final emitter = _emitter(helpers);
+
+    expect(
+      emitter.emitStaticInvocation(
+        _staticInvocation(
+          'dart:async::StreamController::@factories::broadcast',
+          k.Arguments(
+            const [],
+            named: [
+              k.NamedExpression('onListen', k.StringLiteral('listen')),
+              k.NamedExpression('onCancel', k.StringLiteral('cancel')),
+            ],
+          ),
+        ),
+        const [],
+      ),
+      '__dartStreamController(true, { onListen: "listen", onPause: null, onResume: null, onCancel: "cancel" })',
+    );
+    expect(
+      emitter.emitStaticInvocation(
+        _staticInvocation(
+          'dart:async::Stream::@factories::fromIterable',
+          k.Arguments.empty(),
+        ),
+        ['items'],
+      ),
+      '__dartStreamFromIterable(items)',
+    );
+    expect(
+      helpers,
+      containsAll(['__dartStreamController', '__dartStreamFromIterable']),
+    );
+  });
+
+  test('returns null for non-async static invocations', () {
+    final helpers = EsmRuntimeHelperUseSet();
+    final emitter = _emitter(helpers);
+
+    expect(
+      emitter.emitStaticInvocation(
+        _staticInvocation(
+          'package:app/main.dart::Thing::@methods::wait',
+          k.Arguments.empty(),
+        ),
+        ['value'],
+      ),
+      isNull,
+    );
+    expect(helpers, isEmpty);
+  });
+
   test('emits Stream map through helper runtime', () {
     final helpers = EsmRuntimeHelperUseSet();
     final emitter = _emitter(helpers);
@@ -165,8 +240,8 @@ void main() {
   });
 }
 
-DartSdkAsyncInstanceEmitter _emitter(EsmRuntimeHelperUseSet helpers) {
-  return DartSdkAsyncInstanceEmitter(
+DartSdkAsyncInvocationEmitter _emitter(EsmRuntimeHelperUseSet helpers) {
+  return DartSdkAsyncInvocationEmitter(
     helpers: helpers,
     namedArgument: _namedArgument,
     emitTypeTest: (operand, _type, _node) => 'isDynamic($operand)',
@@ -185,6 +260,10 @@ String? _namedArgument(k.Arguments arguments, String name) {
     }
   }
   return null;
+}
+
+k.StaticInvocation _staticInvocation(String path, k.Arguments arguments) {
+  return k.StaticInvocation.byReference(_reference(path), arguments);
 }
 
 k.Reference _reference(String path) {

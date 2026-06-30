@@ -2,11 +2,12 @@ import 'dart:convert';
 
 import 'package:kernel/kernel.dart' as k;
 
+import '../kernel/kernel_references.dart';
 import '../kernel/sdk_symbols.dart';
 import 'runtime_helpers.dart';
 
-final class DartSdkAsyncInstanceEmitter {
-  DartSdkAsyncInstanceEmitter({
+final class DartSdkAsyncInvocationEmitter {
+  DartSdkAsyncInvocationEmitter({
     required this.helpers,
     required this.namedArgument,
     required this.emitTypeTest,
@@ -16,6 +17,217 @@ final class DartSdkAsyncInstanceEmitter {
   final String? Function(k.Arguments arguments, String name) namedArgument;
   final String Function(String operand, k.DartType type, Object node)
   emitTypeTest;
+
+  String? emitStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+  ) {
+    final path = kernelReferencePath(expression.targetReference);
+    if (path == 'dart:async::Future::@factories::' &&
+        positionalArgs.length == 1) {
+      return 'new Promise((resolve, reject) => setTimeout(() => { try { resolve((${positionalArgs.single})()); } catch (error) { reject(error); } }, 0))';
+    }
+    if (path == 'dart:async::StreamIterator::@factories::' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartStreamIterator');
+      return '__dartStreamIterator(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Future::@factories::value') {
+      final value = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
+      return 'Promise.resolve($value)';
+    }
+    if (path == 'dart:async::Future::@factories::syncValue' &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Future::@factories::error' &&
+        positionalArgs.isNotEmpty) {
+      return 'Promise.reject(${positionalArgs.first})';
+    }
+    if (path == 'dart:async::Future::@factories::sync' &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve().then(() => (${positionalArgs.single})())';
+    }
+    if (path == 'dart:async::Future::@factories::microtask' &&
+        positionalArgs.length == 1) {
+      return 'Promise.resolve().then(() => (${positionalArgs.single})())';
+    }
+    if (path == 'dart:async::AsyncError::@methods::defaultStackTrace' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single}?.stack ?? new Error().stack ?? "<javascript stack unavailable>")';
+    }
+    if (path == 'dart:async::Future::@factories::delayed' &&
+        positionalArgs.isNotEmpty) {
+      final duration = positionalArgs.first;
+      final computation = positionalArgs.length >= 2 ? positionalArgs[1] : null;
+      final value = computation == null ? 'null' : '($computation)()';
+      return 'new Promise((resolve, reject) => setTimeout(() => { try { resolve($value); } catch (error) { reject(error); } }, Math.max(0, $duration.inMilliseconds)))';
+    }
+    if (path == 'dart:async::Future::@methods::wait' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartFutureWait');
+      final eagerError =
+          namedArgument(expression.arguments, 'eagerError') ?? 'false';
+      final cleanUp = namedArgument(expression.arguments, 'cleanUp') ?? 'null';
+      return '__dartFutureWait(${positionalArgs.single}, $eagerError, $cleanUp)';
+    }
+    if (path == 'dart:async::@methods::FutureIterable|get#wait' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartFutureIterableWait');
+      return '__dartFutureIterableWait(${positionalArgs.single})';
+    }
+    if (path.startsWith('dart:async::@methods::FutureRecord') &&
+        path.endsWith('|get#wait') &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartFutureRecordWait');
+      helpers.add('__dartRecord');
+      return '__dartFutureRecordWait(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Future::@methods::any' &&
+        positionalArgs.length == 1) {
+      return 'Promise.race(Array.from(${positionalArgs.single}))';
+    }
+    if (path == 'dart:async::Future::@methods::forEach' &&
+        positionalArgs.length == 2) {
+      helpers.add('__dartFutureForEach');
+      return '__dartFutureForEach(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (path == 'dart:async::Future::@methods::doWhile' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartFutureDoWhile');
+      return '__dartFutureDoWhile(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::@methods::scheduleMicrotask' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartZone');
+      helpers.add('__dartScheduleMicrotask');
+      return '__dartScheduleMicrotask(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::@methods::unawaited' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single}, null)';
+    }
+    if (path == 'dart:async::@methods::runZoned' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartZone');
+      final zoneValues = namedArgument(expression.arguments, 'zoneValues');
+      final onError = namedArgument(expression.arguments, 'onError');
+      return '__dartRunZoned(${positionalArgs.single}, { zoneValues: ${zoneValues ?? 'null'}, onError: ${onError ?? 'null'} })';
+    }
+    if (path == 'dart:async::@methods::runZonedGuarded' &&
+        positionalArgs.length == 2) {
+      helpers.add('__dartZone');
+      final zoneValues = namedArgument(expression.arguments, 'zoneValues');
+      return '__dartRunZonedGuarded(${positionalArgs[0]}, ${positionalArgs[1]}, { zoneValues: ${zoneValues ?? 'null'} })';
+    }
+    if (path == 'dart:async::@methods::FutureExtensions|ignore' &&
+        positionalArgs.length == 1) {
+      return '(${positionalArgs.single}.catch(() => null), null)';
+    }
+    if (path == 'dart:async::@methods::FutureExtensions|onError' &&
+        positionalArgs.length == 2) {
+      return '${positionalArgs[0]}.catch((error) => (${positionalArgs[1]})(error, error?.stack ?? "<javascript stack unavailable>"))';
+    }
+    if ((path == 'dart:async::Completer::@factories::' ||
+            path == 'dart:async::Completer::@factories::sync') &&
+        positionalArgs.isEmpty) {
+      helpers.add('__dartCompleter');
+      return '__dartCompleter()';
+    }
+    if ((path == 'dart:async::StreamController::@factories::' ||
+            path == 'dart:async::StreamController::@factories::broadcast') &&
+        positionalArgs.isEmpty) {
+      helpers.add('__dartStreamController');
+      final isBroadcast = path.endsWith('::broadcast');
+      final onListen = namedArgument(expression.arguments, 'onListen');
+      final onPause = namedArgument(expression.arguments, 'onPause');
+      final onResume = namedArgument(expression.arguments, 'onResume');
+      final onCancel = namedArgument(expression.arguments, 'onCancel');
+      return '__dartStreamController(${isBroadcast ? 'true' : 'false'}, { onListen: ${onListen ?? 'null'}, onPause: ${onPause ?? 'null'}, onResume: ${onResume ?? 'null'}, onCancel: ${onCancel ?? 'null'} })';
+    }
+    if (path == 'dart:async::Timer::@factories::' &&
+        positionalArgs.length == 2) {
+      helpers.add('__dartTimer');
+      return '__dartTimer(${positionalArgs[0]}, ${positionalArgs[1]}, false)';
+    }
+    if (path == 'dart:async::Timer::@factories::periodic' &&
+        positionalArgs.length == 2) {
+      helpers.add('__dartTimer');
+      return '__dartTimer(${positionalArgs[0]}, ${positionalArgs[1]}, true)';
+    }
+    if (path == 'dart:async::Timer::@methods::run' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartTimer');
+      return '(__dartTimer(0, ${positionalArgs.single}, false), null)';
+    }
+    if (path == 'dart:async::Stream::@factories::fromIterable' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartStreamFromIterable');
+      return '__dartStreamFromIterable(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Stream::@factories::fromFuture' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartStreamFromFuture');
+      return '__dartStreamFromFuture(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Stream::@factories::fromFutures' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartStreamFromFutures');
+      return '__dartStreamFromFutures(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Stream::@factories::value' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartStreamFromIterable');
+      return '__dartStreamFromIterable([${positionalArgs.single}])';
+    }
+    if (path == 'dart:async::Stream::@factories::error' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      helpers.add('__dartStreamError');
+      return '__dartStreamError(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::Stream::@factories::periodic' &&
+        positionalArgs.isNotEmpty &&
+        positionalArgs.length <= 2) {
+      helpers.add('__dartStreamPeriodic');
+      final computation = positionalArgs.length == 2
+          ? positionalArgs[1]
+          : 'null';
+      return '__dartStreamPeriodic(${positionalArgs[0]}, $computation)';
+    }
+    if (path == 'dart:async::Stream::@factories::multi' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartStreamMulti');
+      final isBroadcast =
+          namedArgument(expression.arguments, 'isBroadcast') ?? 'false';
+      return '__dartStreamMulti(${positionalArgs.single}, $isBroadcast)';
+    }
+    if (path == 'dart:async::Stream::@factories::empty') {
+      helpers.add('__dartStreamFromIterable');
+      final broadcast =
+          namedArgument(expression.arguments, 'broadcast') ?? 'true';
+      return '__dartStreamFromIterable([], $broadcast)';
+    }
+    if (path == 'dart:async::Stream::@factories::eventTransformed' &&
+        positionalArgs.length == 2) {
+      helpers.add('__dartStreamEventTransformed');
+      return '__dartStreamEventTransformed(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (path == 'dart:async::StreamTransformer::@factories::fromBind' &&
+        positionalArgs.length == 1) {
+      helpers.add('__dartStreamTransformerFromBind');
+      return '__dartStreamTransformerFromBind(${positionalArgs.single})';
+    }
+    if (path == 'dart:async::StreamTransformer::@factories::fromHandlers' &&
+        positionalArgs.isEmpty) {
+      helpers.add('__dartStreamTransformerFromHandlers');
+      final handleData = namedArgument(expression.arguments, 'handleData');
+      final handleError = namedArgument(expression.arguments, 'handleError');
+      final handleDone = namedArgument(expression.arguments, 'handleDone');
+      return '__dartStreamTransformerFromHandlers({ handleData: ${handleData ?? 'null'}, handleError: ${handleError ?? 'null'}, handleDone: ${handleDone ?? 'null'} })';
+    }
+    return null;
+  }
 
   String? emitInvocation(
     k.Reference target,

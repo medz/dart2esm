@@ -83,6 +83,8 @@ final class _EsmIrPrinter {
         );
       case EsmIfStatementIr():
         _emitIfStatement(statement);
+      case EsmWhileStatementIr():
+        _emitWhileStatement(statement);
       case EsmReturnStatementIr():
         final expression = statement.expression;
         _writeIndented(
@@ -108,6 +110,16 @@ final class _EsmIrPrinter {
     _writeIndented('} else {');
     _indent++;
     for (final child in otherwiseBody) {
+      _emitStatement(child);
+    }
+    _indent--;
+    _writeIndented('}');
+  }
+
+  void _emitWhileStatement(EsmWhileStatementIr statement) {
+    _writeIndented('while (${_emitExpression(statement.condition)}) {');
+    _indent++;
+    for (final child in statement.body) {
       _emitStatement(child);
     }
     _indent--;

@@ -63,6 +63,13 @@ final class EsmIfStatementIr extends EsmStatementIr {
   final List<EsmStatementIr>? otherwiseBody;
 }
 
+final class EsmWhileStatementIr extends EsmStatementIr {
+  const EsmWhileStatementIr({required this.condition, required this.body});
+
+  final EsmExpressionIr condition;
+  final List<EsmStatementIr> body;
+}
+
 final class EsmReturnStatementIr extends EsmStatementIr {
   const EsmReturnStatementIr(this.expression);
 

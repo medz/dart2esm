@@ -98,6 +98,9 @@ final class KernelToEsmIrLoweringStage {
         ),
       ],
       k.IfStatement() => [_lowerIfStatement(world, helpers, locals, statement)],
+      k.WhileStatement() => [
+        _lowerWhileStatement(world, helpers, locals, statement),
+      ],
       k.ReturnStatement() => [
         EsmReturnStatementIr(
           statement.expression == null
@@ -122,6 +125,18 @@ final class KernelToEsmIrLoweringStage {
       otherwiseBody: otherwise == null
           ? null
           : _lowerStatementList(world, helpers, locals, otherwise),
+    );
+  }
+
+  EsmWhileStatementIr _lowerWhileStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.WhileStatement statement,
+  ) {
+    return EsmWhileStatementIr(
+      condition: _lowerExpression(world, helpers, locals, statement.condition),
+      body: _lowerStatementList(world, helpers, locals, statement.body),
     );
   }
 

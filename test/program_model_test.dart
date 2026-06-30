@@ -18,10 +18,22 @@ void main() {
     expect(model.component, same(component));
     expect(model.main, same(main));
     expect(model.roots.entryLibrary, same(library));
-    expect(model.exportNamesFor(library), containsAll(['main', 'exported']));
+    expect(
+      model.roots.exportNamesFor(library),
+      containsAll(['main', 'exported']),
+    );
     expect(model.world.libraries, contains(library));
     expect(model.world.topLevelProcedures, containsAll([main, exported]));
     expect(model.orderedLibraries, [library]);
+    expect(model.module.libraries.single.library, same(library));
+    expect(
+      model.module.libraries.single.procedures.map((entry) => entry.node),
+      [main, exported],
+    );
+    expect(
+      model.module.libraries.single.procedures.map((entry) => entry.export),
+      [isTrue, isTrue],
+    );
   });
 
   test('requires a component main method', () {

@@ -1,5 +1,6 @@
 import 'package:kernel/kernel.dart' as k;
 
+import '../module/esm_module_plan.dart';
 import '../world/reachability.dart';
 import 'program_roots.dart';
 
@@ -10,6 +11,7 @@ final class EsmProgramModel {
     required this.roots,
     required this.world,
     required this.orderedLibraries,
+    required this.module,
   });
 
   final k.Component component;
@@ -17,9 +19,7 @@ final class EsmProgramModel {
   final EsmProgramRoots roots;
   final EsmProgramPlan world;
   final List<k.Library> orderedLibraries;
-
-  Set<String> exportNamesFor(k.Library library) =>
-      roots.exportNamesFor(library);
+  final EsmModulePlan module;
 }
 
 EsmProgramModel buildEsmProgramModel(k.Component component) {
@@ -36,11 +36,17 @@ EsmProgramModel buildEsmProgramModel(k.Component component) {
     exportNamesByLibrary: roots.exportNamesByLibrary,
     isEmittableTopLevelProcedure: isEmittableTopLevelProcedure,
   );
+  final orderedLibraries = orderLibrariesByDependencies(world.libraries);
   return EsmProgramModel(
     component: component,
     main: main,
     roots: roots,
     world: world,
-    orderedLibraries: orderLibrariesByDependencies(world.libraries),
+    orderedLibraries: orderedLibraries,
+    module: buildEsmModulePlan(
+      orderedLibraries: orderedLibraries,
+      world: world,
+      exportNamesByLibrary: roots.exportNamesByLibrary,
+    ),
   );
 }

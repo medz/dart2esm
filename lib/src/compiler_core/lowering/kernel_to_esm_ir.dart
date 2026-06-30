@@ -19,7 +19,11 @@ final class LoweringResult {
 }
 
 final class KernelToEsmIrLoweringStage {
-  const KernelToEsmIrLoweringStage();
+  const KernelToEsmIrLoweringStage({
+    this.runtimeHelpers = const EsmRuntimeHelperRegistry(),
+  });
+
+  final EsmRuntimeHelperRegistry runtimeHelpers;
 
   LoweringResult lower(SemanticWorldResult semantic, {required bool runMain}) {
     final world = semantic.world;
@@ -1685,7 +1689,7 @@ final class KernelToEsmIrLoweringStage {
     }
     helpers.add(EsmRuntimeHelper.print);
     return EsmCallIr(
-      callee: EsmIdentifierIr(esmRuntimeHelperName(EsmRuntimeHelper.print)),
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.print),
       arguments: [
         _lowerExpression(
           world,

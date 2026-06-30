@@ -2,6 +2,43 @@ import '../ir/esm_ir.dart';
 
 enum EsmRuntimeHelper { print }
 
+final class EsmRuntimeHelperRegistry {
+  const EsmRuntimeHelperRegistry();
+
+  static const generatedGlobalNames = {'__dartPrint'};
+
+  String name(EsmRuntimeHelper helper) {
+    return switch (helper) {
+      EsmRuntimeHelper.print => '__dartPrint',
+    };
+  }
+
+  EsmIdentifierIr reference(EsmRuntimeHelper helper) {
+    return EsmIdentifierIr(name(helper));
+  }
+
+  EsmFunctionIr declaration(EsmRuntimeHelper helper) {
+    return switch (helper) {
+      EsmRuntimeHelper.print => EsmFunctionIr(
+        name: name(helper),
+        export: false,
+        parameters: const [EsmIdentifierParameterIr(name: 'value')],
+        body: const [
+          EsmExpressionStatementIr(
+            EsmCallIr(
+              callee: EsmPropertyAccessIr(
+                receiver: EsmIdentifierIr('console'),
+                property: 'log',
+              ),
+              arguments: [EsmIdentifierIr('value')],
+            ),
+          ),
+        ],
+      ),
+    };
+  }
+}
+
 final class EsmRuntimeHelperUseSet {
   final _helpers = <EsmRuntimeHelper>{};
 
@@ -14,33 +51,4 @@ final class EsmRuntimeHelperUseSet {
         .where(_helpers.contains)
         .toList(growable: false);
   }
-}
-
-const esmRuntimeHelperGlobalNames = {'__dartPrint'};
-
-String esmRuntimeHelperName(EsmRuntimeHelper helper) {
-  return switch (helper) {
-    EsmRuntimeHelper.print => '__dartPrint',
-  };
-}
-
-EsmFunctionIr esmRuntimeHelperDeclaration(EsmRuntimeHelper helper) {
-  return switch (helper) {
-    EsmRuntimeHelper.print => EsmFunctionIr(
-      name: esmRuntimeHelperName(helper),
-      export: false,
-      parameters: const [EsmIdentifierParameterIr(name: 'value')],
-      body: const [
-        EsmExpressionStatementIr(
-          EsmCallIr(
-            callee: EsmPropertyAccessIr(
-              receiver: EsmIdentifierIr('console'),
-              property: 'log',
-            ),
-            arguments: [EsmIdentifierIr('value')],
-          ),
-        ),
-      ],
-    ),
-  };
 }

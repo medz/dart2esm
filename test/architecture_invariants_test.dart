@@ -73,19 +73,28 @@ void main() {
       expect(semantic, contains('generatedGlobalNames'));
       expect(semantic, isNot(contains('runtime_helpers.dart')));
       expect(semantic, isNot(contains('EsmRuntimeHelper')));
-      expect(pipeline, contains('esmRuntimeHelperGlobalNames'));
+      expect(
+        pipeline,
+        contains('EsmRuntimeHelperRegistry.generatedGlobalNames'),
+      );
     },
   );
 
   test('runtime helpers are owned by compiler core, not legacy backend', () {
     final runtime = _read('lib/src/compiler_core/runtime/runtime_helpers.dart');
     final linker = _read('lib/src/compiler_core/runtime/runtime_linker.dart');
+    final lowering = _read(
+      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
+    );
     final coreFiles = _dartFiles('lib/src/compiler_core');
 
     expect(runtime, contains('enum EsmRuntimeHelper'));
+    expect(runtime, contains('final class EsmRuntimeHelperRegistry'));
     expect(runtime, contains('__dartPrint'));
     expect(linker, contains('final class RuntimeLinkerStage'));
-    expect(linker, contains('esmRuntimeHelperDeclaration'));
+    expect(linker, contains('runtimeHelpers.declaration'));
+    expect(lowering, contains('runtimeHelpers.reference'));
+    expect(lowering, isNot(contains('esmRuntimeHelperName')));
     for (final file in coreFiles) {
       expect(
         file.readAsStringSync(),

@@ -15,7 +15,11 @@ final class RuntimeLinkResult {
 }
 
 final class RuntimeLinkerStage {
-  const RuntimeLinkerStage();
+  const RuntimeLinkerStage({
+    this.runtimeHelpers = const EsmRuntimeHelperRegistry(),
+  });
+
+  final EsmRuntimeHelperRegistry runtimeHelpers;
 
   RuntimeLinkResult link(NormalizationResult normalized) {
     final helpers = normalized.lowering.runtimeHelpers;
@@ -23,7 +27,7 @@ final class RuntimeLinkerStage {
       normalization: normalized,
       module: EsmModuleIr(
         items: [
-          for (final helper in helpers) esmRuntimeHelperDeclaration(helper),
+          for (final helper in helpers) runtimeHelpers.declaration(helper),
           ...normalized.module.items,
         ],
       ),

@@ -55,7 +55,7 @@ final class Dart2EsmCompilerPipeline {
     required this.options,
     this.kernelFrontend = const KernelFrontendStage(),
     this.semanticWorld = const SemanticWorldStage(
-      generatedGlobalNames: esmRuntimeHelperGlobalNames,
+      generatedGlobalNames: EsmRuntimeHelperRegistry.generatedGlobalNames,
     ),
     this.lowering = const KernelToEsmIrLoweringStage(),
     this.normalizer = const ModuleNormalizerStage(),

@@ -42,8 +42,6 @@ export const rootValue = new PartThing("root").label();
 
 export const partValue = 11;
 
-const _privatePartValue = 12;
-
 export function main() {
   const thing = new PartThing("api");
   __dartPrint(__dartStr(thing.label()) + " " + __dartStr(rootValue) + " " + __dartStr(privatePartLabel()));

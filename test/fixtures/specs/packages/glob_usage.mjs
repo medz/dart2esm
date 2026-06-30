@@ -509,32 +509,6 @@ function __dartUriAssignQueryParameters(url, queryParameters) {
 function __dartUriResolve(uri, reference) {
   return __dartUriParse(new URL(String(reference), String(uri)).toString());
 }
-function __dartRandom(seed = null, secure = false) {
-  let state = seed == null ? 0 : Number(seed) >>> 0;
-  function nextUint32() {
-    if (secure) {
-      const crypto = globalThis.crypto || globalThis.msCrypto;
-      if (crypto && typeof crypto.getRandomValues === "function") {
-        const values = new Uint32Array(1);
-        crypto.getRandomValues(values);
-        return values[0] >>> 0;
-      }
-    }
-    if (seed == null) {
-      return Math.floor(Math.random() * 0x100000000) >>> 0;
-    }
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state;
-  }
-  return {
-    nextInt(max) {
-      if (!Number.isInteger(max) || max <= 0) throw new RangeError("max must be positive");
-      return nextUint32() % max;
-    },
-    nextDouble() { return nextUint32() / 0x100000000; },
-    nextBool() { return (nextUint32() & 1) === 1; },
-  };
-}
 function __dartRegExp(pattern, options = {}) {
   const source = String(pattern);
   const caseSensitive = options.caseSensitive !== false;
@@ -825,12 +799,6 @@ function __dartCompare(left, right, compare = null) {
   if (typeof compareTo === "function") return Number(compareTo.call(left, right));
   return left < right ? -1 : (left > right ? 1 : 0);
 }
-function __dartSplayTreeSet(compare = null, isValidKey = null) {
-  const set = new Set();
-  Object.defineProperty(set, "__dartSplayCompare", { value: compare });
-  Object.defineProperty(set, "__dartSplayIsValidKey", { value: isValidKey });
-  return set;
-}
 function __dartSplaySortSet(set) {
   const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
   set.clear();
@@ -859,77 +827,10 @@ function __dartSetAdd(set, value) {
   set.add(value);
   return true;
 }
-function __dartIdentitySet() {
-  const set = new Set();
-  Object.defineProperty(set, "__dartIdentitySet", { value: true });
-  return set;
-}
-function __dartSetAddAll(set, values) {
-  for (const value of values) __dartSetAdd(set, value);
-  return null;
-}
 function __dartSetFrom(values) {
   const set = new Set();
   for (const value of values) __dartSetAdd(set, value);
   return set;
-}
-function __dartSetDifference(set, other) {
-  const result = new Set();
-  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
-  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
-  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
-  for (const value of set) {
-    if (!__dartIterableContains(other, value)) result.add(value);
-  }
-  return result;
-}
-function __dartSetIntersection(set, other) {
-  const result = new Set();
-  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
-  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
-  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
-  for (const value of set) {
-    if (__dartIterableContains(other, value)) result.add(value);
-  }
-  return result;
-}
-function __dartSetUnion(set, other) {
-  const result = new Set(set);
-  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
-  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
-  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
-  for (const value of other) __dartSetAdd(result, value);
-  return result;
-}
-function __dartSetRemove(set, needle) {
-  if (set.__dartIdentitySet) {
-    const found = set.has(needle);
-    set.delete(needle);
-    return found;
-  }
-  for (const value of set) {
-    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) {
-      set.delete(value);
-      return true;
-    }
-    if (__dartEquals(value, needle)) {
-      set.delete(value);
-      return true;
-    }
-  }
-  return false;
-}
-function __dartSetRemoveWhere(set, test) {
-  for (const value of Array.from(set)) {
-    if (test(value)) set.delete(value);
-  }
-  return null;
-}
-function __dartSetRetainWhere(set, test) {
-  for (const value of Array.from(set)) {
-    if (!test(value)) set.delete(value);
-  }
-  return null;
 }
 function __dartCustomHashMap(equals = null, hashCode = null, isValidKey = null) {
   const map = new Map();
@@ -974,22 +875,6 @@ function __dartMapSet(map, key, value) {
   if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
   return value;
 }
-function __dartMapAddAll(map, entries) {
-  for (const [key, value] of entries) __dartMapSet(map, key, value);
-  return null;
-}
-function __dartMapAddEntries(map, entries) {
-  for (const entry of entries) __dartMapSet(map, entry.key, entry.value);
-  return null;
-}
-function __dartMapMap(map, convert) {
-  const result = new Map();
-  for (const [key, value] of map) {
-    const entry = convert(key, value);
-    __dartMapSet(result, entry.key, entry.value);
-  }
-  return result;
-}
 function __dartMapRemove(map, key) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey === __dartMapMissingKey) return null;
@@ -997,45 +882,12 @@ function __dartMapRemove(map, key) {
   map.delete(actualKey);
   return value;
 }
-function __dartMapRemoveWhere(map, test) {
-  for (const [key, value] of Array.from(map)) {
-    if (test(key, value)) map.delete(key);
-  }
-  return null;
-}
-function __dartMapContainsValue(map, needle) {
-  for (const value of map.values()) {
-    if (__dartEquals(value, needle)) return true;
-  }
-  return false;
-}
-function __dartMapFromEntries(entries) {
-  const map = new Map();
-  for (const [key, value] of entries) {
-    __dartMapSet(map, key, value);
-  }
-  return map;
-}
 function __dartMapPutIfAbsent(map, key, ifAbsent) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey !== __dartMapMissingKey) return map.get(actualKey);
   const value = ifAbsent();
   __dartMapSet(map, key, value);
   return value;
-}
-function __dartMapUpdate(map, key, update, ifAbsent = null) {
-  const actualKey = __dartMapKey(map, key);
-  if (actualKey !== __dartMapMissingKey) {
-    const value = update(map.get(actualKey));
-    __dartMapSet(map, actualKey, value);
-    return value;
-  }
-  if (typeof ifAbsent === "function") {
-    const value = ifAbsent();
-    __dartMapSet(map, key, value);
-    return value;
-  }
-  throw new Error("Key not in map");
 }
 function __dartMapUpdateAll(map, update) {
   for (const [key, value] of Array.from(map)) {
@@ -1051,47 +903,10 @@ function __dartListSort(list, compare = null) {
   }
   return null;
 }
-function __dartListShuffle(list, random = null) {
-  for (let index = list.length - 1; index > 0; index--) {
-    const selected = random == null ? Math.floor(Math.random() * (index + 1)) : random.nextInt(index + 1);
-    const value = list[index];
-    list[index] = list[selected];
-    list[selected] = value;
-  }
-  return null;
-}
-function __dartListRemove(list, needle) {
-  const index = list.findIndex((value) => __dartEquals(value, needle));
-  if (index < 0) return false;
-  list.splice(index, 1);
-  return true;
-}
 function __dartListIndexOf(list, needle, start = 0) {
   const begin = Math.max(0, Math.trunc(start));
   for (let index = begin; index < list.length; index++) {
     if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
-  }
-  return -1;
-}
-function __dartListLastIndexOf(list, needle, start = null) {
-  let index = start == null ? list.length - 1 : Math.trunc(start);
-  if (index >= list.length) index = list.length - 1;
-  for (; index >= 0; index--) {
-    if (__dartEquals(__dartIndexGet(list, index), needle)) return index;
-  }
-  return -1;
-}
-function __dartListSetAll(list, index, values) {
-  let offset = 0;
-  for (const value of values) {
-    __dartIndexSet(list, index + offset, value);
-    offset++;
-  }
-  return null;
-}
-function __dartListLastIndexWhere(list, test, start = null) {
-  for (let index = start == null ? list.length - 1 : start; index >= 0; index--) {
-    if (test(__dartIndexGet(list, index))) return index;
   }
   return -1;
 }
@@ -1102,25 +917,6 @@ function __dartListRemoveWhere(list, test) {
 function __dartListRetainWhere(list, test) {
   list.splice(0, list.length, ...list.filter((value) => test(value)));
   return null;
-}
-function __dartListAsMap(list) {
-  return new (class extends Map {
-    get size() { return list.length; }
-    get(key) { return Number.isInteger(key) && key >= 0 && key < list.length ? __dartIndexGet(list, key) : undefined; }
-    has(key) { return Number.isInteger(key) && key >= 0 && key < list.length; }
-    entries() { return Array.from({ length: list.length }, (_, index) => [index, __dartIndexGet(list, index)])[Symbol.iterator](); }
-    keys() { return Array.from({ length: list.length }, (_, index) => index)[Symbol.iterator](); }
-    values() { return Array.from({ length: list.length }, (_, index) => __dartIndexGet(list, index))[Symbol.iterator](); }
-    [Symbol.iterator]() { return this.entries(); }
-    forEach(callback, thisArg = undefined) {
-      for (let index = 0; index < list.length; index++) {
-        callback.call(thisArg, list[index], index, this);
-      }
-    }
-    set() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
-    delete() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
-    clear() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
-  })();
 }
 function __dartIterableContains(iterable, needle) {
   if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
@@ -1142,65 +938,6 @@ function __dartIterableLength(iterable) {
   let count = 0;
   for (const _ of iterable) count++;
   return count;
-}
-function __dartIterableTakeWhile(iterable, test) {
-  const result = [];
-  for (const value of iterable) {
-    if (!test(value)) break;
-    result.push(value);
-  }
-  return result;
-}
-function __dartIterableSkipWhile(iterable, test) {
-  const result = [];
-  let skipping = true;
-  for (const value of iterable) {
-    if (skipping && test(value)) continue;
-    skipping = false;
-    result.push(value);
-  }
-  return result;
-}
-function __dartSetLookup(set, needle) {
-  if (set.__dartIdentitySet) return set.has(needle) ? needle : null;
-  for (const value of set) {
-    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) return value;
-    if (__dartEquals(value, needle)) return value;
-  }
-  return null;
-}
-function __dartSetContainsAll(set, values) {
-  for (const value of values) {
-    if (!__dartIterableContains(set, value)) return false;
-  }
-  return true;
-}
-function __dartSetRemoveAll(set, values) {
-  if (set.__dartIdentitySet) {
-    for (const value of values) set.delete(value);
-    return null;
-  }
-  for (const value of values) {
-    for (const candidate of Array.from(set)) {
-      if (set.__dartSplayCompare !== undefined && __dartCompare(candidate, value, set.__dartSplayCompare) === 0) {
-        set.delete(candidate);
-        break;
-      }
-      if (__dartEquals(candidate, value)) {
-        set.delete(candidate);
-        break;
-      }
-    }
-  }
-  return null;
-}
-function __dartSetRetainAll(set, values) {
-  const retained = Array.from(values);
-  for (const value of Array.from(set)) {
-    const index = set.__dartIdentitySet ? retained.indexOf(value) : retained.findIndex((needle) => set.__dartSplayCompare !== undefined ? __dartCompare(value, needle, set.__dartSplayCompare) === 0 : __dartEquals(value, needle));
-    if (index < 0) set.delete(value);
-  }
-  return null;
 }
 function __dartIterableJoin(iterable, separator = "") {
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
@@ -1264,44 +1001,6 @@ function __dartIterableSingleWhere(iterable, test, orElse = null) {
   }
   return found ? single : __dartIterableNoElement(orElse);
 }
-function __dartTypedDataSublistView(data, start, end, viewConstructor, bytesPerElement) {
-  const elementSize = data instanceof DataView ? 1 : data.BYTES_PER_ELEMENT;
-  const elementCount = Math.trunc(data.byteLength / elementSize);
-  const effectiveEnd = end == null ? elementCount : end;
-  const byteOffset = data.byteOffset + start * elementSize;
-  const byteLength = (effectiveEnd - start) * elementSize;
-  if (viewConstructor === DataView) return new DataView(data.buffer, byteOffset, byteLength);
-  return new viewConstructor(data.buffer, byteOffset, Math.trunc(byteLength / bytesPerElement));
-}
-function __dartBytesBuilder(copy = true) {
-  let chunks = [];
-  let length = 0;
-  function asBytes(bytes) {
-    if (bytes instanceof Uint8Array) return copy ? Uint8Array.from(bytes) : bytes;
-    return Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255));
-  }
-  function collect(clear) {
-    const result = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
-    if (clear) { chunks = []; length = 0; }
-    return result;
-  }
-  return {
-    __dartType: "BytesBuilder",
-    add(bytes) { const chunk = asBytes(bytes); if (chunk.length !== 0) { chunks.push(chunk); length += chunk.length; } return null; },
-    addByte(byte) { chunks.push(Uint8Array.of(Number(byte) & 255)); length++; return null; },
-    takeBytes() { return collect(true); },
-    toBytes() { return collect(false); },
-    clear() { chunks = []; length = 0; return null; },
-    get length() { return length; },
-    get isEmpty() { return length === 0; },
-    get isNotEmpty() { return length !== 0; },
-  };
-}
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const values = [];
   const count = end - start;
@@ -1332,37 +1031,6 @@ function __dartCompleter() {
       return null;
     },
   };
-}
-function __dartTimer(duration, callback, periodic) {
-  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
-  let active = true;
-  let tick = 0;
-  let id;
-  const timer = {
-    get tick() { return tick; },
-    get isActive() { return active; },
-    cancel() {
-      if (!active) return null;
-      active = false;
-      periodic ? clearInterval(id) : clearTimeout(id);
-      return null;
-    },
-  };
-  if (periodic) {
-    id = setInterval(() => {
-      if (!active) return;
-      tick++;
-      callback(timer);
-    }, delay);
-  } else {
-    id = setTimeout(() => {
-      if (!active) return;
-      active = false;
-      tick = 1;
-      callback();
-    }, delay);
-  }
-  return timer;
 }
 function __dartCreateZone(parent = null, values = null) {
   const zoneValues = values instanceof Map ? values : new Map();
@@ -1449,11 +1117,6 @@ function __dartRunZonedGuarded(body, onError, options = {}) {
     return null;
   }
 }
-function __dartFutureAsStream(future) {
-  return (async function*() {
-    yield await future;
-  })();
-}
 function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
   const entries = Array.from(futures);
   if (entries.length === 0) return Promise.resolve([]);
@@ -1496,39 +1159,6 @@ function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
         },
       );
     });
-  });
-}
-function __dartFutureTimeout(future, duration, onTimeout = null) {
-  const delay = Math.max(0, typeof duration === "number" ? duration : duration.inMilliseconds);
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const id = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        if (typeof onTimeout === "function") {
-          resolve(onTimeout());
-        } else {
-          reject(new Error("TimeoutException: Future not completed"));
-        }
-      } catch (error) {
-        reject(error);
-      }
-    }, delay);
-    Promise.resolve(future).then(
-      (value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(id);
-        resolve(value);
-      },
-      (error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(id);
-        reject(error);
-      },
-    );
   });
 }
 function __dartStreamController(broadcast = false, options = {}) {
@@ -1716,55 +1346,6 @@ function __dartStreamController(broadcast = false, options = {}) {
   };
   return controller;
 }
-function __dartBoundSubscriptionStream(source, onListen) {
-  const stream = {
-    get isBroadcast() { return source?.isBroadcast === true; },
-    listen(onData, options = {}) {
-      const subscription = onListen(source, options.cancelOnError ?? false);
-      if (typeof subscription.onData === "function") subscription.onData(onData);
-      if (typeof subscription.onError === "function") subscription.onError(options.onError ?? null);
-      if (typeof subscription.onDone === "function") subscription.onDone(options.onDone ?? null);
-      return subscription;
-    },
-    [Symbol.asyncIterator]() {
-      const controller = __dartStreamController(false);
-      const subscription = stream.listen((value) => controller.add(value), { onError: (error) => controller.addError(error), onDone: () => controller.close(), cancelOnError: false });
-      const iterator = controller.stream[Symbol.asyncIterator]();
-      return {
-        next() { return iterator.next(); },
-        return() {
-          return Promise.resolve(subscription.cancel()).then(() => {
-            if (typeof iterator.return === "function") return iterator.return();
-            return { done: true };
-          });
-        },
-      };
-    },
-  };
-  return stream;
-}
-function __dartStreamIterator(stream) {
-  const iterator = stream[Symbol.asyncIterator]();
-  return {
-    current: undefined,
-    _subscription: true,
-    async moveNext() {
-      const next = await iterator.next();
-      if (next.done) {
-        this.current = undefined;
-        this._subscription = null;
-        return false;
-      }
-      this.current = next.value;
-      return true;
-    },
-    async cancel() {
-      this._subscription = null;
-      if (typeof iterator.return === "function") await iterator.return();
-      return null;
-    },
-  };
-}
 function __dartStreamFromIterable(values, isBroadcast = false) {
   let listened = false;
   return {
@@ -1838,107 +1419,12 @@ function __dartStreamError(error) {
     throw error;
   })();
 }
-function __dartStreamMap(stream, convert) {
-  return (async function*() {
-    for await (const value of __dartStreamIterable(stream)) {
-      yield convert(value);
-    }
-  })();
-}
 function __dartStreamWhere(stream, test) {
   return (async function*() {
     for await (const value of __dartStreamIterable(stream)) {
       if (test(value)) yield value;
     }
   })();
-}
-function __dartStreamTransformerFromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {
-  return {
-    bind(stream) {
-      const controller = __dartStreamController(false);
-      const sink = controller.sink;
-      (async () => {
-        let shouldClose = false;
-        try {
-          const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();
-          while (!controller.isClosed) {
-            let next;
-            try {
-              next = await iterator.next();
-            } catch (error) {
-              if (typeof handleError === "function") {
-                await handleError(error, error?.stack ?? "<javascript stack unavailable>", sink);
-                continue;
-              }
-              sink.addError(error);
-              continue;
-            }
-            if (next.done) {
-              if (typeof handleDone === "function") {
-                await handleDone(sink);
-              } else {
-                shouldClose = true;
-              }
-              break;
-            }
-            if (typeof handleData === "function") {
-              await handleData(next.value, sink);
-            } else {
-              sink.add(next.value);
-            }
-          }
-        } catch (error) {
-          if (!controller.isClosed) sink.addError(error);
-          shouldClose = true;
-        } finally {
-          if (shouldClose && !controller.isClosed) await controller.close();
-        }
-      })();
-      return controller.stream;
-    },
-  };
-}
-function __dartStreamTransformerBind(transformer, stream) {
-  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);
-  if (transformer != null && typeof transformer.convert === "function") return __dartConverterBind(transformer, stream);
-  if (typeof transformer === "function") return transformer(stream);
-  throw new TypeError("StreamTransformer.bind is not available");
-}
-function __dartStreamTransform(stream, transformer) {
-  return __dartStreamTransformerBind(transformer, stream);
-}
-function __dartStreamEventTransformed(stream, mapSink) {
-  const controller = __dartStreamController(stream?.isBroadcast === true);
-  const sink = mapSink(controller.sink);
-  (async () => {
-    try {
-      const iterator = __dartStreamIterable(stream)[Symbol.asyncIterator]();
-      while (!controller.isClosed) {
-        let next;
-        try {
-          next = await iterator.next();
-        } catch (error) {
-          if (typeof sink.addError === "function") {
-            sink.addError(error, error?.stack ?? "<javascript stack unavailable>");
-          } else {
-            controller.addError(error);
-          }
-          continue;
-        }
-        if (next.done) break;
-        sink.add(next.value);
-      }
-      if (typeof sink.close === "function") {
-        await sink.close();
-      } else if (!controller.isClosed) {
-        await controller.close();
-      }
-    } catch (error) {
-      if (!controller.isClosed) controller.addError(error);
-      if (!controller.isClosed) await controller.close();
-    }
-  })();
-  return controller.stream;
 }
 function __dartStreamHandleError(stream, onError, test = null) {
   return (async function*() {
@@ -1962,21 +1448,6 @@ async function __dartStreamToList(stream) {
   const values = [];
   for await (const value of __dartStreamIterable(stream)) values.push(value);
   return values;
-}
-function __dartStreamCast(stream, test, typeName) {
-  return (async function*() {
-    for await (const value of __dartStreamIterable(stream)) {
-      yield __dartAs(value, test, typeName);
-    }
-  })();
-}
-async function __dartStreamPipe(stream, consumer) {
-  if (typeof consumer.addStream === "function") {
-    await consumer.addStream(stream);
-  } else {
-    for await (const value of __dartStreamIterable(stream)) consumer.add(value);
-  }
-  return typeof consumer.close === "function" ? await consumer.close() : null;
 }
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
   if (stream != null && typeof stream.listen === "function" && typeof stream[Symbol.asyncIterator] !== "function") {
@@ -2170,858 +1641,15 @@ const $File_interface = Symbol("File");
 const $FileSpan_interface = Symbol("FileSpan");
 const $FileSystem_interface = Symbol("FileSystem");
 const $FileSystemEntity_interface = Symbol("FileSystemEntity");
-const $ForwardingFileSystemEntity_interface = Symbol("ForwardingFileSystemEntity");
 const $GlyphSet_interface = Symbol("GlyphSet");
-const $LineScanner_interface = Symbol("LineScanner");
-const $LineScannerState_interface = Symbol("LineScannerState");
 const $Link_interface = Symbol("Link");
 const $MemoryFileSystem_interface = Symbol("MemoryFileSystem");
 const $NodeBasedFileSystem_interface = Symbol("NodeBasedFileSystem");
-const $NonGrowableListMixin_interface = Symbol("NonGrowableListMixin");
-const $PriorityQueue_interface = Symbol("PriorityQueue");
-const $Result_interface = Symbol("Result");
 const $SourceLocation_interface = Symbol("SourceLocation");
 const $SourceSpan_interface = Symbol("SourceSpan");
 const $SourceSpanWithContext_interface = Symbol("SourceSpanWithContext");
-const $SpanScanner_interface = Symbol("SpanScanner");
-const $StreamSinkTransformer_interface = Symbol("StreamSinkTransformer");
 const $StyleableFileSystem_interface = Symbol("StyleableFileSystem");
-const $UnmodifiableSetMixin_interface = Symbol("UnmodifiableSetMixin");
-const $UnmodifiableSetView_interface = Symbol("UnmodifiableSetView");
 const $_Codes_interface = Symbol("_Codes");
-const $_EventRequest_interface = Symbol("_EventRequest");
-
-class AsyncCache {
-  constructor(duration) {
-    this._cachedStreamSplitter = null;
-    this._cachedValueFuture = null;
-    this._stale = null;
-    this._duration = duration;
-  }
-  static ephemeral() {
-    return $AsyncCache_ephemeral(AsyncCache);
-  }
-  async fetch(callback) {
-    if (!((this._cachedStreamSplitter === null))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Previously used to cache via `fetchStream`"); })();
-      }
-    }
-    return (this._cachedValueFuture ?? (this._cachedValueFuture = (() => { let v = (callback)(); return (() => {
-      (v.finally(__dartBind(this, "_startStaleTimer")).catch(() => null), null);
-      return v;
-    })(); })()));
-  }
-  fetchStream(callback) {
-    if (!((this._cachedValueFuture === null))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Previously used to cache via `fetch`"); })();
-      }
-    }
-    let splitter = (this._cachedStreamSplitter ?? (this._cachedStreamSplitter = new StreamSplitter(__dartStreamTransform((callback)(), __dartStreamTransformerFromHandlers({ handleData: null, handleError: null, handleDone: (sink) => {
-      this._startStaleTimer();
-      sink.close();
-} })))));
-    return splitter.split();
-  }
-  invalidate() {
-    this._cachedValueFuture = null;
-    ((this._cachedStreamSplitter)?.close() ?? null);
-    this._cachedStreamSplitter = null;
-    ((this._stale)?.cancel() ?? null);
-    this._stale = null;
-  }
-  _startStaleTimer() {
-    let duration = this._duration;
-    if (!((duration === null))) {
-      {
-        this._stale = __dartTimer(duration, __dartBind(this, "invalidate"), false);
-      }
-    } else {
-      {
-        this.invalidate();
-      }
-    }
-  }
-}
-
-function $AsyncCache_ephemeral($newTarget) {
-  const $self = Object.create($newTarget.prototype);
-  $self._cachedStreamSplitter = null;
-  $self._cachedValueFuture = null;
-  $self._stale = null;
-  $self._duration = null;
-  return $self;
-}
-
-class AsyncMemoizer {
-  constructor() {
-    this._completer = __dartCompleter();
-  }
-  get future() {
-    return this._completer.future;
-  }
-  get hasRun() {
-    return this._completer.isCompleted;
-  }
-  runOnce(computation) {
-    if (!(this.hasRun)) {
-      this._completer.complete(Promise.resolve().then(() => (computation)()));
-    }
-    return this.future;
-  }
-}
-
-class CancelableOperation {
-  constructor() {
-    throw new TypeError("Class CancelableOperation has no unnamed constructor");
-  }
-  static _(_completer) {
-    return $CancelableOperation__(CancelableOperation, _completer);
-  }
-  static fromFuture(result, { onCancel = null } = {}) {
-    return (() => { let v = new CancelableCompleter({ onCancel: onCancel }); return (() => {
-      v.complete(result);
-      return v;
-    })(); })().operation;
-  }
-  static fromValue(value) {
-    return (() => { let v = new CancelableCompleter(); return (() => {
-      v.complete(value);
-      return v;
-    })(); })().operation;
-  }
-  static fromSubscription(subscription) {
-    let completer = new CancelableCompleter({ onCancel: __dartBind(subscription, "cancel") });
-    subscription.onDone(__dartAs(__dartBind(completer, "complete"), value => typeof value === "function", "void Function([FutureOr<void>?])"));
-    subscription.onError(function(error, stackTrace) {
-      subscription.cancel().finally(function() {
-        completer.completeError(error, stackTrace);
-});
-});
-    return completer.operation;
-  }
-  static race(operations) {
-    operations = Array.from(operations);
-    if (__dartIterableIsEmpty(operations)) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "May not be empty"); })();
-      }
-    }
-    let done = false;
-    function cancelAll() {
-      done = true;
-      return __dartFutureWait((() => {
-        const v = new Array(0).fill(null);
-        {
-          let _sync_for_iterator = __dartIterator(operations);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let operation = _sync_for_iterator.current;
-              if (!(operation.isCanceled)) {
-                (v.push(operation.cancel()), null);
-              }
-            }
-          }
-        }
-        return v;
-      })(), false, null);
-    }
-    let completer = new CancelableCompleter({ onCancel: cancelAll });
-    {
-      let _sync_for_iterator = __dartIterator(operations);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let operation = _sync_for_iterator.current;
-          {
-            operation.then(function(value) {
-              if (!(done)) {
-                cancelAll().finally(function() { return completer.complete(value); });
-              }
-}, { onError: function(error, stackTrace) {
-              if (!(done)) {
-                {
-                  cancelAll().finally(function() { return completer.completeError(error, stackTrace); });
-                }
-              }
-}, propagateCancel: false });
-          }
-        }
-      }
-    }
-    return completer.operation;
-  }
-  get value() {
-    return ((this._completer._inner)?.future ?? __dartCompleter().future);
-  }
-  asStream() {
-    let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: __dartBind(this._completer, "_cancel") });
-    (() => { let v = this._completer._inner; return ((v === null) ? null : v.future.then(function(value) {
-      controller.add(value);
-      controller.close();
-}, function(error, stackTrace) {
-      controller.addError(error, stackTrace);
-      controller.close();
-})); })();
-    return controller.stream;
-  }
-  valueOrCancellation(cancellationValue = null) {
-    let completer = __dartCompleter();
-    this.value.then(__dartAs(__dartBind(completer, "complete"), value => typeof value === "function", "void Function([FutureOr<CancelableOperation.T?>?])"), __dartBind(completer, "completeError"));
-    (() => { let v = this._completer._cancelCompleter; return ((v === null) ? null : v.future.then(function(_) {
-      completer.complete(cancellationValue);
-}, __dartBind(completer, "completeError"))); })();
-    return completer.future;
-  }
-  then(onValue, { onError = null, onCancel = null, propagateCancel = true } = {}) {
-    return this.thenOperation(function(value, completer) {
-      completer.complete((onValue)(value));
-}, { onError: ((onError === null) ? null : function(error, stackTrace, completer) {
-      completer.complete((onError)(error, stackTrace));
-}), onCancel: ((onCancel === null) ? null : function(completer) {
-      completer.complete((onCancel)());
-}), propagateCancel: propagateCancel });
-  }
-  thenOperation(onValue, { onError = null, onCancel = null, propagateCancel = true } = {}) {
-    const completer = new CancelableCompleter({ onCancel: (propagateCancel ? __dartBind(this, "_cancelIfNotCanceled") : null) });
-    (() => { let v = this._completer._inner; return ((v === null) ? null : v.future.then(async function(value) {
-      if (completer.isCanceled) {
-        return;
-      }
-      try {
-        {
-          await (onValue)(value, completer);
-        }
-      } catch ($error) {
-        if ($error != null) {
-          const error = $error;
-          const stack = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            completer.completeError(error, stack);
-          }
-        } else {
-          throw $error;
-        }
-      }
-}, ((onError === null) ? __dartBind(completer, "completeError") : async function(error, stack) {
-      if (completer.isCanceled) {
-        return;
-      }
-      try {
-        {
-          await (onError)(error, stack, completer);
-        }
-      } catch ($error) {
-        if ($error != null) {
-          const error2 = $error;
-          const stack2 = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            _extension_0_completeErrorIfPending(completer, error2, (Object.is(error, error2) ? stack : stack2));
-          }
-        } else {
-          throw $error;
-        }
-      }
-}))); })();
-    const cancelForwarder = new _CancelForwarder(completer, onCancel);
-    if (this._completer.isCanceled) {
-      {
-        cancelForwarder._forward();
-      }
-    } else {
-      {
-        ((() => { let v_1 = this._completer; return (v_1._cancelForwarders ?? (v_1._cancelForwarders = new Array(0).fill(null))); })().push(cancelForwarder), null);
-      }
-    }
-    return completer.operation;
-  }
-  cancel() {
-    return this._completer._cancel();
-  }
-  _cancelIfNotCanceled() {
-    return (this.isCanceled ? null : this.cancel());
-  }
-  get isCanceled() {
-    return this._completer._isCanceled;
-  }
-  get isCompleted() {
-    return this._completer._isCompleted;
-  }
-}
-
-function $CancelableOperation__($newTarget, _completer) {
-  const $self = Object.create($newTarget.prototype);
-  $self._completer = _completer;
-  return $self;
-}
-
-class CancelableCompleter {
-  constructor({ onCancel = null } = {}) {
-    this._inner = __dartCompleter();
-    this._cancelCompleter = __dartCompleter();
-    this._cancelForwarders = null;
-    this._mayComplete = true;
-    const $operation = __dartLazyField("CancelableCompleter.operation", () => CancelableOperation._(this), false);
-    Object.defineProperty(this, "operation", {
-      get() { return $operation.get(); },
-      set(value) { $operation.set(value); },
-      enumerable: true,
-    });
-    this._onCancel = onCancel;
-  }
-  get _isCompleted() {
-    return (this._cancelCompleter === null);
-  }
-  get _isCanceled() {
-    return (this._inner === null);
-  }
-  get isCompleted() {
-    return !(this._mayComplete);
-  }
-  get isCanceled() {
-    return this._isCanceled;
-  }
-  complete(value = null) {
-    if (!(this._mayComplete)) {
-      (() => { throw __dartCoreError("StateError", "Operation already completed"); })();
-    }
-    this._mayComplete = false;
-    if (!(value != null && typeof value.then === "function")) {
-      {
-        ((this._completeNow())?.complete(value) ?? null);
-        return;
-      }
-    }
-    if ((this._inner === null)) {
-      {
-        (value.catch(() => null), null);
-        return;
-      }
-    }
-    value.then((result) => {
-      ((this._completeNow())?.complete(result) ?? null);
-}, (error, stackTrace) => {
-      ((this._completeNow())?.completeError(error, stackTrace) ?? null);
-});
-  }
-  completeOperation(result, { propagateCancel = true } = {}) {
-    if (!(this._mayComplete)) {
-      (() => { throw __dartCoreError("StateError", "Already completed"); })();
-    }
-    this._mayComplete = false;
-    if (this.isCanceled) {
-      {
-        if (propagateCancel) {
-          result.cancel();
-        }
-        (result.value.catch(() => null), null);
-        return;
-      }
-    }
-    result.then((value) => {
-      ((this._inner)?.complete(value) ?? null);
-}, { onError: (error, stack) => {
-      ((this._inner)?.completeError(error, stack) ?? null);
-}, onCancel: () => {
-      this.operation.cancel();
-} });
-    if (propagateCancel) {
-      {
-        (() => { let v = this._cancelCompleter; return ((v === null) ? null : v.future.finally(__dartBind(result, "cancel"))); })();
-      }
-    }
-  }
-  _completeNow() {
-    let inner = this._inner;
-    if ((inner === null)) {
-      return null;
-    }
-    this._cancelCompleter = null;
-    return inner;
-  }
-  completeError(error, stackTrace = null) {
-    if (!(this._mayComplete)) {
-      (() => { throw __dartCoreError("StateError", "Operation already completed"); })();
-    }
-    this._mayComplete = false;
-    ((this._completeNow())?.completeError(error, stackTrace) ?? null);
-  }
-  _cancel() {
-    let cancelCompleter = this._cancelCompleter;
-    if ((cancelCompleter === null)) {
-      return Promise.resolve(null);
-    }
-    if (!((this._inner === null))) {
-      {
-        this._inner = null;
-        cancelCompleter.complete(this._invokeCancelCallbacks());
-      }
-    }
-    return cancelCompleter.future;
-  }
-  async _invokeCancelCallbacks() {
-    const toReturn = (() => { let v = this._onCancel; return ((v === null) ? null : (v)()); })();
-    const isFuture = toReturn != null && typeof toReturn.then === "function";
-    const cancelFutures = (() => {
-      const v = new Array(0).fill(null);
-      if (isFuture) {
-        (v.push(toReturn), null);
-      }
-      const v_1 = (() => { let v_2 = this._cancelForwarders; return ((v_2 === null) ? null : Array.from(Array.from(v_2, _forward)).filter((value) => value != null)); })();
-      if (!((v_1 === null))) {
-        (v.push(...Array.from(v_1)), null);
-      }
-      return v;
-    })();
-    const results = ((isFuture && __dartEquals(cancelFutures.length, 1)) ? [await toReturn] : (cancelFutures.length !== 0 ? await __dartFutureWait(cancelFutures, false, null) : __dartConst("[\"list\",\"DynamicType(dynamic)\"]", () => Object.freeze([]))));
-    return (isFuture ? __dartIndexGet(results, 0) : toReturn);
-  }
-}
-
-class _CancelForwarder {
-  constructor(completer, onCancel) {
-    this.completer = completer;
-    this.onCancel = onCancel;
-  }
-  _forward() {
-    if (this.completer.isCanceled) {
-      return null;
-    }
-    const onCancel = this.onCancel;
-    if ((onCancel === null)) {
-      return this.completer._cancel();
-    }
-    try {
-      {
-        const result = (onCancel)(this.completer);
-        if (result != null && typeof result.then === "function") {
-          {
-            return result.catch(_extension_0_get_completeErrorIfPending(this.completer));
-          }
-        }
-      }
-    } catch ($error) {
-      if ($error != null) {
-        const error = $error;
-        const stack = $error?.stack ?? "<javascript stack unavailable>";
-        {
-          _extension_0_completeErrorIfPending(this.completer, error, stack);
-        }
-      } else {
-        throw $error;
-      }
-    }
-    return null;
-  }
-}
-
-class ChunkedStreamReader {
-  static _(_input) {
-    return $ChunkedStreamReader__(ChunkedStreamReader, _input);
-  }
-  constructor(stream) {
-    return ChunkedStreamReader._(__dartStreamIterator(stream));
-  }
-  async readChunk(size) {
-    const result = new Array(0).fill(null);
-    {
-      let _stream = this.readStream(size);
-      let _for_iterator = __dartStreamIterator(_stream);
-      try {
-        while (await _for_iterator.moveNext()) {
-          {
-            const chunk = _for_iterator.current;
-            {
-              (result.push(...Array.from(chunk)), null);
-            }
-          }
-        }
-      } finally {
-        if (!((_for_iterator._subscription === null))) {
-          await _for_iterator.cancel();
-        }
-      }
-    }
-    return result;
-  }
-  readStream(size) {
-    __dartCheckNotNegative(size, "size", null);
-    if (this._reading) {
-      {
-        (() => { throw __dartCoreError("StateError", "Concurrent read operations are not allowed!"); })();
-      }
-    }
-    this._reading = true;
-    async function* substream() {
-      L:
-      while ((size > 0)) {
-        {
-          if (__dartEquals(this._offset, this._buffer.length)) {
-            {
-              if (!(await this._input.moveNext())) {
-                {
-                  size = 0;
-                  this._reading = false;
-                  break L;
-                }
-              }
-              this._buffer = this._input.current;
-              this._offset = 0;
-            }
-          }
-          const remainingBuffer = (this._buffer.length - this._offset);
-          if ((remainingBuffer > 0)) {
-            {
-              if ((remainingBuffer >= size)) {
-                {
-                  let output = null;
-                  if (this._buffer instanceof Uint8Array) {
-                    {
-                      output = __dartAs(__dartTypedDataSublistView(__dartAs(this._buffer, value => value instanceof Uint8Array, "Uint8List"), this._offset, (this._offset + size), Uint8Array, 1), value => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List<ChunkedStreamReader.T%>");
-                    }
-                  } else {
-                    {
-                      output = this._buffer.slice(this._offset, (this._offset + size));
-                    }
-                  }
-                  this._offset = (this._offset + size);
-                  size = 0;
-                  yield output;
-                  this._reading = false;
-                  break L;
-                }
-              }
-              const output_1 = (__dartEquals(this._offset, 0) ? this._buffer : this._buffer.slice(this._offset));
-              size = (size - remainingBuffer);
-              this._buffer = this._emptyList;
-              this._offset = 0;
-              yield output_1;
-            }
-          }
-        }
-      }
-    }
-    const c = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-    c.onListen = function() { return c.addStream(substream(), { cancelOnError: false }).finally(__dartBind(c, "close")); };
-    c.onCancel = async () => {
-      L:
-      while ((size > 0)) {
-        {
-          if (__dartEquals(this._buffer.length, this._offset)) {
-            {
-              if (!(await this._input.moveNext())) {
-                {
-                  size = 0;
-                  break L;
-                }
-              }
-              this._buffer = this._input.current;
-              this._offset = 0;
-            }
-          }
-          const remainingBuffer = (this._buffer.length - this._offset);
-          if ((remainingBuffer >= size)) {
-            {
-              this._offset = (this._offset + size);
-              size = 0;
-              break L;
-            }
-          }
-          size = (size - remainingBuffer);
-          this._buffer = this._emptyList;
-          this._offset = 0;
-        }
-      }
-      this._reading = false;
-};
-    return c.stream;
-  }
-  async cancel() {
-    return await this._input.cancel();
-  }
-}
-
-function $ChunkedStreamReader__($newTarget, _input) {
-  const $self = Object.create($newTarget.prototype);
-  $self._emptyList = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
-  $self._buffer = new Array(0).fill(null);
-  $self._offset = 0;
-  $self._reading = false;
-  $self._input = _input;
-  return $self;
-}
-
-class DelegatingEventSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  static _(_sink) {
-    return $DelegatingEventSink__(DelegatingEventSink, _sink);
-  }
-  static typed(sink) {
-    return (sink != null && typeof sink === "object" && typeof sink.add === "function" && typeof sink.addError === "function" && typeof sink.close === "function" ? sink : DelegatingEventSink._(sink));
-  }
-  add(data) {
-    this._sink.add(data);
-  }
-  addError(error, stackTrace = null) {
-    this._sink.addError(error, stackTrace);
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-function $DelegatingEventSink__($newTarget, _sink) {
-  const $self = Object.create($newTarget.prototype);
-  $self._sink = _sink;
-  return $self;
-}
-
-class DelegatingFuture {
-  constructor(_future) {
-    this._future = _future;
-  }
-  static typed(future) {
-    return (future != null && typeof future.then === "function" ? future : future.then(function(v) { return __dartAs(v, value => true, "T"); }));
-  }
-  asStream() {
-    return __dartFutureAsStream(this._future);
-  }
-  catchError(onError, { test = null } = {}) {
-    return this._future.catch((error) => (test)(error) ? (onError)(error) : Promise.reject(error));
-  }
-  then(onValue, { onError = null } = {}) {
-    return this._future.then(onValue, onError);
-  }
-  whenComplete(action) {
-    return this._future.finally(action);
-  }
-  timeout(timeLimit, { onTimeout = null } = {}) {
-    return __dartFutureTimeout(this._future, timeLimit, onTimeout);
-  }
-}
-
-class DelegatingSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  static _(_sink) {
-    return $DelegatingSink__(DelegatingSink, _sink);
-  }
-  static typed(sink) {
-    return (sink != null && typeof sink === "object" && typeof sink.add === "function" && typeof sink.close === "function" ? sink : DelegatingSink._(sink));
-  }
-  add(data) {
-    this._sink.add(data);
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-function $DelegatingSink__($newTarget, _sink) {
-  const $self = Object.create($newTarget.prototype);
-  $self._sink = _sink;
-  return $self;
-}
-
-class DelegatingStream {
-  constructor(stream) {
-  }
-  static typed(stream) {
-    return __dartStreamCast(stream, (value) => true, "TypeParameterType(DelegatingStream.typed.T%)");
-  }
-}
-
-class DelegatingStreamConsumer {
-  constructor(consumer) {
-    this._consumer = consumer;
-  }
-  static _(_consumer) {
-    return $DelegatingStreamConsumer__(DelegatingStreamConsumer, _consumer);
-  }
-  static typed(consumer) {
-    return (consumer != null && typeof consumer === "object" && typeof consumer.addStream === "function" && typeof consumer.close === "function" ? consumer : DelegatingStreamConsumer._(consumer));
-  }
-  addStream(stream) {
-    return this._consumer.addStream(stream, { cancelOnError: false });
-  }
-  close() {
-    return this._consumer.close();
-  }
-}
-
-function $DelegatingStreamConsumer__($newTarget, _consumer) {
-  const $self = Object.create($newTarget.prototype);
-  $self._consumer = _consumer;
-  return $self;
-}
-
-class DelegatingStreamSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  static _(_sink) {
-    return $DelegatingStreamSink__(DelegatingStreamSink, _sink);
-  }
-  get done() {
-    return this._sink.done;
-  }
-  static typed(sink) {
-    return (sink != null && typeof sink === "object" && typeof sink.add === "function" && typeof sink.addError === "function" && typeof sink.close === "function" ? sink : DelegatingStreamSink._(sink));
-  }
-  add(data) {
-    this._sink.add(data);
-  }
-  addError(error, stackTrace = null) {
-    this._sink.addError(error, stackTrace);
-  }
-  addStream(stream) {
-    return this._sink.addStream(stream, { cancelOnError: false });
-  }
-  close() {
-    return this._sink.close();
-  }
-}
-
-function $DelegatingStreamSink__($newTarget, _sink) {
-  const $self = Object.create($newTarget.prototype);
-  $self._sink = _sink;
-  return $self;
-}
-
-class TypeSafeStreamSubscription {
-  constructor(_subscription) {
-    this._subscription = _subscription;
-  }
-  get isPaused() {
-    return this._subscription.isPaused;
-  }
-  onData(handleData) {
-    if ((handleData === null)) {
-      return this._subscription.onData(null);
-    }
-    this._subscription.onData(function(data) { return (handleData)(__dartAs(data, value => true, "T")); });
-  }
-  onError(handleError) {
-    this._subscription.onError(handleError);
-  }
-  onDone(handleDone) {
-    this._subscription.onDone(handleDone);
-  }
-  pause(resumeFuture = null) {
-    this._subscription.pause(resumeFuture);
-  }
-  resume() {
-    this._subscription.resume();
-  }
-  cancel() {
-    return this._subscription.cancel();
-  }
-  asFuture(futureValue = null) {
-    return this._subscription.asFuture(futureValue);
-  }
-}
-
-class DelegatingStreamSubscription {
-  constructor(sourceSubscription) {
-    this._source = sourceSubscription;
-  }
-  static typed(subscription) {
-    return (subscription != null && typeof subscription === "object" && typeof subscription.pause === "function" && typeof subscription.resume === "function" && typeof subscription.cancel === "function" ? subscription : new TypeSafeStreamSubscription(subscription));
-  }
-  onData(handleData) {
-    this._source.onData(handleData);
-  }
-  onError(handleError) {
-    this._source.onError(handleError);
-  }
-  onDone(handleDone) {
-    this._source.onDone(handleDone);
-  }
-  pause(resumeFuture = null) {
-    this._source.pause(resumeFuture);
-  }
-  resume() {
-    this._source.resume();
-  }
-  cancel() {
-    return this._source.cancel();
-  }
-  asFuture(futureValue = null) {
-    return this._source.asFuture(futureValue);
-  }
-  get isPaused() {
-    return this._source.isPaused;
-  }
-}
-
-class FutureGroup {
-  constructor() {
-    this._pending = 0;
-    this._closed = false;
-    this._completer = __dartCompleter();
-    this._onIdleController = null;
-    this._values = new Array(0).fill(null);
-  }
-  get isClosed() {
-    return this._closed;
-  }
-  get future() {
-    return this._completer.future;
-  }
-  get isIdle() {
-    return __dartEquals(this._pending, 0);
-  }
-  get onIdle() {
-    return (this._onIdleController ?? (this._onIdleController = __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null }))).stream;
-  }
-  add(task) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "The FutureGroup is closed."); })();
-    }
-    let index = this._values.length;
-    (this._values.push(null), null);
-    this._pending = (this._pending + 1);
-    task.then((value) => {
-      if (this._completer.isCompleted) {
-        return null;
-      }
-      this._pending = (this._pending - 1);
-      __dartIndexSet(this._values, index, value);
-      if (!(__dartEquals(this._pending, 0))) {
-        return null;
-      }
-      let onIdleController = this._onIdleController;
-      if (!((onIdleController === null))) {
-        onIdleController.add(null);
-      }
-      if (!(this._closed)) {
-        return null;
-      }
-      if (!((onIdleController === null))) {
-        onIdleController.close();
-      }
-      this._completer.complete(Array.from(Array.from(this._values).filter((value) => true)));
-}).catch((error, stackTrace) => {
-      if (this._completer.isCompleted) {
-        return null;
-      }
-      this._completer.completeError(error, stackTrace);
-});
-  }
-  close() {
-    this._closed = true;
-    if (!(__dartEquals(this._pending, 0))) {
-      return;
-    }
-    if (this._completer.isCompleted) {
-      return;
-    }
-    this._completer.complete(Array.from(Array.from(this._values).filter((value) => true)));
-  }
-}
 
 class StreamCompleter {
   constructor() {
@@ -3102,919 +1730,6 @@ class _CompleterStream {
   }
   _ensureController() {
     return (this._controller ?? (this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null })));
-  }
-}
-
-class LazyStream {
-  constructor(callback) {
-    this._callback = callback;
-    if ((this._callback === null)) {
-      (() => { throw __dartCoreError("ArgumentError", "callback"); })();
-    }
-  }
-  listen(onData, { onError = null, onDone = null, cancelOnError = null } = {}) {
-    let callback = this._callback;
-    if ((callback === null)) {
-      {
-        (() => { throw __dartCoreError("StateError", "Stream has already been listened to."); })();
-      }
-    }
-    this._callback = null;
-    let result = (callback)();
-    let stream = null;
-    if (result != null && typeof result.then === "function") {
-      {
-        stream = StreamCompleter.fromFuture(result);
-      }
-    } else {
-      {
-        stream = result;
-      }
-    }
-    return __dartStreamListen(stream, onData, onError, onDone, cancelOnError);
-  }
-}
-
-class NullStreamSink {
-  constructor({ done = null } = {}) {
-    this._closed = false;
-    this._addingStream = false;
-    this.done = (done ?? Promise.resolve(null));
-  }
-  static error(error, stackTrace = null) {
-    return $NullStreamSink_error(NullStreamSink, error, stackTrace);
-  }
-  add(data) {
-    this._checkEventAllowed();
-  }
-  addError(error, stackTrace = null) {
-    this._checkEventAllowed();
-  }
-  addStream(stream) {
-    this._checkEventAllowed();
-    this._addingStream = true;
-    let future = __dartStreamListen(stream, null, null, null, false).cancel();
-    return future.finally(() => {
-      this._addingStream = false;
-});
-  }
-  _checkEventAllowed() {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add to a closed sink."); })();
-    }
-    if (this._addingStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add to a sink while adding a stream."); })();
-      }
-    }
-  }
-  close() {
-    this._closed = true;
-    return this.done;
-  }
-}
-
-function $NullStreamSink_error($newTarget, error, stackTrace = null) {
-  const $self = Object.create($newTarget.prototype);
-  $self._closed = false;
-  $self._addingStream = false;
-  $self.done = (() => { let v = Promise.reject(error); return (() => {
-    v.catch(function(_) {
-});
-    return v;
-  })(); })();
-  return $self;
-}
-
-class RestartableTimer {
-  constructor(_duration, _callback) {
-    this._duration = _duration;
-    this._callback = _callback;
-    this._timer = __dartTimer(_duration, _callback, false);
-  }
-  get isActive() {
-    return this._timer.isActive;
-  }
-  reset() {
-    this._timer.cancel();
-    this._timer = __dartTimer(this._duration, this._callback, false);
-  }
-  cancel() {
-    this._timer.cancel();
-  }
-  get tick() {
-    return this._timer.tick;
-  }
-}
-
-class CaptureSink {
-  constructor(sink) {
-    this._sink = sink;
-  }
-  add(value) {
-    this._sink.add(new ValueResult(value));
-  }
-  addError(error, stackTrace = null) {
-    this._sink.add(Result.error(error, stackTrace));
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-class CaptureStreamTransformer {
-  bind(source) {
-    return __dartStreamEventTransformed(source, $CaptureSink_new_tearoff);
-  }
-}
-
-class ReleaseSink {
-  constructor(_sink) {
-    this._sink = _sink;
-  }
-  add(result) {
-    result.addTo(this._sink);
-  }
-  addError(error, stackTrace = null) {
-    this._sink.addError(error, stackTrace);
-  }
-  close() {
-    this._sink.close();
-  }
-}
-
-class ReleaseStreamTransformer {
-  bind(source) {
-    return __dartStreamEventTransformed(source, ReleaseStreamTransformer._createSink);
-  }
-  static _createSink(sink) {
-    return new ReleaseSink(sink);
-  }
-}
-
-class Result {
-  constructor(computation) {
-    if (new.target === Result) {
-      try {
-        {
-          return new ValueResult((computation)());
-        }
-      } catch ($error) {
-        if ($error != null) {
-          const e = $error;
-          const s = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            return new ErrorResult(e, s);
-          }
-        } else {
-          throw $error;
-        }
-      }
-    }
-  }
-  static value(value) {
-    return new ValueResult(value);
-  }
-  static error(error, stackTrace = null) {
-    return new ErrorResult(error, stackTrace);
-  }
-  static capture(future) {
-    return future.then($ValueResult_new_tearoff, $ErrorResult_new_tearoff);
-  }
-  static captureAll(elements) {
-    let results = new Array(0).fill(null);
-    let pending = 0;
-    const completer = __dartLazyField("completer", null, true, null);
-    {
-      let _sync_for_iterator = __dartIterator(elements);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let element = _sync_for_iterator.current;
-          {
-            if (element != null && typeof element.then === "function") {
-              {
-                let i = results.length;
-                (results.push(null), null);
-                pending = (pending + 1);
-                Result.capture(element).then(function(result) {
-                  __dartIndexSet(results, i, result);
-                  if (__dartEquals(pending = (pending - 1), 0)) {
-                    {
-                      completer.get().complete(Array.from(results));
-                    }
-                  }
-});
-              }
-            } else {
-              {
-                (results.push(new ValueResult(element)), null);
-              }
-            }
-          }
-        }
-      }
-    }
-    if (__dartEquals(pending, 0)) {
-      {
-        return Promise.resolve(Array.from(results));
-      }
-    }
-    completer.set(__dartCompleter());
-    return completer.get().future;
-  }
-  static release(future) {
-    return future.then(function(result) { return result.asFuture; });
-  }
-  static captureStream(source) {
-    return __dartStreamTransform(source, new CaptureStreamTransformer());
-  }
-  static releaseStream(source) {
-    return __dartStreamTransform(source, new ReleaseStreamTransformer());
-  }
-  static releaseSink(sink) {
-    return new ReleaseSink(sink);
-  }
-  static captureSink(sink) {
-    return new CaptureSink(sink);
-  }
-  static flatten(result) {
-    if (result.isValue) {
-      return __dartNullCheck(result.asValue).value;
-    }
-    return __dartNullCheck(result.asError);
-  }
-  static flattenAll(results) {
-    let values = new Array(0).fill(null);
-    {
-      let _sync_for_iterator = __dartIterator(results);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let result = _sync_for_iterator.current;
-          {
-            if (result.isValue) {
-              {
-                (values.push(__dartNullCheck(result.asValue).value), null);
-              }
-            } else {
-              {
-                return __dartNullCheck(result.asError);
-              }
-            }
-          }
-        }
-      }
-    }
-    return new ValueResult(values);
-  }
-  get isValue() {
-    throw new TypeError("Abstract member Result.isValue");
-  }
-  set isValue(value) {
-    Object.defineProperty(this, "isValue", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get isError() {
-    throw new TypeError("Abstract member Result.isError");
-  }
-  set isError(value) {
-    Object.defineProperty(this, "isError", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get asValue() {
-    throw new TypeError("Abstract member Result.asValue");
-  }
-  set asValue(value) {
-    Object.defineProperty(this, "asValue", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get asError() {
-    throw new TypeError("Abstract member Result.asError");
-  }
-  set asError(value) {
-    Object.defineProperty(this, "asError", { value, writable: true, configurable: true, enumerable: true });
-  }
-  complete(completer) {
-    throw new TypeError("Abstract member Result.complete");
-  }
-  addTo(sink) {
-    throw new TypeError("Abstract member Result.addTo");
-  }
-  get asFuture() {
-    throw new TypeError("Abstract member Result.asFuture");
-  }
-  set asFuture(value) {
-    Object.defineProperty(this, "asFuture", { value, writable: true, configurable: true, enumerable: true });
-  }
-}
-Object.defineProperty(Result, Symbol.hasInstance, { value(value) { return value != null && value[$Result_interface] === true; } });
-
-class ValueResult {
-  constructor(value) {
-    this.value = value;
-    Object.defineProperty(this, $Result_interface, { value: true });
-  }
-  get isValue() {
-    return true;
-  }
-  get isError() {
-    return false;
-  }
-  get asValue() {
-    return this;
-  }
-  get asError() {
-    return null;
-  }
-  complete(completer) {
-    completer.complete(this.value);
-  }
-  addTo(sink) {
-    sink.add(this.value);
-  }
-  get asFuture() {
-    return Promise.resolve(this.value);
-  }
-  get hashCode() {
-    return (__dartHashValue(this.value) ^ 842997089);
-  }
-  "=="(other) {
-    return (other instanceof ValueResult && __dartEquals(this.value, other.value));
-  }
-}
-
-class StreamSinkTransformer {
-  constructor() {
-    if (new.target === StreamSinkTransformer) {
-      throw new TypeError("Class StreamSinkTransformer has no unnamed constructor");
-    }
-  }
-  static fromStreamTransformer(transformer) {
-    return new StreamTransformerWrapper(transformer);
-  }
-  static fromHandlers({ handleData = null, handleError = null, handleDone = null } = {}) {
-    return new HandlerTransformer(handleData, handleError, handleDone);
-  }
-  bind(sink) {
-    throw new TypeError("Abstract member StreamSinkTransformer.bind");
-  }
-  static typed(transformer) {
-    return (transformer instanceof StreamSinkTransformer ? transformer : new TypeSafeStreamSinkTransformer(transformer));
-  }
-}
-Object.defineProperty(StreamSinkTransformer, Symbol.hasInstance, { value(value) { return value != null && value[$StreamSinkTransformer_interface] === true; } });
-
-class HandlerTransformer {
-  constructor(_handleData, _handleError, _handleDone) {
-    this._handleData = _handleData;
-    this._handleError = _handleError;
-    this._handleDone = _handleDone;
-    Object.defineProperty(this, $StreamSinkTransformer_interface, { value: true });
-  }
-  bind(sink) {
-    return new _HandlerSink(this, sink);
-  }
-}
-
-class _HandlerSink {
-  constructor(_transformer, inner) {
-    this._transformer = _transformer;
-    this._inner = inner;
-    this._safeCloseInner = new _SafeCloseSink(inner);
-  }
-  get done() {
-    return this._inner.done;
-  }
-  add(event) {
-    let handleData = __dartAs(this._transformer._handleData, value => (value === null || typeof value === "function"), "void Function(_HandlerSink.S%, EventSink<_HandlerSink.T%>)?");
-    if ((handleData === null)) {
-      {
-        this._inner.add(__dartAs(event, value => true, "T"));
-      }
-    } else {
-      {
-        (handleData)(event, this._safeCloseInner);
-      }
-    }
-  }
-  addError(error, stackTrace = null) {
-    let handleError = __dartAs(this._transformer._handleError, value => (value === null || typeof value === "function"), "void Function(Object, StackTrace, EventSink<_HandlerSink.T%>)?");
-    if ((handleError === null)) {
-      {
-        this._inner.addError(error, stackTrace);
-      }
-    } else {
-      {
-        (handleError)(error, (stackTrace ?? (error?.stack ?? new Error().stack ?? "<javascript stack unavailable>")), this._safeCloseInner);
-      }
-    }
-  }
-  addStream(stream) {
-    return this._inner.addStream(__dartStreamTransform(stream, __dartStreamTransformerFromHandlers({ handleData: __dartAs(this._transformer._handleData, value => (value === null || typeof value === "function"), "void Function(_HandlerSink.S%, EventSink<_HandlerSink.T%>)?"), handleError: __dartAs(this._transformer._handleError, value => (value === null || typeof value === "function"), "void Function(Object, StackTrace, EventSink<_HandlerSink.T%>)?"), handleDone: _closeSink })), { cancelOnError: false });
-  }
-  close() {
-    let handleDone = __dartAs(this._transformer._handleDone, value => (value === null || typeof value === "function"), "void Function(EventSink<_HandlerSink.T%>)?");
-    if ((handleDone === null)) {
-      return this._inner.close();
-    }
-    (handleDone)(this._safeCloseInner);
-    return this._inner.done;
-  }
-}
-
-class _SafeCloseSink extends DelegatingStreamSink {
-  constructor(inner) {
-    super(inner);
-  }
-  close() {
-    return super.close().catch(function(_) {
-});
-  }
-}
-
-class StreamTransformerWrapper {
-  constructor(_transformer) {
-    this._transformer = _transformer;
-    Object.defineProperty(this, $StreamSinkTransformer_interface, { value: true });
-  }
-  bind(sink) {
-    return new _StreamTransformerWrapperSink(this._transformer, sink);
-  }
-}
-
-class _StreamTransformerWrapperSink {
-  constructor(transformer, _inner) {
-    this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-    this._inner = _inner;
-    __dartStreamListen(__dartStreamTransform(this._controller.stream, transformer), __dartAs(__dartBind(this._inner, "add"), value => typeof value === "function", "void Function(_StreamTransformerWrapperSink.T%)"), __dartBind(this._inner, "addError"), () => {
-      this._inner.close().catch(function(_) {
-});
-}, false);
-  }
-  get done() {
-    return this._inner.done;
-  }
-  add(event) {
-    this._controller.add(event);
-  }
-  addError(error, stackTrace = null) {
-    this._controller.addError(error, stackTrace);
-  }
-  addStream(stream) {
-    return this._controller.addStream(stream, { cancelOnError: false });
-  }
-  close() {
-    this._controller.close();
-    return this._inner.done;
-  }
-}
-
-class TypeSafeStreamSinkTransformer {
-  constructor(_inner) {
-    this._inner = _inner;
-    Object.defineProperty(this, $StreamSinkTransformer_interface, { value: true });
-  }
-  bind(sink) {
-    return (() => { let v = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null }); return (() => {
-      __dartStreamPipe(__dartStreamCast(v.stream, (value) => true, "DynamicType(dynamic)"), this._inner.bind(sink));
-      return v;
-    })(); })();
-  }
-}
-
-class ErrorResult {
-  constructor(error, stackTrace = null) {
-    this.error = error;
-    this.stackTrace = (stackTrace ?? (error?.stack ?? new Error().stack ?? "<javascript stack unavailable>"));
-    Object.defineProperty(this, $Result_interface, { value: true });
-  }
-  get isValue() {
-    return false;
-  }
-  get isError() {
-    return true;
-  }
-  get asValue() {
-    return null;
-  }
-  get asError() {
-    return this;
-  }
-  complete(completer) {
-    completer.completeError(this.error, this.stackTrace);
-  }
-  addTo(sink) {
-    sink.addError(this.error, this.stackTrace);
-  }
-  get asFuture() {
-    return Promise.reject(this.error);
-  }
-  handle(errorHandler) {
-    if (typeof errorHandler === "function") {
-      {
-        (errorHandler)(this.error, this.stackTrace);
-      }
-    } else {
-      if (typeof errorHandler === "function") {
-        {
-          (errorHandler)(this.error);
-        }
-      } else {
-        {
-          (() => { throw __dartCoreError("ArgumentError", "is neither Function(Object, StackTrace) nor Function(Object)"); })();
-        }
-      }
-    }
-  }
-  get hashCode() {
-    return ((__dartHashValue(this.error) ^ __dartHashValue(this.stackTrace)) ^ 492929599);
-  }
-  "=="(other) {
-    return ((other instanceof ErrorResult && __dartEquals(this.error, other.error)) && __dartEquals(this.stackTrace, other.stackTrace));
-  }
-}
-
-class ResultFuture extends DelegatingFuture {
-  constructor(future) {
-    super(future);
-    this._result = null;
-    Result.capture(future).then((result) => {
-      this._result = result;
-});
-  }
-  get isComplete() {
-    return !((this.result === null));
-  }
-  get result() {
-    return this._result;
-  }
-}
-
-class SingleSubscriptionTransformer {
-  bind(stream) {
-    const subscription = __dartLazyField("subscription", null, true, null);
-    let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: function() { return subscription.get().cancel(); } });
-    subscription.set(__dartStreamListen(stream, function(value) {
-      try {
-        {
-          controller.add(__dartAs(value, value => true, "T"));
-        }
-      } catch ($error) {
-        if (__dartIsCoreError($error, "TypeError")) {
-          const error = $error;
-          const stackTrace = $error?.stack ?? "<javascript stack unavailable>";
-          {
-            controller.addError(error, stackTrace);
-          }
-        } else {
-          throw $error;
-        }
-      }
-}, __dartBind(controller, "addError"), __dartBind(controller, "close"), false));
-    return controller.stream;
-  }
-}
-
-class Target {
-  constructor(kinds) {
-    this.kinds = kinds;
-  }
-}
-
-class TargetKind {
-  constructor() {
-    throw new TypeError("Class TargetKind has no unnamed constructor");
-  }
-  static _(displayString, name) {
-    return $TargetKind__(TargetKind, displayString, name);
-  }
-  get index() {
-    return __dartListIndexOf(__dartConst("[\"list\",\"InterfaceType(TargetKind)\",[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]]", () => Object.freeze([__dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "classes", name: "classType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "constructors", name: "constructor" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "directives", name: "directive" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enums", name: "enumType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enum values", name: "enumValue" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "export directives", name: "exportDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extensions", name: "extension" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extension types", name: "extensionType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "fields", name: "field" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level functions", name: "function" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "libraries", name: "library" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "getters", name: "getter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "import directives", name: "importDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "methods", name: "method" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "mixins", name: "mixinType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "optional parameters", name: "optionalParameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "overridable members", name: "overridableMember" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "parameters", name: "parameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "\"part of\" directives", name: "partOfDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "setters", name: "setter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level variables", name: "topLevelVariable" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "types (classes, enums, mixins, or typedefs)", name: "type" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "typedefs", name: "typedefType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "type parameters", name: "typeParameter" })))])), this, 0);
-  }
-  toString() {
-    return "TargetKind." + __dartStr(this.name);
-  }
-}
-
-function $TargetKind__($newTarget, displayString, name) {
-  const $self = Object.create($newTarget.prototype);
-  $self.displayString = displayString;
-  $self.name = name;
-  return $self;
-}
-
-class Immutable {
-  constructor(reason = "") {
-    this.reason = reason;
-  }
-}
-
-class RecordUse {
-}
-
-class Required {
-  constructor(reason = "") {
-    this.reason = reason;
-  }
-}
-
-class UseResult {
-  constructor(reason = "") {
-    this.reason = reason;
-    this.parameterDefined = null;
-  }
-  static unless({ parameterDefined, reason = "" } = {}) {
-    return $UseResult_unless(UseResult, { parameterDefined: parameterDefined, reason: reason });
-  }
-}
-
-function $UseResult_unless($newTarget, { parameterDefined, reason = "" } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self.parameterDefined = parameterDefined;
-  $self.reason = reason;
-  return $self;
-}
-
-class _AlwaysThrows {
-}
-
-class _AwaitNotRequired {
-}
-
-class _Checked {
-}
-
-class _DoNotStore {
-}
-
-class _DoNotSubmit {
-}
-
-class _Experimental {
-}
-
-class _Factory {
-}
-
-class _Internal {
-}
-
-class _IsTest {
-}
-
-class _IsTestGroup {
-}
-
-class _Literal {
-}
-
-class _MustBeConst {
-}
-
-class _MustBeOverridden {
-}
-
-class _MustCallSuper {
-}
-
-class _NonVirtual {
-}
-
-class _OptionalTypeArgs {
-}
-
-class _Protected {
-}
-
-class _Redeclare {
-}
-
-class _Reopen {
-}
-
-class _Sealed {
-}
-
-class _Virtual {
-}
-
-class _VisibleForOverriding {
-}
-
-class _VisibleForTesting {
-}
-
-class EventSinkBase {
-  constructor() {
-    this._closeMemo = new AsyncMemoizer();
-  }
-  get _closed() {
-    return this._closeMemo.hasRun;
-  }
-  add(data) {
-    this._checkCanAddEvent();
-    this.onAdd(data);
-  }
-  onAdd(data) {
-    throw new TypeError("Abstract member EventSinkBase.onAdd");
-  }
-  addError(error, stackTrace = null) {
-    this._checkCanAddEvent();
-    this.onError(error, stackTrace);
-  }
-  onError(error, stackTrace = null) {
-    throw new TypeError("Abstract member EventSinkBase.onError");
-  }
-  close() {
-    return this._closeMemo.runOnce(__dartBind(this, "onClose"));
-  }
-  onClose() {
-    throw new TypeError("Abstract member EventSinkBase.onClose");
-  }
-  _checkCanAddEvent() {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add event after closing"); })();
-    }
-  }
-}
-
-class StreamSinkBase extends EventSinkBase {
-  constructor() {
-    super();
-    this._addingStream = false;
-  }
-  get done() {
-    return this._closeMemo.future;
-  }
-  addStream(stream) {
-    this._checkCanAddEvent();
-    this._addingStream = true;
-    let completer = __dartCompleter();
-    __dartStreamListen(stream, __dartBind(this, "onAdd"), __dartBind(this, "onError"), () => {
-      this._addingStream = false;
-      completer.complete();
-}, false);
-    return completer.future;
-  }
-  close() {
-    if (this._addingStream) {
-      (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
-    }
-    return super.close();
-  }
-  _checkCanAddEvent() {
-    super._checkCanAddEvent();
-    if (this._addingStream) {
-      (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
-    }
-  }
-}
-
-class IOSinkBase extends StreamSinkBase {
-  constructor(encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false))) {
-    super();
-    this.encoding = encoding;
-  }
-  flush() {
-    if (this._addingStream) {
-      (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
-    }
-    if (this._closed) {
-      return Promise.resolve(null);
-    }
-    this._addingStream = true;
-    return this.onFlush().finally(() => {
-      this._addingStream = false;
-});
-  }
-  onFlush() {
-    throw new TypeError("Abstract member IOSinkBase.onFlush");
-  }
-  write(object) {
-    let string = __dartObjectToString(object);
-    if (string.length === 0) {
-      return;
-    }
-    this.add(this.encoding.encode(string));
-  }
-  writeAll(objects, separator_1 = "") {
-    let first = true;
-    {
-      let _sync_for_iterator = __dartIterator(objects);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let object = _sync_for_iterator.current;
-          {
-            if (first) {
-              {
-                first = false;
-              }
-            } else {
-              {
-                this.write(separator_1);
-              }
-            }
-            this.write(object);
-          }
-        }
-      }
-    }
-  }
-  writeln(object = "") {
-    this.write(object);
-    this.write("\n");
-  }
-  writeCharCode(charCode) {
-    this.write(String.fromCodePoint(charCode));
-  }
-}
-
-class StreamCloser {
-  constructor() {
-    this._subscriptions = (() => {
-      const v = new Set();
-      return v;
-    })();
-    this._controllers = (() => {
-      const v = new Set();
-      return v;
-    })();
-    this._closeFuture = null;
-  }
-  close() {
-    return (this._closeFuture ?? (this._closeFuture = (() => {
-      let futures = (() => {
-        const v = new Array(0).fill(null);
-        {
-          let _sync_for_iterator = __dartIterator(this._subscriptions);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let subscription = _sync_for_iterator.current;
-              (v.push(subscription.cancel()), null);
-            }
-          }
-        }
-        return v;
-      })();
-      this._subscriptions.clear();
-      let controllers = Array.from(this._controllers);
-      this._controllers.clear();
-      __dartScheduleMicrotask(function() {
-        {
-          let _sync_for_iterator = __dartIterator(controllers);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let controller = _sync_for_iterator.current;
-              {
-                __dartScheduleMicrotask(__dartBind(controller, "close"));
-              }
-            }
-          }
-        }
-});
-      return __dartFutureWait(futures, true, null);
-})()));
-  }
-  get isClosed() {
-    return !((this._closeFuture === null));
-  }
-  bind(stream) {
-    let controller = ((stream.isBroadcast === true) ? __dartStreamController(true, { onListen: null, onPause: null, onResume: null, onCancel: null }) : __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null }));
-    controller.onListen = () => {
-      if (this.isClosed) {
-        {
-          __dartStreamListen(stream, null, null, null, false).cancel().catch(function(_) {
-});
-          return;
-        }
-      }
-      let subscription = __dartStreamListen(stream, __dartAs(__dartBind(controller, "add"), value => typeof value === "function", "void Function(StreamCloser.T%)"), __dartBind(controller, "addError"), null, false);
-      subscription.onDone(() => {
-        __dartSetRemove(this._subscriptions, subscription);
-        __dartSetRemove(this._controllers, controller);
-        controller.close();
-});
-      __dartSetAdd(this._subscriptions, subscription);
-      if (!((stream.isBroadcast === true))) {
-        {
-          controller.onPause = __dartBind(subscription, "pause");
-          controller.onResume = __dartBind(subscription, "resume");
-        }
-      }
-      controller.onCancel = () => {
-        __dartSetRemove(this._controllers, controller);
-        if (__dartSetRemove(this._subscriptions, subscription)) {
-          return subscription.cancel();
-        }
-        return null;
-};
-};
-    if (this.isClosed) {
-      {
-        controller.close();
-      }
-    } else {
-      {
-        __dartSetAdd(this._controllers, controller);
-      }
-    }
-    return controller.stream;
   }
 }
 
@@ -4278,2429 +1993,6 @@ class _StreamGroupState {
   }
 }
 
-class StreamSplitter {
-  constructor(_stream) {
-    this._subscription = null;
-    this._buffer = new Array(0).fill(null);
-    this._controllers = (() => {
-      const v = new Set();
-      return v;
-    })();
-    this._closeGroup = new FutureGroup();
-    this._isDone = false;
-    this._isClosed = false;
-    this._stream = _stream;
-  }
-  static splitFrom(stream, count = null) {
-    ((count === null) ? count = 2 : null);
-    let splitter = new StreamSplitter(stream);
-    let streams = Array.from({ length: count }, (_, index) => (function(_) { return splitter.split(); })(index));
-    splitter.close();
-    return streams;
-  }
-  split() {
-    if (this._isClosed) {
-      {
-        (() => { throw __dartCoreError("StateError", "Can't call split() on a closed StreamSplitter."); })();
-      }
-    }
-    let controller = __dartStreamController(false, { onListen: __dartBind(this, "_onListen"), onPause: __dartBind(this, "_onPause"), onResume: __dartBind(this, "_onResume"), onCancel: null });
-    controller.onCancel = () => { return this._onCancel(controller); };
-    {
-      let _sync_for_iterator = __dartIterator(this._buffer);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let result = _sync_for_iterator.current;
-          {
-            result.addTo(controller);
-          }
-        }
-      }
-    }
-    if (this._isDone) {
-      {
-        this._closeGroup.add(controller.close());
-      }
-    } else {
-      {
-        __dartSetAdd(this._controllers, controller);
-      }
-    }
-    return controller.stream;
-  }
-  close() {
-    if (this._isClosed) {
-      return this._closeGroup.future;
-    }
-    this._isClosed = true;
-    (this._buffer.length = 0, null);
-    if (__dartIterableIsEmpty(this._controllers)) {
-      this._cancelSubscription();
-    }
-    return this._closeGroup.future;
-  }
-  _cancelSubscription() {
-    let future = null;
-    if (!((this._subscription === null))) {
-      future = __dartNullCheck(this._subscription).cancel();
-    }
-    if (!((future === null))) {
-      this._closeGroup.add(future);
-    }
-    this._closeGroup.close();
-  }
-  _onListen() {
-    if (this._isDone) {
-      return;
-    }
-    if (!((this._subscription === null))) {
-      {
-        __dartNullCheck(this._subscription).resume();
-      }
-    } else {
-      {
-        this._subscription = __dartStreamListen(this._stream, __dartBind(this, "_onData"), __dartBind(this, "_onError"), __dartBind(this, "_onDone"), false);
-      }
-    }
-  }
-  _onPause() {
-    if (!(Array.from(this._controllers).every(function(controller) { return controller.isPaused; }))) {
-      return;
-    }
-    __dartNullCheck(this._subscription).pause();
-  }
-  _onResume() {
-    __dartNullCheck(this._subscription).resume();
-  }
-  _onCancel(controller) {
-    __dartSetRemove(this._controllers, controller);
-    if (!__dartIterableIsEmpty(this._controllers)) {
-      return;
-    }
-    if (this._isClosed) {
-      {
-        this._cancelSubscription();
-      }
-    } else {
-      {
-        __dartNullCheck(this._subscription).pause();
-      }
-    }
-  }
-  _onData(data) {
-    if (!(this._isClosed)) {
-      (this._buffer.push(new ValueResult(data)), null);
-    }
-    {
-      let _sync_for_iterator = __dartIterator(this._controllers);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let controller = _sync_for_iterator.current;
-          {
-            controller.add(data);
-          }
-        }
-      }
-    }
-  }
-  _onError(error, stackTrace) {
-    if (!(this._isClosed)) {
-      (this._buffer.push(Result.error(error, stackTrace)), null);
-    }
-    {
-      let _sync_for_iterator = __dartIterator(this._controllers);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let controller = _sync_for_iterator.current;
-          {
-            controller.addError(error, stackTrace);
-          }
-        }
-      }
-    }
-  }
-  _onDone() {
-    this._isDone = true;
-    {
-      let _sync_for_iterator = __dartIterator(this._controllers);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let controller = _sync_for_iterator.current;
-          {
-            this._closeGroup.add(controller.close());
-          }
-        }
-      }
-    }
-  }
-}
-
-class SubscriptionStream {
-  constructor(subscription) {
-    this._source = subscription;
-    let source = __dartNullCheck(this._source);
-    source.pause();
-    source.onData(null);
-    source.onError(null);
-    source.onDone(null);
-  }
-  listen(onData, { onError = null, onDone = null, cancelOnError = null } = {}) {
-    let subscription = this._source;
-    if ((subscription === null)) {
-      {
-        (() => { throw __dartCoreError("StateError", "Stream has already been listened to."); })();
-      }
-    }
-    cancelOnError = __dartEquals(true, cancelOnError);
-    this._source = null;
-    let result = (cancelOnError ? new _CancelOnErrorSubscriptionWrapper(subscription) : subscription);
-    result.onData(onData);
-    result.onError(onError);
-    result.onDone(onDone);
-    subscription.resume();
-    return result;
-  }
-}
-
-class _CancelOnErrorSubscriptionWrapper extends DelegatingStreamSubscription {
-  constructor(subscription) {
-    super(subscription);
-  }
-  onError(handleError) {
-    super.onError((error, stackTrace) => {
-      super.cancel().finally(function() {
-        if (typeof handleError === "function") {
-          {
-            (handleError)(error, stackTrace);
-          }
-        } else {
-          if (typeof handleError === "function") {
-            {
-              (handleError)(error);
-            }
-          }
-        }
-});
-});
-  }
-}
-
-class _DelegatingIterableBase {
-  constructor() {
-  }
-  get _base() {
-    throw new TypeError("Abstract member _DelegatingIterableBase._base");
-  }
-  set _base(value) {
-    Object.defineProperty(this, "_base", { value, writable: true, configurable: true, enumerable: true });
-  }
-  any(test) {
-    return Array.from(this._base).some(test);
-  }
-  cast() {
-    return Array.from(this._base, (value) => __dartAs(value, (value) => true, "TypeParameterType(_DelegatingIterableBase.cast.T%)"));
-  }
-  contains(element) {
-    return __dartIterableContains(this._base, element);
-  }
-  elementAt(index) {
-    return Array.from(this._base)[index];
-  }
-  every(test) {
-    return Array.from(this._base).every(test);
-  }
-  expand(f) {
-    return Array.from(this._base).flatMap((value) => Array.from((f)(value)));
-  }
-  get first() {
-    return __dartIterableFirst(this._base);
-  }
-  firstWhere(test, { orElse = null } = {}) {
-    return __dartIterableFirstWhere(this._base, test, orElse);
-  }
-  fold(initialValue, combine) {
-    return Array.from(this._base).reduce((previous, value) => (combine)(previous, value), initialValue);
-  }
-  followedBy(other) {
-    return [...Array.from(this._base), ...Array.from(other)];
-  }
-  forEach(f) {
-    return (Array.from(this._base).forEach(f), null);
-  }
-  get isEmpty() {
-    return __dartIterableIsEmpty(this._base);
-  }
-  get isNotEmpty() {
-    return !__dartIterableIsEmpty(this._base);
-  }
-  get iterator() {
-    return __dartIterator(this._base);
-  }
-  join(separator_1 = "") {
-    return __dartIterableJoin(this._base, separator_1);
-  }
-  get last() {
-    return __dartIterableLast(this._base);
-  }
-  lastWhere(test, { orElse = null } = {}) {
-    return __dartIterableLastWhere(this._base, test, orElse);
-  }
-  get length() {
-    return __dartIterableLength(this._base);
-  }
-  map(f) {
-    return Array.from(this._base, f);
-  }
-  reduce(combine) {
-    return Array.from(this._base).reduce((previous, value) => (combine)(previous, value));
-  }
-  retype() {
-    return this.cast();
-  }
-  get single() {
-    return __dartIterableSingle(this._base);
-  }
-  singleWhere(test, { orElse = null } = {}) {
-    return __dartIterableSingleWhere(this._base, test, orElse);
-  }
-  skip(n) {
-    return Array.from(this._base).slice(n);
-  }
-  skipWhile(test) {
-    return __dartIterableSkipWhile(this._base, test);
-  }
-  take(n) {
-    return Array.from(this._base).slice(0, n);
-  }
-  takeWhile(test) {
-    return __dartIterableTakeWhile(this._base, test);
-  }
-  toList({ growable = true } = {}) {
-    return (growable ? Array.from(this._base) : __dartFixedList(Array.from(this._base)));
-  }
-  toSet() {
-    return __dartSetFrom(this._base);
-  }
-  where(test) {
-    return Array.from(this._base).filter(test);
-  }
-  whereType() {
-    return Array.from(this._base).filter((value) => true);
-  }
-  toString() {
-    return __dartStr(this._base);
-  }
-}
-
-class DelegatingIterable extends _DelegatingIterableBase {
-  constructor(base) {
-    super();
-    this._base = base;
-  }
-  static typed(base) {
-    return Array.from(base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingIterable.typed.E%)"));
-  }
-}
-
-class DelegatingList extends _DelegatingIterableBase {
-  constructor(base) {
-    super();
-    this._base = base;
-  }
-  static typed(base) {
-    return Array.from(base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingList.typed.E%)"));
-  }
-  "[]"(index) {
-    return __dartIndexGet(this._base, index);
-  }
-  "[]="(index, value) {
-    __dartIndexSet(this._base, index, value);
-  }
-  "+"(other) {
-    return (this._base + other);
-  }
-  add(value) {
-    (this._base.push(value), null);
-  }
-  addAll(iterable) {
-    (this._base.push(...Array.from(iterable)), null);
-  }
-  asMap() {
-    return __dartListAsMap(this._base);
-  }
-  cast() {
-    return Array.from(this._base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingList.cast.T%)"));
-  }
-  clear() {
-    (this._base.length = 0, null);
-  }
-  fillRange(start, end, fillValue = null) {
-    (this._base.fill(fillValue, start, end), null);
-  }
-  set first(value) {
-    if (this.isEmpty) {
-      (() => { throw __dartCoreError("IndexError", 0); })();
-    }
-    this["[]="](0, value);
-  }
-  getRange(start, end) {
-    return this._base.slice(start, end);
-  }
-  indexOf(element, start = 0) {
-    return __dartListIndexOf(this._base, element, start);
-  }
-  indexWhere(test, start = 0) {
-    return this._base.findIndex((value, index) => index >= start && (test)(value));
-  }
-  insert(index, element) {
-    (this._base.splice(index, 0, element), null);
-  }
-  insertAll(index, iterable) {
-    (this._base.splice(index, 0, ...Array.from(iterable)), null);
-  }
-  set last(value) {
-    if (this.isEmpty) {
-      (() => { throw __dartCoreError("IndexError", 0); })();
-    }
-    this["[]="]((this.length - 1), value);
-  }
-  lastIndexOf(element, start = null) {
-    return __dartListLastIndexOf(this._base, element, start);
-  }
-  lastIndexWhere(test, start = null) {
-    return __dartListLastIndexWhere(this._base, test, start);
-  }
-  set length(newLength) {
-    this._base.length = newLength;
-  }
-  remove(value) {
-    return __dartListRemove(this._base, value);
-  }
-  removeAt(index) {
-    return this._base.splice(index, 1)[0];
-  }
-  removeLast() {
-    return this._base.pop();
-  }
-  removeRange(start, end) {
-    (this._base.splice(start, end - start), null);
-  }
-  removeWhere(test) {
-    __dartListRemoveWhere(this._base, test);
-  }
-  replaceRange(start, end, iterable) {
-    (this._base.splice(start, end - start, ...Array.from(iterable)), null);
-  }
-  retainWhere(test) {
-    __dartListRetainWhere(this._base, test);
-  }
-  retype() {
-    return this.cast();
-  }
-  get reversed() {
-    return Array.from(this._base).reverse();
-  }
-  setAll(index, iterable) {
-    __dartListSetAll(this._base, index, iterable);
-  }
-  setRange(start, end, iterable, skipCount = 0) {
-    __dartListSetRange(this._base, start, end, iterable, skipCount);
-  }
-  shuffle(random = null) {
-    __dartListShuffle(this._base, random);
-  }
-  sort(compare = null) {
-    __dartListSort(this._base, compare);
-  }
-  sublist(start, end = null) {
-    return this._base.slice(start, end);
-  }
-  get first() { return super.first; }
-  get last() { return super.last; }
-  get length() { return super.length; }
-}
-
-class DelegatingSet extends _DelegatingIterableBase {
-  constructor(base) {
-    super();
-    this._base = base;
-  }
-  static typed(base) {
-    return new Set(Array.from(base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingSet.typed.E%)")));
-  }
-  add(value) {
-    return __dartSetAdd(this._base, value);
-  }
-  addAll(elements) {
-    __dartSetAddAll(this._base, elements);
-  }
-  cast() {
-    return new Set(Array.from(this._base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingSet.cast.T%)")));
-  }
-  clear() {
-    this._base.clear();
-  }
-  containsAll(other) {
-    return __dartSetContainsAll(this._base, other);
-  }
-  difference(other) {
-    return __dartSetDifference(this._base, other);
-  }
-  intersection(other) {
-    return __dartSetIntersection(this._base, other);
-  }
-  lookup(element) {
-    return __dartSetLookup(this._base, element);
-  }
-  remove(value) {
-    return __dartSetRemove(this._base, value);
-  }
-  removeAll(elements) {
-    __dartSetRemoveAll(this._base, elements);
-  }
-  removeWhere(test) {
-    __dartSetRemoveWhere(this._base, test);
-  }
-  retainAll(elements) {
-    __dartSetRetainAll(this._base, elements);
-  }
-  retype() {
-    return this.cast();
-  }
-  retainWhere(test) {
-    __dartSetRetainWhere(this._base, test);
-  }
-  union(other) {
-    return __dartSetUnion(this._base, other);
-  }
-  toSet() {
-    return new DelegatingSet(__dartSetFrom(this._base));
-  }
-}
-
-class DelegatingQueue extends _DelegatingIterableBase {
-  constructor(queue) {
-    super();
-    this._base = queue;
-  }
-  static typed(base) {
-    return Array.from(base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingQueue.typed.E%)"));
-  }
-  add(value) {
-    (this._base.push(value), null);
-  }
-  addAll(iterable) {
-    (this._base.push(...Array.from(iterable)), null);
-  }
-  addFirst(value) {
-    (this._base.unshift(value), null);
-  }
-  addLast(value) {
-    (this._base.push(value), null);
-  }
-  cast() {
-    return Array.from(this._base, (value) => __dartAs(value, (value) => true, "TypeParameterType(DelegatingQueue.cast.T%)"));
-  }
-  clear() {
-    (this._base.length = 0, null);
-  }
-  remove(object) {
-    return __dartListRemove(this._base, object);
-  }
-  removeWhere(test) {
-    __dartListRemoveWhere(this._base, test);
-  }
-  retainWhere(test) {
-    __dartListRetainWhere(this._base, test);
-  }
-  retype() {
-    return this.cast();
-  }
-  removeFirst() {
-    return this._base.shift();
-  }
-  removeLast() {
-    return this._base.pop();
-  }
-}
-
-class DelegatingMap {
-  constructor(base) {
-    this._base = base;
-  }
-  static typed(base) {
-    return new Map(Array.from(base, ([key, value]) => [__dartAs(key, (key) => true, "TypeParameterType(DelegatingMap.typed.K%)"), __dartAs(value, (value) => true, "TypeParameterType(DelegatingMap.typed.V%)")]));
-  }
-  "[]"(key) {
-    return __dartMapGet(this._base, key);
-  }
-  "[]="(key, value) {
-    __dartMapSet(this._base, key, value);
-  }
-  addAll(other) {
-    __dartMapAddAll(this._base, other);
-  }
-  addEntries(entries) {
-    __dartMapAddEntries(this._base, entries);
-  }
-  clear() {
-    (this._base.clear(), null);
-  }
-  cast() {
-    return new Map(Array.from(this._base, ([key, value]) => [__dartAs(key, (key) => true, "TypeParameterType(DelegatingMap.cast.K2%)"), __dartAs(value, (value) => true, "TypeParameterType(DelegatingMap.cast.V2%)")]));
-  }
-  containsKey(key) {
-    return __dartMapContainsKey(this._base, key);
-  }
-  containsValue(value) {
-    return __dartMapContainsValue(this._base, value);
-  }
-  get entries() {
-    return Array.from(this._base, ([key, value]) => ({ key, value }));
-  }
-  forEach(f) {
-    __dartMapForEach(this._base, f);
-  }
-  get isEmpty() {
-    return this._base.size === 0;
-  }
-  get isNotEmpty() {
-    return this._base.size !== 0;
-  }
-  get keys() {
-    return Array.from(this._base.keys());
-  }
-  get length() {
-    return this._base.size;
-  }
-  map(transform) {
-    return __dartMapMap(this._base, transform);
-  }
-  putIfAbsent(key, ifAbsent) {
-    return __dartMapPutIfAbsent(this._base, key, ifAbsent);
-  }
-  remove(key) {
-    return __dartMapRemove(this._base, key);
-  }
-  removeWhere(test) {
-    return __dartMapRemoveWhere(this._base, test);
-  }
-  retype() {
-    return this.cast();
-  }
-  get values() {
-    return Array.from(this._base.values());
-  }
-  toString() {
-    return __dartObjectToString(this._base);
-  }
-  update(key, update, { ifAbsent = null } = {}) {
-    return __dartMapUpdate(this._base, key, update, ifAbsent);
-  }
-  updateAll(update) {
-    return __dartMapUpdateAll(this._base, update);
-  }
-}
-
-class UnmodifiableSetMixin {
-  constructor() {
-    Object.defineProperty(this, $UnmodifiableSetMixin_interface, { value: true });
-  }
-  static _throw() {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable Set"); })();
-  }
-  add(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  addAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  remove(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  clear() {
-    return UnmodifiableSetMixin._throw();
-  }
-}
-Object.defineProperty(UnmodifiableSetMixin, Symbol.hasInstance, { value(value) { return value != null && value[$UnmodifiableSetMixin_interface] === true; } });
-
-class _MapKeySet__DelegatingIterableBase_UnmodifiableSetMixin extends _DelegatingIterableBase {
-  constructor() {
-    super();
-    Object.defineProperty(this, $UnmodifiableSetMixin_interface, { value: true });
-  }
-  cast() {
-    throw new TypeError("Abstract member _MapKeySet&_DelegatingIterableBase&UnmodifiableSetMixin.cast");
-  }
-  add(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  addAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  remove(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  clear() {
-    return UnmodifiableSetMixin._throw();
-  }
-}
-
-class MapKeySet extends _MapKeySet__DelegatingIterableBase_UnmodifiableSetMixin {
-  constructor(_baseMap) {
-    super();
-    this._baseMap = _baseMap;
-  }
-  get _base() {
-    return Array.from(this._baseMap.keys());
-  }
-  cast() {
-    if (this instanceof MapKeySet) {
-      {
-        return __dartAs(this, value => value instanceof MapKeySet, "MapKeySet<MapKeySet.cast.T%>");
-      }
-    }
-    return __dartSetFrom(Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(MapKeySet.cast.T%)")));
-  }
-  contains(element) {
-    return __dartMapContainsKey(this._baseMap, element);
-  }
-  get isEmpty() {
-    return this._baseMap.size === 0;
-  }
-  get isNotEmpty() {
-    return this._baseMap.size !== 0;
-  }
-  get length() {
-    return this._baseMap.size;
-  }
-  toString() {
-    return ("{" + Array.from(this, (value) => __dartStr(value)).join(", ") + "}");
-  }
-  containsAll(other) {
-    return Array.from(other).every(__dartBind(this, "contains"));
-  }
-  difference(other) {
-    return __dartSetFrom(this.where(function(element) { return !(__dartIterableContains(other, element)); }));
-  }
-  intersection(other) {
-    return __dartSetFrom(this.where(__dartBind(other, "contains")));
-  }
-  lookup(element) {
-    return (() => { throw __dartCoreError("UnsupportedError", "MapKeySet doesn't support lookup()."); })();
-  }
-  retype() {
-    return __dartSetFrom(Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(MapKeySet.retype.T%)")));
-  }
-  union(other) {
-    return (() => { let v = this.toSet(); return (() => {
-      __dartSetAddAll(v, other);
-      return v;
-    })(); })();
-  }
-}
-
-class MapValueSet extends _DelegatingIterableBase {
-  constructor(_baseMap, _keyForValue) {
-    super();
-    this._baseMap = _baseMap;
-    this._keyForValue = _keyForValue;
-  }
-  get _base() {
-    return Array.from(this._baseMap.values());
-  }
-  cast() {
-    if (this instanceof Set) {
-      {
-        return __dartAs(this, value => value instanceof Set, "Set<MapValueSet.cast.T%>");
-      }
-    }
-    return __dartSetFrom(Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(MapValueSet.cast.T%)")));
-  }
-  contains(element) {
-    if (!(true)) {
-      return false;
-    }
-    let key = (() => { let v = element; return (this._keyForValue)(v); })();
-    return __dartMapContainsKey(this._baseMap, key);
-  }
-  get isEmpty() {
-    return this._baseMap.size === 0;
-  }
-  get isNotEmpty() {
-    return this._baseMap.size !== 0;
-  }
-  get length() {
-    return this._baseMap.size;
-  }
-  toString() {
-    return __dartObjectToString(this.toSet());
-  }
-  add(value) {
-    let key = (() => { let v = value; return (this._keyForValue)(v); })();
-    let result = false;
-    __dartMapPutIfAbsent(this._baseMap, key, function() {
-      result = true;
-      return value;
-});
-    return result;
-  }
-  addAll(elements) {
-    return (Array.from(elements).forEach(__dartBind(this, "add")), null);
-  }
-  clear() {
-    return (this._baseMap.clear(), null);
-  }
-  containsAll(other) {
-    return Array.from(other).every(__dartBind(this, "contains"));
-  }
-  difference(other) {
-    return __dartSetFrom(this.where(function(element) { return !(__dartIterableContains(other, element)); }));
-  }
-  intersection(other) {
-    return __dartSetFrom(this.where(__dartBind(other, "contains")));
-  }
-  lookup(element) {
-    if (!(true)) {
-      return null;
-    }
-    let key = (() => { let v = element; return (this._keyForValue)(v); })();
-    return __dartMapGet(this._baseMap, key);
-  }
-  remove(element) {
-    if (!(true)) {
-      return false;
-    }
-    let key = (() => { let v = element; return (this._keyForValue)(v); })();
-    if (!(__dartMapContainsKey(this._baseMap, key))) {
-      return false;
-    }
-    __dartMapRemove(this._baseMap, key);
-    return true;
-  }
-  removeAll(elements) {
-    return (Array.from(elements).forEach(__dartBind(this, "remove")), null);
-  }
-  removeWhere(test) {
-    let toRemove = new Array(0).fill(null);
-    __dartMapForEach(this._baseMap, function(key, value) {
-      if ((test)(value)) {
-        (toRemove.push(key), null);
-      }
-});
-    (Array.from(toRemove).forEach(__dartBind(this._baseMap, "remove")), null);
-  }
-  retainAll(elements) {
-    let valuesToRetain = __dartIdentitySet();
-    {
-      let _sync_for_iterator = __dartIterator(elements);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let element = _sync_for_iterator.current;
-          L:
-          {
-            if (!(true)) {
-              break L;
-            }
-            let key = (() => { let v = element; return (this._keyForValue)(v); })();
-            if (!(__dartMapContainsKey(this._baseMap, key))) {
-              break L;
-            }
-            __dartSetAdd(valuesToRetain, (__dartMapGet(this._baseMap, key) ?? (null ?? __dartAs(v_1, value => true, "V"))));
-          }
-        }
-      }
-    }
-    let keysToRemove = new Array(0).fill(null);
-    __dartMapForEach(this._baseMap, function(k, v) {
-      if (!(__dartIterableContains(valuesToRetain, v))) {
-        (keysToRemove.push(k), null);
-      }
-});
-    (Array.from(keysToRemove).forEach(__dartBind(this._baseMap, "remove")), null);
-  }
-  retainWhere(test) {
-    return this.removeWhere(function(element) { return !((test)(element)); });
-  }
-  retype() {
-    return __dartSetFrom(Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(MapValueSet.retype.T%)")));
-  }
-  union(other) {
-    return (() => { let v = this.toSet(); return (() => {
-      __dartSetAddAll(v, other);
-      return v;
-    })(); })();
-  }
-}
-
-class _EmptyUnmodifiableSet_IterableBase_UnmodifiableSetMixin {
-  constructor() {
-    Object.defineProperty(this, $UnmodifiableSetMixin_interface, { value: true });
-  }
-  cast() {
-    throw new TypeError("Abstract member _EmptyUnmodifiableSet&IterableBase&UnmodifiableSetMixin.cast");
-  }
-  add(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  addAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  remove(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  clear() {
-    return UnmodifiableSetMixin._throw();
-  }
-}
-
-class _UnmodifiableSetView_DelegatingSet_UnmodifiableSetMixin extends DelegatingSet {
-  constructor(base) {
-    super(base);
-    Object.defineProperty(this, $UnmodifiableSetMixin_interface, { value: true });
-  }
-  add(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  addAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  remove(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  clear() {
-    return UnmodifiableSetMixin._throw();
-  }
-}
-
-class UnmodifiableSetView extends _UnmodifiableSetView_DelegatingSet_UnmodifiableSetMixin {
-  constructor(setBase) {
-    super(setBase);
-    Object.defineProperty(this, $UnmodifiableSetView_interface, { value: true });
-  }
-  static empty() {
-    return new EmptyUnmodifiableSet();
-  }
-}
-Object.defineProperty(UnmodifiableSetView, Symbol.hasInstance, { value(value) { return value != null && value[$UnmodifiableSetView_interface] === true; } });
-
-class EmptyUnmodifiableSet extends _EmptyUnmodifiableSet_IterableBase_UnmodifiableSetMixin {
-  constructor() {
-    super();
-    Object.defineProperty(this, $UnmodifiableSetView_interface, { value: true });
-  }
-  get iterator() {
-    return __dartIterator([]);
-  }
-  get length() {
-    return 0;
-  }
-  cast() {
-    return new EmptyUnmodifiableSet();
-  }
-  contains(element) {
-    return false;
-  }
-  containsAll(other) {
-    return __dartIterableIsEmpty(other);
-  }
-  followedBy(other) {
-    return new DelegatingIterable(other);
-  }
-  lookup(element) {
-    return null;
-  }
-  retype() {
-    return new EmptyUnmodifiableSet();
-  }
-  singleWhere(test, { orElse = null } = {}) {
-    return (!((orElse === null)) ? (orElse)() : (() => { throw __dartCoreError("StateError", "No element"); })());
-  }
-  whereType() {
-    return [];
-  }
-  toSet() {
-    return (() => {
-      const v = new Set();
-      return v;
-    })();
-  }
-  union(other) {
-    return __dartSetFrom(other);
-  }
-  intersection(other) {
-    return (() => {
-      const v = new Set();
-      return v;
-    })();
-  }
-  difference(other) {
-    return (() => {
-      const v = new Set();
-      return v;
-    })();
-  }
-}
-
-class NonGrowableListMixin {
-  constructor() {
-    Object.defineProperty(this, $NonGrowableListMixin_interface, { value: true });
-  }
-  static _throw() {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot change the length of a fixed-length list"); })();
-  }
-  set length(newLength) {
-    return NonGrowableListMixin._throw();
-  }
-  add(value) {
-    return NonGrowableListMixin._throw();
-  }
-  addAll(iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  insert(index, element) {
-    return NonGrowableListMixin._throw();
-  }
-  insertAll(index, iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  remove(value) {
-    return NonGrowableListMixin._throw();
-  }
-  removeAt(index) {
-    return NonGrowableListMixin._throw();
-  }
-  removeLast() {
-    return NonGrowableListMixin._throw();
-  }
-  removeWhere(test) {
-    return NonGrowableListMixin._throw();
-  }
-  retainWhere(test) {
-    return NonGrowableListMixin._throw();
-  }
-  removeRange(start, end) {
-    return NonGrowableListMixin._throw();
-  }
-  replaceRange(start, end, iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  clear() {
-    return NonGrowableListMixin._throw();
-  }
-}
-Object.defineProperty(NonGrowableListMixin, Symbol.hasInstance, { value(value) { return value != null && value[$NonGrowableListMixin_interface] === true; } });
-
-class _NonGrowableListView_DelegatingList_NonGrowableListMixin extends DelegatingList {
-  constructor(base) {
-    super(base);
-    Object.defineProperty(this, $NonGrowableListMixin_interface, { value: true });
-  }
-  set length(newLength) {
-    return NonGrowableListMixin._throw();
-  }
-  add(value) {
-    return NonGrowableListMixin._throw();
-  }
-  addAll(iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  insert(index, element) {
-    return NonGrowableListMixin._throw();
-  }
-  insertAll(index, iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  remove(value) {
-    return NonGrowableListMixin._throw();
-  }
-  removeAt(index) {
-    return NonGrowableListMixin._throw();
-  }
-  removeLast() {
-    return NonGrowableListMixin._throw();
-  }
-  removeWhere(test) {
-    return NonGrowableListMixin._throw();
-  }
-  retainWhere(test) {
-    return NonGrowableListMixin._throw();
-  }
-  removeRange(start, end) {
-    return NonGrowableListMixin._throw();
-  }
-  replaceRange(start, end, iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  clear() {
-    return NonGrowableListMixin._throw();
-  }
-  get length() { return super.length; }
-}
-
-class NonGrowableListView extends _NonGrowableListView_DelegatingList_NonGrowableListMixin {
-  constructor(listBase) {
-    super(listBase);
-  }
-}
-
-class UnmodifiableMapMixin {
-  constructor() {
-  }
-  static _throw() {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable Map"); })();
-  }
-  "[]="(key, value) {
-    return UnmodifiableMapMixin._throw();
-  }
-  putIfAbsent(key, ifAbsent) {
-    return UnmodifiableMapMixin._throw();
-  }
-  addAll(other) {
-    return UnmodifiableMapMixin._throw();
-  }
-  remove(key) {
-    return UnmodifiableMapMixin._throw();
-  }
-  clear() {
-    return UnmodifiableMapMixin._throw();
-  }
-  set first(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-  set last(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-}
-
-class _BoolList_Object_ListMixin {
-  constructor() {
-  }
-  fillRange(start, end, fill = null) {
-    let value = (fill ?? (v ?? __dartAs(v_1, value => typeof value === "boolean", "bool")));
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    for (let i = start; (i < end); i = (i + 1)) {
-      {
-        __dartIndexSet(this, i, value);
-      }
-    }
-  }
-  get iterator() {
-    return __dartIterator(this);
-  }
-  get first() {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    return __dartIndexGet(this, 0);
-  }
-  set first(value) {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    __dartIndexSet(this, 0, value);
-  }
-  get last() {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    return __dartIndexGet(this, (this.length - 1));
-  }
-  set last(value) {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    __dartIndexSet(this, (this.length - 1), value);
-  }
-  elementAt(index) {
-    return __dartIndexGet(this, index);
-  }
-  followedBy(other) {
-    return Array.from(this).concat(Array.from(other));
-  }
-  forEach(action) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        (action)(__dartIndexGet(this, i));
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-  }
-  get isEmpty() {
-    return __dartEquals(this.length, 0);
-  }
-  get isNotEmpty() {
-    return !(this.length === 0);
-  }
-  get single() {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    if ((this.length > 1)) {
-      (() => { throw __dartCoreError("StateError", "Too many elements"); })();
-    }
-    return __dartIndexGet(this, 0);
-  }
-  contains(element) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          return true;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return false;
-  }
-  every(test) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        if (!((test)(__dartIndexGet(this, i)))) {
-          return false;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return true;
-  }
-  any(test) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        if ((test)(__dartIndexGet(this, i))) {
-          return true;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return false;
-  }
-  firstWhere(test, { orElse = null } = {}) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if ((test)(element)) {
-          return element;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (!((orElse === null))) {
-      return (orElse)();
-    }
-    (() => { throw __dartCoreError("StateError", "No element"); })();
-  }
-  lastWhere(test, { orElse = null } = {}) {
-    let length = this.length;
-    for (let i = (length - 1); (i >= 0); i = (i - 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if ((test)(element)) {
-          return element;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (!((orElse === null))) {
-      return (orElse)();
-    }
-    (() => { throw __dartCoreError("StateError", "No element"); })();
-  }
-  singleWhere(test, { orElse = null } = {}) {
-    let length = this.length;
-    const match = __dartLazyField("match", null, true, null);
-    let matchFound = false;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if ((test)(element)) {
-          {
-            if (matchFound) {
-              {
-                (() => { throw __dartCoreError("StateError", "Too many elements"); })();
-              }
-            }
-            matchFound = true;
-            match.set(element);
-          }
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (matchFound) {
-      return match.get();
-    }
-    if (!((orElse === null))) {
-      return (orElse)();
-    }
-    (() => { throw __dartCoreError("StateError", "No element"); })();
-  }
-  join(separator_1 = "") {
-    if (__dartEquals(this.length, 0)) {
-      return "";
-    }
-    let buffer = (() => { let v = __dartStringBuffer(""); return (() => {
-      v.writeAll(this, separator_1);
-      return v;
-    })(); })();
-    return __dartStr(buffer);
-  }
-  where(test) {
-    return Array.from(this).filter((value) => test(value));
-  }
-  whereType() {
-    return Array.from(this).filter((value) => true);
-  }
-  map(f) {
-    return Array.from(this, (value) => f(value));
-  }
-  expand(f) {
-    return Array.from(this).flatMap((value) => Array.from(f(value)));
-  }
-  reduce(combine) {
-    let length = this.length;
-    if (__dartEquals(length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    let value = __dartIndexGet(this, 0);
-    for (let i = 1; (i < length); i = (i + 1)) {
-      {
-        value = (combine)(value, __dartIndexGet(this, i));
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return value;
-  }
-  fold(initialValue, combine) {
-    let value = initialValue;
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        value = (combine)(value, __dartIndexGet(this, i));
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return value;
-  }
-  skip(count) {
-    return Array.from(this).slice(count, null ?? undefined);
-  }
-  skipWhile(test) {
-    return __dartIterableSkipWhile(this, test);
-  }
-  take(count) {
-    return Array.from(this).slice(0, __dartNullCheck(count) ?? undefined);
-  }
-  takeWhile(test) {
-    return __dartIterableTakeWhile(this, test);
-  }
-  toList({ growable = true } = {}) {
-    if (this.length === 0) {
-      return (growable ? [] : __dartFixedList([]));
-    }
-    let first = __dartIndexGet(this, 0);
-    let result = (growable ? new Array(this.length).fill(first) : __dartFixedList(new Array(this.length).fill(first)));
-    for (let i = 1; (i < this.length); i = (i + 1)) {
-      {
-        __dartIndexSet(result, i, __dartIndexGet(this, i));
-      }
-    }
-    return result;
-  }
-  toSet() {
-    let result = new Set();
-    for (let i = 0; (i < this.length); i = (i + 1)) {
-      {
-        __dartSetAdd(result, __dartIndexGet(this, i));
-      }
-    }
-    return result;
-  }
-  add(element) {
-    __dartIndexSet(this, (() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })(), element);
-  }
-  addAll(iterable) {
-    let i = this.length;
-    {
-      let _sync_for_iterator = __dartIterator(iterable);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let element = _sync_for_iterator.current;
-          {
-            this.add(element);
-            i = (i + 1);
-          }
-        }
-      }
-    }
-  }
-  remove(element) {
-    for (let i = 0; (i < this.length); i = (i + 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          {
-            this._closeGap(i, (i + 1));
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-  _closeGap(start, end) {
-    let length = this.length;
-    let size = (end - start);
-    for (let i = end; (i < length); i = (i + 1)) {
-      {
-        __dartIndexSet(this, (i - size), __dartIndexGet(this, i));
-      }
-    }
-    this.length = (length - size);
-  }
-  removeWhere(test) {
-    this._filter(test, false);
-  }
-  retainWhere(test) {
-    this._filter(test, true);
-  }
-  _filter(test, retainMatching) {
-    let retained = new Array(0).fill(null);
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if (__dartEquals((test)(element), retainMatching)) {
-          {
-            (retained.push(element), null);
-          }
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (!(__dartEquals(retained.length, this.length))) {
-      {
-        __dartListSetRange(this, 0, retained.length, retained, 0);
-        this.length = retained.length;
-      }
-    }
-  }
-  clear() {
-    this.length = 0;
-  }
-  cast() {
-    return Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(_BoolList&Object&ListMixin.cast.R%)"));
-  }
-  removeLast() {
-    if (__dartEquals(this.length, 0)) {
-      {
-        (() => { throw __dartCoreError("StateError", "No element"); })();
-      }
-    }
-    let result = __dartIndexGet(this, (this.length - 1));
-    this.length = (this.length - 1);
-    return result;
-  }
-  sort(compare = null) {
-    __dartListSort(this, (compare ?? ((left, right) => __dartCompare(left, right))));
-  }
-  shuffle(random = null) {
-    ((random === null) ? random = __dartRandom(null, false) : null);
-    let length = this.length;
-    while ((length > 1)) {
-      {
-        let pos = random.nextInt(length);
-        length = (length - 1);
-        let tmp = __dartIndexGet(this, length);
-        __dartIndexSet(this, length, __dartIndexGet(this, pos));
-        __dartIndexSet(this, pos, tmp);
-      }
-    }
-  }
-  asMap() {
-    return new Map(Array.from(this, (value, index) => [index, value]));
-  }
-  "+"(other) {
-    return (() => {
-      const v = Array.from(this);
-      (v.push(...Array.from(other)), null);
-      return v;
-    })();
-  }
-  sublist(start, end = null) {
-    let listLength = this.length;
-    ((end === null) ? end = listLength : null);
-    __dartCheckValidRange(start, end, listLength, null, null, null);
-    return Array.from(this.slice(start, end));
-  }
-  getRange(start, end) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    return Array.from(this).slice(start, end ?? undefined);
-  }
-  removeRange(start, end) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    if ((end > start)) {
-      {
-        this._closeGap(start, end);
-      }
-    }
-  }
-  setRange(start, end, iterable, skipCount = 0) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    let length = (end - start);
-    if (__dartEquals(length, 0)) {
-      return;
-    }
-    __dartCheckNotNegative(skipCount, "skipCount", null);
-    let otherList = null;
-    let otherStart = null;
-    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      {
-        otherList = iterable;
-        otherStart = skipCount;
-      }
-    } else {
-      {
-        otherList = __dartFixedList(Array.from(Array.from(iterable).slice(skipCount)));
-        otherStart = 0;
-      }
-    }
-    if (((otherStart + length) > otherList.length)) {
-      {
-        (() => { throw __dartCoreError("StateError", "Too few elements"); })();
-      }
-    }
-    if ((otherStart < start)) {
-      {
-        for (let i = (length - 1); (i >= 0); i = (i - 1)) {
-          {
-            __dartIndexSet(this, (start + i), __dartIndexGet(otherList, (otherStart + i)));
-          }
-        }
-      }
-    } else {
-      {
-        for (let i_1 = 0; (i_1 < length); i_1 = (i_1 + 1)) {
-          {
-            __dartIndexSet(this, (start + i_1), __dartIndexGet(otherList, (otherStart + i_1)));
-          }
-        }
-      }
-    }
-  }
-  replaceRange(start, end, newContents) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    if (__dartEquals(start, this.length)) {
-      {
-        this.addAll(newContents);
-        return;
-      }
-    }
-    if (!(newContents != null && typeof newContents !== "string" && typeof newContents.length === "number" && typeof newContents[Symbol.iterator] === "function")) {
-      {
-        newContents = Array.from(newContents);
-      }
-    }
-    let removeLength = (end - start);
-    let insertLength = __dartIterableLength(newContents);
-    if ((removeLength >= insertLength)) {
-      {
-        let insertEnd = (start + insertLength);
-        __dartListSetRange(this, start, insertEnd, newContents, 0);
-        if ((removeLength > insertLength)) {
-          {
-            this._closeGap(insertEnd, end);
-          }
-        }
-      }
-    } else {
-      if (__dartEquals(end, this.length)) {
-        {
-          let i = start;
-          {
-            let _sync_for_iterator = __dartIterator(newContents);
-            for (; _sync_for_iterator.moveNext(); ) {
-              {
-                let element = _sync_for_iterator.current;
-                {
-                  if ((i < end)) {
-                    {
-                      __dartIndexSet(this, i, element);
-                    }
-                  } else {
-                    {
-                      this.add(element);
-                    }
-                  }
-                  i = (i + 1);
-                }
-              }
-            }
-          }
-        }
-      } else {
-        {
-          let delta = (insertLength - removeLength);
-          let oldLength = this.length;
-          let insertEnd_1 = (start + insertLength);
-          for (let i_1 = (oldLength - delta); (i_1 < oldLength); i_1 = (i_1 + 1)) {
-            {
-              this.add(__dartIndexGet(this, ((i_1 > 0) ? i_1 : 0)));
-            }
-          }
-          if ((insertEnd_1 < oldLength)) {
-            {
-              __dartListSetRange(this, insertEnd_1, oldLength, this, end);
-            }
-          }
-          __dartListSetRange(this, start, insertEnd_1, newContents, 0);
-        }
-      }
-    }
-  }
-  indexOf(element, start = 0) {
-    if ((start < 0)) {
-      start = 0;
-    }
-    for (let i = start; (i < this.length); i = (i + 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  indexWhere(test, start = 0) {
-    if ((start < 0)) {
-      start = 0;
-    }
-    for (let i = start; (i < this.length); i = (i + 1)) {
-      {
-        if ((test)(__dartIndexGet(this, i))) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  lastIndexOf(element, start = null) {
-    if (((start === null) || (start >= this.length))) {
-      start = (this.length - 1);
-    }
-    for (let i = start; (i >= 0); i = (i - 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  lastIndexWhere(test, start = null) {
-    if (((start === null) || (start >= this.length))) {
-      start = (this.length - 1);
-    }
-    for (let i = start; (i >= 0); i = (i - 1)) {
-      {
-        if ((test)(__dartIndexGet(this, i))) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  insert(index, element) {
-    __dartNullCheck(index);
-    let length = this.length;
-    __dartCheckValueInInterval(index, 0, length, "index", null);
-    this.add(element);
-    if (!(__dartEquals(index, length))) {
-      {
-        __dartListSetRange(this, (index + 1), (length + 1), this, index);
-        __dartIndexSet(this, index, element);
-      }
-    }
-  }
-  removeAt(index) {
-    let result = __dartIndexGet(this, index);
-    this._closeGap(index, (index + 1));
-    return result;
-  }
-  insertAll(index, iterable) {
-    __dartCheckValueInInterval(index, 0, this.length, "index", null);
-    if (__dartEquals(index, this.length)) {
-      {
-        this.addAll(iterable);
-        return;
-      }
-    }
-    if ((!(iterable != null && typeof iterable !== "string" && typeof iterable.length === "number" && typeof iterable[Symbol.iterator] === "function") || Object.is(iterable, this))) {
-      {
-        iterable = Array.from(iterable);
-      }
-    }
-    let insertionLength = __dartIterableLength(iterable);
-    if (__dartEquals(insertionLength, 0)) {
-      {
-        return;
-      }
-    }
-    let oldLength = this.length;
-    for (let i = (oldLength - insertionLength); (i < oldLength); i = (i + 1)) {
-      {
-        this.add(__dartIndexGet(this, ((i > 0) ? i : 0)));
-      }
-    }
-    if (!(__dartEquals(__dartIterableLength(iterable), insertionLength))) {
-      {
-        this.length = (this.length - insertionLength);
-        (() => { throw __dartCoreError("ConcurrentModificationError", iterable); })();
-      }
-    }
-    let oldCopyStart = (index + insertionLength);
-    if ((oldCopyStart < oldLength)) {
-      {
-        __dartListSetRange(this, oldCopyStart, oldLength, this, index);
-      }
-    }
-    __dartListSetAll(this, index, iterable);
-  }
-  setAll(index, iterable) {
-    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      {
-        __dartListSetRange(this, index, (index + __dartIterableLength(iterable)), iterable, 0);
-      }
-    } else {
-      {
-        {
-          let _sync_for_iterator = __dartIterator(iterable);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let element = _sync_for_iterator.current;
-              {
-                __dartIndexSet(this, (() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  get reversed() {
-    return Array.from(this).reverse();
-  }
-  toString() {
-    return ("[" + Array.from(this, (value) => __dartStr(value)).join(", ") + "]");
-  }
-}
-
-class BoolList extends _BoolList_Object_ListMixin {
-  static _(_data, _length) {
-    return $BoolList__(BoolList, _data, _length);
-  }
-  static _selectType(length, growable) {
-    if (growable) {
-      {
-        return new _GrowableBoolList(length);
-      }
-    } else {
-      {
-        return new _NonGrowableBoolList(length);
-      }
-    }
-  }
-  constructor(length, { fill = false, growable = false } = {}) {
-    if (new.target === BoolList) {
-      __dartCheckNotNegative(length, "length", null);
-      let boolList = null;
-      if (growable) {
-        {
-          boolList = new _GrowableBoolList(length);
-        }
-      } else {
-        {
-          boolList = new _NonGrowableBoolList(length);
-        }
-      }
-      if (fill) {
-        {
-          boolList.fillRange(0, length, true);
-        }
-      }
-      return boolList;
-    }
-  }
-  static empty({ growable = true, capacity = 0 } = {}) {
-    __dartCheckNotNegative(capacity, "length", null);
-    if (growable) {
-      {
-        return _GrowableBoolList._withCapacity(0, capacity);
-      }
-    } else {
-      {
-        return _NonGrowableBoolList._withCapacity(0, capacity);
-      }
-    }
-  }
-  static generate(length, generator, { growable = true } = {}) {
-    __dartCheckNotNegative(length, "length", null);
-    let instance = BoolList._selectType(length, growable);
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        instance._setBit(i, (generator)(i));
-      }
-    }
-    return instance;
-  }
-  static of(elements, { growable = false } = {}) {
-    return (() => { let v = BoolList._selectType(__dartIterableLength(elements), growable); return (() => {
-      v.setAll(0, elements);
-      return v;
-    })(); })();
-  }
-  get length() {
-    return this._length;
-  }
-  "[]"(index) {
-    __dartCheckValidIndex(index, this, "index", this._length, null);
-    return !(__dartEquals((__dartIndexGet(this._data, __dartShr(index, 5)) & (1 << (index & 31))), 0));
-  }
-  "[]="(index, value) {
-    __dartCheckValidIndex(index, this, "index", this._length, null);
-    this._setBit(index, value);
-  }
-  fillRange(start, end, fill = null) {
-    __dartCheckValidRange(start, end, this._length, null, null, null);
-    ((fill === null) ? fill = false : null);
-    let startWord = __dartShr(start, 5);
-    let endWord = __dartShr((end - 1), 5);
-    let startBit = (start & 31);
-    let endBit = ((end - 1) & 31);
-    if ((startWord < endWord)) {
-      {
-        if (fill) {
-          {
-            (() => { let v = this._data; return (() => { let v_1 = startWord; return __dartIndexSet(v, v_1, (__dartIndexGet(v, v_1) | ((-1) << startBit))); })(); })();
-            (this._data.fill((-1), (startWord + 1), endWord), null);
-            (() => { let v_2 = this._data; return (() => { let v_3 = endWord; return __dartIndexSet(v_2, v_3, (__dartIndexGet(v_2, v_3) | ((1 << (endBit + 1)) - 1))); })(); })();
-          }
-        } else {
-          {
-            (() => { let v_4 = this._data; return (() => { let v_5 = startWord; return __dartIndexSet(v_4, v_5, (__dartIndexGet(v_4, v_5) & ((1 << startBit) - 1))); })(); })();
-            (this._data.fill(0, (startWord + 1), endWord), null);
-            (() => { let v_6 = this._data; return (() => { let v_7 = endWord; return __dartIndexSet(v_6, v_7, (__dartIndexGet(v_6, v_7) & ((-1) << (endBit + 1)))); })(); })();
-          }
-        }
-      }
-    } else {
-      {
-        if (fill) {
-          {
-            (() => { let v_8 = this._data; return (() => { let v_9 = startWord; return __dartIndexSet(v_8, v_9, (__dartIndexGet(v_8, v_9) | (((1 << ((endBit - startBit) + 1)) - 1) << startBit))); })(); })();
-          }
-        } else {
-          {
-            (() => { let v_10 = this._data; return (() => { let v_11 = startWord; return __dartIndexSet(v_10, v_11, (__dartIndexGet(v_10, v_11) & (((1 << startBit) - 1) | ((-1) << (endBit + 1))))); })(); })();
-          }
-        }
-      }
-    }
-  }
-  get iterator() {
-    return new _BoolListIterator(this);
-  }
-  _setBit(index, value) {
-    if (value) {
-      {
-        (() => { let v = this._data; return (() => { let v_1 = __dartShr(index, 5); return __dartIndexSet(v, v_1, (__dartIndexGet(v, v_1) | (1 << (index & 31)))); })(); })();
-      }
-    } else {
-      {
-        (() => { let v_2 = this._data; return (() => { let v_3 = __dartShr(index, 5); return __dartIndexSet(v_2, v_3, (__dartIndexGet(v_2, v_3) & (~(1 << (index & 31))))); })(); })();
-      }
-    }
-  }
-  static _lengthInWords(bitLength) {
-    return __dartShr((bitLength + (32 - 1)), 5);
-  }
-}
-
-function $BoolList__($newTarget, _data, _length) {
-  const $self = Reflect.construct(_BoolList_Object_ListMixin, [], $newTarget);
-  $self._data = _data;
-  $self._length = _length;
-  return $self;
-}
-
-class _GrowableBoolList extends BoolList {
-  static _withCapacity(length, capacity) {
-    return $_GrowableBoolList__withCapacity(_GrowableBoolList, length, capacity);
-  }
-  constructor(length) {
-    const $self = $BoolList__(new.target, new Uint32Array(BoolList._lengthInWords((length * 2))), length);
-    return $self;
-  }
-  set length(length) {
-    __dartCheckNotNegative(length, "length", null);
-    if ((length > this._length)) {
-      {
-        this._expand(length);
-      }
-    } else {
-      if ((length < this._length)) {
-        {
-          this._shrink(length);
-        }
-      }
-    }
-  }
-  _expand(length) {
-    if ((length > (this._data.length * 32))) {
-      {
-        this._data = (() => { let v = new Uint32Array(BoolList._lengthInWords((length * 2))); return (() => {
-          __dartListSetRange(v, 0, this._data.length, this._data, 0);
-          return v;
-        })(); })();
-      }
-    }
-    this._length = length;
-  }
-  _shrink(length) {
-    if ((length < __dartTruncDiv(this._length, 2))) {
-      {
-        let newDataLength = BoolList._lengthInWords(length);
-        this._data = (() => { let v = new Uint32Array(newDataLength); return (() => {
-          __dartListSetRange(v, 0, newDataLength, this._data, 0);
-          return v;
-        })(); })();
-      }
-    }
-    for (let i = length; (i < (this._data.length * 32)); i = (i + 1)) {
-      {
-        this._setBit(i, false);
-      }
-    }
-    this._length = length;
-  }
-  get length() { return super.length; }
-}
-
-function $_GrowableBoolList__withCapacity($newTarget, length, capacity) {
-  const $self = $BoolList__($newTarget, new Uint32Array(BoolList._lengthInWords(capacity)), length);
-  return $self;
-}
-
-class __NonGrowableBoolList_BoolList_NonGrowableListMixin extends BoolList {
-  constructor() {
-    if (new.target === __NonGrowableBoolList_BoolList_NonGrowableListMixin) {
-      throw new TypeError("Class __NonGrowableBoolList&BoolList&NonGrowableListMixin has no unnamed constructor");
-    }
-  }
-  static _(_data, _length) {
-    return $__NonGrowableBoolList_BoolList_NonGrowableListMixin__(__NonGrowableBoolList_BoolList_NonGrowableListMixin, _data, _length);
-  }
-  set length(newLength) {
-    return NonGrowableListMixin._throw();
-  }
-  add(value) {
-    return NonGrowableListMixin._throw();
-  }
-  addAll(iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  insert(index, element) {
-    return NonGrowableListMixin._throw();
-  }
-  insertAll(index, iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  remove(value) {
-    return NonGrowableListMixin._throw();
-  }
-  removeAt(index) {
-    return NonGrowableListMixin._throw();
-  }
-  removeLast() {
-    return NonGrowableListMixin._throw();
-  }
-  removeWhere(test) {
-    return NonGrowableListMixin._throw();
-  }
-  retainWhere(test) {
-    return NonGrowableListMixin._throw();
-  }
-  removeRange(start, end) {
-    return NonGrowableListMixin._throw();
-  }
-  replaceRange(start, end, iterable) {
-    return NonGrowableListMixin._throw();
-  }
-  clear() {
-    return NonGrowableListMixin._throw();
-  }
-  get length() { return super.length; }
-}
-
-function $__NonGrowableBoolList_BoolList_NonGrowableListMixin__($newTarget, _data, _length) {
-  const $self = $BoolList__($newTarget, _data, _length);
-  Object.defineProperty($self, $NonGrowableListMixin_interface, { value: true });
-  return $self;
-}
-
-class _NonGrowableBoolList extends __NonGrowableBoolList_BoolList_NonGrowableListMixin {
-  static _withCapacity(length, capacity) {
-    return $_NonGrowableBoolList__withCapacity(_NonGrowableBoolList, length, capacity);
-  }
-  constructor(length) {
-    const $self = $__NonGrowableBoolList_BoolList_NonGrowableListMixin__(new.target, new Uint32Array(BoolList._lengthInWords(length)), length);
-    return $self;
-  }
-}
-
-function $_NonGrowableBoolList__withCapacity($newTarget, length, capacity) {
-  const $self = $__NonGrowableBoolList_BoolList_NonGrowableListMixin__($newTarget, new Uint32Array(BoolList._lengthInWords(capacity)), length);
-  return $self;
-}
-
-class _BoolListIterator {
-  constructor(_boolList) {
-    this._current = false;
-    this._pos = 0;
-    this._boolList = _boolList;
-    this._length = _boolList._length;
-  }
-  get current() {
-    return this._current;
-  }
-  moveNext() {
-    if (!(__dartEquals(this._boolList._length, this._length))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this._boolList); })();
-      }
-    }
-    if ((this._pos < this._boolList.length)) {
-      {
-        let pos = (() => { let v = this._pos; return (() => { let v_1 = this._pos = (v + 1); return v; })(); })();
-        this._current = !(__dartEquals((__dartIndexGet(this._boolList._data, __dartShr(pos, 5)) & (1 << (pos & 31))), 0));
-        return true;
-      }
-    }
-    this._current = false;
-    return false;
-  }
-}
-
-class CanonicalizedMap {
-  constructor(canonicalize_1, { isValidKey = null } = {}) {
-    this._base = new Map([]);
-    this._canonicalize = canonicalize_1;
-    this._isValidKeyFn = isValidKey;
-  }
-  static from(other, canonicalize_1, { isValidKey = null } = {}) {
-    return $CanonicalizedMap_from(CanonicalizedMap, other, canonicalize_1, { isValidKey: isValidKey });
-  }
-  static fromEntries(entries, canonicalize_1, { isValidKey = null } = {}) {
-    return $CanonicalizedMap_fromEntries(CanonicalizedMap, entries, canonicalize_1, { isValidKey: isValidKey });
-  }
-  static _(_canonicalize, _isValidKeyFn, base) {
-    return $CanonicalizedMap__(CanonicalizedMap, _canonicalize, _isValidKeyFn, base);
-  }
-  copy() {
-    return CanonicalizedMap._(this._canonicalize, this._isValidKeyFn, this._base);
-  }
-  "[]"(key) {
-    if (!(this._isValidKey(key))) {
-      return null;
-    }
-    let pair = __dartMapGet(this._base, (() => { let v = __dartAs(key, value => true, "K"); return (this._canonicalize)(v); })());
-    return ((pair)?.value ?? null);
-  }
-  "[]="(key, value) {
-    if (!(this._isValidKey(key))) {
-      return;
-    }
-    __dartMapSet(this._base, (() => { let v = key; return (this._canonicalize)(v); })(), Object.freeze({ key: key, value: value }));
-  }
-  addAll(other) {
-    __dartMapForEach(other, (key, value) => { return (() => { let v = key; return (() => { let v_1 = value; return (() => { let v_2 = this["[]="](v, v_1); return v_1; })(); })(); })(); });
-  }
-  addEntries(entries) {
-    return __dartMapAddEntries(this._base, Array.from(entries, (e) => { return Object.freeze({ key: (() => { let v = e.key; return (this._canonicalize)(v); })(), value: Object.freeze({ key: e.key, value: e.value }) }); }));
-  }
-  cast() {
-    return new Map(Array.from(this._base, ([key, value]) => [__dartAs(key, (key) => true, "TypeParameterType(CanonicalizedMap.cast.K2%)"), __dartAs(value, (value) => true, "TypeParameterType(CanonicalizedMap.cast.V2%)")]));
-  }
-  clear() {
-    (this._base.clear(), null);
-  }
-  containsKey(key) {
-    if (!(this._isValidKey(key))) {
-      return false;
-    }
-    return __dartMapContainsKey(this._base, (() => { let v = __dartAs(key, value => true, "K"); return (this._canonicalize)(v); })());
-  }
-  containsValue(value) {
-    return Array.from(Array.from(this._base.values())).some(function(pair) { return __dartEquals(pair.value, value); });
-  }
-  get entries() {
-    return Array.from(Array.from(this._base, ([key, value]) => ({ key, value })), function(e) { return Object.freeze({ key: e.value.key, value: e.value.value }); });
-  }
-  forEach(f) {
-    __dartMapForEach(this._base, function(key, pair) { return (f)(pair.key, pair.value); });
-  }
-  get isEmpty() {
-    return this._base.size === 0;
-  }
-  get isNotEmpty() {
-    return this._base.size !== 0;
-  }
-  get keys() {
-    return Array.from(Array.from(this._base.values()), function(pair) { return pair.key; });
-  }
-  get length() {
-    return this._base.size;
-  }
-  map(transform) {
-    return __dartMapMap(this._base, function(_, pair) { return (transform)(pair.key, pair.value); });
-  }
-  putIfAbsent(key, ifAbsent) {
-    return __dartMapPutIfAbsent(this._base, (() => { let v = key; return (this._canonicalize)(v); })(), function() { return Object.freeze({ key: key, value: (ifAbsent)() }); }).value;
-  }
-  remove(key) {
-    if (!(this._isValidKey(key))) {
-      return null;
-    }
-    let pair = __dartMapRemove(this._base, (() => { let v = __dartAs(key, value => true, "K"); return (this._canonicalize)(v); })());
-    return ((pair)?.value ?? null);
-  }
-  removeWhere(test) {
-    return __dartMapRemoveWhere(this._base, function(_, pair) { return (test)(pair.key, pair.value); });
-  }
-  retype() {
-    return this.cast();
-  }
-  update(key, update, { ifAbsent = null } = {}) {
-    return __dartMapUpdate(this._base, (() => { let v = key; return (this._canonicalize)(v); })(), function(pair) {
-      let value = pair.value;
-      let newValue = (update)(value);
-      if (Object.is(newValue, value)) {
-        return pair;
-      }
-      return Object.freeze({ key: key, value: newValue });
-}, ((ifAbsent === null) ? null : function() { return Object.freeze({ key: key, value: (ifAbsent)() }); })).value;
-  }
-  updateAll(update) {
-    return __dartMapUpdateAll(this._base, function(_, pair) {
-      let value = pair.value;
-      let key = pair.key;
-      let newValue = (update)(key, value);
-      if (Object.is(value, newValue)) {
-        return pair;
-      }
-      return Object.freeze({ key: key, value: newValue });
-});
-  }
-  get values() {
-    return Array.from(Array.from(this._base.values()), function(pair) { return pair.value; });
-  }
-  toString() {
-    return ("{" + Array.from(this, ([key, value]) => __dartStr(key) + ": " + __dartStr(value)).join(", ") + "}");
-  }
-  _isValidKey(key) {
-    return (true && ((this._isValidKeyFn === null) || (() => { let v = key; return ((this._isValidKeyFn ?? __dartAs(v_1, value => typeof value === "function", "bool Function(CanonicalizedMap.K%)")))(v); })()));
-  }
-  toMap() {
-    return __dartMapFromEntries(Array.from(Array.from(this._base.values()), (entry) => [entry.key, entry.value]));
-  }
-  toMapOfCanonicalKeys() {
-    return __dartMapFromEntries(Array.from(Array.from(Array.from(this._base, ([key, value]) => ({ key, value })), function(e) { return Object.freeze({ key: e.key, value: e.value.value }); }), (entry) => [entry.key, entry.value]));
-  }
-}
-
-function $CanonicalizedMap_from($newTarget, other, canonicalize_1, { isValidKey = null } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self._base = new Map([]);
-  $self._canonicalize = canonicalize_1;
-  $self._isValidKeyFn = isValidKey;
-  $self.addAll(other);
-  return $self;
-}
-
-function $CanonicalizedMap_fromEntries($newTarget, entries, canonicalize_1, { isValidKey = null } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self._base = new Map([]);
-  $self._canonicalize = canonicalize_1;
-  $self._isValidKeyFn = isValidKey;
-  $self.addEntries(entries);
-  return $self;
-}
-
-function $CanonicalizedMap__($newTarget, _canonicalize, _isValidKeyFn, base) {
-  const $self = Object.create($newTarget.prototype);
-  $self._base = new Map([]);
-  $self._canonicalize = _canonicalize;
-  $self._isValidKeyFn = _isValidKeyFn;
-  __dartMapAddAll($self._base, base);
-  return $self;
-}
-
-class CombinedIterator {
-  constructor(iterators) {
-    this._iterators = iterators;
-    if (!(iterators.moveNext())) {
-      this._iterators = null;
-    }
-  }
-  get current() {
-    let iterators = this._iterators;
-    if (!((iterators === null))) {
-      return iterators.current.current;
-    }
-    return (null ?? __dartAs(v, value => true, "T"));
-  }
-  moveNext() {
-    let iterators = this._iterators;
-    if (!((iterators === null))) {
-      {
-        do {
-          {
-            if (iterators.current.moveNext()) {
-              {
-                return true;
-              }
-            }
-          }
-        } while (iterators.moveNext());
-        this._iterators = null;
-      }
-    }
-    return false;
-  }
-}
-
-class CombinedIterableView {
-  constructor(_iterables) {
-    this._iterables = _iterables;
-  }
-  get iterator() {
-    return new CombinedIterator(__dartIterator(Array.from(this._iterables, function(i) { return __dartIterator(i); })));
-  }
-  contains(element) {
-    return Array.from(this._iterables).some(function(i) { return __dartIterableContains(i, element); });
-  }
-  get isEmpty() {
-    return Array.from(this._iterables).every(function(i) { return __dartIterableIsEmpty(i); });
-  }
-  get length() {
-    return Array.from(this._iterables).reduce((previous, value) => (function(length, i) { return (length + __dartIterableLength(i)); })(previous, value), 0);
-  }
-}
-
-class CombinedListView {
-  constructor(_lists) {
-    this._lists = _lists;
-  }
-  static _throw() {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable List"); })();
-  }
-  get iterator() {
-    return new CombinedIterator(__dartIterator(Array.from(this._lists, function(i) { return __dartIterator(i); })));
-  }
-  set length(length) {
-    CombinedListView._throw();
-  }
-  get length() {
-    return Array.from(this._lists).reduce((previous, value) => (function(length, list) { return (length + list.length); })(previous, value), 0);
-  }
-  "[]"(index) {
-    let initialIndex = index;
-    for (let i = 0; (i < this._lists.length); i = (i + 1)) {
-      {
-        let list = __dartIndexGet(this._lists, i);
-        if ((index < list.length)) {
-          {
-            return __dartIndexGet(list, index);
-          }
-        }
-        index = (index - list.length);
-      }
-    }
-    (() => { throw __dartCoreError("IndexError", initialIndex); })();
-  }
-  "[]="(index, value) {
-    CombinedListView._throw();
-  }
-  clear() {
-    CombinedListView._throw();
-  }
-  remove(element) {
-    CombinedListView._throw();
-  }
-  removeWhere(test) {
-    CombinedListView._throw();
-  }
-  retainWhere(test) {
-    CombinedListView._throw();
-  }
-}
-
-class CombinedMapView {
-  constructor(_maps) {
-    this._maps = _maps;
-  }
-  "[]"(key) {
-    {
-      let _sync_for_iterator = __dartIterator(this._maps);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let map = _sync_for_iterator.current;
-          {
-            let value = __dartMapGet(map, key);
-            if ((!((value === null)) || __dartMapContainsKey(map, value))) {
-              {
-                return value;
-              }
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-  get keys() {
-    return new _DeduplicatingIterableView(new CombinedIterableView(Array.from(this._maps, function(m) { return Array.from(m.keys()); })));
-  }
-}
-
-class _DeduplicatingIterableView {
-  constructor(_iterable) {
-    this._iterable = _iterable;
-  }
-  get iterator() {
-    return new _DeduplicatingIterator(__dartIterator(this._iterable));
-  }
-  contains(element) {
-    return __dartIterableContains(this._iterable, element);
-  }
-  get isEmpty() {
-    return __dartIterableIsEmpty(this._iterable);
-  }
-}
-
-class _DeduplicatingIterator {
-  constructor(_iterator) {
-    this._emitted = new Set();
-    this._iterator = _iterator;
-  }
-  get current() {
-    return this._iterator.current;
-  }
-  moveNext() {
-    while (this._iterator.moveNext()) {
-      {
-        if (__dartSetAdd(this._emitted, this.current)) {
-          {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-}
-
 class Equality {
   constructor() {
     if (new.target === Equality) {
@@ -6719,50 +2011,12 @@ class Equality {
 }
 Object.defineProperty(Equality, Symbol.hasInstance, { value(value) { return value != null && value[$Equality_interface] === true; } });
 
-class EqualityBy {
-  constructor(comparisonKey, inner = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype)))) {
-    this._comparisonKey = comparisonKey;
-    this._inner = inner;
-    Object.defineProperty(this, $Equality_interface, { value: true });
-  }
-  equals(e1, e2) {
-    return this._inner.equals((() => { let v = e1; return (this._comparisonKey)(v); })(), (() => { let v_1 = e2; return (this._comparisonKey)(v_1); })());
-  }
-  hash(e) {
-    return this._inner.hash((() => { let v = e; return (this._comparisonKey)(v); })());
-  }
-  isValidKey(o) {
-    if (true) {
-      {
-        const value = (() => { let v = o; return (this._comparisonKey)(v); })();
-        return this._inner.isValidKey(value);
-      }
-    }
-    return false;
-  }
-}
-
 class DefaultEquality {
   constructor() {
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   equals(e1, e2) {
     return __dartEquals(e1, e2);
-  }
-  hash(e) {
-    return __dartHashValue(e);
-  }
-  isValidKey(o) {
-    return true;
-  }
-}
-
-class IdentityEquality {
-  constructor() {
-    Object.defineProperty(this, $Equality_interface, { value: true });
-  }
-  equals(e1, e2) {
-    return Object.is(e1, e2);
   }
   hash(e) {
     return __dartHashValue(e);
@@ -6805,7 +2059,7 @@ class IterableEquality {
     if ((elements === null)) {
       return __dartHashValue(null);
     }
-    let hash_1 = 0;
+    let hash = 0;
     {
       let _sync_for_iterator = __dartIterator(elements);
       for (; _sync_for_iterator.moveNext(); ) {
@@ -6813,68 +2067,20 @@ class IterableEquality {
           let element = _sync_for_iterator.current;
           {
             let c = this._elementEquality.hash(element);
-            hash_1 = ((hash_1 + c) & 2147483647);
-            hash_1 = ((hash_1 + (hash_1 << 10)) & 2147483647);
-            hash_1 = (hash_1 ^ __dartShr(hash_1, 6));
+            hash = ((hash + c) & 2147483647);
+            hash = ((hash + (hash << 10)) & 2147483647);
+            hash = (hash ^ __dartShr(hash, 6));
           }
         }
       }
     }
-    hash_1 = ((hash_1 + (hash_1 << 3)) & 2147483647);
-    hash_1 = (hash_1 ^ __dartShr(hash_1, 11));
-    hash_1 = ((hash_1 + (hash_1 << 15)) & 2147483647);
-    return hash_1;
+    hash = ((hash + (hash << 3)) & 2147483647);
+    hash = (hash ^ __dartShr(hash, 11));
+    hash = ((hash + (hash << 15)) & 2147483647);
+    return hash;
   }
   isValidKey(o) {
     return o != null && typeof o !== "string" && !(o instanceof Map) && typeof o[Symbol.iterator] === "function";
-  }
-}
-
-class ListEquality {
-  constructor(elementEquality = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype)))) {
-    this._elementEquality = elementEquality;
-    Object.defineProperty(this, $Equality_interface, { value: true });
-  }
-  equals(list1, list2) {
-    if (Object.is(list1, list2)) {
-      return true;
-    }
-    if (((list1 === null) || (list2 === null))) {
-      return false;
-    }
-    let length = list1.length;
-    if (!(__dartEquals(length, list2.length))) {
-      return false;
-    }
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        if (!(this._elementEquality.equals(__dartIndexGet(list1, i), __dartIndexGet(list2, i)))) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-  hash(list) {
-    if ((list === null)) {
-      return __dartHashValue(null);
-    }
-    let hash_1 = 0;
-    for (let i = 0; (i < list.length); i = (i + 1)) {
-      {
-        let c = this._elementEquality.hash(__dartIndexGet(list, i));
-        hash_1 = ((hash_1 + c) & 2147483647);
-        hash_1 = ((hash_1 + (hash_1 << 10)) & 2147483647);
-        hash_1 = (hash_1 ^ __dartShr(hash_1, 6));
-      }
-    }
-    hash_1 = ((hash_1 + (hash_1 << 3)) & 2147483647);
-    hash_1 = (hash_1 ^ __dartShr(hash_1, 11));
-    hash_1 = ((hash_1 + (hash_1 << 15)) & 2147483647);
-    return hash_1;
-  }
-  isValidKey(o) {
-    return (Array.isArray(o) || (ArrayBuffer.isView(o) && !(o instanceof DataView)));
   }
 }
 
@@ -6927,7 +2133,7 @@ class _UnorderedEquality {
     if ((elements === null)) {
       return __dartHashValue(null);
     }
-    let hash_1 = 0;
+    let hash = 0;
     {
       let _sync_for_iterator = __dartIterator(elements);
       for (; _sync_for_iterator.moveNext(); ) {
@@ -6935,15 +2141,15 @@ class _UnorderedEquality {
           let element = _sync_for_iterator.current;
           {
             let c = this._elementEquality.hash(element);
-            hash_1 = ((hash_1 + c) & 2147483647);
+            hash = ((hash + c) & 2147483647);
           }
         }
       }
     }
-    hash_1 = ((hash_1 + (hash_1 << 3)) & 2147483647);
-    hash_1 = (hash_1 ^ __dartShr(hash_1, 11));
-    hash_1 = ((hash_1 + (hash_1 << 15)) & 2147483647);
-    return hash_1;
+    hash = ((hash + (hash << 3)) & 2147483647);
+    hash = (hash ^ __dartShr(hash, 11));
+    hash = ((hash + (hash << 15)) & 2147483647);
+    return hash;
   }
 }
 
@@ -6965,2897 +2171,40 @@ class SetEquality extends _UnorderedEquality {
   }
 }
 
-class _MapEntry {
-  constructor(equality, key, value) {
-    this.equality = equality;
-    this.key = key;
-    this.value = value;
-  }
-  get hashCode() {
-    return (((3 * this.equality._keyEquality.hash(this.key)) + (7 * this.equality._valueEquality.hash(this.value))) & 2147483647);
-  }
-  "=="(other) {
-    return ((other instanceof _MapEntry && this.equality._keyEquality.equals(this.key, other.key)) && this.equality._valueEquality.equals(this.value, other.value));
-  }
-}
-
-class MapEquality {
-  constructor({ keys = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype))), values = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype))) } = {}) {
-    this._keyEquality = keys;
-    this._valueEquality = values;
-    Object.defineProperty(this, $Equality_interface, { value: true });
-  }
-  equals(map1, map2) {
-    if (Object.is(map1, map2)) {
-      return true;
-    }
-    if (((map1 === null) || (map2 === null))) {
-      return false;
-    }
-    let length = map1.size;
-    if (!(__dartEquals(length, map2.size))) {
-      return false;
-    }
-    let equalElementCounts = new Map();
-    {
-      let _sync_for_iterator = __dartIterator(Array.from(map1.keys()));
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let key = _sync_for_iterator.current;
-          {
-            let entry = new _MapEntry(this, key, __dartMapGet(map1, key));
-            let count = (__dartMapGet(equalElementCounts, entry) ?? 0);
-            __dartMapSet(equalElementCounts, entry, (count + 1));
-          }
-        }
-      }
-    }
-    {
-      let _sync_for_iterator_1 = __dartIterator(Array.from(map2.keys()));
-      for (; _sync_for_iterator_1.moveNext(); ) {
-        {
-          let key_1 = _sync_for_iterator_1.current;
-          {
-            let entry_1 = new _MapEntry(this, key_1, __dartMapGet(map2, key_1));
-            let count_1 = __dartMapGet(equalElementCounts, entry_1);
-            if (((count_1 === null) || __dartEquals(count_1, 0))) {
-              return false;
-            }
-            __dartMapSet(equalElementCounts, entry_1, (count_1 - 1));
-          }
-        }
-      }
-    }
-    return true;
-  }
-  hash(map) {
-    if ((map === null)) {
-      return __dartHashValue(null);
-    }
-    let hash_1 = 0;
-    {
-      let _sync_for_iterator = __dartIterator(Array.from(map.keys()));
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let key = _sync_for_iterator.current;
-          {
-            let keyHash = this._keyEquality.hash(key);
-            let valueHash = this._valueEquality.hash((__dartMapGet(map, key) ?? __dartAs(v, value => true, "V")));
-            hash_1 = (((hash_1 + (3 * keyHash)) + (7 * valueHash)) & 2147483647);
-          }
-        }
-      }
-    }
-    hash_1 = ((hash_1 + (hash_1 << 3)) & 2147483647);
-    hash_1 = (hash_1 ^ __dartShr(hash_1, 11));
-    hash_1 = ((hash_1 + (hash_1 << 15)) & 2147483647);
-    return hash_1;
-  }
-  isValidKey(o) {
-    return o instanceof Map;
-  }
-}
-
-class MultiEquality {
-  constructor(equalities) {
-    this._equalities = equalities;
-    Object.defineProperty(this, $Equality_interface, { value: true });
-  }
-  equals(e1, e2) {
-    {
-      let _sync_for_iterator = __dartIterator(this._equalities);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let eq = _sync_for_iterator.current;
-          {
-            if (eq.isValidKey(e1)) {
-              return (eq.isValidKey(e2) && eq.equals(e1, e2));
-            }
-          }
-        }
-      }
-    }
-    return false;
-  }
-  hash(e) {
-    {
-      let _sync_for_iterator = __dartIterator(this._equalities);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let eq = _sync_for_iterator.current;
-          {
-            if (eq.isValidKey(e)) {
-              return eq.hash(e);
-            }
-          }
-        }
-      }
-    }
-    return 0;
-  }
-  isValidKey(o) {
-    {
-      let _sync_for_iterator = __dartIterator(this._equalities);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let eq = _sync_for_iterator.current;
-          {
-            if (eq.isValidKey(o)) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-    return false;
-  }
-}
-
-class DeepCollectionEquality {
-  constructor(base = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype)))) {
-    this._base = base;
-    this._unordered = false;
-    Object.defineProperty(this, $Equality_interface, { value: true });
-  }
-  static unordered(base = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype)))) {
-    return $DeepCollectionEquality_unordered(DeepCollectionEquality, base);
-  }
-  equals(e1, e2) {
-    if (e1 instanceof Set) {
-      {
-        return (e2 instanceof Set && new SetEquality(this).equals(e1, e2));
-      }
-    }
-    if (e1 instanceof Map) {
-      {
-        return (e2 instanceof Map && new MapEquality({ keys: this, values: this }).equals(e1, e2));
-      }
-    }
-    if (!(this._unordered)) {
-      {
-        if ((Array.isArray(e1) || (ArrayBuffer.isView(e1) && !(e1 instanceof DataView)))) {
-          {
-            return ((Array.isArray(e2) || (ArrayBuffer.isView(e2) && !(e2 instanceof DataView))) && new ListEquality(this).equals(e1, e2));
-          }
-        }
-        if (e1 != null && typeof e1 !== "string" && !(e1 instanceof Map) && typeof e1[Symbol.iterator] === "function") {
-          {
-            return (e2 != null && typeof e2 !== "string" && !(e2 instanceof Map) && typeof e2[Symbol.iterator] === "function" && new IterableEquality(this).equals(e1, e2));
-          }
-        }
-      }
-    } else {
-      if (e1 != null && typeof e1 !== "string" && !(e1 instanceof Map) && typeof e1[Symbol.iterator] === "function") {
-        {
-          if (!(__dartEquals((Array.isArray(e1) || (ArrayBuffer.isView(e1) && !(e1 instanceof DataView))), (Array.isArray(e2) || (ArrayBuffer.isView(e2) && !(e2 instanceof DataView)))))) {
-            return false;
-          }
-          return (e2 != null && typeof e2 !== "string" && !(e2 instanceof Map) && typeof e2[Symbol.iterator] === "function" && new UnorderedIterableEquality(this).equals(e1, e2));
-        }
-      }
-    }
-    return this._base.equals(e1, e2);
-  }
-  hash(o) {
-    if (o instanceof Set) {
-      return new SetEquality(this).hash(o);
-    }
-    if (o instanceof Map) {
-      return new MapEquality({ keys: this, values: this }).hash(o);
-    }
-    if (!(this._unordered)) {
-      {
-        if ((Array.isArray(o) || (ArrayBuffer.isView(o) && !(o instanceof DataView)))) {
-          return new ListEquality(this).hash(o);
-        }
-        if (o != null && typeof o !== "string" && !(o instanceof Map) && typeof o[Symbol.iterator] === "function") {
-          return new IterableEquality(this).hash(o);
-        }
-      }
-    } else {
-      if (o != null && typeof o !== "string" && !(o instanceof Map) && typeof o[Symbol.iterator] === "function") {
-        {
-          return new UnorderedIterableEquality(this).hash(o);
-        }
-      }
-    }
-    return this._base.hash(o);
-  }
-  isValidKey(o) {
-    return ((o != null && typeof o !== "string" && !(o instanceof Map) && typeof o[Symbol.iterator] === "function" || o instanceof Map) || this._base.isValidKey(o));
-  }
-}
-
-function $DeepCollectionEquality_unordered($newTarget, base = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype)))) {
-  const $self = Object.create($newTarget.prototype);
-  Object.defineProperty($self, $Equality_interface, { value: true });
-  $self._base = base;
-  $self._unordered = true;
-  return $self;
-}
-
-class CaseInsensitiveEquality {
-  constructor() {
-    Object.defineProperty(this, $Equality_interface, { value: true });
-  }
-  equals(string1, string2) {
-    return equalsIgnoreAsciiCase(string1, string2);
-  }
-  hash(string) {
-    return hashIgnoreAsciiCase(string);
-  }
-  isValidKey(object) {
-    return typeof object === "string";
-  }
-}
-
-class EqualityMap extends DelegatingMap {
-  constructor(equality) {
-    super(__dartCustomHashMap(__dartAs(__dartBind(equality, "equals"), value => typeof value === "function", "bool Function(EqualityMap.K%, EqualityMap.K%)"), __dartAs(__dartBind(equality, "hash"), value => typeof value === "function", "int Function(EqualityMap.K%)"), __dartBind(equality, "isValidKey")));
-  }
-  static from(equality, other) {
-    return $EqualityMap_from(EqualityMap, equality, other);
-  }
-}
-
-function $EqualityMap_from($newTarget, equality, other) {
-  const $self = Reflect.construct(DelegatingMap, [__dartCustomHashMap(__dartAs(__dartBind(equality, "equals"), value => typeof value === "function", "bool Function(EqualityMap.K%, EqualityMap.K%)"), __dartAs(__dartBind(equality, "hash"), value => typeof value === "function", "int Function(EqualityMap.K%)"), __dartBind(equality, "isValidKey"))], $newTarget);
-  $self.addAll(other);
-  return $self;
-}
-
-class EqualitySet extends DelegatingSet {
-  constructor(equality) {
-    super(new Set());
-  }
-  static from(equality, other) {
-    return $EqualitySet_from(EqualitySet, equality, other);
-  }
-}
-
-function $EqualitySet_from($newTarget, equality, other) {
-  const $self = Reflect.construct(DelegatingSet, [new Set()], $newTarget);
-  $self.addAll(other);
-  return $self;
-}
-
-class IterableZip {
-  constructor(iterables) {
-    this._iterables = iterables;
-  }
-  get iterator() {
-    let iterators = __dartFixedList(Array.from(Array.from(this._iterables, function(x) { return __dartIterator(x); })));
-    return new _IteratorZip(iterators);
-  }
-}
-
-class _IteratorZip {
-  constructor(iterators) {
-    this._current = null;
-    this._iterators = iterators;
-  }
-  moveNext() {
-    if (__dartIterableIsEmpty(this._iterators)) {
-      return false;
-    }
-    for (let i = 0; (i < this._iterators.length); i = (i + 1)) {
-      {
-        if (!(__dartIndexGet(this._iterators, i).moveNext())) {
-          {
-            this._current = null;
-            return false;
-          }
-        }
-      }
-    }
-    this._current = __dartFixedList(Array.from({ length: this._iterators.length }, (_, index) => ((i) => { return __dartIndexGet(this._iterators, i).current; })(index)));
-    return true;
-  }
-  get current() {
-    return (this._current ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-  }
-}
-
-class ListSlice {
-  constructor(source, start, end) {
-    this.source = source;
-    this.start = start;
-    this.length = (end - start);
-    this._initialSize = source.length;
-    __dartCheckValidRange(this.start, end, this.source.length, null, null, null);
-  }
-  static _(_initialSize, source, start, length) {
-    return $ListSlice__(ListSlice, _initialSize, source, start, length);
-  }
-  get end() {
-    return (this.start + this.length);
-  }
-  "[]"(index) {
-    if (!(__dartEquals(this.source.length, this._initialSize))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this.source); })();
-      }
-    }
-    __dartCheckValidIndex(index, this, null, this.length, null);
-    return __dartIndexGet(this.source, (this.start + index));
-  }
-  "[]="(index, value) {
-    if (!(__dartEquals(this.source.length, this._initialSize))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this.source); })();
-      }
-    }
-    __dartCheckValidIndex(index, this, null, this.length, null);
-    __dartIndexSet(this.source, (this.start + index), value);
-  }
-  setRange(start, end, iterable, skipCount = 0) {
-    if (!(__dartEquals(this.source.length, this._initialSize))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this.source); })();
-      }
-    }
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    __dartListSetRange(this.source, (start + start), (start + end), iterable, skipCount);
-  }
-  slice(start, end = null) {
-    end = __dartCheckValidRange(start, end, this.length, null, null, null);
-    return ListSlice._(this._initialSize, this.source, (this.start + start), (end - start));
-  }
-  shuffle(random = null) {
-    if (!(__dartEquals(this.source.length, this._initialSize))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this.source); })();
-      }
-    }
-    shuffle(this.source, this.start, this.end, random);
-  }
-  sort(compare = null) {
-    if (!(__dartEquals(this.source.length, this._initialSize))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this.source); })();
-      }
-    }
-    ((compare === null) ? compare = defaultCompare : null);
-    quickSort(this.source, compare, this.start, (this.start + this.length));
-  }
-  sortRange(start, end, compare) {
-    if (!(__dartEquals(this.source.length, this._initialSize))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this.source); })();
-      }
-    }
-    ListExtensions_sortRange(this.source, start, end, compare);
-  }
-  shuffleRange(start, end, random = null) {
-    if (!(__dartEquals(this.source.length, this._initialSize))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this.source); })();
-      }
-    }
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    shuffle(this.source, (this.start + start), (this.start + end), random);
-  }
-  reverseRange(start, end) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    ListExtensions_reverseRange(this.source, (this.start + start), (this.start + end));
-  }
-  set length(newLength) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot change the length of a fixed-length list"); })();
-  }
-  add(element) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot add to a fixed-length list"); })();
-  }
-  insert(index, element) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot add to a fixed-length list"); })();
-  }
-  insertAll(index, iterable) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot add to a fixed-length list"); })();
-  }
-  addAll(iterable) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot add to a fixed-length list"); })();
-  }
-  remove(element) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot remove from a fixed-length list"); })();
-  }
-  removeWhere(test) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot remove from a fixed-length list"); })();
-  }
-  retainWhere(test) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot remove from a fixed-length list"); })();
-  }
-  clear() {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot clear a fixed-length list"); })();
-  }
-  removeAt(index) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot remove from a fixed-length list"); })();
-  }
-  removeLast() {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot remove from a fixed-length list"); })();
-  }
-  removeRange(start, end) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot remove from a fixed-length list"); })();
-  }
-  replaceRange(start, end, newContents) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot remove from a fixed-length list"); })();
-  }
-}
-
-function $ListSlice__($newTarget, _initialSize, source, start, length) {
-  const $self = Object.create($newTarget.prototype);
-  $self._initialSize = _initialSize;
-  $self.source = source;
-  $self.start = start;
-  $self.length = length;
-  return $self;
-}
-
-class PriorityQueue {
-  constructor(comparison = null) {
-    if (new.target === PriorityQueue) {
-      return new HeapPriorityQueue(comparison);
-    }
-  }
-  get length() {
-    throw new TypeError("Abstract member PriorityQueue.length");
-  }
-  set length(value) {
-    Object.defineProperty(this, "length", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get isEmpty() {
-    throw new TypeError("Abstract member PriorityQueue.isEmpty");
-  }
-  set isEmpty(value) {
-    Object.defineProperty(this, "isEmpty", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get isNotEmpty() {
-    throw new TypeError("Abstract member PriorityQueue.isNotEmpty");
-  }
-  set isNotEmpty(value) {
-    Object.defineProperty(this, "isNotEmpty", { value, writable: true, configurable: true, enumerable: true });
-  }
-  contains(object) {
-    throw new TypeError("Abstract member PriorityQueue.contains");
-  }
-  get unorderedElements() {
-    throw new TypeError("Abstract member PriorityQueue.unorderedElements");
-  }
-  set unorderedElements(value) {
-    Object.defineProperty(this, "unorderedElements", { value, writable: true, configurable: true, enumerable: true });
-  }
-  add(element) {
-    throw new TypeError("Abstract member PriorityQueue.add");
-  }
-  addAll(elements) {
-    throw new TypeError("Abstract member PriorityQueue.addAll");
-  }
-  get first() {
-    throw new TypeError("Abstract member PriorityQueue.first");
-  }
-  set first(value) {
-    Object.defineProperty(this, "first", { value, writable: true, configurable: true, enumerable: true });
-  }
-  removeFirst() {
-    throw new TypeError("Abstract member PriorityQueue.removeFirst");
-  }
-  remove(element) {
-    throw new TypeError("Abstract member PriorityQueue.remove");
-  }
-  removeAll() {
-    throw new TypeError("Abstract member PriorityQueue.removeAll");
-  }
-  clear() {
-    throw new TypeError("Abstract member PriorityQueue.clear");
-  }
-  toList() {
-    throw new TypeError("Abstract member PriorityQueue.toList");
-  }
-  toUnorderedList() {
-    throw new TypeError("Abstract member PriorityQueue.toUnorderedList");
-  }
-  toSet() {
-    throw new TypeError("Abstract member PriorityQueue.toSet");
-  }
-}
-Object.defineProperty(PriorityQueue, Symbol.hasInstance, { value(value) { return value != null && value[$PriorityQueue_interface] === true; } });
-
-class HeapPriorityQueue {
-  constructor(comparison = null) {
-    this._queue = __dartFixedList(new Array(7).fill(null));
-    this._length = 0;
-    this._modificationCount = 0;
-    this.comparison = (comparison ?? defaultCompare);
-    Object.defineProperty(this, $PriorityQueue_interface, { value: true });
-  }
-  _elementAt(index) {
-    return (__dartIndexGet(this._queue, index) ?? (null ?? __dartAs(v, value => true, "E")));
-  }
-  add(element) {
-    this._modificationCount = (this._modificationCount + 1);
-    this._add(element);
-  }
-  addAll(elements) {
-    let modified = 0;
-    {
-      let _sync_for_iterator = __dartIterator(elements);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let element = _sync_for_iterator.current;
-          {
-            modified = 1;
-            this._add(element);
-          }
-        }
-      }
-    }
-    this._modificationCount = (this._modificationCount + modified);
-  }
-  clear() {
-    this._modificationCount = (this._modificationCount + 1);
-    this._queue = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
-    this._length = 0;
-  }
-  contains(object) {
-    return (this._locate(object) >= 0);
-  }
-  get unorderedElements() {
-    return new _UnorderedElementsIterable(this);
-  }
-  get first() {
-    if (__dartEquals(this._length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    return this._elementAt(0);
-  }
-  get isEmpty() {
-    return __dartEquals(this._length, 0);
-  }
-  get isNotEmpty() {
-    return !(__dartEquals(this._length, 0));
-  }
-  get length() {
-    return this._length;
-  }
-  remove(element) {
-    let index = this._locate(element);
-    if ((index < 0)) {
-      return false;
-    }
-    this._modificationCount = (this._modificationCount + 1);
-    let last = this._removeLast();
-    if ((index < this._length)) {
-      {
-        let comp = (() => { let v = last; return (() => { let v_1 = element; return (this.comparison)(v, v_1); })(); })();
-        if ((comp <= 0)) {
-          {
-            this._bubbleUp(last, index);
-          }
-        } else {
-          {
-            this._bubbleDown(last, index);
-          }
-        }
-      }
-    }
-    return true;
-  }
-  removeAll() {
-    this._modificationCount = (this._modificationCount + 1);
-    let result = this._queue;
-    let length = this._length;
-    this._queue = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
-    this._length = 0;
-    return Array.from(Array.from(result).slice(0, length), (value) => __dartAs(value, (value) => true, "TypeParameterType(HeapPriorityQueue.E%)"));
-  }
-  removeFirst() {
-    if (__dartEquals(this._length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    this._modificationCount = (this._modificationCount + 1);
-    let result = this._elementAt(0);
-    let last = this._removeLast();
-    if ((this._length > 0)) {
-      {
-        this._bubbleDown(last, 0);
-      }
-    }
-    return result;
-  }
-  toList() {
-    return (() => { let v = this._toUnorderedList(); return (() => {
-      __dartListSort(v, this.comparison);
-      return v;
-    })(); })();
-  }
-  toSet() {
-    let set = __dartSplayTreeSet(this.comparison, null);
-    for (let i = 0; (i < this._length); i = (i + 1)) {
-      {
-        __dartSetAdd(set, this._elementAt(i));
-      }
-    }
-    return set;
-  }
-  toUnorderedList() {
-    return this._toUnorderedList();
-  }
-  _toUnorderedList() {
-    return (() => {
-      const v = new Array(0).fill(null);
-      for (let i = 0; (i < this._length); i = (i + 1)) {
-        (v.push(this._elementAt(i)), null);
-      }
-      return v;
-    })();
-  }
-  toString() {
-    return __dartStr(Array.from(this._queue).slice(0, this._length));
-  }
-  _add(element) {
-    if (__dartEquals(this._length, this._queue.length)) {
-      this._grow();
-    }
-    this._bubbleUp(element, (() => { let v = this._length; return (() => { let v_1 = this._length = (v + 1); return v; })(); })());
-  }
-  _locate(object) {
-    if (__dartEquals(this._length, 0)) {
-      return (-1);
-    }
-    let position = 1;
-    do {
-      L:
-      {
-        let index = (position - 1);
-        let element = this._elementAt(index);
-        let comp = (() => { let v = element; return (() => { let v_1 = object; return (this.comparison)(v, v_1); })(); })();
-        if ((comp <= 0)) {
-          {
-            if ((__dartEquals(comp, 0) && __dartEquals(element, object))) {
-              return index;
-            }
-            let leftChildPosition = (position * 2);
-            if ((leftChildPosition <= this._length)) {
-              {
-                position = leftChildPosition;
-                break L;
-              }
-            }
-          }
-        }
-        do {
-          {
-            while ((Math.trunc(position) % 2 !== 0)) {
-              {
-                position = __dartShr(position, 1);
-              }
-            }
-            position = (position + 1);
-          }
-        } while ((position > this._length));
-      }
-    } while (!(__dartEquals(position, 1)));
-    return (-1);
-  }
-  _removeLast() {
-    let newLength = (this._length - 1);
-    let last = this._elementAt(newLength);
-    __dartIndexSet(this._queue, newLength, null);
-    this._length = newLength;
-    return last;
-  }
-  _bubbleUp(element, index) {
-    L:
-    while ((index > 0)) {
-      {
-        let parentIndex = __dartTruncDiv((index - 1), 2);
-        let parent = this._elementAt(parentIndex);
-        if (((() => { let v = element; return (() => { let v_1 = parent; return (this.comparison)(v, v_1); })(); })() > 0)) {
-          break L;
-        }
-        __dartIndexSet(this._queue, index, parent);
-        index = parentIndex;
-      }
-    }
-    __dartIndexSet(this._queue, index, element);
-  }
-  _bubbleDown(element, index) {
-    let rightChildIndex = ((index * 2) + 2);
-    while ((rightChildIndex < this._length)) {
-      {
-        let leftChildIndex = (rightChildIndex - 1);
-        let leftChild = this._elementAt(leftChildIndex);
-        let rightChild = this._elementAt(rightChildIndex);
-        let comp = (() => { let v = leftChild; return (() => { let v_1 = rightChild; return (this.comparison)(v, v_1); })(); })();
-        let minChildIndex = null;
-        let minChild = null;
-        if ((comp < 0)) {
-          {
-            minChild = leftChild;
-            minChildIndex = leftChildIndex;
-          }
-        } else {
-          {
-            minChild = rightChild;
-            minChildIndex = rightChildIndex;
-          }
-        }
-        comp = (() => { let v_2 = element; return (() => { let v_3 = minChild; return (this.comparison)(v_2, v_3); })(); })();
-        if ((comp <= 0)) {
-          {
-            __dartIndexSet(this._queue, index, element);
-            return;
-          }
-        }
-        __dartIndexSet(this._queue, index, minChild);
-        index = minChildIndex;
-        rightChildIndex = ((index * 2) + 2);
-      }
-    }
-    let leftChildIndex_1 = (rightChildIndex - 1);
-    if ((leftChildIndex_1 < this._length)) {
-      {
-        let child = this._elementAt(leftChildIndex_1);
-        let comp_1 = (() => { let v_4 = element; return (() => { let v_5 = child; return (this.comparison)(v_4, v_5); })(); })();
-        if ((comp_1 > 0)) {
-          {
-            __dartIndexSet(this._queue, index, child);
-            index = leftChildIndex_1;
-          }
-        }
-      }
-    }
-    __dartIndexSet(this._queue, index, element);
-  }
-  _grow() {
-    let newCapacity = ((this._queue.length * 2) + 1);
-    if ((newCapacity < 7)) {
-      newCapacity = 7;
-    }
-    let newQueue = __dartFixedList(new Array(newCapacity).fill(null));
-    __dartListSetRange(newQueue, 0, this._length, this._queue, 0);
-    this._queue = newQueue;
-  }
-}
-
-class _UnorderedElementsIterable {
-  constructor(_queue) {
-    this._queue = _queue;
-  }
-  get iterator() {
-    return new _UnorderedElementsIterator(this._queue);
-  }
-}
-
-class _UnorderedElementsIterator {
-  constructor(_queue) {
-    this._current = null;
-    this._index = (-1);
-    this._queue = _queue;
-    this._initialModificationCount = _queue._modificationCount;
-  }
-  moveNext() {
-    if (!(__dartEquals(this._initialModificationCount, this._queue._modificationCount))) {
-      {
-        (() => { throw __dartCoreError("ConcurrentModificationError", this._queue); })();
-      }
-    }
-    let nextIndex = (this._index + 1);
-    if (((0 <= nextIndex) && (nextIndex < this._queue.length))) {
-      {
-        this._current = __dartIndexGet(this._queue._queue, nextIndex);
-        this._index = nextIndex;
-        return true;
-      }
-    }
-    this._current = null;
-    this._index = (-2);
-    return false;
-  }
-  get current() {
-    return ((this._index < 0) ? (() => { throw __dartCoreError("StateError", "No element"); })() : (this._current ?? (null ?? __dartAs(v, value => true, "E"))));
-  }
-}
-
-class _QueueList_Object_ListMixin {
+class Clock {
   constructor() {
   }
-  add(element) {
-    __dartIndexSet(this, (() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })(), element);
+  static realTime() {
+    return new _RealtimeClock();
   }
-  addAll(iterable) {
-    let i = this.length;
-    {
-      let _sync_for_iterator = __dartIterator(iterable);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let element = _sync_for_iterator.current;
-          {
-            this.add(element);
-            i = (i + 1);
-          }
-        }
-      }
-    }
+  static monotonicTest() {
+    return new _MonotonicTestClock();
   }
-  cast() {
-    return Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(_QueueList&Object&ListMixin.cast.R%)"));
+  get now() {
+    throw new TypeError("Abstract member Clock.now");
   }
-  toString() {
-    return ("[" + Array.from(this, (value) => __dartStr(value)).join(", ") + "]");
-  }
-  removeLast() {
-    if (__dartEquals(this.length, 0)) {
-      {
-        (() => { throw __dartCoreError("StateError", "No element"); })();
-      }
-    }
-    let result = __dartIndexGet(this, (this.length - 1));
-    this.length = (this.length - 1);
-    return result;
-  }
-  get first() {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    return __dartIndexGet(this, 0);
-  }
-  set first(value) {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    __dartIndexSet(this, 0, value);
-  }
-  get last() {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    return __dartIndexGet(this, (this.length - 1));
-  }
-  set last(value) {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    __dartIndexSet(this, (this.length - 1), value);
-  }
-  get iterator() {
-    return __dartIterator(this);
-  }
-  elementAt(index) {
-    return __dartIndexGet(this, index);
-  }
-  followedBy(other) {
-    return Array.from(this).concat(Array.from(other));
-  }
-  forEach(action) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        (action)(__dartIndexGet(this, i));
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-  }
-  get isEmpty() {
-    return __dartEquals(this.length, 0);
-  }
-  get isNotEmpty() {
-    return !(this.length === 0);
-  }
-  get single() {
-    if (__dartEquals(this.length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    if ((this.length > 1)) {
-      (() => { throw __dartCoreError("StateError", "Too many elements"); })();
-    }
-    return __dartIndexGet(this, 0);
-  }
-  contains(element) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          return true;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return false;
-  }
-  every(test) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        if (!((test)(__dartIndexGet(this, i)))) {
-          return false;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return true;
-  }
-  any(test) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        if ((test)(__dartIndexGet(this, i))) {
-          return true;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return false;
-  }
-  firstWhere(test, { orElse = null } = {}) {
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if ((test)(element)) {
-          return element;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (!((orElse === null))) {
-      return (orElse)();
-    }
-    (() => { throw __dartCoreError("StateError", "No element"); })();
-  }
-  lastWhere(test, { orElse = null } = {}) {
-    let length = this.length;
-    for (let i = (length - 1); (i >= 0); i = (i - 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if ((test)(element)) {
-          return element;
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (!((orElse === null))) {
-      return (orElse)();
-    }
-    (() => { throw __dartCoreError("StateError", "No element"); })();
-  }
-  singleWhere(test, { orElse = null } = {}) {
-    let length = this.length;
-    const match = __dartLazyField("match", null, true, null);
-    let matchFound = false;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if ((test)(element)) {
-          {
-            if (matchFound) {
-              {
-                (() => { throw __dartCoreError("StateError", "Too many elements"); })();
-              }
-            }
-            matchFound = true;
-            match.set(element);
-          }
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (matchFound) {
-      return match.get();
-    }
-    if (!((orElse === null))) {
-      return (orElse)();
-    }
-    (() => { throw __dartCoreError("StateError", "No element"); })();
-  }
-  join(separator_1 = "") {
-    if (__dartEquals(this.length, 0)) {
-      return "";
-    }
-    let buffer = (() => { let v = __dartStringBuffer(""); return (() => {
-      v.writeAll(this, separator_1);
-      return v;
-    })(); })();
-    return __dartStr(buffer);
-  }
-  where(test) {
-    return Array.from(this).filter((value) => test(value));
-  }
-  whereType() {
-    return Array.from(this).filter((value) => true);
-  }
-  map(f) {
-    return Array.from(this, (value) => f(value));
-  }
-  expand(f) {
-    return Array.from(this).flatMap((value) => Array.from(f(value)));
-  }
-  reduce(combine) {
-    let length = this.length;
-    if (__dartEquals(length, 0)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    let value = __dartIndexGet(this, 0);
-    for (let i = 1; (i < length); i = (i + 1)) {
-      {
-        value = (combine)(value, __dartIndexGet(this, i));
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return value;
-  }
-  fold(initialValue, combine) {
-    let value = initialValue;
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        value = (combine)(value, __dartIndexGet(this, i));
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    return value;
-  }
-  skip(count) {
-    return Array.from(this).slice(count, null ?? undefined);
-  }
-  skipWhile(test) {
-    return __dartIterableSkipWhile(this, test);
-  }
-  take(count) {
-    return Array.from(this).slice(0, __dartNullCheck(count) ?? undefined);
-  }
-  takeWhile(test) {
-    return __dartIterableTakeWhile(this, test);
-  }
-  toList({ growable = true } = {}) {
-    if (this.length === 0) {
-      return (growable ? [] : __dartFixedList([]));
-    }
-    let first = __dartIndexGet(this, 0);
-    let result = (growable ? new Array(this.length).fill(first) : __dartFixedList(new Array(this.length).fill(first)));
-    for (let i = 1; (i < this.length); i = (i + 1)) {
-      {
-        __dartIndexSet(result, i, __dartIndexGet(this, i));
-      }
-    }
-    return result;
-  }
-  toSet() {
-    let result = new Set();
-    for (let i = 0; (i < this.length); i = (i + 1)) {
-      {
-        __dartSetAdd(result, __dartIndexGet(this, i));
-      }
-    }
-    return result;
-  }
-  remove(element) {
-    for (let i = 0; (i < this.length); i = (i + 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          {
-            this._closeGap(i, (i + 1));
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-  _closeGap(start, end) {
-    let length = this.length;
-    let size = (end - start);
-    for (let i = end; (i < length); i = (i + 1)) {
-      {
-        __dartIndexSet(this, (i - size), __dartIndexGet(this, i));
-      }
-    }
-    this.length = (length - size);
-  }
-  removeWhere(test) {
-    this._filter(test, false);
-  }
-  retainWhere(test) {
-    this._filter(test, true);
-  }
-  _filter(test, retainMatching) {
-    let retained = new Array(0).fill(null);
-    let length = this.length;
-    for (let i = 0; (i < length); i = (i + 1)) {
-      {
-        let element = __dartIndexGet(this, i);
-        if (__dartEquals((test)(element), retainMatching)) {
-          {
-            (retained.push(element), null);
-          }
-        }
-        if (!(__dartEquals(length, this.length))) {
-          {
-            (() => { throw __dartCoreError("ConcurrentModificationError", this); })();
-          }
-        }
-      }
-    }
-    if (!(__dartEquals(retained.length, this.length))) {
-      {
-        __dartListSetRange(this, 0, retained.length, retained, 0);
-        this.length = retained.length;
-      }
-    }
-  }
-  clear() {
-    this.length = 0;
-  }
-  sort(compare = null) {
-    __dartListSort(this, (compare ?? ((left, right) => __dartCompare(left, right))));
-  }
-  shuffle(random = null) {
-    ((random === null) ? random = __dartRandom(null, false) : null);
-    let length = this.length;
-    while ((length > 1)) {
-      {
-        let pos = random.nextInt(length);
-        length = (length - 1);
-        let tmp = __dartIndexGet(this, length);
-        __dartIndexSet(this, length, __dartIndexGet(this, pos));
-        __dartIndexSet(this, pos, tmp);
-      }
-    }
-  }
-  asMap() {
-    return new Map(Array.from(this, (value, index) => [index, value]));
-  }
-  "+"(other) {
-    return (() => {
-      const v = Array.from(this);
-      (v.push(...Array.from(other)), null);
-      return v;
-    })();
-  }
-  sublist(start, end = null) {
-    let listLength = this.length;
-    ((end === null) ? end = listLength : null);
-    __dartCheckValidRange(start, end, listLength, null, null, null);
-    return Array.from(this.slice(start, end));
-  }
-  getRange(start, end) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    return Array.from(this).slice(start, end ?? undefined);
-  }
-  removeRange(start, end) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    if ((end > start)) {
-      {
-        this._closeGap(start, end);
-      }
-    }
-  }
-  fillRange(start, end, fill = null) {
-    let value = (fill ?? (v ?? __dartAs(v_1, value => true, "E")));
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    for (let i = start; (i < end); i = (i + 1)) {
-      {
-        __dartIndexSet(this, i, value);
-      }
-    }
-  }
-  setRange(start, end, iterable, skipCount = 0) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    let length = (end - start);
-    if (__dartEquals(length, 0)) {
-      return;
-    }
-    __dartCheckNotNegative(skipCount, "skipCount", null);
-    let otherList = null;
-    let otherStart = null;
-    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      {
-        otherList = iterable;
-        otherStart = skipCount;
-      }
-    } else {
-      {
-        otherList = __dartFixedList(Array.from(Array.from(iterable).slice(skipCount)));
-        otherStart = 0;
-      }
-    }
-    if (((otherStart + length) > otherList.length)) {
-      {
-        (() => { throw __dartCoreError("StateError", "Too few elements"); })();
-      }
-    }
-    if ((otherStart < start)) {
-      {
-        for (let i = (length - 1); (i >= 0); i = (i - 1)) {
-          {
-            __dartIndexSet(this, (start + i), __dartIndexGet(otherList, (otherStart + i)));
-          }
-        }
-      }
-    } else {
-      {
-        for (let i_1 = 0; (i_1 < length); i_1 = (i_1 + 1)) {
-          {
-            __dartIndexSet(this, (start + i_1), __dartIndexGet(otherList, (otherStart + i_1)));
-          }
-        }
-      }
-    }
-  }
-  replaceRange(start, end, newContents) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    if (__dartEquals(start, this.length)) {
-      {
-        this.addAll(newContents);
-        return;
-      }
-    }
-    if (!(newContents != null && typeof newContents !== "string" && typeof newContents.length === "number" && typeof newContents[Symbol.iterator] === "function")) {
-      {
-        newContents = Array.from(newContents);
-      }
-    }
-    let removeLength = (end - start);
-    let insertLength = __dartIterableLength(newContents);
-    if ((removeLength >= insertLength)) {
-      {
-        let insertEnd = (start + insertLength);
-        __dartListSetRange(this, start, insertEnd, newContents, 0);
-        if ((removeLength > insertLength)) {
-          {
-            this._closeGap(insertEnd, end);
-          }
-        }
-      }
-    } else {
-      if (__dartEquals(end, this.length)) {
-        {
-          let i = start;
-          {
-            let _sync_for_iterator = __dartIterator(newContents);
-            for (; _sync_for_iterator.moveNext(); ) {
-              {
-                let element = _sync_for_iterator.current;
-                {
-                  if ((i < end)) {
-                    {
-                      __dartIndexSet(this, i, element);
-                    }
-                  } else {
-                    {
-                      this.add(element);
-                    }
-                  }
-                  i = (i + 1);
-                }
-              }
-            }
-          }
-        }
-      } else {
-        {
-          let delta = (insertLength - removeLength);
-          let oldLength = this.length;
-          let insertEnd_1 = (start + insertLength);
-          for (let i_1 = (oldLength - delta); (i_1 < oldLength); i_1 = (i_1 + 1)) {
-            {
-              this.add(__dartIndexGet(this, ((i_1 > 0) ? i_1 : 0)));
-            }
-          }
-          if ((insertEnd_1 < oldLength)) {
-            {
-              __dartListSetRange(this, insertEnd_1, oldLength, this, end);
-            }
-          }
-          __dartListSetRange(this, start, insertEnd_1, newContents, 0);
-        }
-      }
-    }
-  }
-  indexOf(element, start = 0) {
-    if ((start < 0)) {
-      start = 0;
-    }
-    for (let i = start; (i < this.length); i = (i + 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  indexWhere(test, start = 0) {
-    if ((start < 0)) {
-      start = 0;
-    }
-    for (let i = start; (i < this.length); i = (i + 1)) {
-      {
-        if ((test)(__dartIndexGet(this, i))) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  lastIndexOf(element, start = null) {
-    if (((start === null) || (start >= this.length))) {
-      start = (this.length - 1);
-    }
-    for (let i = start; (i >= 0); i = (i - 1)) {
-      {
-        if (__dartEquals(__dartIndexGet(this, i), element)) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  lastIndexWhere(test, start = null) {
-    if (((start === null) || (start >= this.length))) {
-      start = (this.length - 1);
-    }
-    for (let i = start; (i >= 0); i = (i - 1)) {
-      {
-        if ((test)(__dartIndexGet(this, i))) {
-          return i;
-        }
-      }
-    }
-    return (-1);
-  }
-  insert(index, element) {
-    __dartNullCheck(index);
-    let length = this.length;
-    __dartCheckValueInInterval(index, 0, length, "index", null);
-    this.add(element);
-    if (!(__dartEquals(index, length))) {
-      {
-        __dartListSetRange(this, (index + 1), (length + 1), this, index);
-        __dartIndexSet(this, index, element);
-      }
-    }
-  }
-  removeAt(index) {
-    let result = __dartIndexGet(this, index);
-    this._closeGap(index, (index + 1));
-    return result;
-  }
-  insertAll(index, iterable) {
-    __dartCheckValueInInterval(index, 0, this.length, "index", null);
-    if (__dartEquals(index, this.length)) {
-      {
-        this.addAll(iterable);
-        return;
-      }
-    }
-    if ((!(iterable != null && typeof iterable !== "string" && typeof iterable.length === "number" && typeof iterable[Symbol.iterator] === "function") || Object.is(iterable, this))) {
-      {
-        iterable = Array.from(iterable);
-      }
-    }
-    let insertionLength = __dartIterableLength(iterable);
-    if (__dartEquals(insertionLength, 0)) {
-      {
-        return;
-      }
-    }
-    let oldLength = this.length;
-    for (let i = (oldLength - insertionLength); (i < oldLength); i = (i + 1)) {
-      {
-        this.add(__dartIndexGet(this, ((i > 0) ? i : 0)));
-      }
-    }
-    if (!(__dartEquals(__dartIterableLength(iterable), insertionLength))) {
-      {
-        this.length = (this.length - insertionLength);
-        (() => { throw __dartCoreError("ConcurrentModificationError", iterable); })();
-      }
-    }
-    let oldCopyStart = (index + insertionLength);
-    if ((oldCopyStart < oldLength)) {
-      {
-        __dartListSetRange(this, oldCopyStart, oldLength, this, index);
-      }
-    }
-    __dartListSetAll(this, index, iterable);
-  }
-  setAll(index, iterable) {
-    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      {
-        __dartListSetRange(this, index, (index + __dartIterableLength(iterable)), iterable, 0);
-      }
-    } else {
-      {
-        {
-          let _sync_for_iterator = __dartIterator(iterable);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let element = _sync_for_iterator.current;
-              {
-                __dartIndexSet(this, (() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  get reversed() {
-    return Array.from(this).reverse();
+  set now(value) {
+    Object.defineProperty(this, "now", { value, writable: true, configurable: true, enumerable: true });
   }
 }
 
-class QueueList extends _QueueList_Object_ListMixin {
-  constructor(initialCapacity = null) {
-    return $QueueList__init(new.target, QueueList._computeInitialCapacity(initialCapacity));
-  }
-  static _init(initialCapacity) {
-    return $QueueList__init(QueueList, initialCapacity);
-  }
-  static _(_head, _tail, _table) {
-    return $QueueList__(QueueList, _head, _tail, _table);
-  }
-  static _castFrom(source) {
-    return new _CastQueueList(source);
-  }
-  static from(source) {
-    if ((Array.isArray(source) || (ArrayBuffer.isView(source) && !(source instanceof DataView)))) {
-      {
-        let length = __dartIterableLength(source);
-        let queue = new QueueList((length + 1));
-        let sourceList = source;
-        __dartListSetRange(queue._table, 0, length, sourceList, 0);
-        queue._tail = length;
-        return queue;
-      }
-    } else {
-      {
-        return (() => { let v = new QueueList(); return (() => {
-          v.addAll(source);
-          return v;
-        })(); })();
-      }
-    }
-  }
-  static _computeInitialCapacity(initialCapacity) {
-    if (((initialCapacity === null) || (initialCapacity < 8))) {
-      {
-        return 8;
-      }
-    }
-    initialCapacity = (initialCapacity + 1);
-    if (QueueList._isPowerOf2(initialCapacity)) {
-      {
-        return initialCapacity;
-      }
-    }
-    return QueueList._nextPowerOf2(initialCapacity);
-  }
-  add(element) {
-    this._add(element);
-  }
-  addAll(iterable) {
-    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      {
-        let list = iterable;
-        let addCount = __dartIterableLength(list);
-        let length = this.length;
-        if (((length + addCount) >= this._table.length)) {
-          {
-            this._preGrow((length + addCount));
-            __dartListSetRange(this._table, length, (length + addCount), list, 0);
-            this._tail = (this._tail + addCount);
-          }
-        } else {
-          {
-            let endSpace = (this._table.length - this._tail);
-            if ((addCount < endSpace)) {
-              {
-                __dartListSetRange(this._table, this._tail, (this._tail + addCount), list, 0);
-                this._tail = (this._tail + addCount);
-              }
-            } else {
-              {
-                let preSpace = (addCount - endSpace);
-                __dartListSetRange(this._table, this._tail, (this._tail + endSpace), list, 0);
-                __dartListSetRange(this._table, 0, preSpace, list, endSpace);
-                this._tail = preSpace;
-              }
-            }
-          }
-        }
-      }
-    } else {
-      {
-        {
-          let _sync_for_iterator = __dartIterator(iterable);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let element = _sync_for_iterator.current;
-              {
-                this._add(element);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  cast() {
-    return QueueList._castFrom(this);
-  }
-  retype() {
-    return this.cast();
-  }
-  toString() {
-    return ("{" + Array.from(this, (value) => __dartStr(value)).join(", ") + "}");
-  }
-  addLast(element) {
-    this._add(element);
-  }
-  addFirst(element) {
-    this._head = ((this._head - 1) & (this._table.length - 1));
-    __dartIndexSet(this._table, this._head, element);
-    if (__dartEquals(this._head, this._tail)) {
-      this._grow();
-    }
-  }
-  removeFirst() {
-    if (__dartEquals(this._head, this._tail)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    let result = (__dartIndexGet(this._table, this._head) ?? __dartAs(v, value => true, "E"));
-    __dartIndexSet(this._table, this._head, null);
-    this._head = ((this._head + 1) & (this._table.length - 1));
-    return result;
-  }
-  removeLast() {
-    if (__dartEquals(this._head, this._tail)) {
-      (() => { throw __dartCoreError("StateError", "No element"); })();
-    }
-    this._tail = ((this._tail - 1) & (this._table.length - 1));
-    let result = (__dartIndexGet(this._table, this._tail) ?? __dartAs(v, value => true, "E"));
-    __dartIndexSet(this._table, this._tail, null);
-    return result;
-  }
-  get length() {
-    return ((this._tail - this._head) & (this._table.length - 1));
-  }
-  set length(value) {
-    if ((value < 0)) {
-      (() => { throw __dartCoreError("RangeError", "Length " + __dartStr(value) + " may not be negative."); })();
-    }
-    if (((value > this.length) && !(true))) {
-      {
-        (() => { throw __dartCoreError("UnsupportedError", "The length can only be increased when the element type is " + "nullable, but the current element type is `" + __dartStr(__dartType("E")) + "`."); })();
-      }
-    }
-    let delta = (value - this.length);
-    if ((delta >= 0)) {
-      {
-        if ((this._table.length <= value)) {
-          {
-            this._preGrow(value);
-          }
-        }
-        this._tail = ((this._tail + delta) & (this._table.length - 1));
-        return;
-      }
-    }
-    let newTail = (this._tail + delta);
-    if ((newTail >= 0)) {
-      {
-        (this._table.fill(null, newTail, this._tail), null);
-      }
-    } else {
-      {
-        newTail = (newTail + this._table.length);
-        (this._table.fill(null, 0, this._tail), null);
-        (this._table.fill(null, newTail, this._table.length), null);
-      }
-    }
-    this._tail = newTail;
-  }
-  "[]"(index) {
-    if (((index < 0) || (index >= this.length))) {
-      {
-        (() => { throw __dartCoreError("RangeError", "Index " + __dartStr(index) + " must be in the range [0.." + __dartStr(this.length) + ")."); })();
-      }
-    }
-    return (__dartIndexGet(this._table, ((this._head + index) & (this._table.length - 1))) ?? __dartAs(v, value => true, "E"));
-  }
-  "[]="(index, value) {
-    if (((index < 0) || (index >= this.length))) {
-      {
-        (() => { throw __dartCoreError("RangeError", "Index " + __dartStr(index) + " must be in the range [0.." + __dartStr(this.length) + ")."); })();
-      }
-    }
-    __dartIndexSet(this._table, ((this._head + index) & (this._table.length - 1)), value);
-  }
-  static _isPowerOf2(number) {
-    return __dartEquals((number & (number - 1)), 0);
-  }
-  static _nextPowerOf2(number) {
-    number = ((number << 1) - 1);
-    for (; ; ) {
-      {
-        let nextNumber = (number & (number - 1));
-        if (__dartEquals(nextNumber, 0)) {
-          return number;
-        }
-        number = nextNumber;
-      }
-    }
-  }
-  _add(element) {
-    __dartIndexSet(this._table, this._tail, element);
-    this._tail = ((this._tail + 1) & (this._table.length - 1));
-    if (__dartEquals(this._head, this._tail)) {
-      this._grow();
-    }
-  }
-  _grow() {
-    let newTable = __dartFixedList(new Array((this._table.length * 2)).fill(null));
-    let split_1 = (this._table.length - this._head);
-    __dartListSetRange(newTable, 0, split_1, this._table, this._head);
-    __dartListSetRange(newTable, split_1, (split_1 + this._head), this._table, 0);
-    this._head = 0;
-    this._tail = this._table.length;
-    this._table = newTable;
-  }
-  _writeToList(target) {
-    if ((this._head <= this._tail)) {
-      {
-        let length = (this._tail - this._head);
-        __dartListSetRange(target, 0, length, this._table, this._head);
-        return length;
-      }
-    } else {
-      {
-        let firstPartSize = (this._table.length - this._head);
-        __dartListSetRange(target, 0, firstPartSize, this._table, this._head);
-        __dartListSetRange(target, firstPartSize, (firstPartSize + this._tail), this._table, 0);
-        return (this._tail + firstPartSize);
-      }
-    }
-  }
-  _preGrow(newElementCount) {
-    newElementCount = (newElementCount + __dartShr(newElementCount, 1));
-    let newCapacity = QueueList._nextPowerOf2(newElementCount);
-    let newTable = __dartFixedList(new Array(newCapacity).fill(null));
-    this._tail = this._writeToList(newTable);
-    this._table = newTable;
-    this._head = 0;
-  }
-}
-
-function $QueueList__init($newTarget, initialCapacity) {
-  const $self = Reflect.construct(_QueueList_Object_ListMixin, [], $newTarget);
-  $self._table = __dartFixedList(new Array(initialCapacity).fill(null));
-  Object.defineProperty($self, "_head", {
-    value: 0,
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
-  Object.defineProperty($self, "_tail", {
-    value: 0,
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
-  return $self;
-}
-
-function $QueueList__($newTarget, _head, _tail, _table) {
-  const $self = Reflect.construct(_QueueList_Object_ListMixin, [], $newTarget);
-  Object.defineProperty($self, "_head", {
-    value: _head,
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
-  Object.defineProperty($self, "_tail", {
-    value: _tail,
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
-  $self._table = _table;
-  return $self;
-}
-
-class _CastQueueList extends QueueList {
-  constructor(_delegate) {
-    const $self = $QueueList__(new.target, (-1), (-1), Array.from(_delegate._table, (value) => __dartAs(value, (value) => true, "TypeParameterType(_CastQueueList.T%)")));
-    $self._delegate = _delegate;
-    return $self;
-  }
-  get _head() {
-    return this._delegate._head;
-  }
-  set _head(value) {
-    return this._delegate._head = value;
-  }
-  get _tail() {
-    return this._delegate._tail;
-  }
-  set _tail(value) {
-    return this._delegate._tail = value;
-  }
-}
-
-class _UnionSet_SetBase_UnmodifiableSetMixin {
+class _RealtimeClock extends Clock {
   constructor() {
-    Object.defineProperty(this, $UnmodifiableSetMixin_interface, { value: true });
-  }
-  add(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  addAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  remove(value) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainAll(elements) {
-    return UnmodifiableSetMixin._throw();
-  }
-  removeWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  retainWhere(test) {
-    return UnmodifiableSetMixin._throw();
-  }
-  clear() {
-    return UnmodifiableSetMixin._throw();
-  }
-}
-
-class UnionSet extends _UnionSet_SetBase_UnmodifiableSetMixin {
-  constructor(sets, { disjoint = false } = {}) {
     super();
-    this._sets = sets;
-    this._disjoint = disjoint;
   }
-  static from(sets, { disjoint = false } = {}) {
-    return $UnionSet_from(UnionSet, sets, { disjoint: disjoint });
-  }
-  get length() {
-    return (this._disjoint ? Array.from(this._sets).reduce((previous, value) => (function(length, set) { return (length + set.size); })(previous, value), 0) : __dartIterableLength(this._iterable));
-  }
-  get iterator() {
-    return __dartIterator(this._iterable);
-  }
-  get _iterable() {
-    let allElements = Array.from(this._sets).flatMap((value) => Array.from((function(set) { return set; })(value)));
-    return (this._disjoint ? allElements : Array.from(allElements).filter(__dartAs(__dartBind((() => {
-      const v = new Set();
-      return v;
-    })(), "add"), value => typeof value === "function", "bool Function(UnionSet.E%)")));
-  }
-  contains(element) {
-    return Array.from(this._sets).some(function(set) { return __dartIterableContains(set, element); });
-  }
-  lookup(element) {
-    {
-      let _sync_for_iterator = __dartIterator(this._sets);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let set = _sync_for_iterator.current;
-          {
-            let result = __dartSetLookup(set, element);
-            if ((!((result === null)) || __dartIterableContains(set, null))) {
-              return result;
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-  toSet() {
-    return (() => {
-      const v = new Set();
-      {
-        let _sync_for_iterator = __dartIterator(this._sets);
-        for (; _sync_for_iterator.moveNext(); ) {
-          {
-            let set = _sync_for_iterator.current;
-            __dartSetAddAll(v, set);
-          }
-        }
-      }
-      return v;
-    })();
+  get now() {
+    return __dartDateTime(Date.now(), false);
   }
 }
 
-function $UnionSet_from($newTarget, sets, { disjoint = false } = {}) {
-  return Reflect.construct(UnionSet, [__dartSetFrom(sets), { disjoint: disjoint }], $newTarget);
-}
-
-class UnionSetController {
-  constructor({ disjoint = false } = {}) {
-    return $UnionSetController__(new.target, (() => {
-      const v = new Set();
-      return v;
-    })(), disjoint);
-  }
-  static _(_sets, disjoint) {
-    return $UnionSetController__(UnionSetController, _sets, disjoint);
-  }
-  add(component) {
-    __dartSetAdd(this._sets, component);
-  }
-  remove(component) {
-    return __dartSetRemove(this._sets, component);
-  }
-}
-
-function $UnionSetController__($newTarget, _sets, disjoint) {
-  const $self = Object.create($newTarget.prototype);
-  $self._sets = _sets;
-  $self.set = new UnionSet(_sets, { disjoint: disjoint });
-  return $self;
-}
-
-class StreamQueue {
-  static _(_source) {
-    return $StreamQueue__(StreamQueue, _source);
-  }
-  get eventsDispatched() {
-    return (this._eventsReceived - this._eventQueue.length);
-  }
-  constructor(source) {
-    return StreamQueue._(source);
-  }
-  get hasNext() {
-    this._checkNotClosed();
-    let hasNextRequest = new _HasNextRequest();
-    this._addRequest(hasNextRequest);
-    return hasNextRequest.future;
-  }
-  lookAhead(count) {
-    __dartCheckNotNegative(count, "count", null);
-    this._checkNotClosed();
-    let request = new _LookAheadRequest(count);
-    this._addRequest(request);
-    return request.future;
-  }
-  get next() {
-    this._checkNotClosed();
-    let nextRequest = new _NextRequest();
-    this._addRequest(nextRequest);
-    return nextRequest.future;
-  }
-  get peek() {
-    this._checkNotClosed();
-    let nextRequest = new _PeekRequest();
-    this._addRequest(nextRequest);
-    return nextRequest.future;
-  }
-  get rest() {
-    this._checkNotClosed();
-    let request = new _RestRequest(this);
-    this._isClosed = true;
-    this._addRequest(request);
-    return request.stream;
-  }
-  skip(count) {
-    __dartCheckNotNegative(count, "count", null);
-    this._checkNotClosed();
-    let request = new _SkipRequest(count);
-    this._addRequest(request);
-    return request.future;
-  }
-  take(count) {
-    __dartCheckNotNegative(count, "count", null);
-    this._checkNotClosed();
-    let request = new _TakeRequest(count);
-    this._addRequest(request);
-    return request.future;
-  }
-  startTransaction() {
-    this._checkNotClosed();
-    let request = new _TransactionRequest(this);
-    this._addRequest(request);
-    return request.transaction;
-  }
-  async withTransaction(callback) {
-    let transaction = this.startTransaction();
-    let queue = transaction.newQueue();
-    let result = null;
-    try {
-      {
-        result = await (callback)(queue);
-      }
-    } catch ($error) {
-      if ($error != null) {
-        const _ = $error;
-        {
-          transaction.commit(queue);
-          (() => { throw $error; })();
-        }
-      } else {
-        throw $error;
-      }
-    }
-    if (result) {
-      {
-        transaction.commit(queue);
-      }
-    } else {
-      {
-        transaction.reject();
-      }
-    }
-    return result;
-  }
-  cancelable(callback) {
-    let transaction = this.startTransaction();
-    let completer = new CancelableCompleter({ onCancel: function() {
-      transaction.reject();
-} });
-    let queue = transaction.newQueue();
-    completer.complete((callback)(queue).finally(function() {
-      if (!(completer.isCanceled)) {
-        transaction.commit(queue);
-      }
-}));
-    return completer.operation;
-  }
-  cancel({ immediate = false } = {}) {
-    this._checkNotClosed();
-    this._isClosed = true;
-    if (!(immediate)) {
-      {
-        let request = new _CancelRequest(this);
-        this._addRequest(request);
-        return request.future;
-      }
-    }
-    if ((this._isDone && this._eventQueue.isEmpty)) {
-      return Promise.resolve(null);
-    }
-    return this._cancel();
-  }
-  _updateRequests() {
-    while (!__dartIterableIsEmpty(this._requestQueue)) {
-      {
-        if (__dartIterableFirst(this._requestQueue).update(this._eventQueue, this._isDone)) {
-          {
-            this._requestQueue.shift();
-          }
-        } else {
-          {
-            return;
-          }
-        }
-      }
-    }
-    if (!(this._isDone)) {
-      {
-        this._pause();
-      }
-    }
-  }
-  _extractStream() {
-    if (this._isDone) {
-      {
-        return __dartStreamFromIterable([], true);
-      }
-    }
-    this._isDone = true;
-    let subscription = this._subscription;
-    if ((subscription === null)) {
-      {
-        return this._source;
-      }
-    }
-    this._subscription = null;
-    let wasPaused = subscription.isPaused;
-    let result = new SubscriptionStream(subscription);
-    if (wasPaused) {
-      subscription.resume();
-    }
-    return result;
-  }
-  _pause() {
-    __dartNullCheck(this._subscription).pause();
-  }
-  _ensureListening() {
-    if (this._isDone) {
-      return;
-    }
-    if ((this._subscription === null)) {
-      {
-        this._subscription = __dartStreamListen(this._source, (data) => {
-          this._addResult(new ValueResult(data));
-}, (error, stackTrace) => {
-          this._addResult(Result.error(error, stackTrace));
-}, () => {
-          this._subscription = null;
-          this._close();
-}, false);
-      }
-    } else {
-      {
-        __dartNullCheck(this._subscription).resume();
-      }
-    }
-  }
-  _cancel() {
-    if (this._isDone) {
-      return null;
-    }
-    ((this._subscription === null) ? this._subscription = __dartStreamListen(this._source, null, null, null, false) : null);
-    let future = __dartNullCheck(this._subscription).cancel();
-    this._close();
-    return future;
-  }
-  _addResult(result) {
-    this._eventsReceived = (this._eventsReceived + 1);
-    this._eventQueue.add(result);
-    this._updateRequests();
-  }
-  _close() {
-    this._isDone = true;
-    this._updateRequests();
-  }
-  _checkNotClosed() {
-    if (this._isClosed) {
-      (() => { throw __dartCoreError("StateError", "Already cancelled"); })();
-    }
-  }
-  _addRequest(request) {
-    if (__dartIterableIsEmpty(this._requestQueue)) {
-      {
-        if (request.update(this._eventQueue, this._isDone)) {
-          return;
-        }
-        this._ensureListening();
-      }
-    }
-    (this._requestQueue.push(request), null);
-  }
-}
-
-function $StreamQueue__($newTarget, _source) {
-  const $self = Object.create($newTarget.prototype);
-  $self._subscription = null;
-  $self._isDone = false;
-  $self._isClosed = false;
-  $self._eventsReceived = 0;
-  $self._eventQueue = new QueueList();
-  $self._requestQueue = [];
-  $self._source = _source;
-  if (($self._source.isBroadcast === true)) {
-    {
-      $self._ensureListening();
-      $self._pause();
-    }
-  }
-  return $self;
-}
-
-class StreamQueueTransaction {
-  constructor() {
-    throw new TypeError("Class StreamQueueTransaction has no unnamed constructor");
-  }
-  static _(_parent, source) {
-    return $StreamQueueTransaction__(StreamQueueTransaction, _parent, source);
-  }
-  newQueue() {
-    let queue = new StreamQueue(this._splitter.split());
-    __dartSetAdd(this._queues, queue);
-    return queue;
-  }
-  commit(queue) {
-    this._assertActive();
-    if (!(__dartIterableContains(this._queues, queue))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "Queue doesn't belong to this transaction."); })();
-      }
-    } else {
-      if (!__dartIterableIsEmpty(queue._requestQueue)) {
-        {
-          (() => { throw __dartCoreError("StateError", "A queue with pending requests can't be committed."); })();
-        }
-      }
-    }
-    this._committed = true;
-    for (let j = 0; (j < queue.eventsDispatched); j = (j + 1)) {
-      {
-        this._parent._eventQueue.removeFirst();
-      }
-    }
-    this._done();
-  }
-  reject() {
-    this._assertActive();
-    this._rejected = true;
-    this._done();
-  }
-  _done() {
-    this._splitter.close();
-    {
-      let _sync_for_iterator = __dartIterator(this._queues);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let queue = _sync_for_iterator.current;
-          {
-            queue._cancel();
-          }
-        }
-      }
-    }
-    let currentRequest = __dartIterableFirst(this._parent._requestQueue);
-    if ((currentRequest instanceof _TransactionRequest && __dartEquals(currentRequest.transaction, this))) {
-      {
-        this._parent._requestQueue.shift();
-        this._parent._updateRequests();
-      }
-    }
-  }
-  _assertActive() {
-    if (this._committed) {
-      {
-        (() => { throw __dartCoreError("StateError", "This transaction has already been accepted."); })();
-      }
-    } else {
-      if (this._rejected) {
-        {
-          (() => { throw __dartCoreError("StateError", "This transaction has already been rejected."); })();
-        }
-      }
-    }
-  }
-}
-
-function $StreamQueueTransaction__($newTarget, _parent, source) {
-  const $self = Object.create($newTarget.prototype);
-  $self._queues = (() => {
-    const v = new Set();
-    return v;
-  })();
-  $self._committed = false;
-  $self._rejected = false;
-  $self._parent = _parent;
-  $self._splitter = new StreamSplitter(source);
-  return $self;
-}
-
-class _EventRequest {
-  constructor() {
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  update(events, isDone) {
-    throw new TypeError("Abstract member _EventRequest.update");
-  }
-}
-Object.defineProperty(_EventRequest, Symbol.hasInstance, { value(value) { return value != null && value[$_EventRequest_interface] === true; } });
-
-class _NextRequest {
-  constructor() {
-    this._completer = __dartCompleter();
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (events.length !== 0) {
-      {
-        events.removeFirst().complete(this._completer);
-        return true;
-      }
-    }
-    if (isDone) {
-      {
-        this._completer.completeError(__dartCoreError("StateError", "No elements"), (new Error().stack ?? "<javascript stack unavailable>"));
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-class _PeekRequest {
-  constructor() {
-    this._completer = __dartCompleter();
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (events.length !== 0) {
-      {
-        __dartIndexGet(events, 0).complete(this._completer);
-        return true;
-      }
-    }
-    if (isDone) {
-      {
-        this._completer.completeError(__dartCoreError("StateError", "No elements"), (new Error().stack ?? "<javascript stack unavailable>"));
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-class _SkipRequest {
-  constructor(_eventsToSkip) {
-    this._completer = __dartCompleter();
-    this._eventsToSkip = _eventsToSkip;
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    L:
-    while ((this._eventsToSkip > 0)) {
-      {
-        if (events.length === 0) {
-          {
-            if (isDone) {
-              break L;
-            }
-            return false;
-          }
-        }
-        this._eventsToSkip = (this._eventsToSkip - 1);
-        let event = events.removeFirst();
-        if (event.isError) {
-          {
-            this._completer.completeError(__dartNullCheck(event.asError).error, __dartNullCheck(event.asError).stackTrace);
-            return true;
-          }
-        }
-      }
-    }
-    this._completer.complete(this._eventsToSkip);
-    return true;
-  }
-}
-
-class _ListRequest {
-  constructor(_eventsToTake) {
-    this._completer = __dartCompleter();
-    this._list = new Array(0).fill(null);
-    this._eventsToTake = _eventsToTake;
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  get future() {
-    return this._completer.future;
-  }
-}
-
-class _TakeRequest extends _ListRequest {
-  constructor(eventsToTake) {
-    super(eventsToTake);
-  }
-  update(events, isDone) {
-    L:
-    while ((this._list.length < this._eventsToTake)) {
-      {
-        if (events.length === 0) {
-          {
-            if (isDone) {
-              break L;
-            }
-            return false;
-          }
-        }
-        let event = events.removeFirst();
-        if (event.isError) {
-          {
-            __dartNullCheck(event.asError).complete(this._completer);
-            return true;
-          }
-        }
-        (this._list.push(__dartNullCheck(event.asValue).value), null);
-      }
-    }
-    this._completer.complete(this._list);
-    return true;
-  }
-}
-
-class _LookAheadRequest extends _ListRequest {
-  constructor(eventsToTake) {
-    super(eventsToTake);
-  }
-  update(events, isDone) {
-    L:
-    while ((this._list.length < this._eventsToTake)) {
-      {
-        if (__dartEquals(events.length, this._list.length)) {
-          {
-            if (isDone) {
-              break L;
-            }
-            return false;
-          }
-        }
-        let event = Array.from(events)[this._list.length];
-        if (event.isError) {
-          {
-            __dartNullCheck(event.asError).complete(this._completer);
-            return true;
-          }
-        }
-        (this._list.push(__dartNullCheck(event.asValue).value), null);
-      }
-    }
-    this._completer.complete(this._list);
-    return true;
-  }
-}
-
-class _CancelRequest {
-  constructor(_streamQueue) {
-    this._completer = __dartCompleter();
-    this._streamQueue = _streamQueue;
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (this._streamQueue._isDone) {
-      {
-        this._completer.complete();
-      }
-    } else {
-      {
-        this._streamQueue._ensureListening();
-        this._completer.complete(__dartStreamListen(this._streamQueue._extractStream(), null, null, null, false).cancel());
-      }
-    }
-    return true;
-  }
-}
-
-class _RestRequest {
-  constructor(_streamQueue) {
-    this._completer = new StreamCompleter();
-    this._streamQueue = _streamQueue;
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  get stream() {
-    return this._completer.stream;
-  }
-  update(events, isDone) {
-    if (events.length === 0) {
-      {
-        if (this._streamQueue._isDone) {
-          {
-            this._completer.setEmpty();
-          }
-        } else {
-          {
-            this._completer.setSourceStream(this._streamQueue._extractStream());
-          }
-        }
-      }
-    } else {
-      {
-        let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-        {
-          let _sync_for_iterator = __dartIterator(events);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let event = _sync_for_iterator.current;
-              {
-                event.addTo(controller);
-              }
-            }
-          }
-        }
-        controller.addStream(this._streamQueue._extractStream(), { cancelOnError: false }).finally(__dartBind(controller, "close"));
-        this._completer.setSourceStream(controller.stream);
-      }
-    }
-    return true;
-  }
-}
-
-class _HasNextRequest {
-  constructor() {
-    this._completer = __dartCompleter();
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-  }
-  get future() {
-    return this._completer.future;
-  }
-  update(events, isDone) {
-    if (events.length !== 0) {
-      {
-        this._completer.complete(true);
-        return true;
-      }
-    }
-    if (isDone) {
-      {
-        this._completer.complete(false);
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-class _TransactionRequest {
-  constructor(parent) {
-    const $transaction = __dartLazyField("_TransactionRequest.transaction", null, "once");
-    Object.defineProperty(this, "transaction", {
-      get() { return $transaction.get(); },
-      set(value) { $transaction.set(value); },
-      enumerable: true,
-    });
-    this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-    this._eventsSent = 0;
-    Object.defineProperty(this, $_EventRequest_interface, { value: true });
-    this.transaction = StreamQueueTransaction._(parent, this._controller.stream);
-  }
-  update(events, isDone) {
-    while ((this._eventsSent < events.length)) {
-      {
-        __dartIndexGet(events, (() => { let v = this._eventsSent; return (() => { let v_1 = this._eventsSent = (v + 1); return v; })(); })()).addTo(this._controller);
-      }
-    }
-    if ((isDone && !(this._controller.isClosed))) {
-      this._controller.close();
-    }
-    return (this.transaction._committed || this.transaction._rejected);
-  }
-}
-
-class StreamSinkCompleter {
-  constructor() {
-    this.sink = new _CompleterSink();
-  }
-  get _sink() {
-    return __dartAs(this.sink, value => value instanceof _CompleterSink, "_CompleterSink<StreamSinkCompleter.T%>");
-  }
-  static fromFuture(sinkFuture) {
-    let completer = new StreamSinkCompleter();
-    sinkFuture.then(__dartAs(__dartBind(completer, "setDestinationSink"), value => typeof value === "function", "void Function(StreamSink<StreamSinkCompleter.fromFuture.T%>)"), __dartBind(completer, "setError"));
-    return completer.sink;
-  }
-  setDestinationSink(destinationSink) {
-    if (!((this._sink._destinationSink === null))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Destination sink already set"); })();
-      }
-    }
-    this._sink._setDestinationSink(destinationSink);
-  }
-  setError(error, stackTrace = null) {
-    this.setDestinationSink(NullStreamSink.error(error, stackTrace));
-  }
-}
-
-class _CompleterSink {
-  constructor() {
-    this._controller = null;
-    this._doneCompleter = null;
-    this._destinationSink = null;
-  }
-  get _canSendDirectly() {
-    return ((this._controller === null) && !((this._destinationSink === null)));
-  }
-  get done() {
-    if (!((this._doneCompleter === null))) {
-      return __dartNullCheck(this._doneCompleter).future;
-    }
-    if ((this._destinationSink === null)) {
-      {
-        this._doneCompleter = __dartCompleter();
-        return __dartNullCheck(this._doneCompleter).future;
-      }
-    }
-    return __dartNullCheck(this._destinationSink).done;
-  }
-  add(event) {
-    if (this._canSendDirectly) {
-      {
-        __dartNullCheck(this._destinationSink).add(event);
-      }
-    } else {
-      {
-        this._ensureController().add(event);
-      }
-    }
-  }
-  addError(error, stackTrace = null) {
-    if (this._canSendDirectly) {
-      {
-        __dartNullCheck(this._destinationSink).addError(error, stackTrace);
-      }
-    } else {
-      {
-        this._ensureController().addError(error, stackTrace);
-      }
-    }
-  }
-  addStream(stream) {
-    if (this._canSendDirectly) {
-      return __dartNullCheck(this._destinationSink).addStream(stream, { cancelOnError: false });
-    }
-    return this._ensureController().addStream(stream, { cancelOnError: false });
-  }
-  close() {
-    if (this._canSendDirectly) {
-      {
-        __dartNullCheck(this._destinationSink).close();
-      }
-    } else {
-      {
-        this._ensureController().close();
-      }
-    }
-    return this.done;
-  }
-  _ensureController() {
-    return (this._controller ?? (this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null })));
-  }
-  _setDestinationSink(sink) {
-    this._destinationSink = sink;
-    if (!((this._controller === null))) {
-      {
-        sink.addStream(__dartNullCheck(this._controller).stream, { cancelOnError: false }).finally(__dartBind(sink, "close")).catch(function(_) {
-});
-      }
-    }
-    if (!((this._doneCompleter === null))) {
-      {
-        __dartNullCheck(this._doneCompleter).complete(sink.done);
-      }
-    }
-  }
-}
-
-class RejectErrorsSink {
-  constructor(_inner) {
-    this._doneCompleter = __dartCompleter();
-    this._closed = false;
-    this._addStreamSubscription = null;
-    this._addStreamCompleter = null;
-    this._inner = _inner;
-    this._inner.done.then((value) => {
-      this._cancelAddStream();
-      if (!(this._canceled)) {
-        this._doneCompleter.complete(value);
-      }
-}).catch((error) => ((error, stackTrace) => {
-      this._cancelAddStream();
-      if (!(this._canceled)) {
-        this._doneCompleter.completeError(error, stackTrace);
-      }
-})(error, error?.stack ?? "<javascript stack unavailable>"));
-  }
-  get done() {
-    return this._doneCompleter.future;
-  }
-  get _inAddStream() {
-    return !((this._addStreamSubscription === null));
-  }
-  get _canceled() {
-    return this._doneCompleter.isCompleted;
-  }
-  add(data) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add event after closing."); })();
-    }
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add event while adding stream."); })();
-      }
-    }
-    if (this._canceled) {
-      return;
-    }
-    this._inner.add(data);
-  }
-  addError(error, stackTrace = null) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add event after closing."); })();
-    }
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add event while adding stream."); })();
-      }
-    }
-    if (this._canceled) {
-      return;
-    }
-    this._addError(error, stackTrace);
-  }
-  _addError(error, stackTrace = null) {
-    this._cancelAddStream();
-    this._doneCompleter.completeError(error, stackTrace);
-    this._inner.close().catch(function(_) {
-});
-  }
-  addStream(stream) {
-    if (this._closed) {
-      (() => { throw __dartCoreError("StateError", "Cannot add stream after closing."); })();
-    }
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot add stream while adding stream."); })();
-      }
-    }
-    if (this._canceled) {
-      return Promise.resolve(null);
-    }
-    let addStreamCompleter = this._addStreamCompleter = __dartCompleter();
-    this._addStreamSubscription = __dartStreamListen(stream, __dartAs(__dartBind(this._inner, "add"), value => typeof value === "function", "void Function(RejectErrorsSink.T%)"), __dartBind(this, "_addError"), __dartAs(__dartBind(addStreamCompleter, "complete"), value => typeof value === "function", "void Function([FutureOr<void>?])"), false);
-    return addStreamCompleter.future.then((_) => {
-      this._addStreamCompleter = null;
-      this._addStreamSubscription = null;
-});
-  }
-  close() {
-    if (this._inAddStream) {
-      {
-        (() => { throw __dartCoreError("StateError", "Cannot close sink while adding stream."); })();
-      }
-    }
-    if (this._closed) {
-      return this.done;
-    }
-    this._closed = true;
-    if (!(this._canceled)) {
-      {
-        this._doneCompleter.complete(this._inner.close());
-      }
-    }
-    return this.done;
-  }
-  _cancelAddStream() {
-    if (!(this._inAddStream)) {
-      return;
-    }
-    __dartNullCheck(this._addStreamCompleter).complete(__dartNullCheck(this._addStreamSubscription).cancel());
-    this._addStreamCompleter = null;
-    this._addStreamSubscription = null;
-  }
-}
-
-class _TransformedSubscription {
-  constructor(_inner, _handleCancel, _handlePause, _handleResume) {
-    this._cancelMemoizer = new AsyncMemoizer();
-    this._inner = _inner;
-    this._handleCancel = _handleCancel;
-    this._handlePause = _handlePause;
-    this._handleResume = _handleResume;
-  }
-  get isPaused() {
-    return ((this._inner)?.isPaused ?? false);
-  }
-  onData(handleData) {
-    ((this._inner)?.onData(handleData) ?? null);
-  }
-  onError(handleError) {
-    ((this._inner)?.onError(handleError) ?? null);
-  }
-  onDone(handleDone) {
-    ((this._inner)?.onDone(handleDone) ?? null);
-  }
-  cancel() {
-    return this._cancelMemoizer.runOnce(() => {
-      let inner = __dartNullCheck(this._inner);
-      inner.onData(null);
-      inner.onDone(null);
-      inner.onError(function(_, __) {
-});
-      this._inner = null;
-      return (() => { let v = inner; return (this._handleCancel)(v); })();
-});
-  }
-  pause(resumeFuture = null) {
-    if (this._cancelMemoizer.hasRun) {
-      return;
-    }
-    if (!((resumeFuture === null))) {
-      resumeFuture.finally(__dartBind(this, "resume"));
-    }
-    (() => { let v = __dartNullCheck(this._inner); return (this._handlePause)(v); })();
-  }
-  resume() {
-    if (this._cancelMemoizer.hasRun) {
-      return;
-    }
-    (() => { let v = __dartNullCheck(this._inner); return (this._handleResume)(v); })();
-  }
-  asFuture(futureValue = null) {
-    return ((this._inner)?.asFuture(futureValue) ?? __dartCompleter().future);
-  }
-}
-
-class StreamZip {
-  constructor(streams) {
-    this._streams = streams;
-  }
-  listen(onData, { onError = null, onDone = null, cancelOnError = null } = {}) {
-    cancelOnError = Object.is(true, cancelOnError);
-    let subscriptions = new Array(0).fill(null);
-    const controller = __dartLazyField("controller", null, true, null);
-    const current_1 = __dartLazyField("current", null, true, null);
-    let dataCount = 0;
-    function handleData(index, data) {
-      __dartIndexSet(current_1.get(), index, data);
-      dataCount = (dataCount + 1);
-      if (__dartEquals(dataCount, subscriptions.length)) {
-        {
-          let data_1 = Array.from(current_1.get());
-          current_1.set(__dartFixedList(new Array(subscriptions.length).fill(null)));
-          dataCount = 0;
-          for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-            {
-              if (!(__dartEquals(i, index))) {
-                __dartIndexGet(subscriptions, i).resume();
-              }
-            }
-          }
-          controller.get().add(data_1);
-        }
-      } else {
-        {
-          __dartIndexGet(subscriptions, index).pause();
-        }
-      }
-    }
-    function handleError(error, stackTrace) {
-      controller.get().addError(error, stackTrace);
-    }
-    function handleErrorCancel(error, stackTrace) {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          __dartIndexGet(subscriptions, i).cancel();
-        }
-      }
-      controller.get().addError(error, stackTrace);
-    }
-    function handleDone() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          __dartIndexGet(subscriptions, i).cancel();
-        }
-      }
-      controller.get().close();
-    }
-    try {
-      {
-        {
-          let _sync_for_iterator = __dartIterator(this._streams);
-          for (; _sync_for_iterator.moveNext(); ) {
-            {
-              let stream = _sync_for_iterator.current;
-              {
-                let index = subscriptions.length;
-                (subscriptions.push(__dartStreamListen(stream, function(data) {
-                  handleData(index, data);
-}, (cancelOnError ? handleError : handleErrorCancel), handleDone, cancelOnError)), null);
-              }
-            }
-          }
-        }
-      }
-    } catch ($error) {
-      if ($error != null) {
-        const e = $error;
-        {
-          for (let i = (subscriptions.length - 1); (i >= 0); i = (i - 1)) {
-            {
-              __dartIndexGet(subscriptions, i).cancel();
-            }
-          }
-          (() => { throw $error; })();
-        }
-      } else {
-        throw $error;
-      }
-    }
-    current_1.set(__dartFixedList(new Array(subscriptions.length).fill(null)));
-    controller.set(__dartStreamController(false, { onListen: null, onPause: function() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          __dartIndexGet(subscriptions, i).pause();
-        }
-      }
-}, onResume: function() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          __dartIndexGet(subscriptions, i).resume();
-        }
-      }
-}, onCancel: function() {
-      for (let i = 0; (i < subscriptions.length); i = (i + 1)) {
-        {
-          __dartIndexGet(subscriptions, i).cancel();
-        }
-      }
-} }));
-    if (subscriptions.length === 0) {
-      {
-        controller.get().close();
-      }
-    }
-    return __dartStreamListen(controller.get().stream, onData, onError, onDone, cancelOnError);
-  }
-}
-
-class _TypeSafeStreamTransformer {
-  constructor(_inner) {
-    this._inner = _inner;
-  }
-  bind(stream) {
-    return __dartStreamCast(__dartStreamTransformerBind(this._inner, stream), (value) => true, "TypeParameterType(_TypeSafeStreamTransformer.T%)");
+class _MonotonicTestClock extends Clock {
+  constructor({ start = null } = {}) {
+    super();
+    this._current = (start ?? __dartDateTimeFromParts(false, 2000, 1, 1, 0, 0, 0, 0, 0));
+  }
+  get now() {
+    this._current = this._current.add(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"60000000\"]]]", () => __dartDuration({ microseconds: 60000000 })));
+    return this._current;
   }
 }
 
@@ -9893,86 +2242,6 @@ class FileSystemEntity {
 }
 Object.defineProperty(FileSystemEntity, Symbol.hasInstance, { value(value) { return value != null && value[$FileSystemEntity_interface] === true; } });
 
-class ForwardingFileSystemEntity {
-  constructor() {
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-    Object.defineProperty(this, $ForwardingFileSystemEntity_interface, { value: true });
-  }
-  get delegate() {
-    throw new TypeError("Abstract member ForwardingFileSystemEntity.delegate");
-  }
-  set delegate(value) {
-    Object.defineProperty(this, "delegate", { value, writable: true, configurable: true, enumerable: true });
-  }
-  wrap(delegate) {
-    throw new TypeError("Abstract member ForwardingFileSystemEntity.wrap");
-  }
-  wrapDirectory(delegate) {
-    throw new TypeError("Abstract member ForwardingFileSystemEntity.wrapDirectory");
-  }
-  wrapFile(delegate) {
-    throw new TypeError("Abstract member ForwardingFileSystemEntity.wrapFile");
-  }
-  wrapLink(delegate) {
-    throw new TypeError("Abstract member ForwardingFileSystemEntity.wrapLink");
-  }
-  get uri() {
-    return this.delegate.uri;
-  }
-  exists() {
-    return this.delegate.exists();
-  }
-  existsSync() {
-    return this.delegate.existsSync();
-  }
-  async rename(newPath) {
-    return this.wrap(__dartAs(await this.delegate.rename(newPath), value => value != null && typeof value === "object" && typeof value.path === "string", "D"));
-  }
-  renameSync(newPath) {
-    return this.wrap(__dartAs(this.delegate.renameSync(newPath), value => value != null && typeof value === "object" && typeof value.path === "string", "D"));
-  }
-  resolveSymbolicLinks() {
-    return this.delegate.resolveSymbolicLinks();
-  }
-  resolveSymbolicLinksSync() {
-    return this.delegate.resolveSymbolicLinksSync();
-  }
-  stat() {
-    return this.delegate.stat();
-  }
-  statSync() {
-    return this.delegate.statSync();
-  }
-  async delete({ recursive = false } = {}) {
-    return this.wrap(__dartAs(await this.delegate.delete({ recursive: recursive }), value => value != null && typeof value === "object" && typeof value.path === "string", "D"));
-  }
-  deleteSync({ recursive = false } = {}) {
-    return this.delegate.deleteSync({ recursive: recursive });
-  }
-  watch({ events = 15, recursive = false } = {}) {
-    return this.delegate.watch({ events: events, recursive: recursive });
-  }
-  get isAbsolute() {
-    return this.delegate.isAbsolute;
-  }
-  get absolute() {
-    return this.wrap(__dartAs(this.delegate.absolute, value => value != null && typeof value === "object" && typeof value.path === "string", "D"));
-  }
-  get parent() {
-    return this.wrapDirectory(this.delegate.parent);
-  }
-  get path() {
-    return this.delegate.path;
-  }
-  get basename() {
-    return this.fileSystem.path.basename(this.path);
-  }
-  get dirname() {
-    return this.fileSystem.path.dirname(this.path);
-  }
-}
-Object.defineProperty(ForwardingFileSystemEntity, Symbol.hasInstance, { value(value) { return value != null && value[$ForwardingFileSystemEntity_interface] === true; } });
-
 class Directory {
   constructor() {
     Object.defineProperty(this, $Directory_interface, { value: true });
@@ -10005,203 +2274,131 @@ class Directory {
   listSync({ recursive = false, followLinks = true } = {}) {
     throw new TypeError("Abstract member Directory.listSync");
   }
-  childDirectory(basename_1) {
+  childDirectory(basename) {
     throw new TypeError("Abstract member Directory.childDirectory");
   }
-  childFile(basename_1) {
+  childFile(basename) {
     throw new TypeError("Abstract member Directory.childFile");
   }
-  childLink(basename_1) {
+  childLink(basename) {
     throw new TypeError("Abstract member Directory.childLink");
   }
 }
 Object.defineProperty(Directory, Symbol.hasInstance, { value(value) { return value != null && value[$Directory_interface] === true; } });
 
-class ForwardingDirectory {
+class DirectoryAddOnsMixin {
   constructor() {
     Object.defineProperty(this, $Directory_interface, { value: true });
+    Object.defineProperty(this, $DirectoryAddOnsMixin_interface, { value: true });
     Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-    Object.defineProperty(this, $ForwardingFileSystemEntity_interface, { value: true });
   }
-  wrap(delegate) {
-    return __dartAs(this.wrapDirectory(delegate), value => value instanceof Directory, "T");
+  childDirectory(basename) {
+    return this.fileSystem.directory(this.fileSystem.path.join(this.path, basename));
   }
-  async create({ recursive = false } = {}) {
-    return this.wrap(await this.delegate.create({ recursive: recursive }));
+  childFile(basename) {
+    return this.fileSystem.file(this.fileSystem.path.join(this.path, basename));
   }
-  createSync({ recursive = false } = {}) {
-    return this.delegate.createSync({ recursive: recursive });
+  childLink(basename) {
+    return this.fileSystem.link(this.fileSystem.path.join(this.path, basename));
   }
-  async createTemp(prefix = null) {
-    return this.wrap(await this.delegate.createTemp(prefix));
+}
+Object.defineProperty(DirectoryAddOnsMixin, Symbol.hasInstance, { value(value) { return value != null && value[$DirectoryAddOnsMixin_interface] === true; } });
+
+class MemoryFileStat {
+  constructor(changed, modified, accessed, type, mode, size) {
+    this.changed = changed;
+    this.modified = modified;
+    this.accessed = accessed;
+    this.type = type;
+    this.mode = mode;
+    this.size = size;
   }
-  createTempSync(prefix = null) {
-    return this.wrap(this.delegate.createTempSync(prefix));
+  static _internalNotFound() {
+    return $MemoryFileStat__internalNotFound(MemoryFileStat);
   }
-  list({ recursive = false, followLinks = true } = {}) {
-    return __dartStreamMap(this.delegate.list({ recursive: recursive, followLinks: followLinks }), __dartBind(this, "_wrap"));
+  modeString() {
+    let permissions = (this.mode & 4095);
+    let codes = __dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"---\"],[\"string\",\"--x\"],[\"string\",\"-w-\"],[\"string\",\"-wx\"],[\"string\",\"r--\"],[\"string\",\"r-x\"],[\"string\",\"rw-\"],[\"string\",\"rwx\"]]", () => Object.freeze(["---", "--x", "-w-", "-wx", "r--", "r-x", "rw-", "rwx"]));
+    let result = new Array(0).fill(null);
+    (() => { let v = result; return (() => {
+      (v.push(__dartIndexGet(codes, (__dartShr(permissions, 6) & 7))), null);
+      (v.push(__dartIndexGet(codes, (__dartShr(permissions, 3) & 7))), null);
+      (v.push(__dartIndexGet(codes, (permissions & 7))), null);
+      return v;
+    })(); })();
+    return __dartIterableJoin(result, "");
   }
-  listSync({ recursive = false, followLinks = true } = {}) {
-    return Array.from(Array.from(this.delegate.listSync({ recursive: recursive, followLinks: followLinks }), __dartBind(this, "_wrap")));
+}
+
+function $MemoryFileStat__internalNotFound($newTarget) {
+  const $self = Object.create($newTarget.prototype);
+  $self.changed = __dartDateTimeFromParts(false, 0, 1, 1, 0, 0, 0, 0, 0);
+  $self.modified = __dartDateTimeFromParts(false, 0, 1, 1, 0, 0, 0, 0, 0);
+  $self.accessed = __dartDateTimeFromParts(false, 0, 1, 1, 0, 0, 0, 0, 0);
+  $self.type = __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+  $self.mode = 0;
+  $self.size = (-1);
+  return $self;
+}
+
+class FileSystemOp {
+  constructor() {
+    throw new TypeError("Class FileSystemOp has no unnamed constructor");
   }
-  _wrap(entity) {
-    if (entity != null && typeof entity === "object" && typeof entity.path === "string") {
-      {
-        return this.wrapFile(entity);
-      }
-    } else {
-      if (entity != null && typeof entity === "object" && typeof entity.path === "string") {
+  static _(_value) {
+    return $FileSystemOp__(FileSystemOp, _value);
+  }
+  toString() {
+    L:
+    switch (this._value) {
+      case 0:
         {
-          return this.wrapDirectory(entity);
+          return "FileSystemOp.read";
         }
-      } else {
-        if (entity != null && typeof entity === "object" && typeof entity.path === "string") {
-          {
-            return this.wrapLink(entity);
-          }
+      case 1:
+        {
+          return "FileSystemOp.write";
         }
-      }
+      case 2:
+        {
+          return "FileSystemOp.delete";
+        }
+      case 3:
+        {
+          return "FileSystemOp.create";
+        }
+      case 4:
+        {
+          return "FileSystemOp.open";
+        }
+      case 5:
+        {
+          return "FileSystemOp.copy";
+        }
+      case 6:
+        {
+          return "FileSystemOp.exists";
+        }
+      default:
+        {
+          (() => { throw __dartCoreError("StateError", "Invalid FileSytemOp type: " + __dartStr(this)); })();
+        }
     }
-    (() => { throw __dartIoFileSystemException("Unsupported type: " + __dartStr(entity), entity.path, null); })();
   }
 }
 
-class File {
-  constructor() {
-    Object.defineProperty(this, $File_interface, { value: true });
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-  }
-  create({ recursive = false, exclusive = false } = {}) {
-    throw new TypeError("Abstract member File.create");
-  }
-  rename(newPath) {
-    throw new TypeError("Abstract member File.rename");
-  }
-  renameSync(newPath) {
-    throw new TypeError("Abstract member File.renameSync");
-  }
-  copy(newPath) {
-    throw new TypeError("Abstract member File.copy");
-  }
-  copySync(newPath) {
-    throw new TypeError("Abstract member File.copySync");
-  }
-  get absolute() {
-    throw new TypeError("Abstract member File.absolute");
-  }
-  set absolute(value) {
-    Object.defineProperty(this, "absolute", { value, writable: true, configurable: true, enumerable: true });
-  }
-  writeAsBytes(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
-    throw new TypeError("Abstract member File.writeAsBytes");
-  }
-  writeAsString(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
-    throw new TypeError("Abstract member File.writeAsString");
-  }
-}
-Object.defineProperty(File, Symbol.hasInstance, { value(value) { return value != null && value[$File_interface] === true; } });
-
-class ForwardingFile {
-  constructor() {
-    Object.defineProperty(this, $File_interface, { value: true });
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-    Object.defineProperty(this, $ForwardingFileSystemEntity_interface, { value: true });
-  }
-  wrap(delegate) {
-    return __dartAs(this.wrapFile(delegate), value => value instanceof ForwardingFile, "ForwardingFile");
-  }
-  async create({ recursive = false, exclusive = false } = {}) {
-    return this.wrap(await this.delegate.create({ recursive: recursive }));
-  }
-  createSync({ recursive = false, exclusive = false } = {}) {
-    return this.delegate.createSync({ recursive: recursive });
-  }
-  async copy(newPath) {
-    return this.wrap(await this.delegate.copy(newPath));
-  }
-  copySync(newPath) {
-    return this.wrap(this.delegate.copySync(newPath));
-  }
-  length() {
-    return this.delegate.length();
-  }
-  lengthSync() {
-    return this.delegate.lengthSync();
-  }
-  lastAccessed() {
-    return this.delegate.lastAccessed();
-  }
-  lastAccessedSync() {
-    return this.delegate.lastAccessedSync();
-  }
-  setLastAccessed(time) {
-    return this.delegate.setLastAccessed(time);
-  }
-  setLastAccessedSync(time) {
-    return this.delegate.setLastAccessedSync(time);
-  }
-  lastModified() {
-    return this.delegate.lastModified();
-  }
-  lastModifiedSync() {
-    return this.delegate.lastModifiedSync();
-  }
-  setLastModified(time) {
-    return this.delegate.setLastModified(time);
-  }
-  setLastModifiedSync(time) {
-    return this.delegate.setLastModifiedSync(time);
-  }
-  open({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)) } = {}) {
-    return this.delegate.open({ mode: mode });
-  }
-  openSync({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)) } = {}) {
-    return this.delegate.openSync({ mode: mode });
-  }
-  openRead(start = null, end = null) {
-    return this.delegate.openRead(start, end);
-  }
-  openWrite({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.delegate.openWrite({ mode: mode, encoding: encoding });
-  }
-  readAsBytes() {
-    return this.delegate.readAsBytes();
-  }
-  readAsBytesSync() {
-    return this.delegate.readAsBytesSync();
-  }
-  readAsString({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.delegate.readAsString({ encoding: encoding });
-  }
-  readAsStringSync({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.delegate.readAsStringSync({ encoding: encoding });
-  }
-  readAsLines({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.delegate.readAsLines({ encoding: encoding });
-  }
-  readAsLinesSync({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.delegate.readAsLinesSync({ encoding: encoding });
-  }
-  async writeAsBytes(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
-    return this.wrap(await this.delegate.writeAsBytes(bytes, { mode: mode, flush: flush }));
-  }
-  writeAsBytesSync(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
-    return this.delegate.writeAsBytesSync(bytes, { mode: mode, flush: flush });
-  }
-  async writeAsString(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
-    return this.wrap(await this.delegate.writeAsString(contents, { mode: mode, encoding: encoding, flush: flush }));
-  }
-  writeAsStringSync(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
-    return this.delegate.writeAsStringSync(contents, { mode: mode, encoding: encoding, flush: flush });
-  }
+function $FileSystemOp__($newTarget, _value) {
+  const $self = Object.create($newTarget.prototype);
+  $self._value = _value;
+  return $self;
 }
 
 class ParsedPath {
   constructor() {
     throw new TypeError("Class ParsedPath has no unnamed constructor");
   }
-  static _(style_1, root, isRootRelative_1, parts, separators) {
-    return $ParsedPath__(ParsedPath, style_1, root, isRootRelative_1, parts, separators);
+  static _(style_1, root, isRootRelative, parts, separators) {
+    return $ParsedPath__(ParsedPath, style_1, root, isRootRelative, parts, separators);
   }
   extension(level = 1) {
     return __dartIndexGet(this._splitExtension(level), 1);
@@ -10211,7 +2408,7 @@ class ParsedPath {
   }
   static parse(path, style_1) {
     const root = style_1.getRoot(path);
-    const isRootRelative_1 = style_1.isRootRelative(path);
+    const isRootRelative = style_1.isRootRelative(path);
     if (!((root === null))) {
       path = path.substring(root.length);
     }
@@ -10245,7 +2442,7 @@ class ParsedPath {
         (separators.push(""), null);
       }
     }
-    return ParsedPath._(style_1, root, isRootRelative_1, parts, separators);
+    return ParsedPath._(style_1, root, isRootRelative, parts, separators);
   }
   get basename() {
     const copy = this.clone();
@@ -10272,7 +2469,7 @@ class ParsedPath {
       __dartIndexSet(this.separators, (this.separators.length - 1), "");
     }
   }
-  normalize({ canonicalize: canonicalize_1 = false } = {}) {
+  normalize({ canonicalize = false } = {}) {
     let leadingDoubles = 0;
     const newParts = new Array(0).fill(null);
     {
@@ -10299,7 +2496,7 @@ class ParsedPath {
                 }
               } else {
                 {
-                  (newParts.push((canonicalize_1 ? this.style.canonicalizePart(part) : part)), null);
+                  (newParts.push((canonicalize ? this.style.canonicalizePart(part) : part)), null);
                 }
               }
             }
@@ -10326,7 +2523,7 @@ class ParsedPath {
     }
     if ((!((this.root === null)) && __dartEquals(this.style, Style.windows))) {
       {
-        if (canonicalize_1) {
+        if (canonicalize) {
           this.root = __dartNullCheck(this.root).toLowerCase();
         }
         this.root = __dartNullCheck(this.root).replaceAll("/", "\\");
@@ -10392,11 +2589,11 @@ class ParsedPath {
   }
 }
 
-function $ParsedPath__($newTarget, style_1, root, isRootRelative_1, parts, separators) {
+function $ParsedPath__($newTarget, style_1, root, isRootRelative, parts, separators) {
   const $self = Object.create($newTarget.prototype);
   $self.style = style_1;
   $self.root = root;
-  $self.isRootRelative = isRootRelative_1;
+  $self.isRootRelative = isRootRelative;
   $self.parts = parts;
   $self.separators = separators;
   return $self;
@@ -11449,7 +3646,7 @@ class Context {
     return __dartNullCheck(this._hashFast(__dartStr(parsed)));
   }
   _hashFast(path) {
-    let hash_1 = 4603;
+    let hash = 4603;
     let beginning = true;
     let wasSeparator = true;
     L:
@@ -11479,14 +3676,14 @@ class Context {
             }
           }
         }
-        hash_1 = (hash_1 & 67108863);
-        hash_1 = (hash_1 * 33);
-        hash_1 = (hash_1 ^ codeUnit);
+        hash = (hash & 67108863);
+        hash = (hash * 33);
+        hash = (hash ^ codeUnit);
         wasSeparator = false;
         beginning = false;
       }
     }
-    return hash_1;
+    return hash;
   }
   withoutExtension(path) {
     const parsed = this._parse(path);
@@ -11503,8 +3700,8 @@ class Context {
     }
     return __dartStr(parsed);
   }
-  setExtension(path, extension_1) {
-    return (this.withoutExtension(path) + extension_1);
+  setExtension(path, extension) {
+    return (this.withoutExtension(path) + extension);
   }
   fromUri(uri) {
     return this.style.pathFromUri(_parseUri(__dartNullCheck(uri)));
@@ -11574,105 +3771,70 @@ class _PathRelation {
   }
 }
 
-class PathMap {
-  constructor({ context: context_1 = null } = {}) {
+class FileSystemStyle {
+  constructor() {
+    if (new.target === FileSystemStyle) {
+      throw new TypeError("Class FileSystemStyle has no unnamed constructor");
+    }
   }
-  static of(other, { context: context_1 = null } = {}) {
-    return $PathMap_of(PathMap, other, { context: context_1 });
+  static _() {
+    return $FileSystemStyle__(FileSystemStyle);
   }
-  static _create(context_1) {
-    ((context_1 === null) ? context_1 = context : null);
-    return __dartCustomHashMap(function(path1, path2) {
-      if ((path1 === null)) {
-        return (path2 === null);
-      }
-      if ((path2 === null)) {
-        return false;
-      }
-      return __dartNullCheck(context_1).equals(path1, path2);
-}, function(path) { return ((path === null) ? 0 : __dartNullCheck(context_1).hash(path)); }, function(path) { return (typeof path === "string" || (path === null)); });
+  get drive() {
+    throw new TypeError("Abstract member FileSystemStyle.drive");
+  }
+  set drive(value) {
+    Object.defineProperty(this, "drive", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get separator() {
+    throw new TypeError("Abstract member FileSystemStyle.separator");
+  }
+  set separator(value) {
+    Object.defineProperty(this, "separator", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get root() {
+    return __dartStr(this.drive) + __dartStr(this.separator);
+  }
+  contextFor(path) {
+    throw new TypeError("Abstract member FileSystemStyle.contextFor");
   }
 }
 
-function $PathMap_of($newTarget, other, { context: context_1 = null } = {}) {
+function $FileSystemStyle__($newTarget) {
   const $self = Object.create($newTarget.prototype);
   return $self;
 }
 
-class PathSet {
-  constructor({ context: context_1 = null } = {}) {
-    this._inner = PathSet._create(context_1);
+class _Posix extends FileSystemStyle {
+  constructor() {
+    const $self = $FileSystemStyle__(new.target);
+    return $self;
   }
-  static of(other, { context: context_1 = null } = {}) {
-    return $PathSet_of(PathSet, other, { context: context_1 });
+  get drive() {
+    return "";
   }
-  static _create(context_1) {
-    ((context_1 === null) ? context_1 = context : null);
-    return new Set();
+  get separator() {
+    return Style.posix.separator;
   }
-  get iterator() {
-    return __dartIterator(this._inner);
-  }
-  get length() {
-    return __dartIterableLength(this._inner);
-  }
-  add(value) {
-    return __dartSetAdd(this._inner, value);
-  }
-  addAll(elements) {
-    return __dartSetAddAll(this._inner, elements);
-  }
-  cast() {
-    return new Set(Array.from(this._inner, (value) => __dartAs(value, (value) => true, "TypeParameterType(PathSet.cast.T%)")));
-  }
-  clear() {
-    return this._inner.clear();
-  }
-  contains(element) {
-    return __dartIterableContains(this._inner, element);
-  }
-  containsAll(other) {
-    return __dartSetContainsAll(this._inner, other);
-  }
-  difference(other) {
-    return __dartSetDifference(this._inner, other);
-  }
-  intersection(other) {
-    return __dartSetIntersection(this._inner, other);
-  }
-  lookup(element) {
-    return __dartSetLookup(this._inner, element);
-  }
-  remove(value) {
-    return __dartSetRemove(this._inner, value);
-  }
-  removeAll(elements) {
-    return __dartSetRemoveAll(this._inner, elements);
-  }
-  removeWhere(test) {
-    return __dartSetRemoveWhere(this._inner, test);
-  }
-  retainAll(elements) {
-    return __dartSetRetainAll(this._inner, elements);
-  }
-  retainWhere(test) {
-    return __dartSetRetainWhere(this._inner, test);
-  }
-  union(other) {
-    return __dartSetUnion(this._inner, other);
-  }
-  toSet() {
-    return __dartSetFrom(this._inner);
+  contextFor(path) {
+    return new Context({ style: Style.posix, current: path });
   }
 }
 
-function $PathSet_of($newTarget, other, { context: context_1 = null } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self._inner = (() => { let v = PathSet._create(context_1); return (() => {
-    __dartSetAddAll(v, other);
-    return v;
-  })(); })();
-  return $self;
+class _Windows extends FileSystemStyle {
+  constructor() {
+    const $self = $FileSystemStyle__(new.target);
+    return $self;
+  }
+  get drive() {
+    return "C:";
+  }
+  get separator() {
+    return Style.windows.separator;
+  }
+  contextFor(path) {
+    return new Context({ style: Style.windows, current: path });
+  }
 }
 
 class FileSystem {
@@ -11774,53 +3936,1174 @@ class FileSystem {
 }
 Object.defineProperty(FileSystem, Symbol.hasInstance, { value(value) { return value != null && value[$FileSystem_interface] === true; } });
 
-class ForwardingFileSystem extends FileSystem {
-  constructor(delegate) {
-    super();
-    this.delegate = delegate;
+class StyleableFileSystem {
+  constructor() {
+    Object.defineProperty(this, $FileSystem_interface, { value: true });
+    Object.defineProperty(this, $StyleableFileSystem_interface, { value: true });
   }
-  directory(path) {
-    return this.delegate.directory(path);
+  get style() {
+    throw new TypeError("Abstract member StyleableFileSystem.style");
   }
-  file(path) {
-    return this.delegate.file(path);
+  set style(value) {
+    Object.defineProperty(this, "style", { value, writable: true, configurable: true, enumerable: true });
   }
-  link(path) {
-    return this.delegate.link(path);
+}
+Object.defineProperty(StyleableFileSystem, Symbol.hasInstance, { value(value) { return value != null && value[$StyleableFileSystem_interface] === true; } });
+
+class NodeBasedFileSystem {
+  constructor() {
+    Object.defineProperty(this, $FileSystem_interface, { value: true });
+    Object.defineProperty(this, $NodeBasedFileSystem_interface, { value: true });
+    Object.defineProperty(this, $StyleableFileSystem_interface, { value: true });
   }
-  get path() {
-    return this.delegate.path;
+  get opHandle() {
+    throw new TypeError("Abstract member NodeBasedFileSystem.opHandle");
   }
-  get systemTempDirectory() {
-    return this.delegate.systemTempDirectory;
+  set opHandle(value) {
+    Object.defineProperty(this, "opHandle", { value, writable: true, configurable: true, enumerable: true });
   }
-  get currentDirectory() {
-    return this.delegate.currentDirectory;
+  get root() {
+    throw new TypeError("Abstract member NodeBasedFileSystem.root");
   }
-  set currentDirectory(path) {
-    return this.delegate.currentDirectory = path;
+  set root(value) {
+    Object.defineProperty(this, "root", { value, writable: true, configurable: true, enumerable: true });
   }
-  stat(path) {
-    return this.delegate.stat(path);
+  get cwd() {
+    throw new TypeError("Abstract member NodeBasedFileSystem.cwd");
   }
-  statSync(path) {
-    return this.delegate.statSync(path);
+  set cwd(value) {
+    Object.defineProperty(this, "cwd", { value, writable: true, configurable: true, enumerable: true });
   }
-  identical(path1, path2) {
-    return this.delegate.identical(path1, path2);
+  get clock() {
+    throw new TypeError("Abstract member NodeBasedFileSystem.clock");
   }
-  identicalSync(path1, path2) {
-    return this.delegate.identicalSync(path1, path2);
+  set clock(value) {
+    Object.defineProperty(this, "clock", { value, writable: true, configurable: true, enumerable: true });
   }
-  get isWatchSupported() {
-    return this.delegate.isWatchSupported;
+  findNode(path, { reference = null, segmentVisitor = null, visitLinks = false, pathWithSymlinks = null, followTailLink = false } = {}) {
+    throw new TypeError("Abstract member NodeBasedFileSystem.findNode");
   }
-  type(path, { followLinks = true } = {}) {
-    return this.delegate.type(path, { followLinks: followLinks });
+}
+Object.defineProperty(NodeBasedFileSystem, Symbol.hasInstance, { value(value) { return value != null && value[$NodeBasedFileSystem_interface] === true; } });
+
+class Node {
+  constructor(_parent) {
+    this._parent = _parent;
+    if (((this._parent === null) && !(this.isRoot))) {
+      {
+        (() => { throw __dartConst("[\"instance\",\"dart:io::FileSystemException\",[\"field\",\"dart:io::FileSystemException::@fields::message\",[\"string\",\"All nodes must have a parent.\"]],[\"field\",\"dart:io::FileSystemException::@fields::osError\",[\"null\"]],[\"field\",\"dart:io::FileSystemException::@fields::path\",[\"string\",\"\"]]]", () => __dartIoFileSystemException("All nodes must have a parent.", "", null)); })();
+      }
+    }
   }
-  typeSync(path, { followLinks = true } = {}) {
-    return this.delegate.typeSync(path, { followLinks: followLinks });
+  get parent() {
+    return __dartNullCheck(this._parent);
   }
+  set parent(parent) {
+    let ancestor = parent;
+    while (!(ancestor.isRoot)) {
+      {
+        if (__dartEquals(ancestor, this)) {
+          {
+            (() => { throw __dartConst("[\"instance\",\"dart:io::FileSystemException\",[\"field\",\"dart:io::FileSystemException::@fields::message\",[\"string\",\"A directory cannot be its own ancestor.\"]],[\"field\",\"dart:io::FileSystemException::@fields::osError\",[\"null\"]],[\"field\",\"dart:io::FileSystemException::@fields::path\",[\"string\",\"\"]]]", () => __dartIoFileSystemException("A directory cannot be its own ancestor.", "", null)); })();
+          }
+        }
+        ancestor = ancestor.parent;
+      }
+    }
+    this._parent = parent;
+  }
+  get type() {
+    throw new TypeError("Abstract member Node.type");
+  }
+  set type(value) {
+    Object.defineProperty(this, "type", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get stat() {
+    throw new TypeError("Abstract member Node.stat");
+  }
+  set stat(value) {
+    Object.defineProperty(this, "stat", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get directory() {
+    return __dartNullCheck(this._parent);
+  }
+  get isRoot() {
+    return false;
+  }
+  get fs() {
+    return __dartNullCheck(this._parent).fs;
+  }
+}
+
+class RealNode extends Node {
+  constructor(parent) {
+    super(parent);
+    const $changed = __dartLazyField("RealNode.changed", null, true);
+    Object.defineProperty(this, "changed", {
+      get() { return $changed.get(); },
+      set(value) { $changed.set(value); },
+      enumerable: true,
+    });
+    const $modified = __dartLazyField("RealNode.modified", null, true);
+    Object.defineProperty(this, "modified", {
+      get() { return $modified.get(); },
+      set(value) { $modified.set(value); },
+      enumerable: true,
+    });
+    const $accessed = __dartLazyField("RealNode.accessed", null, true);
+    Object.defineProperty(this, "accessed", {
+      get() { return $accessed.get(); },
+      set(value) { $accessed.set(value); },
+      enumerable: true,
+    });
+    this.mode = 1911;
+    let now = this.clock.now.millisecondsSinceEpoch;
+    this.changed = now;
+    this.modified = now;
+    this.accessed = now;
+  }
+  get clock() {
+    return this.parent.clock;
+  }
+  get stat() {
+    return new MemoryFileStat(__dartDateTime(this.changed, false), __dartDateTime(this.modified, false), __dartDateTime(this.accessed, false), this.type, this.mode, this.size);
+  }
+  get size() {
+    throw new TypeError("Abstract member RealNode.size");
+  }
+  set size(value) {
+    Object.defineProperty(this, "size", { value, writable: true, configurable: true, enumerable: true });
+  }
+  touch() {
+    this.modified = this.clock.now.millisecondsSinceEpoch;
+  }
+}
+
+class DirectoryNode extends RealNode {
+  constructor(parent) {
+    super(parent);
+    this.children = new Map([]);
+  }
+  get type() {
+    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+  }
+  get directory() {
+    return this;
+  }
+  get size() {
+    return 0;
+  }
+}
+
+class RootNode extends DirectoryNode {
+  constructor(fs) {
+    super(null);
+    this.fs = fs;
+  }
+  get clock() {
+    return this.fs.clock;
+  }
+  get parent() {
+    return this;
+  }
+  get isRoot() {
+    return true;
+  }
+  set parent(parent) {
+    return (() => { throw __dartCoreError("UnsupportedError", "Cannot set the parent of the root directory."); })();
+  }
+}
+
+class FileNode extends RealNode {
+  constructor(parent) {
+    super(parent);
+    this._content = new Uint8Array(0);
+  }
+  get content() {
+    return this._content;
+  }
+  get type() {
+    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+  }
+  get size() {
+    return this._content.length;
+  }
+  write(bytes) {
+    let existing = this._content;
+    this._content = new Uint8Array((existing.length + bytes.length));
+    __dartListSetRange(this._content, 0, existing.length, existing, 0);
+    __dartListSetRange(this._content, existing.length, this._content.length, bytes, 0);
+  }
+  truncate(length) {
+    this._content = this._content.slice(0, length);
+  }
+  clear() {
+    this._content = new Uint8Array(0);
+  }
+  copyFrom(source) {
+    this.modified = this.changed = this.clock.now.millisecondsSinceEpoch;
+    this.accessed = source.accessed;
+    this.mode = source.mode;
+    this._content = Uint8Array.from(source.content);
+  }
+}
+
+class LinkNode extends Node {
+  constructor(parent, target) {
+    super(parent);
+    this._reentrant = false;
+    this.target = target;
+  }
+  getReferent({ tailVisitor = null } = {}) {
+    let referent = this.fs.findNode(this.target, { reference: this, segmentVisitor: function(parent, childName, child, currentSegment, finalSegment) {
+      if ((!((tailVisitor === null)) && __dartEquals(currentSegment, finalSegment))) {
+        {
+          child = (tailVisitor)(parent, childName, child);
+        }
+      }
+      return child;
+} });
+    checkExists(referent, () => { return this.target; });
+    return __dartNullCheck(referent);
+  }
+  get referentOrNull() {
+    try {
+      {
+        return this.getReferent();
+      }
+    } catch ($error) {
+      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
+        {
+          return null;
+        }
+      } else {
+        throw $error;
+      }
+    }
+  }
+  get type() {
+    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+  }
+  get stat() {
+    if (this._reentrant) {
+      {
+        return MemoryFileStat.notFound;
+      }
+    }
+    this._reentrant = true;
+    try {
+      {
+        let node = this.referentOrNull;
+        return ((node === null) ? MemoryFileStat.notFound : node.stat);
+      }
+    } finally {
+      {
+        this._reentrant = false;
+      }
+    }
+  }
+}
+
+class MemoryFileSystemEntity {
+  constructor(fileSystem, path) {
+    this.fileSystem = fileSystem;
+    this.path = path;
+    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
+  }
+  get dirname() {
+    return this.fileSystem.path.dirname(this.path);
+  }
+  get basename() {
+    return this.fileSystem.path.basename(this.path);
+  }
+  get expectedType() {
+    throw new TypeError("Abstract member MemoryFileSystemEntity.expectedType");
+  }
+  set expectedType(value) {
+    Object.defineProperty(this, "expectedType", { value, writable: true, configurable: true, enumerable: true });
+  }
+  get backingOrNull() {
+    try {
+      {
+        return this.fileSystem.findNode(this.path);
+      }
+    } catch ($error) {
+      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
+        {
+          return null;
+        }
+      } else {
+        throw $error;
+      }
+    }
+  }
+  get backing() {
+    let node = this.fileSystem.findNode(this.path);
+    checkExists(node, () => { return this.path; });
+    return __dartNullCheck(node);
+  }
+  get resolvedBacking() {
+    let node = this.backing;
+    node = (isLink(node) ? resolveLinks(__dartAs(node, value => value instanceof LinkNode, "LinkNode"), () => { return this.path; }) : node);
+    checkType(this.expectedType, node.type, () => { return this.path; });
+    return node;
+  }
+  defaultCheckType(node) {
+    checkType(this.expectedType, node.stat.type, () => { return this.path; });
+  }
+  get uri() {
+    return __dartUriFile(this.path, __dartEquals(this.fileSystem.style, __dartConst("[\"instance\",\"class:_Windows\"]", () => Object.freeze(Object.create(_Windows.prototype)))), false);
+  }
+  async exists() {
+    return this.existsSync();
+  }
+  async resolveSymbolicLinks() {
+    return this.resolveSymbolicLinksSync();
+  }
+  resolveSymbolicLinksSync() {
+    if (this.path.length === 0) {
+      {
+        (() => { throw noSuchFileOrDirectory(this.path); })();
+      }
+    }
+    let ledger = new Array(0).fill(null);
+    if (this.isAbsolute) {
+      {
+        (ledger.push(this.fileSystem.style.drive), null);
+      }
+    }
+    let node = this.fileSystem.findNode(this.path, { pathWithSymlinks: ledger, followTailLink: true });
+    checkExists(node, () => { return this.path; });
+    let resolved = __dartIterableJoin(ledger, this.fileSystem.path.separator);
+    if (__dartEquals(resolved, this.fileSystem.style.drive)) {
+      {
+        resolved = this.fileSystem.style.root;
+      }
+    } else {
+      if (!(this.fileSystem.path.isAbsolute(resolved))) {
+        {
+          resolved = ((this.fileSystem.cwd + this.fileSystem.path.separator) + resolved);
+        }
+      }
+    }
+    return this.fileSystem.path.normalize(resolved);
+  }
+  stat() {
+    return this.fileSystem.stat(this.path);
+  }
+  statSync() {
+    return this.fileSystem.statSync(this.path);
+  }
+  async delete({ recursive = false } = {}) {
+    this.deleteSync({ recursive: recursive });
+    return this;
+  }
+  deleteSync({ recursive = false } = {}) {
+    return this.internalDeleteSync({ recursive: recursive });
+  }
+  watch({ events = 15, recursive = false } = {}) {
+    return (() => { throw __dartCoreError("UnsupportedError", "Watching not supported in MemoryFileSystem"); })();
+  }
+  get isAbsolute() {
+    return this.fileSystem.path.isAbsolute(this.path);
+  }
+  get absolute() {
+    let absolutePath = this.path;
+    if (!(this.fileSystem.path.isAbsolute(absolutePath))) {
+      {
+        absolutePath = this.fileSystem.path.join(this.fileSystem.cwd, absolutePath);
+      }
+    }
+    return this.clone(absolutePath);
+  }
+  get parent() {
+    return new MemoryDirectory(this.fileSystem, this.dirname);
+  }
+  internalCreateSync({ createChild, followTailLink = false, visitLinks = false } = {}) {
+    return this.fileSystem.findNode(this.path, { followTailLink: followTailLink, visitLinks: visitLinks, segmentVisitor: function(parent, childName, child, currentSegment, finalSegment) {
+      if ((child === null)) {
+        {
+          child = (createChild)(parent, __dartEquals(currentSegment, finalSegment));
+          if (!((child === null))) {
+            {
+              __dartMapSet(parent.children, childName, child);
+            }
+          }
+        }
+      }
+      return child;
+} });
+  }
+  internalRenameSync(newPath, { validateOverwriteExistingEntity = null, followTailLink = false, checkType: checkType_1 = null } = {}) {
+    let node = this.backing;
+    ((checkType_1 ?? __dartBind(this, "defaultCheckType")))(node);
+    this.fileSystem.findNode(newPath, { segmentVisitor: (parent, childName, child, currentSegment, finalSegment) => {
+      if (__dartEquals(currentSegment, finalSegment)) {
+        {
+          if (!((child === null))) {
+            {
+              if (followTailLink) {
+                {
+                  let childType = child.stat.type;
+                  if (!(__dartEquals(childType, __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0))))) {
+                    {
+                      checkType(this.expectedType, child.stat.type, function() { return newPath; });
+                    }
+                  }
+                }
+              } else {
+                {
+                  checkType(this.expectedType, child.type, function() { return newPath; });
+                }
+              }
+              if (!((validateOverwriteExistingEntity === null))) {
+                {
+                  (validateOverwriteExistingEntity)(__dartAs(child, value => value instanceof Node, "T"));
+                }
+              }
+              __dartMapRemove(parent.children, childName);
+            }
+          }
+          __dartMapRemove(node.parent.children, this.basename);
+          __dartMapSet(parent.children, childName, node);
+          node.parent = parent;
+        }
+      }
+      return child;
+} });
+    return this.clone(newPath);
+  }
+  internalDeleteSync({ recursive = false, checkType: checkType_1 = null } = {}) {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"2\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 2 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    let node = this.backing;
+    if (!(recursive)) {
+      {
+        if ((node instanceof DirectoryNode && node.children.size !== 0)) {
+          {
+            (() => { throw directoryNotEmpty(this.path); })();
+          }
+        }
+        ((checkType_1 ?? __dartBind(this, "defaultCheckType")))(node);
+      }
+    }
+    __dartMapRemove(node.parent.children, this.basename);
+  }
+  clone(path) {
+    throw new TypeError("Abstract member MemoryFileSystemEntity.clone");
+  }
+}
+
+class MemoryRandomAccessFile {
+  constructor(path, _node, _mode) {
+    this._isOpen = true;
+    this._position = 0;
+    this.__asyncOperationPending = false;
+    this.path = path;
+    this._node = _node;
+    this._mode = _mode;
+    L:
+    switch (this._mode) {
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+        {
+          break L;
+        }
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"3\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+        {
+          this.truncateSync(0);
+          break L;
+        }
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"4\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+        {
+          this._position = this.lengthSync();
+          break L;
+        }
+      default:
+        {
+          (() => { throw __dartCoreError("UnimplementedError", "Unsupported FileMode"); })();
+        }
+    }
+  }
+  get _asyncOperationPending() {
+    return this.__asyncOperationPending;
+  }
+  set _asyncOperationPending(value) {
+    this.__asyncOperationPending = value;
+  }
+  _checkOpen() {
+    if (!(this._isOpen)) {
+      {
+        (() => { throw __dartIoFileSystemException("File closed", this.path, null); })();
+      }
+    }
+  }
+  _checkReadable(operation) {
+    L:
+    switch (this._mode) {
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+        {
+          return;
+        }
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"3\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"4\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
+      default:
+        {
+          (() => { throw __dartIoFileSystemException(__dartStr(operation) + " failed", this.path, badFileDescriptor(this.path).osError); })();
+        }
+    }
+  }
+  _checkWritable(operation) {
+    if (isWriteMode(this._mode)) {
+      {
+        return;
+      }
+    }
+    (() => { throw __dartIoFileSystemException(__dartStr(operation) + " failed", this.path, badFileDescriptor(this.path).osError); })();
+  }
+  _checkAsync() {
+    if (this._asyncOperationPending) {
+      {
+        (() => { throw __dartIoFileSystemException("An async operation is currently pending", this.path, null); })();
+      }
+    }
+  }
+  async _asyncWrapper(f) {
+    this._checkAsync();
+    this._asyncOperationPending = true;
+    try {
+      {
+        return await new Promise((resolve, reject) => setTimeout(() => { try { resolve((() => {
+          this._asyncOperationPending = false;
+          try {
+            {
+              return (f)();
+            }
+          } finally {
+            {
+              this._asyncOperationPending = true;
+            }
+          }
+})()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"0\"]]]", () => __dartDuration({ microseconds: 0 })).inMilliseconds)));
+      }
+    } finally {
+      {
+        this._asyncOperationPending = false;
+      }
+    }
+  }
+  async close() {
+    return this._asyncWrapper(__dartBind(this, "closeSync"));
+  }
+  closeSync() {
+    this._checkOpen();
+    this._isOpen = false;
+  }
+  async flush() {
+    await this._asyncWrapper(__dartBind(this, "flushSync"));
+    return this;
+  }
+  flushSync() {
+    this._checkOpen();
+    this._checkAsync();
+  }
+  length() {
+    return this._asyncWrapper(__dartBind(this, "lengthSync"));
+  }
+  lengthSync() {
+    this._checkOpen();
+    this._checkAsync();
+    return this._node.size;
+  }
+  async lock(mode = __dartConst("[\"instance\",\"dart:io::FileLock\",[\"field\",\"dart:io::FileLock::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileLock", "FileLock", 0)), start = 0, end = -1) {
+    await this._asyncWrapper(() => { return this.lockSync(mode, start, end); });
+    return this;
+  }
+  lockSync(mode = __dartConst("[\"instance\",\"dart:io::FileLock\",[\"field\",\"dart:io::FileLock::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileLock", "FileLock", 0)), start = 0, end = -1) {
+    this._checkOpen();
+    this._checkAsync();
+    (() => { throw __dartCoreError("UnimplementedError", "TODO"); })();
+  }
+  position() {
+    return this._asyncWrapper(__dartBind(this, "positionSync"));
+  }
+  positionSync() {
+    this._checkOpen();
+    this._checkAsync();
+    return this._position;
+  }
+  read(bytes) {
+    return this._asyncWrapper(() => { return this.readSync(bytes); });
+  }
+  readSync(bytes) {
+    this._checkOpen();
+    this._checkAsync();
+    this._checkReadable("read");
+    const end = Math.min((this._position + bytes), this.lengthSync());
+    const copy = this._node.content.slice(this._position, end);
+    this._position = end;
+    return copy;
+  }
+  readByte() {
+    return this._asyncWrapper(__dartBind(this, "readByteSync"));
+  }
+  readByteSync() {
+    this._checkOpen();
+    this._checkAsync();
+    this._checkReadable("readByte");
+    if ((this._position >= this.lengthSync())) {
+      {
+        return (-1);
+      }
+    }
+    return __dartIndexGet(this._node.content, (() => { let v = this._position; return (() => { let v_1 = this._position = (v + 1); return v; })(); })());
+  }
+  readInto(buffer, start = 0, end = null) {
+    return this._asyncWrapper(() => { return this.readIntoSync(buffer, start, end); });
+  }
+  readIntoSync(buffer, start = 0, end = null) {
+    this._checkOpen();
+    this._checkAsync();
+    this._checkReadable("readInto");
+    end = __dartCheckValidRange(start, end, buffer.length, null, null, null);
+    const length = this.lengthSync();
+    let i = null;
+    for (let v = i = start; ((i < end) && (this._position < length)); i = (i + 1), this._position = (this._position + 1)) {
+      {
+        __dartIndexSet(buffer, i, __dartIndexGet(this._node.content, this._position));
+      }
+    }
+    return (i - start);
+  }
+  async setPosition(position) {
+    await this._asyncWrapper(() => { return this.setPositionSync(position); });
+    return this;
+  }
+  setPositionSync(position) {
+    this._checkOpen();
+    this._checkAsync();
+    if ((position < 0)) {
+      {
+        (() => { throw __dartIoFileSystemException("setPosition failed", this.path, invalidArgument(this.path).osError); })();
+      }
+    }
+    this._position = position;
+  }
+  async truncate(length) {
+    await this._asyncWrapper(() => { return this.truncateSync(length); });
+    return this;
+  }
+  truncateSync(length) {
+    this._checkOpen();
+    this._checkAsync();
+    if (((length < 0) || !(isWriteMode(this._mode)))) {
+      {
+        (() => { throw __dartIoFileSystemException("truncate failed", this.path, invalidArgument(this.path).osError); })();
+      }
+    }
+    const oldLength = this.lengthSync();
+    if ((length < oldLength)) {
+      {
+        this._node.truncate(length);
+      }
+    } else {
+      if ((length > oldLength)) {
+        {
+          this._node.write(new Uint8Array((length - oldLength)));
+        }
+      }
+    }
+  }
+  async unlock(start = 0, end = -1) {
+    await this._asyncWrapper(() => { return this.unlockSync(start, end); });
+    return this;
+  }
+  unlockSync(start = 0, end = -1) {
+    this._checkOpen();
+    this._checkAsync();
+    (() => { throw __dartCoreError("UnimplementedError", "TODO"); })();
+  }
+  async writeByte(value) {
+    await this._asyncWrapper(() => { return this.writeByteSync(value); });
+    return this;
+  }
+  writeByteSync(value) {
+    this._checkOpen();
+    this._checkAsync();
+    this._checkWritable("writeByte");
+    let length = this.lengthSync();
+    if ((this._position >= length)) {
+      {
+        this.truncateSync((this._position + 1));
+        length = this.lengthSync();
+      }
+    }
+    __dartIndexSet(this._node.content, (() => { let v = this._position; return (() => { let v_1 = this._position = (v + 1); return v; })(); })(), value);
+    return 1;
+  }
+  async writeFrom(buffer, start = 0, end = null) {
+    await this._asyncWrapper(() => { return this.writeFromSync(buffer, start, end); });
+    return this;
+  }
+  writeFromSync(buffer, start = 0, end = null) {
+    this._checkOpen();
+    this._checkAsync();
+    this._checkWritable("writeFrom");
+    end = __dartCheckValidRange(start, end, buffer.length, null, null, null);
+    const writeByteCount = (end - start);
+    const endPosition = (this._position + writeByteCount);
+    if ((endPosition > this.lengthSync())) {
+      {
+        this.truncateSync(endPosition);
+      }
+    }
+    __dartListSetRange(this._node.content, this._position, endPosition, buffer, start);
+    this._position = endPosition;
+  }
+  async writeString(string, { encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
+    await this._asyncWrapper(() => { return this.writeStringSync(string, { encoding: encoding }); });
+    return this;
+  }
+  writeStringSync(string, { encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
+    this.writeFromSync(encoding.encode(string));
+  }
+}
+
+class File {
+  constructor() {
+    Object.defineProperty(this, $File_interface, { value: true });
+    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
+  }
+  create({ recursive = false, exclusive = false } = {}) {
+    throw new TypeError("Abstract member File.create");
+  }
+  rename(newPath) {
+    throw new TypeError("Abstract member File.rename");
+  }
+  renameSync(newPath) {
+    throw new TypeError("Abstract member File.renameSync");
+  }
+  copy(newPath) {
+    throw new TypeError("Abstract member File.copy");
+  }
+  copySync(newPath) {
+    throw new TypeError("Abstract member File.copySync");
+  }
+  get absolute() {
+    throw new TypeError("Abstract member File.absolute");
+  }
+  set absolute(value) {
+    Object.defineProperty(this, "absolute", { value, writable: true, configurable: true, enumerable: true });
+  }
+  writeAsBytes(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
+    throw new TypeError("Abstract member File.writeAsBytes");
+  }
+  writeAsString(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
+    throw new TypeError("Abstract member File.writeAsString");
+  }
+}
+Object.defineProperty(File, Symbol.hasInstance, { value(value) { return value != null && value[$File_interface] === true; } });
+
+class MemoryFile extends MemoryFileSystemEntity {
+  constructor(fileSystem, path) {
+    super(fileSystem, path);
+    Object.defineProperty(this, $File_interface, { value: true });
+    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
+  }
+  get _resolvedBackingOrCreate() {
+    let node = this.backingOrNull;
+    if ((node === null)) {
+      {
+        node = this._doCreate();
+      }
+    } else {
+      {
+        node = (isLink(node) ? resolveLinks(__dartAs(node, value => value instanceof LinkNode, "LinkNode"), () => { return this.path; }) : node);
+        checkType(this.expectedType, node.type, () => { return this.path; });
+      }
+    }
+    return __dartAs(node, value => value instanceof FileNode, "FileNode");
+  }
+  get expectedType() {
+    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+  }
+  existsSync() {
+    (this.fileSystem.opHandle)(this.path, __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))));
+    return __dartEquals((() => { let v = this.backingOrNull; return ((v === null) ? null : v.stat.type); })(), this.expectedType);
+  }
+  async create({ recursive = false, exclusive = false } = {}) {
+    this.createSync({ recursive: recursive, exclusive: exclusive });
+    return this;
+  }
+  createSync({ recursive = false, exclusive = false } = {}) {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    this._doCreate({ recursive: recursive });
+  }
+  _doCreate({ recursive = false } = {}) {
+    let node = this.internalCreateSync({ followTailLink: true, createChild: function(parent, isFinalSegment) {
+      if (isFinalSegment) {
+        {
+          return new FileNode(parent);
+        }
+      } else {
+        if (recursive) {
+          {
+            return new DirectoryNode(parent);
+          }
+        }
+      }
+      return null;
+} });
+    if (!(__dartEquals(((node)?.type ?? null), this.expectedType))) {
+      {
+        (() => { throw isADirectory(this.path); })();
+      }
+    }
+    return node;
+  }
+  async rename(newPath) {
+    return this.renameSync(newPath);
+  }
+  renameSync(newPath) {
+    return __dartAs(this.internalRenameSync(newPath, { followTailLink: true, checkType: (node) => {
+      let actualType = node.stat.type;
+      if (!(__dartEquals(actualType, this.expectedType))) {
+        {
+          (() => { throw (__dartEquals(actualType, __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0))) ? noSuchFileOrDirectory(this.path) : isADirectory(this.path)); })();
+        }
+      }
+} }), value => value instanceof File, "File");
+  }
+  async copy(newPath) {
+    return this.copySync(newPath);
+  }
+  copySync(newPath) {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"5\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 5 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    let sourceNode = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
+    this.fileSystem.findNode(newPath, { segmentVisitor: (parent, childName, child, currentSegment, finalSegment) => {
+      if (__dartEquals(currentSegment, finalSegment)) {
+        {
+          if (!((child === null))) {
+            {
+              if (isLink(child)) {
+                {
+                  let ledger = new Array(0).fill(null);
+                  child = resolveLinks(__dartAs(child, value => value instanceof LinkNode, "LinkNode"), function() { return newPath; }, { ledger: ledger });
+                  checkExists(child, function() { return newPath; });
+                  parent = child.parent;
+                  childName = __dartIndexGet(ledger, ledger.length - 1);
+                }
+              }
+              checkType(this.expectedType, child.type, function() { return newPath; });
+              __dartMapRemove(parent.children, childName);
+            }
+          }
+          let newNode = new FileNode(parent);
+          newNode.copyFrom(sourceNode);
+          __dartMapSet(parent.children, childName, newNode);
+        }
+      }
+      return child;
+} });
+    return this.clone(newPath);
+  }
+  async length() {
+    return this.lengthSync();
+  }
+  lengthSync() {
+    return __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").size;
+  }
+  get absolute() {
+    return __dartAs(super.absolute, value => value instanceof File, "File");
+  }
+  async lastAccessed() {
+    return this.lastAccessedSync();
+  }
+  lastAccessedSync() {
+    return __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").stat.accessed;
+  }
+  async setLastAccessed(time) {
+    return this.setLastAccessedSync(time);
+  }
+  setLastAccessedSync(time) {
+    let node = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
+    node.accessed = time.millisecondsSinceEpoch;
+  }
+  async lastModified() {
+    return this.lastModifiedSync();
+  }
+  lastModifiedSync() {
+    return __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").stat.modified;
+  }
+  async setLastModified(time) {
+    return this.setLastModifiedSync(time);
+  }
+  setLastModifiedSync(time) {
+    let node = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
+    node.modified = time.millisecondsSinceEpoch;
+  }
+  async open({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)) } = {}) {
+    return this.openSync({ mode: mode });
+  }
+  openSync({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)) } = {}) {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    if ((isWriteMode(mode) && !(this.existsSync()))) {
+      {
+        this.createSync();
+      }
+    }
+    return new MemoryRandomAccessFile(this.path, __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode"), mode);
+  }
+  openRead(start = null, end = null) {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    try {
+      {
+        let node = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
+        let content = node.content;
+        if (!((start === null))) {
+          {
+            content = ((end === null) ? content.slice(start) : content.slice(start, Math.min(end, content.length)));
+          }
+        }
+        return __dartStreamFromIterable([content]);
+      }
+    } catch ($error) {
+      if ($error != null) {
+        const e = $error;
+        {
+          return __dartStreamError(e);
+        }
+      } else {
+        throw $error;
+      }
+    }
+  }
+  openWrite({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    if (!(isWriteMode(mode))) {
+      {
+        (() => { throw __dartCoreError("ArgumentError", mode); })();
+      }
+    }
+    return _FileSink.fromFile(this, mode, encoding);
+  }
+  async readAsBytes() {
+    return this.readAsBytesSync();
+  }
+  readAsBytesSync() {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"0\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 0 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    return Uint8Array.from(__dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").content);
+  }
+  async readAsString({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
+    return this.readAsStringSync({ encoding: encoding });
+  }
+  readAsStringSync({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
+    try {
+      {
+        return encoding.decode(this.readAsBytesSync());
+      }
+    } catch ($error) {
+      if (__dartIsCoreError($error, "FormatException")) {
+        const err = $error;
+        {
+          (() => { throw __dartIoFileSystemException(err.message, this.path, null); })();
+        }
+      } else {
+        throw $error;
+      }
+    }
+  }
+  async readAsLines({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
+    return this.readAsLinesSync({ encoding: encoding });
+  }
+  readAsLinesSync({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
+    let str = this.readAsStringSync({ encoding: encoding });
+    if (str.length === 0) {
+      {
+        return new Array(0).fill(null);
+      }
+    }
+    const lines = str.split("\n");
+    if (str.endsWith("\n")) {
+      {
+        lines.pop();
+      }
+    }
+    return lines;
+  }
+  async writeAsBytes(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
+    this.writeAsBytesSync(bytes, { mode: mode, flush: flush });
+    return this;
+  }
+  writeAsBytesSync(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
+    if (!(isWriteMode(mode))) {
+      {
+        (() => { throw badFileDescriptor(this.path); })();
+      }
+    }
+    let node = this._resolvedBackingOrCreate;
+    this._truncateIfNecessary(node, mode);
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"1\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 1 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    node.write(bytes);
+    node.touch();
+  }
+  async writeAsString(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
+    this.writeAsStringSync(contents, { mode: mode, encoding: encoding, flush: flush });
+    return this;
+  }
+  writeAsStringSync(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
+    return this.writeAsBytesSync(encoding.encode(contents), { mode: mode, flush: flush });
+  }
+  clone(path) {
+    return new MemoryFile(this.fileSystem, path);
+  }
+  _truncateIfNecessary(node, mode) {
+    if ((__dartEquals(mode, __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0))) || __dartEquals(mode, __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"3\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0))))) {
+      {
+        node.clear();
+      }
+    }
+  }
+  toString() {
+    return "MemoryFile: '" + __dartStr(this.path) + "'";
+  }
+}
+
+class _FileSink {
+  constructor() {
+    throw new TypeError("Class _FileSink has no unnamed constructor");
+  }
+  static _(node, encoding) {
+    return $_FileSink__(_FileSink, node, encoding);
+  }
+  static fromFile(file, mode, encoding) {
+    const node = __dartLazyField("node", null, true, null);
+    let deferredException = null;
+    try {
+      {
+        node.set(file._resolvedBackingOrCreate);
+      }
+    } catch ($error) {
+      if (__dartIsCoreError($error, "Exception")) {
+        const e = $error;
+        {
+          deferredException = e;
+        }
+      } else {
+        throw $error;
+      }
+    }
+    let future = Promise.resolve().then(() => (function() {
+      if (!((deferredException === null))) {
+        {
+          (() => { throw deferredException; })();
+        }
+      }
+      file._truncateIfNecessary(node.get(), mode);
+      return node.get();
+})());
+    return _FileSink._(future, encoding);
+  }
+  get isStreaming() {
+    return !(((this._streamCompleter)?.isCompleted ?? true));
+  }
+  add(data) {
+    this._checkNotStreaming();
+    if (this._isClosed) {
+      {
+        (() => { throw __dartCoreError("StateError", "StreamSink is closed"); })();
+      }
+    }
+    this._addData(data);
+  }
+  write(obj) {
+    return this.add(this.encoding.encode(((obj)?.toString() ?? "null")));
+  }
+  writeAll(objects, separator = "") {
+    let firstIter = true;
+    {
+      let _sync_for_iterator = __dartIterator(objects);
+      for (; _sync_for_iterator.moveNext(); ) {
+        {
+          let obj = _sync_for_iterator.current;
+          {
+            if (!(firstIter)) {
+              {
+                this.write(separator);
+              }
+            }
+            firstIter = false;
+            this.write(obj);
+          }
+        }
+      }
+    }
+  }
+  writeln(obj = "") {
+    this.write(obj);
+    this.write("\n");
+  }
+  writeCharCode(charCode) {
+    return this.write(String.fromCodePoint(charCode));
+  }
+  addError(error, stackTrace = null) {
+    this._checkNotStreaming();
+    this._completer.completeError(error, stackTrace);
+  }
+  addStream(stream) {
+    this._checkNotStreaming();
+    this._streamCompleter = __dartCompleter();
+    __dartStreamListen(stream, (data) => { return this._addData(data); }, (error, stackTrace) => {
+      __dartNullCheck(this._streamCompleter).completeError(error, stackTrace);
+      this._streamCompleter = null;
+}, () => {
+      __dartNullCheck(this._streamCompleter).complete();
+      this._streamCompleter = null;
+}, true);
+    return __dartNullCheck(this._streamCompleter).future;
+  }
+  flush() {
+    this._checkNotStreaming();
+    return this._pendingWrites;
+  }
+  close() {
+    this._checkNotStreaming();
+    if (!(this._isClosed)) {
+      {
+        this._isClosed = true;
+        this._pendingWrites.then((_) => { return this._completer.complete(); }, (error, stackTrace) => { return this._completer.completeError(error, stackTrace); });
+      }
+    }
+    return this._completer.future;
+  }
+  get done() {
+    return this._completer.future;
+  }
+  _addData(data) {
+    this._pendingWrites = this._pendingWrites.then(function(node) {
+      node.write(data);
+      return node;
+});
+  }
+  _checkNotStreaming() {
+    if (this.isStreaming) {
+      {
+        (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
+      }
+    }
+  }
+}
+
+function $_FileSink__($newTarget, node, encoding) {
+  const $self = Object.create($newTarget.prototype);
+  $self._completer = __dartCompleter();
+  $self._streamCompleter = null;
+  $self._isClosed = false;
+  $self.encoding = encoding;
+  $self._pendingWrites = node;
+  return $self;
 }
 
 class Link {
@@ -11849,138 +5132,499 @@ class Link {
 }
 Object.defineProperty(Link, Symbol.hasInstance, { value(value) { return value != null && value[$Link_interface] === true; } });
 
-class ForwardingLink {
-  constructor() {
+class MemoryLink extends MemoryFileSystemEntity {
+  constructor(fileSystem, path) {
+    super(fileSystem, path);
     Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-    Object.defineProperty(this, $ForwardingFileSystemEntity_interface, { value: true });
     Object.defineProperty(this, $Link_interface, { value: true });
   }
-  wrap(delegate) {
-    return __dartAs(this.wrapLink(delegate), value => value instanceof ForwardingLink, "ForwardingLink");
+  get expectedType() {
+    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+  }
+  existsSync() {
+    (this.fileSystem.opHandle)(this.path, __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))));
+    return __dartEquals(((this.backingOrNull)?.type ?? null), this.expectedType);
+  }
+  async rename(newPath) {
+    return this.renameSync(newPath);
+  }
+  renameSync(newPath) {
+    return __dartAs(this.internalRenameSync(newPath, { checkType: (node) => {
+      if (!(__dartEquals(node.type, this.expectedType))) {
+        {
+          (() => { throw (__dartEquals(node.type, __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0))) ? isADirectory(newPath) : invalidArgument(newPath)); })();
+        }
+      }
+} }), value => value instanceof Link, "Link");
   }
   async create(target, { recursive = false } = {}) {
-    return this.wrap(await this.delegate.create(target, { recursive: recursive }));
+    this.createSync(target, { recursive: recursive });
+    return this;
   }
   createSync(target, { recursive = false } = {}) {
-    return this.delegate.createSync(target, { recursive: recursive });
+    let preexisting = true;
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    this.internalCreateSync({ createChild: function(parent, isFinalSegment) {
+      if (isFinalSegment) {
+        {
+          preexisting = false;
+          return new LinkNode(parent, target);
+        }
+      } else {
+        if (recursive) {
+          {
+            return new DirectoryNode(parent);
+          }
+        }
+      }
+      return null;
+} });
+    if (preexisting) {
+      {
+        (() => { throw fileExists(this.path); })();
+      }
+    }
   }
   async update(target) {
-    return this.wrap(await this.delegate.update(target));
+    this.updateSync(target);
+    return this;
   }
   updateSync(target) {
-    return this.delegate.updateSync(target);
+    let node = this.backing;
+    checkType(this.expectedType, node.type, () => { return this.path; });
+    __dartAs(node, value => value instanceof LinkNode, "LinkNode").target = target;
   }
-  target() {
-    return this.delegate.target();
+  deleteSync({ recursive = false } = {}) {
+    return this.internalDeleteSync({ recursive: recursive, checkType: (node) => { return checkType(this.expectedType, node.type, () => { return this.path; }); } });
+  }
+  async target() {
+    return this.targetSync();
   }
   targetSync() {
-    return this.delegate.targetSync();
+    let node = this.backing;
+    if (!(__dartEquals(node.type, this.expectedType))) {
+      {
+        (() => { throw noSuchFileOrDirectory(this.path); })();
+      }
+    }
+    return __dartAs(node, value => value instanceof LinkNode, "LinkNode").target;
+  }
+  get absolute() {
+    return __dartAs(super.absolute, value => value instanceof Link, "Link");
+  }
+  clone(path) {
+    return new MemoryLink(this.fileSystem, path);
+  }
+  toString() {
+    return "MemoryLink: '" + __dartStr(this.path) + "'";
   }
 }
 
-class ForwardingRandomAccessFile {
-  constructor() {
+class _MemoryDirectory_MemoryFileSystemEntity_DirectoryAddOnsMixin extends MemoryFileSystemEntity {
+  constructor(fileSystem, path) {
+    super(fileSystem, path);
+    Object.defineProperty(this, $Directory_interface, { value: true });
+    Object.defineProperty(this, $DirectoryAddOnsMixin_interface, { value: true });
+    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
   }
-  get delegate() {
-    throw new TypeError("Abstract member ForwardingRandomAccessFile.delegate");
+  rename(newPath) {
+    throw new TypeError("Abstract member _MemoryDirectory&MemoryFileSystemEntity&DirectoryAddOnsMixin.rename");
   }
-  set delegate(value) {
-    Object.defineProperty(this, "delegate", { value, writable: true, configurable: true, enumerable: true });
+  renameSync(newPath) {
+    throw new TypeError("Abstract member _MemoryDirectory&MemoryFileSystemEntity&DirectoryAddOnsMixin.renameSync");
+  }
+  get absolute() {
+    throw new TypeError("Abstract member _MemoryDirectory&MemoryFileSystemEntity&DirectoryAddOnsMixin.absolute");
+  }
+  set absolute(value) {
+    Object.defineProperty(this, "absolute", { value, writable: true, configurable: true, enumerable: true });
+  }
+  childDirectory(basename) {
+    return this.fileSystem.directory(this.fileSystem.path.join(this.path, basename));
+  }
+  childFile(basename) {
+    return this.fileSystem.file(this.fileSystem.path.join(this.path, basename));
+  }
+  childLink(basename) {
+    return this.fileSystem.link(this.fileSystem.path.join(this.path, basename));
+  }
+}
+
+class MemoryDirectory extends _MemoryDirectory_MemoryFileSystemEntity_DirectoryAddOnsMixin {
+  constructor(fileSystem, path) {
+    super(fileSystem, path);
+    Object.defineProperty(this, $Directory_interface, { value: true });
+    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
+  }
+  get expectedType() {
+    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+  }
+  get uri() {
+    return __dartUriFile(this.path, __dartEquals(this.fileSystem.style, __dartConst("[\"instance\",\"class:_Windows\"]", () => Object.freeze(Object.create(_Windows.prototype)))), true);
+  }
+  existsSync() {
+    (this.fileSystem.opHandle)(this.path, __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))));
+    return __dartEquals((() => { let v = this.backingOrNull; return ((v === null) ? null : v.stat.type); })(), this.expectedType);
+  }
+  async create({ recursive = false } = {}) {
+    this.createSync({ recursive: recursive });
+    return this;
+  }
+  createSync({ recursive = false } = {}) {
+    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
+    let node = this.internalCreateSync({ followTailLink: true, visitLinks: true, createChild: function(parent, isFinalSegment) {
+      if ((recursive || isFinalSegment)) {
+        {
+          return new DirectoryNode(parent);
+        }
+      }
+      return null;
+} });
+    if (!(__dartEquals(((node)?.type ?? null), this.expectedType))) {
+      {
+        (() => { throw notADirectory(this.path); })();
+      }
+    }
+  }
+  async createTemp(prefix = null) {
+    return this.createTempSync(prefix);
+  }
+  createTempSync(prefix = null) {
+    prefix = __dartStr((prefix ?? "")) + "rand";
+    let fullPath = this.fileSystem.path.join(this.path, prefix);
+    let dirname = this.fileSystem.path.dirname(fullPath);
+    let basename = this.fileSystem.path.basename(fullPath);
+    let node = __dartAs(this.fileSystem.findNode(dirname), value => (value === null || value instanceof DirectoryNode), "DirectoryNode?");
+    checkExists(node, function() { return dirname; });
+    checkIsDir(__dartNullCheck(node), function() { return dirname; });
+    let tempCounter = (_systemTempCounter.get(this.fileSystem) ?? 0);
+    function name() {
+      return __dartStr(basename) + __dartStr(tempCounter);
+    }
+    while (__dartMapContainsKey(node.children, name())) {
+      {
+        tempCounter = (tempCounter + 1);
+      }
+    }
+    _systemTempCounter.set(this.fileSystem, tempCounter);
+    let tempDir = new DirectoryNode(node);
+    __dartMapSet(node.children, name(), tempDir);
+    return (() => { let v = new MemoryDirectory(this.fileSystem, this.fileSystem.path.join(dirname, name())); return (() => {
+      v.createSync();
+      return v;
+    })(); })();
+  }
+  async rename(newPath) {
+    return this.renameSync(newPath);
+  }
+  renameSync(newPath) {
+    return __dartAs(this.internalRenameSync(newPath, { validateOverwriteExistingEntity: function(existingNode) {
+      if (existingNode.children.size !== 0) {
+        {
+          (() => { throw directoryNotEmpty(newPath); })();
+        }
+      }
+} }), value => value instanceof Directory, "Directory");
+  }
+  get parent() {
+    return (((this.backingOrNull)?.isRoot ?? false) ? this : super.parent);
+  }
+  get absolute() {
+    return __dartAs(super.absolute, value => value instanceof Directory, "Directory");
+  }
+  list({ recursive = false, followLinks = true } = {}) {
+    return __dartStreamFromIterable(this.listSync({ recursive: recursive, followLinks: followLinks }));
+  }
+  listSync({ recursive = false, followLinks = true } = {}) {
+    let node = __dartAs(this.backing, value => value instanceof DirectoryNode, "DirectoryNode");
+    let listing = new Array(0).fill(null);
+    let tasks = [new _PendingListTask(node, (this.path.endsWith(this.fileSystem.path.separator) ? this.path.substring(0, (this.path.length - 1)) : this.path), (() => {
+      const v = new Set();
+      return v;
+    })())];
+    while (tasks.length !== 0) {
+      {
+        let task = tasks.pop();
+        __dartMapForEach(task.dir.children, (name, child) => {
+          let breadcrumbs = __dartSetFrom(task.breadcrumbs);
+          let childPath = this.fileSystem.path.join(task.path, name);
+          while (((followLinks && isLink(child)) && __dartSetAdd(breadcrumbs, __dartAs(child, value => value instanceof LinkNode, "LinkNode")))) {
+            {
+              let referent = child.referentOrNull;
+              if (!((referent === null))) {
+                {
+                  child = referent;
+                }
+              }
+            }
+          }
+          if (isDirectory(child)) {
+            {
+              (listing.push(new MemoryDirectory(this.fileSystem, childPath)), null);
+              if (recursive) {
+                {
+                  (tasks.push(new _PendingListTask(__dartAs(child, value => value instanceof DirectoryNode, "DirectoryNode"), childPath, breadcrumbs)), null);
+                }
+              }
+            }
+          } else {
+            if (isLink(child)) {
+              {
+                (listing.push(new MemoryLink(this.fileSystem, childPath)), null);
+              }
+            } else {
+              if (isFile(child)) {
+                {
+                  (listing.push(new MemoryFile(this.fileSystem, childPath)), null);
+                }
+              }
+            }
+          }
+});
+      }
+    }
+    return listing;
+  }
+  clone(path) {
+    return new MemoryDirectory(this.fileSystem, path);
+  }
+  toString() {
+    return "MemoryDirectory: '" + __dartStr(this.path) + "'";
+  }
+}
+
+class _PendingListTask {
+  constructor(dir, path, breadcrumbs) {
+    this.dir = dir;
+    this.path = path;
+    this.breadcrumbs = breadcrumbs;
+  }
+}
+
+class MemoryFileSystem {
+  constructor({ style: style_1 = __dartConst("[\"instance\",\"class:_Posix\"]", () => Object.freeze(Object.create(_Posix.prototype))), opHandle = _defaultOpHandle } = {}) {
+    if (new.target === MemoryFileSystem) {
+      return new _MemoryFileSystem({ style: style_1, clock: __dartConst("[\"instance\",\"class:_RealtimeClock\"]", () => Object.freeze(Object.create(_RealtimeClock.prototype))), opHandle: opHandle });
+    }
+  }
+  static test({ style: style_1 = __dartConst("[\"instance\",\"class:_Posix\"]", () => Object.freeze(Object.create(_Posix.prototype))), opHandle = _defaultOpHandle } = {}) {
+    return new _MemoryFileSystem({ style: style_1, clock: new _MonotonicTestClock(), opHandle: opHandle });
+  }
+}
+Object.defineProperty(MemoryFileSystem, Symbol.hasInstance, { value(value) { return value != null && value[$MemoryFileSystem_interface] === true; } });
+
+class _MemoryFileSystem extends FileSystem {
+  constructor({ style: style_1 = __dartConst("[\"instance\",\"class:_Posix\"]", () => Object.freeze(Object.create(_Posix.prototype))), clock, opHandle = _defaultOpHandle } = {}) {
+    super();
+    this._root = null;
+    this._systemTemp = null;
+    this.style = style_1;
+    this.clock = clock;
+    this.opHandle = opHandle;
+    this._context = style_1.contextFor(style_1.root);
+    Object.defineProperty(this, $FileSystem_interface, { value: true });
+    Object.defineProperty(this, $MemoryFileSystem_interface, { value: true });
+    Object.defineProperty(this, $NodeBasedFileSystem_interface, { value: true });
+    Object.defineProperty(this, $StyleableFileSystem_interface, { value: true });
+    this._root = new RootNode(this);
+  }
+  get root() {
+    return this._root;
+  }
+  get cwd() {
+    return this._context.current;
+  }
+  directory(path) {
+    return new MemoryDirectory(this, this.getPath(path));
+  }
+  file(path) {
+    return new MemoryFile(this, this.getPath(path));
+  }
+  link(path) {
+    return new MemoryLink(this, this.getPath(path));
   }
   get path() {
-    return this.delegate.path;
+    return this._context;
   }
-  close() {
-    return this.delegate.close();
+  get systemTempDirectory() {
+    ((this._systemTemp === null) ? this._systemTemp = this.directory(this.style.root).createTempSync(".tmp_").path : null);
+    return (() => { let v = this.directory(this._systemTemp); return (() => {
+      v.createSync();
+      return v;
+    })(); })();
   }
-  closeSync() {
-    return this.delegate.closeSync();
+  get currentDirectory() {
+    return this.directory(this.cwd);
   }
-  async flush() {
-    await this.delegate.flush();
-    return this;
+  set currentDirectory(path) {
+    let value = null;
+    if (path != null && typeof path === "object" && typeof path.path === "string") {
+      {
+        value = path.path;
+      }
+    } else {
+      if (typeof path === "string") {
+        {
+          value = path;
+        }
+      } else {
+        {
+          (() => { throw __dartCoreError("ArgumentError", "Invalid type for \"path\": " + __dartStr(((path)?.runtimeType ?? null))); })();
+        }
+      }
+    }
+    value = this.directory(value).resolveSymbolicLinksSync();
+    let node = this.findNode(value);
+    checkExists(node, function() { return value; });
+    checkIsDir(__dartNullCheck(node), function() { return value; });
+    this._context = this.style.contextFor(value);
   }
-  flushSync() {
-    return this.delegate.flushSync();
+  async stat(path) {
+    return this.statSync(path);
   }
-  length() {
-    return this.delegate.length();
+  statSync(path) {
+    try {
+      {
+        return ((this.findNode(path))?.stat ?? MemoryFileStat.notFound);
+      }
+    } catch ($error) {
+      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
+        {
+          return MemoryFileStat.notFound;
+        }
+      } else {
+        throw $error;
+      }
+    }
   }
-  lengthSync() {
-    return this.delegate.lengthSync();
+  async identical(path1, path2) {
+    return this.identicalSync(path1, path2);
   }
-  async lock(mode = __dartConst("[\"instance\",\"dart:io::FileLock\",[\"field\",\"dart:io::FileLock::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileLock", "FileLock", 0)), start = 0, end = -1) {
-    await this.delegate.lock(mode, start, end);
-    return this;
+  identicalSync(path1, path2) {
+    let node1 = this.findNode(path1);
+    checkExists(node1, function() { return path1; });
+    let node2 = this.findNode(path2);
+    checkExists(node2, function() { return path2; });
+    return (!((node1 === null)) && __dartEquals(node1, node2));
   }
-  lockSync(mode = __dartConst("[\"instance\",\"dart:io::FileLock\",[\"field\",\"dart:io::FileLock::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileLock", "FileLock", 0)), start = 0, end = -1) {
-    return this.delegate.lockSync(mode, start, end);
+  get isWatchSupported() {
+    return false;
   }
-  position() {
-    return this.delegate.position();
+  async type(path, { followLinks = true } = {}) {
+    return this.typeSync(path, { followLinks: followLinks });
   }
-  positionSync() {
-    return this.delegate.positionSync();
+  typeSync(path, { followLinks = true } = {}) {
+    let node = null;
+    try {
+      {
+        node = this.findNode(path, { followTailLink: followLinks });
+      }
+    } catch ($error) {
+      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
+        {
+          node = null;
+        }
+      } else {
+        throw $error;
+      }
+    }
+    if ((node === null)) {
+      {
+        return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
+      }
+    }
+    return node.type;
   }
-  read(bytes) {
-    return this.delegate.read(bytes);
+  get _current() {
+    return __dartAs(this.findNode(this.cwd), value => (value === null || value instanceof DirectoryNode), "DirectoryNode?");
   }
-  readSync(bytes) {
-    return this.delegate.readSync(bytes);
-  }
-  readByte() {
-    return this.delegate.readByte();
-  }
-  readByteSync() {
-    return this.delegate.readByteSync();
-  }
-  readInto(buffer, start = 0, end = null) {
-    return this.delegate.readInto(buffer, start, end);
-  }
-  readIntoSync(buffer, start = 0, end = null) {
-    return this.delegate.readIntoSync(buffer, start, end);
-  }
-  async setPosition(position) {
-    await this.delegate.setPosition(position);
-    return this;
-  }
-  setPositionSync(position) {
-    return this.delegate.setPositionSync(position);
-  }
-  async truncate(length) {
-    await this.delegate.truncate(length);
-    return this;
-  }
-  truncateSync(length) {
-    return this.delegate.truncateSync(length);
-  }
-  async unlock(start = 0, end = -1) {
-    await this.delegate.unlock(start, end);
-    return this;
-  }
-  unlockSync(start = 0, end = -1) {
-    return this.delegate.unlockSync(start, end);
-  }
-  async writeByte(value) {
-    await this.delegate.writeByte(value);
-    return this;
-  }
-  writeByteSync(value) {
-    return this.delegate.writeByteSync(value);
-  }
-  async writeFrom(buffer, start = 0, end = null) {
-    await this.delegate.writeFrom(buffer, start, end);
-    return this;
-  }
-  writeFromSync(buffer, start = 0, end = null) {
-    return this.delegate.writeFromSync(buffer, start, end);
-  }
-  async writeString(string, { encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    await this.delegate.writeString(string, { encoding: encoding });
-    return this;
-  }
-  writeStringSync(string, { encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.delegate.writeStringSync(string, { encoding: encoding });
+  findNode(path, { reference = null, segmentVisitor = null, visitLinks = false, pathWithSymlinks = null, followTailLink = false } = {}) {
+    if (path.length === 0) {
+      {
+        return null;
+      }
+    } else {
+      if (this._context.isAbsolute(path)) {
+        {
+          reference = this._root;
+          path = path.substring(this.style.drive.length);
+        }
+      } else {
+        {
+          ((reference === null) ? reference = this._current : null);
+        }
+      }
+    }
+    let parts = (() => { let v = __dartStringSplit(path, this.style.separator); return (() => {
+      __dartListRemoveWhere(v, isEmpty);
+      return v;
+    })(); })();
+    let directory = ((reference)?.directory ?? null);
+    let child = directory;
+    let finalSegment = (parts.length - 1);
+    for (let i = 0; (i <= finalSegment); i = (i + 1)) {
+      {
+        let basename = __dartIndexGet(parts, i);
+        L:
+        switch (basename) {
+          case ".":
+            {
+              child = directory;
+              break L;
+            }
+          case "..":
+            {
+              child = ((directory)?.parent ?? null);
+              directory = ((directory)?.parent ?? null);
+              break L;
+            }
+          default:
+            {
+              child = (() => { let v_1 = directory; return ((v_1 === null) ? null : __dartMapGet(v_1.children, basename)); })();
+            }
+        }
+        if (!((pathWithSymlinks === null))) {
+          {
+            (pathWithSymlinks.push(basename), null);
+          }
+        }
+        const subpath = () => {
+          return __dartIterableJoin(parts.slice(0, (i + 1)), this._context.separator);
+        };
+        if ((isLink(child) && ((i < finalSegment) || followTailLink))) {
+          {
+            if ((visitLinks || (segmentVisitor === null))) {
+              {
+                if (!((segmentVisitor === null))) {
+                  {
+                    child = (segmentVisitor)(__dartNullCheck(directory), basename, child, i, finalSegment);
+                  }
+                }
+                child = resolveLinks(__dartAs(child, value => value instanceof LinkNode, "LinkNode"), subpath, { ledger: pathWithSymlinks });
+              }
+            } else {
+              {
+                child = resolveLinks(__dartAs(child, value => value instanceof LinkNode, "LinkNode"), subpath, { ledger: pathWithSymlinks, tailVisitor: function(parent, childName, child) { return (segmentVisitor)(parent, childName, child, i, finalSegment); } });
+              }
+            }
+          }
+        } else {
+          if (!((segmentVisitor === null))) {
+            {
+              child = (segmentVisitor)(__dartNullCheck(directory), basename, child, i, finalSegment);
+            }
+          }
+        }
+        if ((i < finalSegment)) {
+          {
+            checkExists(child, subpath);
+            checkIsDir(__dartNullCheck(child), subpath);
+            directory = __dartAs(child, value => value instanceof DirectoryNode, "DirectoryNode");
+          }
+        }
+      }
+    }
+    return child;
   }
 }
 
@@ -12729,1847 +6373,6 @@ class _WindowsCodes {
   }
 }
 
-class Clock {
-  constructor() {
-  }
-  static realTime() {
-    return new _RealtimeClock();
-  }
-  static monotonicTest() {
-    return new _MonotonicTestClock();
-  }
-  get now() {
-    throw new TypeError("Abstract member Clock.now");
-  }
-  set now(value) {
-    Object.defineProperty(this, "now", { value, writable: true, configurable: true, enumerable: true });
-  }
-}
-
-class _RealtimeClock extends Clock {
-  constructor() {
-    super();
-  }
-  get now() {
-    return __dartDateTime(Date.now(), false);
-  }
-}
-
-class _MonotonicTestClock extends Clock {
-  constructor({ start = null } = {}) {
-    super();
-    this._current = (start ?? __dartDateTimeFromParts(false, 2000, 1, 1, 0, 0, 0, 0, 0));
-  }
-  get now() {
-    this._current = this._current.add(__dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"60000000\"]]]", () => __dartDuration({ microseconds: 60000000 })));
-    return this._current;
-  }
-}
-
-class DirectoryAddOnsMixin {
-  constructor() {
-    Object.defineProperty(this, $Directory_interface, { value: true });
-    Object.defineProperty(this, $DirectoryAddOnsMixin_interface, { value: true });
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-  }
-  childDirectory(basename_1) {
-    return this.fileSystem.directory(this.fileSystem.path.join(this.path, basename_1));
-  }
-  childFile(basename_1) {
-    return this.fileSystem.file(this.fileSystem.path.join(this.path, basename_1));
-  }
-  childLink(basename_1) {
-    return this.fileSystem.link(this.fileSystem.path.join(this.path, basename_1));
-  }
-}
-Object.defineProperty(DirectoryAddOnsMixin, Symbol.hasInstance, { value(value) { return value != null && value[$DirectoryAddOnsMixin_interface] === true; } });
-
-class MemoryFileStat {
-  constructor(changed, modified, accessed, type, mode, size) {
-    this.changed = changed;
-    this.modified = modified;
-    this.accessed = accessed;
-    this.type = type;
-    this.mode = mode;
-    this.size = size;
-  }
-  static _internalNotFound() {
-    return $MemoryFileStat__internalNotFound(MemoryFileStat);
-  }
-  modeString() {
-    let permissions = (this.mode & 4095);
-    let codes = __dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"---\"],[\"string\",\"--x\"],[\"string\",\"-w-\"],[\"string\",\"-wx\"],[\"string\",\"r--\"],[\"string\",\"r-x\"],[\"string\",\"rw-\"],[\"string\",\"rwx\"]]", () => Object.freeze(["---", "--x", "-w-", "-wx", "r--", "r-x", "rw-", "rwx"]));
-    let result = new Array(0).fill(null);
-    (() => { let v = result; return (() => {
-      (v.push(__dartIndexGet(codes, (__dartShr(permissions, 6) & 7))), null);
-      (v.push(__dartIndexGet(codes, (__dartShr(permissions, 3) & 7))), null);
-      (v.push(__dartIndexGet(codes, (permissions & 7))), null);
-      return v;
-    })(); })();
-    return __dartIterableJoin(result, "");
-  }
-}
-
-function $MemoryFileStat__internalNotFound($newTarget) {
-  const $self = Object.create($newTarget.prototype);
-  $self.changed = __dartDateTimeFromParts(false, 0, 1, 1, 0, 0, 0, 0, 0);
-  $self.modified = __dartDateTimeFromParts(false, 0, 1, 1, 0, 0, 0, 0, 0);
-  $self.accessed = __dartDateTimeFromParts(false, 0, 1, 1, 0, 0, 0, 0, 0);
-  $self.type = __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-  $self.mode = 0;
-  $self.size = (-1);
-  return $self;
-}
-
-class FileSystemOp {
-  constructor() {
-    throw new TypeError("Class FileSystemOp has no unnamed constructor");
-  }
-  static _(_value) {
-    return $FileSystemOp__(FileSystemOp, _value);
-  }
-  toString() {
-    L:
-    switch (this._value) {
-      case 0:
-        {
-          return "FileSystemOp.read";
-        }
-      case 1:
-        {
-          return "FileSystemOp.write";
-        }
-      case 2:
-        {
-          return "FileSystemOp.delete";
-        }
-      case 3:
-        {
-          return "FileSystemOp.create";
-        }
-      case 4:
-        {
-          return "FileSystemOp.open";
-        }
-      case 5:
-        {
-          return "FileSystemOp.copy";
-        }
-      case 6:
-        {
-          return "FileSystemOp.exists";
-        }
-      default:
-        {
-          (() => { throw __dartCoreError("StateError", "Invalid FileSytemOp type: " + __dartStr(this)); })();
-        }
-    }
-  }
-}
-
-function $FileSystemOp__($newTarget, _value) {
-  const $self = Object.create($newTarget.prototype);
-  $self._value = _value;
-  return $self;
-}
-
-class FileSystemStyle {
-  constructor() {
-    if (new.target === FileSystemStyle) {
-      throw new TypeError("Class FileSystemStyle has no unnamed constructor");
-    }
-  }
-  static _() {
-    return $FileSystemStyle__(FileSystemStyle);
-  }
-  get drive() {
-    throw new TypeError("Abstract member FileSystemStyle.drive");
-  }
-  set drive(value) {
-    Object.defineProperty(this, "drive", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get separator() {
-    throw new TypeError("Abstract member FileSystemStyle.separator");
-  }
-  set separator(value) {
-    Object.defineProperty(this, "separator", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get root() {
-    return __dartStr(this.drive) + __dartStr(this.separator);
-  }
-  contextFor(path) {
-    throw new TypeError("Abstract member FileSystemStyle.contextFor");
-  }
-}
-
-function $FileSystemStyle__($newTarget) {
-  const $self = Object.create($newTarget.prototype);
-  return $self;
-}
-
-class _Posix extends FileSystemStyle {
-  constructor() {
-    const $self = $FileSystemStyle__(new.target);
-    return $self;
-  }
-  get drive() {
-    return "";
-  }
-  get separator() {
-    return Style.posix.separator;
-  }
-  contextFor(path) {
-    return new Context({ style: Style.posix, current: path });
-  }
-}
-
-class _Windows extends FileSystemStyle {
-  constructor() {
-    const $self = $FileSystemStyle__(new.target);
-    return $self;
-  }
-  get drive() {
-    return "C:";
-  }
-  get separator() {
-    return Style.windows.separator;
-  }
-  contextFor(path) {
-    return new Context({ style: Style.windows, current: path });
-  }
-}
-
-class StyleableFileSystem {
-  constructor() {
-    Object.defineProperty(this, $FileSystem_interface, { value: true });
-    Object.defineProperty(this, $StyleableFileSystem_interface, { value: true });
-  }
-  get style() {
-    throw new TypeError("Abstract member StyleableFileSystem.style");
-  }
-  set style(value) {
-    Object.defineProperty(this, "style", { value, writable: true, configurable: true, enumerable: true });
-  }
-}
-Object.defineProperty(StyleableFileSystem, Symbol.hasInstance, { value(value) { return value != null && value[$StyleableFileSystem_interface] === true; } });
-
-class NodeBasedFileSystem {
-  constructor() {
-    Object.defineProperty(this, $FileSystem_interface, { value: true });
-    Object.defineProperty(this, $NodeBasedFileSystem_interface, { value: true });
-    Object.defineProperty(this, $StyleableFileSystem_interface, { value: true });
-  }
-  get opHandle() {
-    throw new TypeError("Abstract member NodeBasedFileSystem.opHandle");
-  }
-  set opHandle(value) {
-    Object.defineProperty(this, "opHandle", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get root() {
-    throw new TypeError("Abstract member NodeBasedFileSystem.root");
-  }
-  set root(value) {
-    Object.defineProperty(this, "root", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get cwd() {
-    throw new TypeError("Abstract member NodeBasedFileSystem.cwd");
-  }
-  set cwd(value) {
-    Object.defineProperty(this, "cwd", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get clock() {
-    throw new TypeError("Abstract member NodeBasedFileSystem.clock");
-  }
-  set clock(value) {
-    Object.defineProperty(this, "clock", { value, writable: true, configurable: true, enumerable: true });
-  }
-  findNode(path, { reference = null, segmentVisitor = null, visitLinks = false, pathWithSymlinks = null, followTailLink = false } = {}) {
-    throw new TypeError("Abstract member NodeBasedFileSystem.findNode");
-  }
-}
-Object.defineProperty(NodeBasedFileSystem, Symbol.hasInstance, { value(value) { return value != null && value[$NodeBasedFileSystem_interface] === true; } });
-
-class Node {
-  constructor(_parent) {
-    this._parent = _parent;
-    if (((this._parent === null) && !(this.isRoot))) {
-      {
-        (() => { throw __dartConst("[\"instance\",\"dart:io::FileSystemException\",[\"field\",\"dart:io::FileSystemException::@fields::message\",[\"string\",\"All nodes must have a parent.\"]],[\"field\",\"dart:io::FileSystemException::@fields::osError\",[\"null\"]],[\"field\",\"dart:io::FileSystemException::@fields::path\",[\"string\",\"\"]]]", () => __dartIoFileSystemException("All nodes must have a parent.", "", null)); })();
-      }
-    }
-  }
-  get parent() {
-    return __dartNullCheck(this._parent);
-  }
-  set parent(parent) {
-    let ancestor = parent;
-    while (!(ancestor.isRoot)) {
-      {
-        if (__dartEquals(ancestor, this)) {
-          {
-            (() => { throw __dartConst("[\"instance\",\"dart:io::FileSystemException\",[\"field\",\"dart:io::FileSystemException::@fields::message\",[\"string\",\"A directory cannot be its own ancestor.\"]],[\"field\",\"dart:io::FileSystemException::@fields::osError\",[\"null\"]],[\"field\",\"dart:io::FileSystemException::@fields::path\",[\"string\",\"\"]]]", () => __dartIoFileSystemException("A directory cannot be its own ancestor.", "", null)); })();
-          }
-        }
-        ancestor = ancestor.parent;
-      }
-    }
-    this._parent = parent;
-  }
-  get type() {
-    throw new TypeError("Abstract member Node.type");
-  }
-  set type(value) {
-    Object.defineProperty(this, "type", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get stat() {
-    throw new TypeError("Abstract member Node.stat");
-  }
-  set stat(value) {
-    Object.defineProperty(this, "stat", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get directory() {
-    return __dartNullCheck(this._parent);
-  }
-  get isRoot() {
-    return false;
-  }
-  get fs() {
-    return __dartNullCheck(this._parent).fs;
-  }
-}
-
-class RealNode extends Node {
-  constructor(parent) {
-    super(parent);
-    const $changed = __dartLazyField("RealNode.changed", null, true);
-    Object.defineProperty(this, "changed", {
-      get() { return $changed.get(); },
-      set(value) { $changed.set(value); },
-      enumerable: true,
-    });
-    const $modified = __dartLazyField("RealNode.modified", null, true);
-    Object.defineProperty(this, "modified", {
-      get() { return $modified.get(); },
-      set(value) { $modified.set(value); },
-      enumerable: true,
-    });
-    const $accessed = __dartLazyField("RealNode.accessed", null, true);
-    Object.defineProperty(this, "accessed", {
-      get() { return $accessed.get(); },
-      set(value) { $accessed.set(value); },
-      enumerable: true,
-    });
-    this.mode = 1911;
-    let now = this.clock.now.millisecondsSinceEpoch;
-    this.changed = now;
-    this.modified = now;
-    this.accessed = now;
-  }
-  get clock() {
-    return this.parent.clock;
-  }
-  get stat() {
-    return new MemoryFileStat(__dartDateTime(this.changed, false), __dartDateTime(this.modified, false), __dartDateTime(this.accessed, false), this.type, this.mode, this.size);
-  }
-  get size() {
-    throw new TypeError("Abstract member RealNode.size");
-  }
-  set size(value) {
-    Object.defineProperty(this, "size", { value, writable: true, configurable: true, enumerable: true });
-  }
-  touch() {
-    this.modified = this.clock.now.millisecondsSinceEpoch;
-  }
-}
-
-class DirectoryNode extends RealNode {
-  constructor(parent) {
-    super(parent);
-    this.children = new Map([]);
-  }
-  get type() {
-    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-  }
-  get directory() {
-    return this;
-  }
-  get size() {
-    return 0;
-  }
-}
-
-class RootNode extends DirectoryNode {
-  constructor(fs) {
-    super(null);
-    this.fs = fs;
-  }
-  get clock() {
-    return this.fs.clock;
-  }
-  get parent() {
-    return this;
-  }
-  get isRoot() {
-    return true;
-  }
-  set parent(parent) {
-    return (() => { throw __dartCoreError("UnsupportedError", "Cannot set the parent of the root directory."); })();
-  }
-}
-
-class FileNode extends RealNode {
-  constructor(parent) {
-    super(parent);
-    this._content = new Uint8Array(0);
-  }
-  get content() {
-    return this._content;
-  }
-  get type() {
-    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-  }
-  get size() {
-    return this._content.length;
-  }
-  write(bytes) {
-    let existing = this._content;
-    this._content = new Uint8Array((existing.length + bytes.length));
-    __dartListSetRange(this._content, 0, existing.length, existing, 0);
-    __dartListSetRange(this._content, existing.length, this._content.length, bytes, 0);
-  }
-  truncate(length) {
-    this._content = this._content.slice(0, length);
-  }
-  clear() {
-    this._content = new Uint8Array(0);
-  }
-  copyFrom(source) {
-    this.modified = this.changed = this.clock.now.millisecondsSinceEpoch;
-    this.accessed = source.accessed;
-    this.mode = source.mode;
-    this._content = Uint8Array.from(source.content);
-  }
-}
-
-class LinkNode extends Node {
-  constructor(parent, target) {
-    super(parent);
-    this._reentrant = false;
-    this.target = target;
-  }
-  getReferent({ tailVisitor = null } = {}) {
-    let referent = this.fs.findNode(this.target, { reference: this, segmentVisitor: function(parent, childName, child, currentSegment, finalSegment) {
-      if ((!((tailVisitor === null)) && __dartEquals(currentSegment, finalSegment))) {
-        {
-          child = (tailVisitor)(parent, childName, child);
-        }
-      }
-      return child;
-} });
-    checkExists(referent, () => { return this.target; });
-    return __dartNullCheck(referent);
-  }
-  get referentOrNull() {
-    try {
-      {
-        return this.getReferent();
-      }
-    } catch ($error) {
-      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
-        {
-          return null;
-        }
-      } else {
-        throw $error;
-      }
-    }
-  }
-  get type() {
-    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-  }
-  get stat() {
-    if (this._reentrant) {
-      {
-        return MemoryFileStat.notFound;
-      }
-    }
-    this._reentrant = true;
-    try {
-      {
-        let node = this.referentOrNull;
-        return ((node === null) ? MemoryFileStat.notFound : node.stat);
-      }
-    } finally {
-      {
-        this._reentrant = false;
-      }
-    }
-  }
-}
-
-class MemoryFileSystemEntity {
-  constructor(fileSystem, path) {
-    this.fileSystem = fileSystem;
-    this.path = path;
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-  }
-  get dirname() {
-    return this.fileSystem.path.dirname(this.path);
-  }
-  get basename() {
-    return this.fileSystem.path.basename(this.path);
-  }
-  get expectedType() {
-    throw new TypeError("Abstract member MemoryFileSystemEntity.expectedType");
-  }
-  set expectedType(value) {
-    Object.defineProperty(this, "expectedType", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get backingOrNull() {
-    try {
-      {
-        return this.fileSystem.findNode(this.path);
-      }
-    } catch ($error) {
-      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
-        {
-          return null;
-        }
-      } else {
-        throw $error;
-      }
-    }
-  }
-  get backing() {
-    let node = this.fileSystem.findNode(this.path);
-    checkExists(node, () => { return this.path; });
-    return __dartNullCheck(node);
-  }
-  get resolvedBacking() {
-    let node = this.backing;
-    node = (isLink(node) ? resolveLinks(__dartAs(node, value => value instanceof LinkNode, "LinkNode"), () => { return this.path; }) : node);
-    checkType(this.expectedType, node.type, () => { return this.path; });
-    return node;
-  }
-  defaultCheckType(node) {
-    checkType(this.expectedType, node.stat.type, () => { return this.path; });
-  }
-  get uri() {
-    return __dartUriFile(this.path, __dartEquals(this.fileSystem.style, __dartConst("[\"instance\",\"class:_Windows\"]", () => Object.freeze(Object.create(_Windows.prototype)))), false);
-  }
-  async exists() {
-    return this.existsSync();
-  }
-  async resolveSymbolicLinks() {
-    return this.resolveSymbolicLinksSync();
-  }
-  resolveSymbolicLinksSync() {
-    if (this.path.length === 0) {
-      {
-        (() => { throw noSuchFileOrDirectory(this.path); })();
-      }
-    }
-    let ledger = new Array(0).fill(null);
-    if (this.isAbsolute) {
-      {
-        (ledger.push(this.fileSystem.style.drive), null);
-      }
-    }
-    let node = this.fileSystem.findNode(this.path, { pathWithSymlinks: ledger, followTailLink: true });
-    checkExists(node, () => { return this.path; });
-    let resolved = __dartIterableJoin(ledger, this.fileSystem.path.separator);
-    if (__dartEquals(resolved, this.fileSystem.style.drive)) {
-      {
-        resolved = this.fileSystem.style.root;
-      }
-    } else {
-      if (!(this.fileSystem.path.isAbsolute(resolved))) {
-        {
-          resolved = ((this.fileSystem.cwd + this.fileSystem.path.separator) + resolved);
-        }
-      }
-    }
-    return this.fileSystem.path.normalize(resolved);
-  }
-  stat() {
-    return this.fileSystem.stat(this.path);
-  }
-  statSync() {
-    return this.fileSystem.statSync(this.path);
-  }
-  async delete({ recursive = false } = {}) {
-    this.deleteSync({ recursive: recursive });
-    return this;
-  }
-  deleteSync({ recursive = false } = {}) {
-    return this.internalDeleteSync({ recursive: recursive });
-  }
-  watch({ events = 15, recursive = false } = {}) {
-    return (() => { throw __dartCoreError("UnsupportedError", "Watching not supported in MemoryFileSystem"); })();
-  }
-  get isAbsolute() {
-    return this.fileSystem.path.isAbsolute(this.path);
-  }
-  get absolute() {
-    let absolutePath = this.path;
-    if (!(this.fileSystem.path.isAbsolute(absolutePath))) {
-      {
-        absolutePath = this.fileSystem.path.join(this.fileSystem.cwd, absolutePath);
-      }
-    }
-    return this.clone(absolutePath);
-  }
-  get parent() {
-    return new MemoryDirectory(this.fileSystem, this.dirname);
-  }
-  internalCreateSync({ createChild, followTailLink = false, visitLinks = false } = {}) {
-    return this.fileSystem.findNode(this.path, { followTailLink: followTailLink, visitLinks: visitLinks, segmentVisitor: function(parent, childName, child, currentSegment, finalSegment) {
-      if ((child === null)) {
-        {
-          child = (createChild)(parent, __dartEquals(currentSegment, finalSegment));
-          if (!((child === null))) {
-            {
-              __dartMapSet(parent.children, childName, child);
-            }
-          }
-        }
-      }
-      return child;
-} });
-  }
-  internalRenameSync(newPath, { validateOverwriteExistingEntity = null, followTailLink = false, checkType: checkType_1 = null } = {}) {
-    let node = this.backing;
-    ((checkType_1 ?? __dartBind(this, "defaultCheckType")))(node);
-    this.fileSystem.findNode(newPath, { segmentVisitor: (parent, childName, child, currentSegment, finalSegment) => {
-      if (__dartEquals(currentSegment, finalSegment)) {
-        {
-          if (!((child === null))) {
-            {
-              if (followTailLink) {
-                {
-                  let childType = child.stat.type;
-                  if (!(__dartEquals(childType, __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0))))) {
-                    {
-                      checkType(this.expectedType, child.stat.type, function() { return newPath; });
-                    }
-                  }
-                }
-              } else {
-                {
-                  checkType(this.expectedType, child.type, function() { return newPath; });
-                }
-              }
-              if (!((validateOverwriteExistingEntity === null))) {
-                {
-                  (validateOverwriteExistingEntity)(__dartAs(child, value => value instanceof Node, "T"));
-                }
-              }
-              __dartMapRemove(parent.children, childName);
-            }
-          }
-          __dartMapRemove(node.parent.children, this.basename);
-          __dartMapSet(parent.children, childName, node);
-          node.parent = parent;
-        }
-      }
-      return child;
-} });
-    return this.clone(newPath);
-  }
-  internalDeleteSync({ recursive = false, checkType: checkType_1 = null } = {}) {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"2\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 2 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    let node = this.backing;
-    if (!(recursive)) {
-      {
-        if ((node instanceof DirectoryNode && node.children.size !== 0)) {
-          {
-            (() => { throw directoryNotEmpty(this.path); })();
-          }
-        }
-        ((checkType_1 ?? __dartBind(this, "defaultCheckType")))(node);
-      }
-    }
-    __dartMapRemove(node.parent.children, this.basename);
-  }
-  clone(path) {
-    throw new TypeError("Abstract member MemoryFileSystemEntity.clone");
-  }
-}
-
-class MemoryRandomAccessFile {
-  constructor(path, _node, _mode) {
-    this._isOpen = true;
-    this._position = 0;
-    this.__asyncOperationPending = false;
-    this.path = path;
-    this._node = _node;
-    this._mode = _mode;
-    L:
-    switch (this._mode) {
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-        {
-          break L;
-        }
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"3\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-        {
-          this.truncateSync(0);
-          break L;
-        }
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"4\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-        {
-          this._position = this.lengthSync();
-          break L;
-        }
-      default:
-        {
-          (() => { throw __dartCoreError("UnimplementedError", "Unsupported FileMode"); })();
-        }
-    }
-  }
-  get _asyncOperationPending() {
-    return this.__asyncOperationPending;
-  }
-  set _asyncOperationPending(value) {
-    this.__asyncOperationPending = value;
-  }
-  _checkOpen() {
-    if (!(this._isOpen)) {
-      {
-        (() => { throw __dartIoFileSystemException("File closed", this.path, null); })();
-      }
-    }
-  }
-  _checkReadable(operation) {
-    L:
-    switch (this._mode) {
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-        {
-          return;
-        }
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"3\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-      case __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"4\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)):
-      default:
-        {
-          (() => { throw __dartIoFileSystemException(__dartStr(operation) + " failed", this.path, badFileDescriptor(this.path).osError); })();
-        }
-    }
-  }
-  _checkWritable(operation) {
-    if (isWriteMode(this._mode)) {
-      {
-        return;
-      }
-    }
-    (() => { throw __dartIoFileSystemException(__dartStr(operation) + " failed", this.path, badFileDescriptor(this.path).osError); })();
-  }
-  _checkAsync() {
-    if (this._asyncOperationPending) {
-      {
-        (() => { throw __dartIoFileSystemException("An async operation is currently pending", this.path, null); })();
-      }
-    }
-  }
-  async _asyncWrapper(f) {
-    this._checkAsync();
-    this._asyncOperationPending = true;
-    try {
-      {
-        return await new Promise((resolve, reject) => setTimeout(() => { try { resolve((() => {
-          this._asyncOperationPending = false;
-          try {
-            {
-              return (f)();
-            }
-          } finally {
-            {
-              this._asyncOperationPending = true;
-            }
-          }
-})()); } catch (error) { reject(error); } }, Math.max(0, __dartConst("[\"instance\",\"dart:core::Duration\",[\"field\",\"dart:core::Duration::@fields::dart:core::_duration\",[\"int\",\"0\"]]]", () => __dartDuration({ microseconds: 0 })).inMilliseconds)));
-      }
-    } finally {
-      {
-        this._asyncOperationPending = false;
-      }
-    }
-  }
-  async close() {
-    return this._asyncWrapper(__dartBind(this, "closeSync"));
-  }
-  closeSync() {
-    this._checkOpen();
-    this._isOpen = false;
-  }
-  async flush() {
-    await this._asyncWrapper(__dartBind(this, "flushSync"));
-    return this;
-  }
-  flushSync() {
-    this._checkOpen();
-    this._checkAsync();
-  }
-  length() {
-    return this._asyncWrapper(__dartBind(this, "lengthSync"));
-  }
-  lengthSync() {
-    this._checkOpen();
-    this._checkAsync();
-    return this._node.size;
-  }
-  async lock(mode = __dartConst("[\"instance\",\"dart:io::FileLock\",[\"field\",\"dart:io::FileLock::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileLock", "FileLock", 0)), start = 0, end = -1) {
-    await this._asyncWrapper(() => { return this.lockSync(mode, start, end); });
-    return this;
-  }
-  lockSync(mode = __dartConst("[\"instance\",\"dart:io::FileLock\",[\"field\",\"dart:io::FileLock::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileLock", "FileLock", 0)), start = 0, end = -1) {
-    this._checkOpen();
-    this._checkAsync();
-    (() => { throw __dartCoreError("UnimplementedError", "TODO"); })();
-  }
-  position() {
-    return this._asyncWrapper(__dartBind(this, "positionSync"));
-  }
-  positionSync() {
-    this._checkOpen();
-    this._checkAsync();
-    return this._position;
-  }
-  read(bytes) {
-    return this._asyncWrapper(() => { return this.readSync(bytes); });
-  }
-  readSync(bytes) {
-    this._checkOpen();
-    this._checkAsync();
-    this._checkReadable("read");
-    const end = Math.min((this._position + bytes), this.lengthSync());
-    const copy = this._node.content.slice(this._position, end);
-    this._position = end;
-    return copy;
-  }
-  readByte() {
-    return this._asyncWrapper(__dartBind(this, "readByteSync"));
-  }
-  readByteSync() {
-    this._checkOpen();
-    this._checkAsync();
-    this._checkReadable("readByte");
-    if ((this._position >= this.lengthSync())) {
-      {
-        return (-1);
-      }
-    }
-    return __dartIndexGet(this._node.content, (() => { let v = this._position; return (() => { let v_1 = this._position = (v + 1); return v; })(); })());
-  }
-  readInto(buffer, start = 0, end = null) {
-    return this._asyncWrapper(() => { return this.readIntoSync(buffer, start, end); });
-  }
-  readIntoSync(buffer, start = 0, end = null) {
-    this._checkOpen();
-    this._checkAsync();
-    this._checkReadable("readInto");
-    end = __dartCheckValidRange(start, end, buffer.length, null, null, null);
-    const length = this.lengthSync();
-    let i = null;
-    for (let v = i = start; ((i < end) && (this._position < length)); i = (i + 1), this._position = (this._position + 1)) {
-      {
-        __dartIndexSet(buffer, i, __dartIndexGet(this._node.content, this._position));
-      }
-    }
-    return (i - start);
-  }
-  async setPosition(position) {
-    await this._asyncWrapper(() => { return this.setPositionSync(position); });
-    return this;
-  }
-  setPositionSync(position) {
-    this._checkOpen();
-    this._checkAsync();
-    if ((position < 0)) {
-      {
-        (() => { throw __dartIoFileSystemException("setPosition failed", this.path, invalidArgument(this.path).osError); })();
-      }
-    }
-    this._position = position;
-  }
-  async truncate(length) {
-    await this._asyncWrapper(() => { return this.truncateSync(length); });
-    return this;
-  }
-  truncateSync(length) {
-    this._checkOpen();
-    this._checkAsync();
-    if (((length < 0) || !(isWriteMode(this._mode)))) {
-      {
-        (() => { throw __dartIoFileSystemException("truncate failed", this.path, invalidArgument(this.path).osError); })();
-      }
-    }
-    const oldLength = this.lengthSync();
-    if ((length < oldLength)) {
-      {
-        this._node.truncate(length);
-      }
-    } else {
-      if ((length > oldLength)) {
-        {
-          this._node.write(new Uint8Array((length - oldLength)));
-        }
-      }
-    }
-  }
-  async unlock(start = 0, end = -1) {
-    await this._asyncWrapper(() => { return this.unlockSync(start, end); });
-    return this;
-  }
-  unlockSync(start = 0, end = -1) {
-    this._checkOpen();
-    this._checkAsync();
-    (() => { throw __dartCoreError("UnimplementedError", "TODO"); })();
-  }
-  async writeByte(value) {
-    await this._asyncWrapper(() => { return this.writeByteSync(value); });
-    return this;
-  }
-  writeByteSync(value) {
-    this._checkOpen();
-    this._checkAsync();
-    this._checkWritable("writeByte");
-    let length = this.lengthSync();
-    if ((this._position >= length)) {
-      {
-        this.truncateSync((this._position + 1));
-        length = this.lengthSync();
-      }
-    }
-    __dartIndexSet(this._node.content, (() => { let v = this._position; return (() => { let v_1 = this._position = (v + 1); return v; })(); })(), value);
-    return 1;
-  }
-  async writeFrom(buffer, start = 0, end = null) {
-    await this._asyncWrapper(() => { return this.writeFromSync(buffer, start, end); });
-    return this;
-  }
-  writeFromSync(buffer, start = 0, end = null) {
-    this._checkOpen();
-    this._checkAsync();
-    this._checkWritable("writeFrom");
-    end = __dartCheckValidRange(start, end, buffer.length, null, null, null);
-    const writeByteCount = (end - start);
-    const endPosition = (this._position + writeByteCount);
-    if ((endPosition > this.lengthSync())) {
-      {
-        this.truncateSync(endPosition);
-      }
-    }
-    __dartListSetRange(this._node.content, this._position, endPosition, buffer, start);
-    this._position = endPosition;
-  }
-  async writeString(string, { encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    await this._asyncWrapper(() => { return this.writeStringSync(string, { encoding: encoding }); });
-    return this;
-  }
-  writeStringSync(string, { encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    this.writeFromSync(encoding.encode(string));
-  }
-}
-
-class MemoryFile extends MemoryFileSystemEntity {
-  constructor(fileSystem, path) {
-    super(fileSystem, path);
-    Object.defineProperty(this, $File_interface, { value: true });
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-  }
-  get _resolvedBackingOrCreate() {
-    let node = this.backingOrNull;
-    if ((node === null)) {
-      {
-        node = this._doCreate();
-      }
-    } else {
-      {
-        node = (isLink(node) ? resolveLinks(__dartAs(node, value => value instanceof LinkNode, "LinkNode"), () => { return this.path; }) : node);
-        checkType(this.expectedType, node.type, () => { return this.path; });
-      }
-    }
-    return __dartAs(node, value => value instanceof FileNode, "FileNode");
-  }
-  get expectedType() {
-    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-  }
-  existsSync() {
-    (this.fileSystem.opHandle)(this.path, __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))));
-    return __dartEquals((() => { let v = this.backingOrNull; return ((v === null) ? null : v.stat.type); })(), this.expectedType);
-  }
-  async create({ recursive = false, exclusive = false } = {}) {
-    this.createSync({ recursive: recursive, exclusive: exclusive });
-    return this;
-  }
-  createSync({ recursive = false, exclusive = false } = {}) {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    this._doCreate({ recursive: recursive });
-  }
-  _doCreate({ recursive = false } = {}) {
-    let node = this.internalCreateSync({ followTailLink: true, createChild: function(parent, isFinalSegment) {
-      if (isFinalSegment) {
-        {
-          return new FileNode(parent);
-        }
-      } else {
-        if (recursive) {
-          {
-            return new DirectoryNode(parent);
-          }
-        }
-      }
-      return null;
-} });
-    if (!(__dartEquals(((node)?.type ?? null), this.expectedType))) {
-      {
-        (() => { throw isADirectory(this.path); })();
-      }
-    }
-    return node;
-  }
-  async rename(newPath) {
-    return this.renameSync(newPath);
-  }
-  renameSync(newPath) {
-    return __dartAs(this.internalRenameSync(newPath, { followTailLink: true, checkType: (node) => {
-      let actualType = node.stat.type;
-      if (!(__dartEquals(actualType, this.expectedType))) {
-        {
-          (() => { throw (__dartEquals(actualType, __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0))) ? noSuchFileOrDirectory(this.path) : isADirectory(this.path)); })();
-        }
-      }
-} }), value => value instanceof File, "File");
-  }
-  async copy(newPath) {
-    return this.copySync(newPath);
-  }
-  copySync(newPath) {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"5\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 5 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    let sourceNode = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
-    this.fileSystem.findNode(newPath, { segmentVisitor: (parent, childName, child, currentSegment, finalSegment) => {
-      if (__dartEquals(currentSegment, finalSegment)) {
-        {
-          if (!((child === null))) {
-            {
-              if (isLink(child)) {
-                {
-                  let ledger = new Array(0).fill(null);
-                  child = resolveLinks(__dartAs(child, value => value instanceof LinkNode, "LinkNode"), function() { return newPath; }, { ledger: ledger });
-                  checkExists(child, function() { return newPath; });
-                  parent = child.parent;
-                  childName = __dartIndexGet(ledger, ledger.length - 1);
-                }
-              }
-              checkType(this.expectedType, child.type, function() { return newPath; });
-              __dartMapRemove(parent.children, childName);
-            }
-          }
-          let newNode = new FileNode(parent);
-          newNode.copyFrom(sourceNode);
-          __dartMapSet(parent.children, childName, newNode);
-        }
-      }
-      return child;
-} });
-    return this.clone(newPath);
-  }
-  async length() {
-    return this.lengthSync();
-  }
-  lengthSync() {
-    return __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").size;
-  }
-  get absolute() {
-    return __dartAs(super.absolute, value => value instanceof File, "File");
-  }
-  async lastAccessed() {
-    return this.lastAccessedSync();
-  }
-  lastAccessedSync() {
-    return __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").stat.accessed;
-  }
-  async setLastAccessed(time) {
-    return this.setLastAccessedSync(time);
-  }
-  setLastAccessedSync(time) {
-    let node = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
-    node.accessed = time.millisecondsSinceEpoch;
-  }
-  async lastModified() {
-    return this.lastModifiedSync();
-  }
-  lastModifiedSync() {
-    return __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").stat.modified;
-  }
-  async setLastModified(time) {
-    return this.setLastModifiedSync(time);
-  }
-  setLastModifiedSync(time) {
-    let node = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
-    node.modified = time.millisecondsSinceEpoch;
-  }
-  async open({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)) } = {}) {
-    return this.openSync({ mode: mode });
-  }
-  openSync({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"0\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)) } = {}) {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    if ((isWriteMode(mode) && !(this.existsSync()))) {
-      {
-        this.createSync();
-      }
-    }
-    return new MemoryRandomAccessFile(this.path, __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode"), mode);
-  }
-  openRead(start = null, end = null) {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    try {
-      {
-        let node = __dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode");
-        let content = node.content;
-        if (!((start === null))) {
-          {
-            content = ((end === null) ? content.slice(start) : content.slice(start, Math.min(end, content.length)));
-          }
-        }
-        return __dartStreamFromIterable([content]);
-      }
-    } catch ($error) {
-      if ($error != null) {
-        const e = $error;
-        {
-          return __dartStreamError(e);
-        }
-      } else {
-        throw $error;
-      }
-    }
-  }
-  openWrite({ mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    if (!(isWriteMode(mode))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", mode); })();
-      }
-    }
-    return _FileSink.fromFile(this, mode, encoding);
-  }
-  async readAsBytes() {
-    return this.readAsBytesSync();
-  }
-  readAsBytesSync() {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"0\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 0 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    return Uint8Array.from(__dartAs(this.resolvedBacking, value => value instanceof FileNode, "FileNode").content);
-  }
-  async readAsString({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.readAsStringSync({ encoding: encoding });
-  }
-  readAsStringSync({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    try {
-      {
-        return encoding.decode(this.readAsBytesSync());
-      }
-    } catch ($error) {
-      if (__dartIsCoreError($error, "FormatException")) {
-        const err = $error;
-        {
-          (() => { throw __dartIoFileSystemException(err.message, this.path, null); })();
-        }
-      } else {
-        throw $error;
-      }
-    }
-  }
-  async readAsLines({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    return this.readAsLinesSync({ encoding: encoding });
-  }
-  readAsLinesSync({ encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)) } = {}) {
-    let str = this.readAsStringSync({ encoding: encoding });
-    if (str.length === 0) {
-      {
-        return new Array(0).fill(null);
-      }
-    }
-    const lines = str.split("\n");
-    if (str.endsWith("\n")) {
-      {
-        lines.pop();
-      }
-    }
-    return lines;
-  }
-  async writeAsBytes(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
-    this.writeAsBytesSync(bytes, { mode: mode, flush: flush });
-    return this;
-  }
-  writeAsBytesSync(bytes, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), flush = false } = {}) {
-    if (!(isWriteMode(mode))) {
-      {
-        (() => { throw badFileDescriptor(this.path); })();
-      }
-    }
-    let node = this._resolvedBackingOrCreate;
-    this._truncateIfNecessary(node, mode);
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"1\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 1 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    node.write(bytes);
-    node.touch();
-  }
-  async writeAsString(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
-    this.writeAsStringSync(contents, { mode: mode, encoding: encoding, flush: flush });
-    return this;
-  }
-  writeAsStringSync(contents, { mode = __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0)), encoding = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)), flush = false } = {}) {
-    return this.writeAsBytesSync(encoding.encode(contents), { mode: mode, flush: flush });
-  }
-  clone(path) {
-    return new MemoryFile(this.fileSystem, path);
-  }
-  _truncateIfNecessary(node, mode) {
-    if ((__dartEquals(mode, __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0))) || __dartEquals(mode, __dartConst("[\"instance\",\"dart:io::FileMode\",[\"field\",\"dart:io::FileMode::@fields::dart:io::_mode\",[\"int\",\"3\"]]]", () => __dartIoEnum("FileMode", "FileMode", 0))))) {
-      {
-        node.clear();
-      }
-    }
-  }
-  toString() {
-    return "MemoryFile: '" + __dartStr(this.path) + "'";
-  }
-}
-
-class _FileSink {
-  constructor() {
-    throw new TypeError("Class _FileSink has no unnamed constructor");
-  }
-  static _(node, encoding) {
-    return $_FileSink__(_FileSink, node, encoding);
-  }
-  static fromFile(file, mode, encoding) {
-    const node = __dartLazyField("node", null, true, null);
-    let deferredException = null;
-    try {
-      {
-        node.set(file._resolvedBackingOrCreate);
-      }
-    } catch ($error) {
-      if (__dartIsCoreError($error, "Exception")) {
-        const e = $error;
-        {
-          deferredException = e;
-        }
-      } else {
-        throw $error;
-      }
-    }
-    let future = Promise.resolve().then(() => (function() {
-      if (!((deferredException === null))) {
-        {
-          (() => { throw deferredException; })();
-        }
-      }
-      file._truncateIfNecessary(node.get(), mode);
-      return node.get();
-})());
-    return _FileSink._(future, encoding);
-  }
-  get isStreaming() {
-    return !(((this._streamCompleter)?.isCompleted ?? true));
-  }
-  add(data) {
-    this._checkNotStreaming();
-    if (this._isClosed) {
-      {
-        (() => { throw __dartCoreError("StateError", "StreamSink is closed"); })();
-      }
-    }
-    this._addData(data);
-  }
-  write(obj) {
-    return this.add(this.encoding.encode(((obj)?.toString() ?? "null")));
-  }
-  writeAll(objects, separator_1 = "") {
-    let firstIter = true;
-    {
-      let _sync_for_iterator = __dartIterator(objects);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let obj = _sync_for_iterator.current;
-          {
-            if (!(firstIter)) {
-              {
-                this.write(separator_1);
-              }
-            }
-            firstIter = false;
-            this.write(obj);
-          }
-        }
-      }
-    }
-  }
-  writeln(obj = "") {
-    this.write(obj);
-    this.write("\n");
-  }
-  writeCharCode(charCode) {
-    return this.write(String.fromCodePoint(charCode));
-  }
-  addError(error, stackTrace = null) {
-    this._checkNotStreaming();
-    this._completer.completeError(error, stackTrace);
-  }
-  addStream(stream) {
-    this._checkNotStreaming();
-    this._streamCompleter = __dartCompleter();
-    __dartStreamListen(stream, (data) => { return this._addData(data); }, (error, stackTrace) => {
-      __dartNullCheck(this._streamCompleter).completeError(error, stackTrace);
-      this._streamCompleter = null;
-}, () => {
-      __dartNullCheck(this._streamCompleter).complete();
-      this._streamCompleter = null;
-}, true);
-    return __dartNullCheck(this._streamCompleter).future;
-  }
-  flush() {
-    this._checkNotStreaming();
-    return this._pendingWrites;
-  }
-  close() {
-    this._checkNotStreaming();
-    if (!(this._isClosed)) {
-      {
-        this._isClosed = true;
-        this._pendingWrites.then((_) => { return this._completer.complete(); }, (error, stackTrace) => { return this._completer.completeError(error, stackTrace); });
-      }
-    }
-    return this._completer.future;
-  }
-  get done() {
-    return this._completer.future;
-  }
-  _addData(data) {
-    this._pendingWrites = this._pendingWrites.then(function(node) {
-      node.write(data);
-      return node;
-});
-  }
-  _checkNotStreaming() {
-    if (this.isStreaming) {
-      {
-        (() => { throw __dartCoreError("StateError", "StreamSink is bound to a stream"); })();
-      }
-    }
-  }
-}
-
-function $_FileSink__($newTarget, node, encoding) {
-  const $self = Object.create($newTarget.prototype);
-  $self._completer = __dartCompleter();
-  $self._streamCompleter = null;
-  $self._isClosed = false;
-  $self.encoding = encoding;
-  $self._pendingWrites = node;
-  return $self;
-}
-
-class MemoryLink extends MemoryFileSystemEntity {
-  constructor(fileSystem, path) {
-    super(fileSystem, path);
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-    Object.defineProperty(this, $Link_interface, { value: true });
-  }
-  get expectedType() {
-    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"2\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-  }
-  existsSync() {
-    (this.fileSystem.opHandle)(this.path, __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))));
-    return __dartEquals(((this.backingOrNull)?.type ?? null), this.expectedType);
-  }
-  async rename(newPath) {
-    return this.renameSync(newPath);
-  }
-  renameSync(newPath) {
-    return __dartAs(this.internalRenameSync(newPath, { checkType: (node) => {
-      if (!(__dartEquals(node.type, this.expectedType))) {
-        {
-          (() => { throw (__dartEquals(node.type, __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0))) ? isADirectory(newPath) : invalidArgument(newPath)); })();
-        }
-      }
-} }), value => value instanceof Link, "Link");
-  }
-  async create(target, { recursive = false } = {}) {
-    this.createSync(target, { recursive: recursive });
-    return this;
-  }
-  createSync(target, { recursive = false } = {}) {
-    let preexisting = true;
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    this.internalCreateSync({ createChild: function(parent, isFinalSegment) {
-      if (isFinalSegment) {
-        {
-          preexisting = false;
-          return new LinkNode(parent, target);
-        }
-      } else {
-        if (recursive) {
-          {
-            return new DirectoryNode(parent);
-          }
-        }
-      }
-      return null;
-} });
-    if (preexisting) {
-      {
-        (() => { throw fileExists(this.path); })();
-      }
-    }
-  }
-  async update(target) {
-    this.updateSync(target);
-    return this;
-  }
-  updateSync(target) {
-    let node = this.backing;
-    checkType(this.expectedType, node.type, () => { return this.path; });
-    __dartAs(node, value => value instanceof LinkNode, "LinkNode").target = target;
-  }
-  deleteSync({ recursive = false } = {}) {
-    return this.internalDeleteSync({ recursive: recursive, checkType: (node) => { return checkType(this.expectedType, node.type, () => { return this.path; }); } });
-  }
-  async target() {
-    return this.targetSync();
-  }
-  targetSync() {
-    let node = this.backing;
-    if (!(__dartEquals(node.type, this.expectedType))) {
-      {
-        (() => { throw noSuchFileOrDirectory(this.path); })();
-      }
-    }
-    return __dartAs(node, value => value instanceof LinkNode, "LinkNode").target;
-  }
-  get absolute() {
-    return __dartAs(super.absolute, value => value instanceof Link, "Link");
-  }
-  clone(path) {
-    return new MemoryLink(this.fileSystem, path);
-  }
-  toString() {
-    return "MemoryLink: '" + __dartStr(this.path) + "'";
-  }
-}
-
-class _MemoryDirectory_MemoryFileSystemEntity_DirectoryAddOnsMixin extends MemoryFileSystemEntity {
-  constructor(fileSystem, path) {
-    super(fileSystem, path);
-    Object.defineProperty(this, $Directory_interface, { value: true });
-    Object.defineProperty(this, $DirectoryAddOnsMixin_interface, { value: true });
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-  }
-  rename(newPath) {
-    throw new TypeError("Abstract member _MemoryDirectory&MemoryFileSystemEntity&DirectoryAddOnsMixin.rename");
-  }
-  renameSync(newPath) {
-    throw new TypeError("Abstract member _MemoryDirectory&MemoryFileSystemEntity&DirectoryAddOnsMixin.renameSync");
-  }
-  get absolute() {
-    throw new TypeError("Abstract member _MemoryDirectory&MemoryFileSystemEntity&DirectoryAddOnsMixin.absolute");
-  }
-  set absolute(value) {
-    Object.defineProperty(this, "absolute", { value, writable: true, configurable: true, enumerable: true });
-  }
-  childDirectory(basename_1) {
-    return this.fileSystem.directory(this.fileSystem.path.join(this.path, basename_1));
-  }
-  childFile(basename_1) {
-    return this.fileSystem.file(this.fileSystem.path.join(this.path, basename_1));
-  }
-  childLink(basename_1) {
-    return this.fileSystem.link(this.fileSystem.path.join(this.path, basename_1));
-  }
-}
-
-class MemoryDirectory extends _MemoryDirectory_MemoryFileSystemEntity_DirectoryAddOnsMixin {
-  constructor(fileSystem, path) {
-    super(fileSystem, path);
-    Object.defineProperty(this, $Directory_interface, { value: true });
-    Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
-  }
-  get expectedType() {
-    return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"1\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-  }
-  get uri() {
-    return __dartUriFile(this.path, __dartEquals(this.fileSystem.style, __dartConst("[\"instance\",\"class:_Windows\"]", () => Object.freeze(Object.create(_Windows.prototype)))), true);
-  }
-  existsSync() {
-    (this.fileSystem.opHandle)(this.path, __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))));
-    return __dartEquals((() => { let v = this.backingOrNull; return ((v === null) ? null : v.stat.type); })(), this.expectedType);
-  }
-  async create({ recursive = false } = {}) {
-    this.createSync({ recursive: recursive });
-    return this;
-  }
-  createSync({ recursive = false } = {}) {
-    (() => { let v = this.fileSystem; return (() => { let v_1 = this.path; return (() => { let v_2 = __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))); return (v.opHandle)(v_1, v_2); })(); })(); })();
-    let node = this.internalCreateSync({ followTailLink: true, visitLinks: true, createChild: function(parent, isFinalSegment) {
-      if ((recursive || isFinalSegment)) {
-        {
-          return new DirectoryNode(parent);
-        }
-      }
-      return null;
-} });
-    if (!(__dartEquals(((node)?.type ?? null), this.expectedType))) {
-      {
-        (() => { throw notADirectory(this.path); })();
-      }
-    }
-  }
-  async createTemp(prefix = null) {
-    return this.createTempSync(prefix);
-  }
-  createTempSync(prefix = null) {
-    prefix = __dartStr((prefix ?? "")) + "rand";
-    let fullPath = this.fileSystem.path.join(this.path, prefix);
-    let dirname_1 = this.fileSystem.path.dirname(fullPath);
-    let basename_1 = this.fileSystem.path.basename(fullPath);
-    let node = __dartAs(this.fileSystem.findNode(dirname_1), value => (value === null || value instanceof DirectoryNode), "DirectoryNode?");
-    checkExists(node, function() { return dirname_1; });
-    checkIsDir(__dartNullCheck(node), function() { return dirname_1; });
-    let tempCounter = (_systemTempCounter.get(this.fileSystem) ?? 0);
-    function name() {
-      return __dartStr(basename_1) + __dartStr(tempCounter);
-    }
-    while (__dartMapContainsKey(node.children, name())) {
-      {
-        tempCounter = (tempCounter + 1);
-      }
-    }
-    _systemTempCounter.set(this.fileSystem, tempCounter);
-    let tempDir = new DirectoryNode(node);
-    __dartMapSet(node.children, name(), tempDir);
-    return (() => { let v = new MemoryDirectory(this.fileSystem, this.fileSystem.path.join(dirname_1, name())); return (() => {
-      v.createSync();
-      return v;
-    })(); })();
-  }
-  async rename(newPath) {
-    return this.renameSync(newPath);
-  }
-  renameSync(newPath) {
-    return __dartAs(this.internalRenameSync(newPath, { validateOverwriteExistingEntity: function(existingNode) {
-      if (existingNode.children.size !== 0) {
-        {
-          (() => { throw directoryNotEmpty(newPath); })();
-        }
-      }
-} }), value => value instanceof Directory, "Directory");
-  }
-  get parent() {
-    return (((this.backingOrNull)?.isRoot ?? false) ? this : super.parent);
-  }
-  get absolute() {
-    return __dartAs(super.absolute, value => value instanceof Directory, "Directory");
-  }
-  list({ recursive = false, followLinks = true } = {}) {
-    return __dartStreamFromIterable(this.listSync({ recursive: recursive, followLinks: followLinks }));
-  }
-  listSync({ recursive = false, followLinks = true } = {}) {
-    let node = __dartAs(this.backing, value => value instanceof DirectoryNode, "DirectoryNode");
-    let listing = new Array(0).fill(null);
-    let tasks = [new _PendingListTask(node, (this.path.endsWith(this.fileSystem.path.separator) ? this.path.substring(0, (this.path.length - 1)) : this.path), (() => {
-      const v = new Set();
-      return v;
-    })())];
-    while (tasks.length !== 0) {
-      {
-        let task = tasks.pop();
-        __dartMapForEach(task.dir.children, (name, child) => {
-          let breadcrumbs = __dartSetFrom(task.breadcrumbs);
-          let childPath = this.fileSystem.path.join(task.path, name);
-          while (((followLinks && isLink(child)) && __dartSetAdd(breadcrumbs, __dartAs(child, value => value instanceof LinkNode, "LinkNode")))) {
-            {
-              let referent = child.referentOrNull;
-              if (!((referent === null))) {
-                {
-                  child = referent;
-                }
-              }
-            }
-          }
-          if (isDirectory(child)) {
-            {
-              (listing.push(new MemoryDirectory(this.fileSystem, childPath)), null);
-              if (recursive) {
-                {
-                  (tasks.push(new _PendingListTask(__dartAs(child, value => value instanceof DirectoryNode, "DirectoryNode"), childPath, breadcrumbs)), null);
-                }
-              }
-            }
-          } else {
-            if (isLink(child)) {
-              {
-                (listing.push(new MemoryLink(this.fileSystem, childPath)), null);
-              }
-            } else {
-              if (isFile(child)) {
-                {
-                  (listing.push(new MemoryFile(this.fileSystem, childPath)), null);
-                }
-              }
-            }
-          }
-});
-      }
-    }
-    return listing;
-  }
-  clone(path) {
-    return new MemoryDirectory(this.fileSystem, path);
-  }
-  toString() {
-    return "MemoryDirectory: '" + __dartStr(this.path) + "'";
-  }
-}
-
-class _PendingListTask {
-  constructor(dir, path, breadcrumbs) {
-    this.dir = dir;
-    this.path = path;
-    this.breadcrumbs = breadcrumbs;
-  }
-}
-
-class MemoryFileSystem {
-  constructor({ style: style_1 = __dartConst("[\"instance\",\"class:_Posix\"]", () => Object.freeze(Object.create(_Posix.prototype))), opHandle = _defaultOpHandle } = {}) {
-    if (new.target === MemoryFileSystem) {
-      return new _MemoryFileSystem({ style: style_1, clock: __dartConst("[\"instance\",\"class:_RealtimeClock\"]", () => Object.freeze(Object.create(_RealtimeClock.prototype))), opHandle: opHandle });
-    }
-  }
-  static test({ style: style_1 = __dartConst("[\"instance\",\"class:_Posix\"]", () => Object.freeze(Object.create(_Posix.prototype))), opHandle = _defaultOpHandle } = {}) {
-    return new _MemoryFileSystem({ style: style_1, clock: new _MonotonicTestClock(), opHandle: opHandle });
-  }
-}
-Object.defineProperty(MemoryFileSystem, Symbol.hasInstance, { value(value) { return value != null && value[$MemoryFileSystem_interface] === true; } });
-
-class _MemoryFileSystem extends FileSystem {
-  constructor({ style: style_1 = __dartConst("[\"instance\",\"class:_Posix\"]", () => Object.freeze(Object.create(_Posix.prototype))), clock, opHandle = _defaultOpHandle } = {}) {
-    super();
-    this._root = null;
-    this._systemTemp = null;
-    this.style = style_1;
-    this.clock = clock;
-    this.opHandle = opHandle;
-    this._context = style_1.contextFor(style_1.root);
-    Object.defineProperty(this, $FileSystem_interface, { value: true });
-    Object.defineProperty(this, $MemoryFileSystem_interface, { value: true });
-    Object.defineProperty(this, $NodeBasedFileSystem_interface, { value: true });
-    Object.defineProperty(this, $StyleableFileSystem_interface, { value: true });
-    this._root = new RootNode(this);
-  }
-  get root() {
-    return this._root;
-  }
-  get cwd() {
-    return this._context.current;
-  }
-  directory(path) {
-    return new MemoryDirectory(this, this.getPath(path));
-  }
-  file(path) {
-    return new MemoryFile(this, this.getPath(path));
-  }
-  link(path) {
-    return new MemoryLink(this, this.getPath(path));
-  }
-  get path() {
-    return this._context;
-  }
-  get systemTempDirectory() {
-    ((this._systemTemp === null) ? this._systemTemp = this.directory(this.style.root).createTempSync(".tmp_").path : null);
-    return (() => { let v = this.directory(this._systemTemp); return (() => {
-      v.createSync();
-      return v;
-    })(); })();
-  }
-  get currentDirectory() {
-    return this.directory(this.cwd);
-  }
-  set currentDirectory(path) {
-    let value = null;
-    if (path != null && typeof path === "object" && typeof path.path === "string") {
-      {
-        value = path.path;
-      }
-    } else {
-      if (typeof path === "string") {
-        {
-          value = path;
-        }
-      } else {
-        {
-          (() => { throw __dartCoreError("ArgumentError", "Invalid type for \"path\": " + __dartStr(((path)?.runtimeType ?? null))); })();
-        }
-      }
-    }
-    value = this.directory(value).resolveSymbolicLinksSync();
-    let node = this.findNode(value);
-    checkExists(node, function() { return value; });
-    checkIsDir(__dartNullCheck(node), function() { return value; });
-    this._context = this.style.contextFor(value);
-  }
-  async stat(path) {
-    return this.statSync(path);
-  }
-  statSync(path) {
-    try {
-      {
-        return ((this.findNode(path))?.stat ?? MemoryFileStat.notFound);
-      }
-    } catch ($error) {
-      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
-        {
-          return MemoryFileStat.notFound;
-        }
-      } else {
-        throw $error;
-      }
-    }
-  }
-  async identical(path1, path2) {
-    return this.identicalSync(path1, path2);
-  }
-  identicalSync(path1, path2) {
-    let node1 = this.findNode(path1);
-    checkExists(node1, function() { return path1; });
-    let node2 = this.findNode(path2);
-    checkExists(node2, function() { return path2; });
-    return (!((node1 === null)) && __dartEquals(node1, node2));
-  }
-  get isWatchSupported() {
-    return false;
-  }
-  async type(path, { followLinks = true } = {}) {
-    return this.typeSync(path, { followLinks: followLinks });
-  }
-  typeSync(path, { followLinks = true } = {}) {
-    let node = null;
-    try {
-      {
-        node = this.findNode(path, { followTailLink: followLinks });
-      }
-    } catch ($error) {
-      if ($error instanceof Error || ($error != null && typeof $error === "object" && "message" in $error)) {
-        {
-          node = null;
-        }
-      } else {
-        throw $error;
-      }
-    }
-    if ((node === null)) {
-      {
-        return __dartConst("[\"instance\",\"dart:io::FileSystemEntityType\",[\"field\",\"dart:io::FileSystemEntityType::@fields::dart:io::_type\",[\"int\",\"5\"]]]", () => __dartIoEnum("FileSystemEntityType", "FileSystemEntityType", 0));
-      }
-    }
-    return node.type;
-  }
-  get _current() {
-    return __dartAs(this.findNode(this.cwd), value => (value === null || value instanceof DirectoryNode), "DirectoryNode?");
-  }
-  findNode(path, { reference = null, segmentVisitor = null, visitLinks = false, pathWithSymlinks = null, followTailLink = false } = {}) {
-    if (path.length === 0) {
-      {
-        return null;
-      }
-    } else {
-      if (this._context.isAbsolute(path)) {
-        {
-          reference = this._root;
-          path = path.substring(this.style.drive.length);
-        }
-      } else {
-        {
-          ((reference === null) ? reference = this._current : null);
-        }
-      }
-    }
-    let parts = (() => { let v = __dartStringSplit(path, this.style.separator); return (() => {
-      __dartListRemoveWhere(v, isEmpty);
-      return v;
-    })(); })();
-    let directory = ((reference)?.directory ?? null);
-    let child = directory;
-    let finalSegment = (parts.length - 1);
-    for (let i = 0; (i <= finalSegment); i = (i + 1)) {
-      {
-        let basename_1 = __dartIndexGet(parts, i);
-        L:
-        switch (basename_1) {
-          case ".":
-            {
-              child = directory;
-              break L;
-            }
-          case "..":
-            {
-              child = ((directory)?.parent ?? null);
-              directory = ((directory)?.parent ?? null);
-              break L;
-            }
-          default:
-            {
-              child = (() => { let v_1 = directory; return ((v_1 === null) ? null : __dartMapGet(v_1.children, basename_1)); })();
-            }
-        }
-        if (!((pathWithSymlinks === null))) {
-          {
-            (pathWithSymlinks.push(basename_1), null);
-          }
-        }
-        const subpath = () => {
-          return __dartIterableJoin(parts.slice(0, (i + 1)), this._context.separator);
-        };
-        if ((isLink(child) && ((i < finalSegment) || followTailLink))) {
-          {
-            if ((visitLinks || (segmentVisitor === null))) {
-              {
-                if (!((segmentVisitor === null))) {
-                  {
-                    child = (segmentVisitor)(__dartNullCheck(directory), basename_1, child, i, finalSegment);
-                  }
-                }
-                child = resolveLinks(__dartAs(child, value => value instanceof LinkNode, "LinkNode"), subpath, { ledger: pathWithSymlinks });
-              }
-            } else {
-              {
-                child = resolveLinks(__dartAs(child, value => value instanceof LinkNode, "LinkNode"), subpath, { ledger: pathWithSymlinks, tailVisitor: function(parent, childName, child) { return (segmentVisitor)(parent, childName, child, i, finalSegment); } });
-              }
-            }
-          }
-        } else {
-          if (!((segmentVisitor === null))) {
-            {
-              child = (segmentVisitor)(__dartNullCheck(directory), basename_1, child, i, finalSegment);
-            }
-          }
-        }
-        if ((i < finalSegment)) {
-          {
-            checkExists(child, subpath);
-            checkIsDir(__dartNullCheck(child), subpath);
-            directory = __dartAs(child, value => value instanceof DirectoryNode, "DirectoryNode");
-          }
-        }
-      }
-    }
-    return child;
-  }
-}
-
 class Range {
   constructor(min_1, max_1) {
     this.min = min_1;
@@ -15265,18 +7068,18 @@ class _ListTreeNode {
           {
             let entity = _sync_for_iterator.current;
             {
-              let basename_1 = relative(entity.path, { from: dir });
-              if (this._matches(basename_1)) {
+              let basename = relative(entity.path, { from: dir });
+              if (this._matches(basename)) {
                 resultController.add(entity);
               }
               __dartMapForEach(__dartNullCheck(this.children), function(sequence, child) {
                 if (!(entity instanceof Directory)) {
                   return;
                 }
-                if (!(sequence.matches(basename_1))) {
+                if (!(sequence.matches(basename))) {
                   return;
                 }
-                let stream = child.list(join(dir, basename_1), fileSystem, { followLinks: followLinks });
+                let stream = child.list(join(dir, basename), fileSystem, { followLinks: followLinks });
                 resultGroup.add(stream);
 });
             }
@@ -15367,14 +7170,14 @@ class _ListTreeNode {
     this._validateIntermediateChildrenSync(dir, entities, fileSystem);
     return Array.from(entities).flatMap((value) => Array.from(((entity) => {
       let entities = new Array(0).fill(null);
-      let basename_1 = relative(entity.path, { from: dir });
-      if (this._matches(basename_1)) {
+      let basename = relative(entity.path, { from: dir });
+      if (this._matches(basename)) {
         (entities.push(entity), null);
       }
       if (!(entity instanceof Directory)) {
         return entities;
       }
-      (entities.push(...Array.from(Array.from(Array.from(Array.from(__dartNullCheck(this.children).keys())).filter(function(sequence) { return sequence.matches(basename_1); })).flatMap((value) => Array.from(((sequence) => { return Array.from(__dartNullCheck(__dartMapGet(__dartNullCheck(this.children), sequence)).listSync(join(dir, basename_1), fileSystem, { followLinks: followLinks })); })(value))))), null);
+      (entities.push(...Array.from(Array.from(Array.from(Array.from(__dartNullCheck(this.children).keys())).filter(function(sequence) { return sequence.matches(basename); })).flatMap((value) => Array.from(((sequence) => { return Array.from(__dartNullCheck(__dartMapGet(__dartNullCheck(this.children), sequence)).listSync(join(dir, basename), fileSystem, { followLinks: followLinks })); })(value))))), null);
       return entities;
 })(value)));
   }
@@ -15406,6 +7209,274 @@ function $_ListTreeNode_recursive($newTarget, validator) {
   const $self = Object.create($newTarget.prototype);
   $self.children = null;
   $self._validator = new OptionsNode([validator], { caseSensitive: validator.caseSensitive });
+  return $self;
+}
+
+class Parser {
+  constructor(component, _context, { caseSensitive = true } = {}) {
+    this._context = _context;
+    this._scanner = new StringScanner(component);
+    this._caseSensitive = caseSensitive;
+  }
+  parse() {
+    return this._parseSequence();
+  }
+  _parseSequence({ inOptions = false } = {}) {
+    let nodes = new Array(0).fill(null);
+    if (this._scanner.isDone) {
+      {
+        this._scanner.error("expected a glob.", { position: 0, length: 0 });
+      }
+    }
+    L:
+    while (!(this._scanner.isDone)) {
+      {
+        if ((inOptions && (this._scanner.matches(",") || this._scanner.matches("}")))) {
+          break L;
+        }
+        (nodes.push(this._parseNode({ inOptions: inOptions })), null);
+      }
+    }
+    return new SequenceNode(nodes, { caseSensitive: this._caseSensitive });
+  }
+  _parseNode({ inOptions = false } = {}) {
+    let star = this._parseStar();
+    if (!((star === null))) {
+      return star;
+    }
+    let anyChar = this._parseAnyChar();
+    if (!((anyChar === null))) {
+      return anyChar;
+    }
+    let range = this._parseRange();
+    if (!((range === null))) {
+      return range;
+    }
+    let options = this._parseOptions();
+    if (!((options === null))) {
+      return options;
+    }
+    return this._parseLiteral({ inOptions: inOptions });
+  }
+  _parseStar() {
+    if (!(this._scanner.scan("*"))) {
+      return null;
+    }
+    return (this._scanner.scan("*") ? new DoubleStarNode(this._context, { caseSensitive: this._caseSensitive }) : new StarNode({ caseSensitive: this._caseSensitive }));
+  }
+  _parseAnyChar() {
+    if (!(this._scanner.scan("?"))) {
+      return null;
+    }
+    return new AnyCharNode({ caseSensitive: this._caseSensitive });
+  }
+  _parseRange() {
+    if (!(this._scanner.scan("["))) {
+      return null;
+    }
+    if (this._scanner.matches("]")) {
+      this._scanner.error("unexpected \"]\".");
+    }
+    let negated = (this._scanner.scan("!") || this._scanner.scan("^"));
+    const readRangeChar = () => {
+      let char = this._scanner.readChar();
+      if ((negated || !(__dartEquals(char, 47)))) {
+        return char;
+      }
+      this._scanner.error("\"/\" may not be used in a range.", { position: (this._scanner.position - 1) });
+    };
+    let ranges = new Array(0).fill(null);
+    while (!(this._scanner.scan("]"))) {
+      L:
+      {
+        let start = this._scanner.position;
+        this._scanner.scan("\\");
+        let char = readRangeChar();
+        if (this._scanner.scan("-")) {
+          {
+            if (this._scanner.matches("]")) {
+              {
+                (ranges.push(Range.singleton(char)), null);
+                (ranges.push(Range.singleton(45)), null);
+                break L;
+              }
+            }
+            this._scanner.scan("\\");
+            let end = readRangeChar();
+            if ((end < char)) {
+              {
+                this._scanner.error("Range out of order.", { position: start, length: (this._scanner.position - start) });
+              }
+            }
+            (ranges.push(new Range(char, end)), null);
+          }
+        } else {
+          {
+            (ranges.push(Range.singleton(char)), null);
+          }
+        }
+      }
+    }
+    return new RangeNode(ranges, { negated: negated, caseSensitive: this._caseSensitive });
+  }
+  _parseOptions() {
+    if (!(this._scanner.scan("{"))) {
+      return null;
+    }
+    if (this._scanner.matches("}")) {
+      this._scanner.error("unexpected \"}\".");
+    }
+    let options = new Array(0).fill(null);
+    do {
+      {
+        (options.push(this._parseSequence({ inOptions: true })), null);
+      }
+    } while (this._scanner.scan(","));
+    if (__dartEquals(options.length, 1)) {
+      this._scanner.expect(",");
+    }
+    this._scanner.expect("}");
+    return new OptionsNode(options, { caseSensitive: this._caseSensitive });
+  }
+  _parseLiteral({ inOptions = false } = {}) {
+    let regExp = __dartRegExp((inOptions ? "[^*{[?\\\\}\\],()]*" : "[^*{[?\\\\}\\]()]*"), { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+    this._scanner.scan(regExp);
+    let buffer = (() => { let v = __dartStringBuffer(""); return (() => {
+      v.write(__dartNullCheck(this._scanner.lastMatch)[0]);
+      return v;
+    })(); })();
+    while (this._scanner.scan("\\")) {
+      {
+        buffer.writeCharCode(this._scanner.readChar());
+        this._scanner.scan(regExp);
+        buffer.write(__dartNullCheck(this._scanner.lastMatch)[0]);
+      }
+    }
+    {
+      let _sync_for_iterator = __dartIterator(__dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"]\"],[\"string\",\"(\"],[\"string\",\")\"]]", () => Object.freeze(["]", "(", ")"])));
+      for (; _sync_for_iterator.moveNext(); ) {
+        {
+          let char = _sync_for_iterator.current;
+          {
+            if (this._scanner.matches(char)) {
+              this._scanner.error("unexpected \"" + __dartStr(char) + "\"");
+            }
+          }
+        }
+      }
+    }
+    if ((!(inOptions) && this._scanner.matches("}"))) {
+      this._scanner.error("unexpected \"}\"");
+    }
+    return new LiteralNode(__dartStr(buffer), { context: this._context, caseSensitive: this._caseSensitive });
+  }
+}
+
+class Glob {
+  static _(pattern, context_1, _ast, recursive) {
+    return $Glob__(Glob, pattern, context_1, _ast, recursive);
+  }
+  get caseSensitive() {
+    return this._ast.caseSensitive;
+  }
+  get _contextIsAbsolute() {
+    return (this._contextIsAbsoluteCache ?? (this._contextIsAbsoluteCache = this.context.isAbsolute(this.context.current)));
+  }
+  get _patternCanMatchAbsolute() {
+    return (this._patternCanMatchAbsoluteCache ?? (this._patternCanMatchAbsoluteCache = this._ast.canMatchAbsolute));
+  }
+  get _patternCanMatchRelative() {
+    return (this._patternCanMatchRelativeCache ?? (this._patternCanMatchRelativeCache = this._ast.canMatchRelative));
+  }
+  static quote(contents) {
+    return __dartStringReplaceAllMapped(contents, _quoteRegExp, function(match) { return "\\" + __dartStr(match[0]); });
+  }
+  constructor(pattern, { context: context_1 = null, recursive = false, caseSensitive = null } = {}) {
+    ((context_1 === null) ? context_1 = context : null);
+    ((caseSensitive === null) ? caseSensitive = (__dartEquals(context_1.style, Style.windows) ? false : true) : null);
+    if (recursive) {
+      pattern = (pattern + "{,/**}");
+    }
+    let parser = new Parser(pattern, context_1, { caseSensitive: caseSensitive });
+    return Glob._(pattern, context_1, parser.parse(), recursive);
+  }
+  listFileSystem(fileSystem, { root = null, followLinks = true } = {}) {
+    if (!(__dartEquals(this.context.style, style()))) {
+      {
+        (() => { throw __dartCoreError("StateError", "Can't list glob \"" + __dartStr(this) + "\"; it matches " + __dartStr(this.context.style) + " paths, but this platform uses " + __dartStr(style()) + " paths."); })();
+      }
+    }
+    return this._listTreeForFileSystem(fileSystem).list({ root: root, followLinks: followLinks });
+  }
+  listFileSystemSync(fileSystem, { root = null, followLinks = true } = {}) {
+    if (!(__dartEquals(this.context.style, style()))) {
+      {
+        (() => { throw __dartCoreError("StateError", "Can't list glob \"" + __dartStr(this) + "\"; it matches " + __dartStr(this.context.style) + " paths, but this platform uses " + __dartStr(style()) + " paths."); })();
+      }
+    }
+    return this._listTreeForFileSystem(fileSystem).listSync({ root: root, followLinks: followLinks });
+  }
+  matches(path) {
+    return !((this.matchAsPrefix(path) === null));
+  }
+  matchAsPrefix(path, start = 0) {
+    if (!(__dartEquals(start, 0))) {
+      return null;
+    }
+    if ((this._patternCanMatchAbsolute && (this._contextIsAbsolute || this.context.isAbsolute(path)))) {
+      {
+        let absolutePath = this.context.normalize(this.context.absolute(path));
+        if (this._ast.matches(toPosixPath(this.context, absolutePath))) {
+          {
+            return new GlobMatch(path, this);
+          }
+        }
+      }
+    }
+    if (this._patternCanMatchRelative) {
+      {
+        let relativePath = this.context.relative(path);
+        if (this._ast.matches(toPosixPath(this.context, relativePath))) {
+          {
+            return new GlobMatch(path, this);
+          }
+        }
+      }
+    }
+    return null;
+  }
+  allMatches(path, start = 0) {
+    let match = this.matchAsPrefix(path, start);
+    return ((match === null) ? new Array(0).fill(null) : [match]);
+  }
+  toString() {
+    return this.pattern;
+  }
+  _listTreeForFileSystem(fileSystem) {
+    if (fileSystem instanceof MemoryFileSystem) {
+      return new ListTree(this._ast, fileSystem);
+    }
+    if (!(__dartEquals(fileSystem, this._previousFileSystem))) {
+      {
+        this._listTree = null;
+        this._previousFileSystem = fileSystem;
+      }
+    }
+    return (this._listTree ?? (this._listTree = new ListTree(this._ast, fileSystem)));
+  }
+}
+
+function $Glob__($newTarget, pattern, context_1, _ast, recursive) {
+  const $self = Object.create($newTarget.prototype);
+  $self._listTree = null;
+  $self._previousFileSystem = null;
+  $self._contextIsAbsoluteCache = null;
+  $self._patternCanMatchAbsoluteCache = null;
+  $self._patternCanMatchRelativeCache = null;
+  $self.pattern = pattern;
+  $self.context = context_1;
+  $self._ast = _ast;
+  $self.recursive = recursive;
   return $self;
 }
 
@@ -15947,195 +8018,6 @@ class GlyphSet {
   }
 }
 Object.defineProperty(GlyphSet, Symbol.hasInstance, { value(value) { return value != null && value[$GlyphSet_interface] === true; } });
-
-class AsciiGlyphSet {
-  constructor() {
-    Object.defineProperty(this, $GlyphSet_interface, { value: true });
-  }
-  glyphOrAscii(glyph, alternative) {
-    return alternative;
-  }
-  get bullet() {
-    return "*";
-  }
-  get leftArrow() {
-    return "<";
-  }
-  get rightArrow() {
-    return ">";
-  }
-  get upArrow() {
-    return "^";
-  }
-  get downArrow() {
-    return "v";
-  }
-  get longLeftArrow() {
-    return "<=";
-  }
-  get longRightArrow() {
-    return "=>";
-  }
-  get horizontalLine() {
-    return "-";
-  }
-  get verticalLine() {
-    return "|";
-  }
-  get topLeftCorner() {
-    return ",";
-  }
-  get topRightCorner() {
-    return ",";
-  }
-  get bottomLeftCorner() {
-    return "'";
-  }
-  get bottomRightCorner() {
-    return "'";
-  }
-  get cross() {
-    return "+";
-  }
-  get teeUp() {
-    return "+";
-  }
-  get teeDown() {
-    return "+";
-  }
-  get teeLeft() {
-    return "+";
-  }
-  get teeRight() {
-    return "+";
-  }
-  get upEnd() {
-    return "'";
-  }
-  get downEnd() {
-    return ",";
-  }
-  get leftEnd() {
-    return "-";
-  }
-  get rightEnd() {
-    return "-";
-  }
-  get horizontalLineBold() {
-    return "=";
-  }
-  get verticalLineBold() {
-    return "|";
-  }
-  get topLeftCornerBold() {
-    return ",";
-  }
-  get topRightCornerBold() {
-    return ",";
-  }
-  get bottomLeftCornerBold() {
-    return "'";
-  }
-  get bottomRightCornerBold() {
-    return "'";
-  }
-  get crossBold() {
-    return "+";
-  }
-  get teeUpBold() {
-    return "+";
-  }
-  get teeDownBold() {
-    return "+";
-  }
-  get teeLeftBold() {
-    return "+";
-  }
-  get teeRightBold() {
-    return "+";
-  }
-  get upEndBold() {
-    return "'";
-  }
-  get downEndBold() {
-    return ",";
-  }
-  get leftEndBold() {
-    return "-";
-  }
-  get rightEndBold() {
-    return "-";
-  }
-  get horizontalLineDouble() {
-    return "=";
-  }
-  get verticalLineDouble() {
-    return "|";
-  }
-  get topLeftCornerDouble() {
-    return ",";
-  }
-  get topRightCornerDouble() {
-    return ",";
-  }
-  get bottomLeftCornerDouble() {
-    return "\"";
-  }
-  get bottomRightCornerDouble() {
-    return "\"";
-  }
-  get crossDouble() {
-    return "+";
-  }
-  get teeUpDouble() {
-    return "+";
-  }
-  get teeDownDouble() {
-    return "+";
-  }
-  get teeLeftDouble() {
-    return "+";
-  }
-  get teeRightDouble() {
-    return "+";
-  }
-  get horizontalLineDoubleDash() {
-    return "-";
-  }
-  get horizontalLineDoubleDashBold() {
-    return "-";
-  }
-  get verticalLineDoubleDash() {
-    return "|";
-  }
-  get verticalLineDoubleDashBold() {
-    return "|";
-  }
-  get horizontalLineTripleDash() {
-    return "-";
-  }
-  get horizontalLineTripleDashBold() {
-    return "-";
-  }
-  get verticalLineTripleDash() {
-    return "|";
-  }
-  get verticalLineTripleDashBold() {
-    return "|";
-  }
-  get horizontalLineQuadrupleDash() {
-    return "-";
-  }
-  get horizontalLineQuadrupleDashBold() {
-    return "-";
-  }
-  get verticalLineQuadrupleDash() {
-    return "|";
-  }
-  get verticalLineQuadrupleDashBold() {
-    return "|";
-  }
-}
 
 class UnicodeGlyphSet {
   constructor() {
@@ -17031,12 +8913,6 @@ class SourceLocation {
 }
 Object.defineProperty(SourceLocation, Symbol.hasInstance, { value(value) { return value != null && value[$SourceLocation_interface] === true; } });
 
-class SourceLocationBase extends SourceLocation {
-  constructor(offset, { sourceUrl = null, line = null, column = null } = {}) {
-    super(offset, { sourceUrl: sourceUrl, line: line, column: column });
-  }
-}
-
 class SourceLocationMixin {
   constructor() {
     Object.defineProperty(this, $SourceLocation_interface, { value: true });
@@ -17516,46 +9392,6 @@ class SourceSpanFormatException extends SourceSpanException {
   }
 }
 
-class MultiSourceSpanException extends SourceSpanException {
-  constructor(message, span, primaryLabel, secondarySpans) {
-    super(message, span);
-    this.primaryLabel = primaryLabel;
-    this.secondarySpans = __dartConstMap(secondarySpans);
-  }
-  toString({ color = null, secondaryColor = null } = {}) {
-    if ((this.span === null)) {
-      return this.message;
-    }
-    let useColor = false;
-    let primaryColor = null;
-    if (typeof color === "string") {
-      {
-        useColor = true;
-        primaryColor = color;
-      }
-    } else {
-      if (__dartEquals(color, true)) {
-        {
-          useColor = true;
-        }
-      }
-    }
-    const formatted = SourceSpanExtension_messageMultiple(__dartNullCheck(this.span), this.message, this.primaryLabel, this.secondarySpans, { color: useColor, primaryColor: primaryColor, secondaryColor: secondaryColor });
-    return "Error on " + __dartStr(formatted);
-  }
-}
-
-class MultiSourceSpanFormatException extends MultiSourceSpanException {
-  constructor(message, span, primaryLabel, secondarySpans, source = null) {
-    super(message, span, primaryLabel, secondarySpans);
-    Object.defineProperty(this, "__dartCoreErrorType", { value: "FormatException", writable: true, configurable: true });
-    this.source = source;
-  }
-  get offset() {
-    return (() => { let v = this.span; return ((v === null) ? null : v.start.offset); })();
-  }
-}
-
 class StringScanner {
   constructor(string, { sourceUrl = null, position = null } = {}) {
     this._position = 0;
@@ -17754,781 +9590,6 @@ class StringScannerException extends SourceSpanFormatException {
   }
 }
 
-class LineScanner extends StringScanner {
-  constructor(string, { sourceUrl = null, position = null } = {}) {
-    super(string, { sourceUrl: sourceUrl, position: position });
-    this._line = 0;
-    this._column = 0;
-    Object.defineProperty(this, $LineScanner_interface, { value: true });
-  }
-  get line() {
-    return this._line;
-  }
-  get column() {
-    return this._column;
-  }
-  get state() {
-    return LineScannerState._(this, this.position, this.line, this.column);
-  }
-  get _betweenCRLF() {
-    return (__dartEquals(this.peekChar((-1)), 13) && __dartEquals(this.peekChar(), 10));
-  }
-  set state(state) {
-    if (!(Object.is(state._scanner, this))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "The given LineScannerState was not returned by this LineScanner."); })();
-      }
-    }
-    super.position = state.position;
-    this._line = state.line;
-    this._column = state.column;
-  }
-  set position(newPosition) {
-    if (__dartEquals(newPosition, this.position)) {
-      {
-        return;
-      }
-    }
-    const oldPosition = this.position;
-    super.position = newPosition;
-    if (__dartEquals(newPosition, 0)) {
-      {
-        this._line = 0;
-        this._column = 0;
-      }
-    } else {
-      if ((newPosition > oldPosition)) {
-        {
-          const newlines = this._newlinesIn(this.string.substring(oldPosition, newPosition), { endPosition: newPosition });
-          this._line = (this._line + newlines.length);
-          if (newlines.length === 0) {
-            {
-              this._column = (this._column + (newPosition - oldPosition));
-            }
-          } else {
-            {
-              const offsetOfLastNewline = (oldPosition + __dartIndexGet(newlines, newlines.length - 1).end);
-              this._column = (newPosition - offsetOfLastNewline);
-            }
-          }
-        }
-      } else {
-        if ((newPosition < oldPosition)) {
-          {
-            const newlines_1 = this._newlinesIn(this.string.substring(newPosition, oldPosition), { endPosition: oldPosition });
-            this._line = (this._line - newlines_1.length);
-            if (newlines_1.length === 0) {
-              {
-                this._column = (this._column - (oldPosition - newPosition));
-              }
-            } else {
-              {
-                const crOffset = (this._betweenCRLF ? (-1) : 0);
-                const currentCharOffset = -1;
-                const lastNewline = __dartStringLastIndexOf(this.string, _newlineRegExp, ((newPosition + -1) + crOffset));
-                const offsetAfterLastNewline = (__dartEquals(lastNewline, (-1)) ? 0 : ((__dartEquals(this.string[lastNewline], "\r") && __dartEquals(this.string[(lastNewline + 1)], "\n")) ? (lastNewline + 2) : (lastNewline + 1)));
-                this._column = (newPosition - offsetAfterLastNewline);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  scanChar(character) {
-    if (!(super.scanChar(character))) {
-      return false;
-    }
-    this._adjustLineAndColumn(character);
-    return true;
-  }
-  readChar() {
-    const character = super.readChar();
-    this._adjustLineAndColumn(character);
-    return character;
-  }
-  _adjustLineAndColumn(character) {
-    if ((__dartEquals(character, 10) || (__dartEquals(character, 13) && !(__dartEquals(this.peekChar(), 10))))) {
-      {
-        this._line = (this._line + 1);
-        this._column = 0;
-      }
-    } else {
-      {
-        this._column = (this._column + (inSupplementaryPlane(character) ? 2 : 1));
-      }
-    }
-  }
-  scan(pattern) {
-    if (!(super.scan(pattern))) {
-      return false;
-    }
-    const newlines = this._newlinesIn(__dartNullCheck(__dartNullCheck(this.lastMatch)[0]), { endPosition: this.position });
-    this._line = (this._line + newlines.length);
-    if (newlines.length === 0) {
-      {
-        this._column = (this._column + __dartNullCheck(__dartNullCheck(this.lastMatch)[0]).length);
-      }
-    } else {
-      {
-        this._column = (__dartNullCheck(__dartNullCheck(this.lastMatch)[0]).length - __dartIndexGet(newlines, newlines.length - 1).end);
-      }
-    }
-    return true;
-  }
-  _newlinesIn(text, { endPosition } = {}) {
-    const newlines = Array.from(_newlineRegExp.allMatches(text));
-    if ((((endPosition < this.string.length) && text.endsWith("\r")) && __dartEquals(this.string[endPosition], "\n"))) {
-      {
-        newlines.pop();
-      }
-    }
-    return newlines;
-  }
-  get position() { return super.position; }
-}
-Object.defineProperty(LineScanner, Symbol.hasInstance, { value(value) { return value != null && value[$LineScanner_interface] === true; } });
-
-class LineScannerState {
-  constructor() {
-    throw new TypeError("Class LineScannerState has no unnamed constructor");
-  }
-  static _(_scanner, position, line, column) {
-    return $LineScannerState__(LineScannerState, _scanner, position, line, column);
-  }
-}
-Object.defineProperty(LineScannerState, Symbol.hasInstance, { value(value) { return value != null && value[$LineScannerState_interface] === true; } });
-
-function $LineScannerState__($newTarget, _scanner, position, line, column) {
-  const $self = Object.create($newTarget.prototype);
-  Object.defineProperty($self, $LineScannerState_interface, { value: true });
-  $self._scanner = _scanner;
-  $self.position = position;
-  $self.line = line;
-  $self.column = column;
-  return $self;
-}
-
-class SpanScanner extends StringScanner {
-  constructor(string, { sourceUrl = null, position = null } = {}) {
-    super(string, { sourceUrl: sourceUrl, position: position });
-    this._lastSpan = null;
-    this._sourceFile = SourceFile.fromString(string, { url: sourceUrl });
-    Object.defineProperty(this, $LineScanner_interface, { value: true });
-    Object.defineProperty(this, $SpanScanner_interface, { value: true });
-  }
-  get line() {
-    return this._sourceFile.getLine(this.position);
-  }
-  get column() {
-    return this._sourceFile.getColumn(this.position);
-  }
-  get state() {
-    return new _SpanScannerState_1(this, this.position);
-  }
-  set state(state) {
-    if ((!(state instanceof _SpanScannerState_1) || !(Object.is(state._scanner, this)))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "The given LineScannerState was not returned by this LineScanner."); })();
-      }
-    }
-    this.position = state.position;
-  }
-  get lastSpan() {
-    if ((this.lastMatch === null)) {
-      this._lastSpan = null;
-    }
-    return this._lastSpan;
-  }
-  get location() {
-    return this._sourceFile.location(this.position);
-  }
-  get emptySpan() {
-    return this.location.pointSpan();
-  }
-  static eager(string, { sourceUrl = null, position = null } = {}) {
-    return new EagerSpanScanner(string, { sourceUrl: sourceUrl, position: position });
-  }
-  static within(span) {
-    return new RelativeSpanScanner(span);
-  }
-  spanFrom(startState, endState = null) {
-    const endPosition = ((endState === null) ? this.position : endState.position);
-    return this._sourceFile.span(startState.position, endPosition);
-  }
-  spanFromPosition(startPosition, endPosition = null) {
-    return this._sourceFile.span(startPosition, (endPosition ?? this.position));
-  }
-  matches(pattern) {
-    if (!(super.matches(pattern))) {
-      {
-        this._lastSpan = null;
-        return false;
-      }
-    }
-    this._lastSpan = this._sourceFile.span(this.position, __dartNullCheck(this.lastMatch).end);
-    return true;
-  }
-  error(message, { match = null, position = null, length = null } = {}) {
-    validateErrorArgs(this.string, match, position, length);
-    if ((((match === null) && (position === null)) && (length === null))) {
-      match = this.lastMatch;
-    }
-    ((position === null) ? position = ((match === null) ? this.position : match.start) : null);
-    ((length === null) ? length = ((match === null) ? 0 : (match.end - match.start)) : null);
-    const span = this._sourceFile.span(position, (position + length));
-    (() => { throw new StringScannerException(message, span, this.string); })();
-  }
-}
-Object.defineProperty(SpanScanner, Symbol.hasInstance, { value(value) { return value != null && value[$SpanScanner_interface] === true; } });
-
-class EagerSpanScanner extends SpanScanner {
-  constructor(string, { sourceUrl = null, position = null } = {}) {
-    super(string, { sourceUrl: sourceUrl, position: position });
-    this._line = 0;
-    this._column = 0;
-  }
-  get line() {
-    return this._line;
-  }
-  get column() {
-    return this._column;
-  }
-  get state() {
-    return new _EagerSpanScannerState(this, this.position, this.line, this.column);
-  }
-  get _betweenCRLF() {
-    return (__dartEquals(this.peekChar((-1)), 13) && __dartEquals(this.peekChar(), 10));
-  }
-  set state(state) {
-    if ((!(state instanceof _EagerSpanScannerState) || !(Object.is(state._scanner, this)))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "The given LineScannerState was not returned by this LineScanner."); })();
-      }
-    }
-    super.position = state.position;
-    this._line = state.line;
-    this._column = state.column;
-  }
-  set position(newPosition) {
-    const oldPosition = this.position;
-    super.position = newPosition;
-    if ((newPosition > oldPosition)) {
-      {
-        const newlines = this._newlinesIn(this.string.substring(oldPosition, newPosition));
-        this._line = (this._line + newlines.length);
-        if (newlines.length === 0) {
-          {
-            this._column = (this._column + (newPosition - oldPosition));
-          }
-        } else {
-          {
-            this._column = (newPosition - __dartIndexGet(newlines, newlines.length - 1).end);
-          }
-        }
-      }
-    } else {
-      {
-        const newlines_1 = this._newlinesIn(this.string.substring(newPosition, oldPosition));
-        if (this._betweenCRLF) {
-          newlines_1.pop();
-        }
-        this._line = (this._line - newlines_1.length);
-        if (newlines_1.length === 0) {
-          {
-            this._column = (this._column - (oldPosition - newPosition));
-          }
-        } else {
-          {
-            this._column = ((newPosition - __dartStringLastIndexOf(this.string, _newlineRegExp_1, newPosition)) - 1);
-          }
-        }
-      }
-    }
-  }
-  scanChar(character) {
-    if (!(super.scanChar(character))) {
-      return false;
-    }
-    this._adjustLineAndColumn(character);
-    return true;
-  }
-  readChar() {
-    const character = super.readChar();
-    this._adjustLineAndColumn(character);
-    return character;
-  }
-  _adjustLineAndColumn(character) {
-    if ((__dartEquals(character, 10) || (__dartEquals(character, 13) && !(__dartEquals(this.peekChar(), 10))))) {
-      {
-        this._line = (this._line + 1);
-        this._column = 0;
-      }
-    } else {
-      {
-        this._column = (this._column + (inSupplementaryPlane(character) ? 2 : 1));
-      }
-    }
-  }
-  scan(pattern) {
-    if (!(super.scan(pattern))) {
-      return false;
-    }
-    const firstMatch = __dartNullCheck(__dartNullCheck(this.lastMatch)[0]);
-    const newlines = this._newlinesIn(firstMatch);
-    this._line = (this._line + newlines.length);
-    if (newlines.length === 0) {
-      {
-        this._column = (this._column + firstMatch.length);
-      }
-    } else {
-      {
-        this._column = (firstMatch.length - __dartIndexGet(newlines, newlines.length - 1).end);
-      }
-    }
-    return true;
-  }
-  _newlinesIn(text) {
-    const newlines = Array.from(_newlineRegExp_1.allMatches(text));
-    if (this._betweenCRLF) {
-      newlines.pop();
-    }
-    return newlines;
-  }
-  get position() { return super.position; }
-}
-
-class _EagerSpanScannerState {
-  constructor(_scanner, position, line, column) {
-    this._scanner = _scanner;
-    this.position = position;
-    this.line = line;
-    this.column = column;
-    Object.defineProperty(this, $LineScannerState_interface, { value: true });
-  }
-}
-
-class RelativeSpanScanner extends StringScanner {
-  constructor(span) {
-    super(span.text, { sourceUrl: span.sourceUrl });
-    this._lastSpan = null;
-    this._sourceFile = span.file;
-    this._startLocation = span.start;
-    Object.defineProperty(this, $LineScanner_interface, { value: true });
-    Object.defineProperty(this, $SpanScanner_interface, { value: true });
-  }
-  get line() {
-    return (this._sourceFile.getLine((this._startLocation.offset + this.position)) - this._startLocation.line);
-  }
-  get column() {
-    const line = this._sourceFile.getLine((this._startLocation.offset + this.position));
-    const column = this._sourceFile.getColumn((this._startLocation.offset + this.position), { line: line });
-    return (__dartEquals(line, this._startLocation.line) ? (column - this._startLocation.column) : column);
-  }
-  get state() {
-    return new _SpanScannerState(this, this.position);
-  }
-  set state(state) {
-    if ((!(state instanceof _SpanScannerState) || !(Object.is(state._scanner, this)))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "The given LineScannerState was not returned by this LineScanner."); })();
-      }
-    }
-    this.position = state.position;
-  }
-  get lastSpan() {
-    return this._lastSpan;
-  }
-  get location() {
-    return this._sourceFile.location((this._startLocation.offset + this.position));
-  }
-  get emptySpan() {
-    return this.location.pointSpan();
-  }
-  spanFrom(startState, endState = null) {
-    const endPosition = ((endState === null) ? this.position : endState.position);
-    return this._sourceFile.span((this._startLocation.offset + startState.position), (this._startLocation.offset + endPosition));
-  }
-  spanFromPosition(startPosition, endPosition = null) {
-    __dartCheckValidRange(startPosition, endPosition, (this._sourceFile.length - this._startLocation.offset), "startPosition", "endPosition", null);
-    return this._sourceFile.span((this._startLocation.offset + startPosition), (this._startLocation.offset + (endPosition ?? this.position)));
-  }
-  matches(pattern) {
-    if (!(super.matches(pattern))) {
-      {
-        this._lastSpan = null;
-        return false;
-      }
-    }
-    this._lastSpan = this._sourceFile.span((this._startLocation.offset + this.position), (this._startLocation.offset + __dartNullCheck(this.lastMatch).end));
-    return true;
-  }
-  error(message, { match = null, position = null, length = null } = {}) {
-    validateErrorArgs(this.string, match, position, length);
-    if ((((match === null) && (position === null)) && (length === null))) {
-      match = this.lastMatch;
-    }
-    ((position === null) ? position = ((match === null) ? this.position : match.start) : null);
-    ((length === null) ? length = ((match === null) ? 1 : (match.end - match.start)) : null);
-    const span = this._sourceFile.span((this._startLocation.offset + position), ((this._startLocation.offset + position) + length));
-    (() => { throw new StringScannerException(message, span, this.string); })();
-  }
-}
-
-class _SpanScannerState {
-  constructor(_scanner, position) {
-    this._scanner = _scanner;
-    this.position = position;
-    Object.defineProperty(this, $LineScannerState_interface, { value: true });
-  }
-  get line() {
-    return this._scanner._sourceFile.getLine(this.position);
-  }
-  get column() {
-    return this._scanner._sourceFile.getColumn(this.position);
-  }
-}
-
-class _SpanScannerState_1 {
-  constructor(_scanner, position) {
-    this._scanner = _scanner;
-    this.position = position;
-    Object.defineProperty(this, $LineScannerState_interface, { value: true });
-  }
-  get line() {
-    return this._scanner._sourceFile.getLine(this.position);
-  }
-  get column() {
-    return this._scanner._sourceFile.getColumn(this.position);
-  }
-}
-
-class Parser {
-  constructor(component, _context, { caseSensitive = true } = {}) {
-    this._context = _context;
-    this._scanner = new StringScanner(component);
-    this._caseSensitive = caseSensitive;
-  }
-  parse() {
-    return this._parseSequence();
-  }
-  _parseSequence({ inOptions = false } = {}) {
-    let nodes = new Array(0).fill(null);
-    if (this._scanner.isDone) {
-      {
-        this._scanner.error("expected a glob.", { position: 0, length: 0 });
-      }
-    }
-    L:
-    while (!(this._scanner.isDone)) {
-      {
-        if ((inOptions && (this._scanner.matches(",") || this._scanner.matches("}")))) {
-          break L;
-        }
-        (nodes.push(this._parseNode({ inOptions: inOptions })), null);
-      }
-    }
-    return new SequenceNode(nodes, { caseSensitive: this._caseSensitive });
-  }
-  _parseNode({ inOptions = false } = {}) {
-    let star = this._parseStar();
-    if (!((star === null))) {
-      return star;
-    }
-    let anyChar = this._parseAnyChar();
-    if (!((anyChar === null))) {
-      return anyChar;
-    }
-    let range = this._parseRange();
-    if (!((range === null))) {
-      return range;
-    }
-    let options = this._parseOptions();
-    if (!((options === null))) {
-      return options;
-    }
-    return this._parseLiteral({ inOptions: inOptions });
-  }
-  _parseStar() {
-    if (!(this._scanner.scan("*"))) {
-      return null;
-    }
-    return (this._scanner.scan("*") ? new DoubleStarNode(this._context, { caseSensitive: this._caseSensitive }) : new StarNode({ caseSensitive: this._caseSensitive }));
-  }
-  _parseAnyChar() {
-    if (!(this._scanner.scan("?"))) {
-      return null;
-    }
-    return new AnyCharNode({ caseSensitive: this._caseSensitive });
-  }
-  _parseRange() {
-    if (!(this._scanner.scan("["))) {
-      return null;
-    }
-    if (this._scanner.matches("]")) {
-      this._scanner.error("unexpected \"]\".");
-    }
-    let negated = (this._scanner.scan("!") || this._scanner.scan("^"));
-    const readRangeChar = () => {
-      let char = this._scanner.readChar();
-      if ((negated || !(__dartEquals(char, 47)))) {
-        return char;
-      }
-      this._scanner.error("\"/\" may not be used in a range.", { position: (this._scanner.position - 1) });
-    };
-    let ranges = new Array(0).fill(null);
-    while (!(this._scanner.scan("]"))) {
-      L:
-      {
-        let start = this._scanner.position;
-        this._scanner.scan("\\");
-        let char = readRangeChar();
-        if (this._scanner.scan("-")) {
-          {
-            if (this._scanner.matches("]")) {
-              {
-                (ranges.push(Range.singleton(char)), null);
-                (ranges.push(Range.singleton(45)), null);
-                break L;
-              }
-            }
-            this._scanner.scan("\\");
-            let end = readRangeChar();
-            if ((end < char)) {
-              {
-                this._scanner.error("Range out of order.", { position: start, length: (this._scanner.position - start) });
-              }
-            }
-            (ranges.push(new Range(char, end)), null);
-          }
-        } else {
-          {
-            (ranges.push(Range.singleton(char)), null);
-          }
-        }
-      }
-    }
-    return new RangeNode(ranges, { negated: negated, caseSensitive: this._caseSensitive });
-  }
-  _parseOptions() {
-    if (!(this._scanner.scan("{"))) {
-      return null;
-    }
-    if (this._scanner.matches("}")) {
-      this._scanner.error("unexpected \"}\".");
-    }
-    let options = new Array(0).fill(null);
-    do {
-      {
-        (options.push(this._parseSequence({ inOptions: true })), null);
-      }
-    } while (this._scanner.scan(","));
-    if (__dartEquals(options.length, 1)) {
-      this._scanner.expect(",");
-    }
-    this._scanner.expect("}");
-    return new OptionsNode(options, { caseSensitive: this._caseSensitive });
-  }
-  _parseLiteral({ inOptions = false } = {}) {
-    let regExp = __dartRegExp((inOptions ? "[^*{[?\\\\}\\],()]*" : "[^*{[?\\\\}\\]()]*"), { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
-    this._scanner.scan(regExp);
-    let buffer = (() => { let v = __dartStringBuffer(""); return (() => {
-      v.write(__dartNullCheck(this._scanner.lastMatch)[0]);
-      return v;
-    })(); })();
-    while (this._scanner.scan("\\")) {
-      {
-        buffer.writeCharCode(this._scanner.readChar());
-        this._scanner.scan(regExp);
-        buffer.write(__dartNullCheck(this._scanner.lastMatch)[0]);
-      }
-    }
-    {
-      let _sync_for_iterator = __dartIterator(__dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"]\"],[\"string\",\"(\"],[\"string\",\")\"]]", () => Object.freeze(["]", "(", ")"])));
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let char = _sync_for_iterator.current;
-          {
-            if (this._scanner.matches(char)) {
-              this._scanner.error("unexpected \"" + __dartStr(char) + "\"");
-            }
-          }
-        }
-      }
-    }
-    if ((!(inOptions) && this._scanner.matches("}"))) {
-      this._scanner.error("unexpected \"}\"");
-    }
-    return new LiteralNode(__dartStr(buffer), { context: this._context, caseSensitive: this._caseSensitive });
-  }
-}
-
-class Glob {
-  static _(pattern, context_1, _ast, recursive) {
-    return $Glob__(Glob, pattern, context_1, _ast, recursive);
-  }
-  get caseSensitive() {
-    return this._ast.caseSensitive;
-  }
-  get _contextIsAbsolute() {
-    return (this._contextIsAbsoluteCache ?? (this._contextIsAbsoluteCache = this.context.isAbsolute(this.context.current)));
-  }
-  get _patternCanMatchAbsolute() {
-    return (this._patternCanMatchAbsoluteCache ?? (this._patternCanMatchAbsoluteCache = this._ast.canMatchAbsolute));
-  }
-  get _patternCanMatchRelative() {
-    return (this._patternCanMatchRelativeCache ?? (this._patternCanMatchRelativeCache = this._ast.canMatchRelative));
-  }
-  static quote(contents) {
-    return __dartStringReplaceAllMapped(contents, _quoteRegExp, function(match) { return "\\" + __dartStr(match[0]); });
-  }
-  constructor(pattern, { context: context_1 = null, recursive = false, caseSensitive = null } = {}) {
-    ((context_1 === null) ? context_1 = context : null);
-    ((caseSensitive === null) ? caseSensitive = (__dartEquals(context_1.style, Style.windows) ? false : true) : null);
-    if (recursive) {
-      pattern = (pattern + "{,/**}");
-    }
-    let parser = new Parser(pattern, context_1, { caseSensitive: caseSensitive });
-    return Glob._(pattern, context_1, parser.parse(), recursive);
-  }
-  listFileSystem(fileSystem, { root = null, followLinks = true } = {}) {
-    if (!(__dartEquals(this.context.style, style()))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Can't list glob \"" + __dartStr(this) + "\"; it matches " + __dartStr(this.context.style) + " paths, but this platform uses " + __dartStr(style()) + " paths."); })();
-      }
-    }
-    return this._listTreeForFileSystem(fileSystem).list({ root: root, followLinks: followLinks });
-  }
-  listFileSystemSync(fileSystem, { root = null, followLinks = true } = {}) {
-    if (!(__dartEquals(this.context.style, style()))) {
-      {
-        (() => { throw __dartCoreError("StateError", "Can't list glob \"" + __dartStr(this) + "\"; it matches " + __dartStr(this.context.style) + " paths, but this platform uses " + __dartStr(style()) + " paths."); })();
-      }
-    }
-    return this._listTreeForFileSystem(fileSystem).listSync({ root: root, followLinks: followLinks });
-  }
-  matches(path) {
-    return !((this.matchAsPrefix(path) === null));
-  }
-  matchAsPrefix(path, start = 0) {
-    if (!(__dartEquals(start, 0))) {
-      return null;
-    }
-    if ((this._patternCanMatchAbsolute && (this._contextIsAbsolute || this.context.isAbsolute(path)))) {
-      {
-        let absolutePath = this.context.normalize(this.context.absolute(path));
-        if (this._ast.matches(toPosixPath(this.context, absolutePath))) {
-          {
-            return new GlobMatch(path, this);
-          }
-        }
-      }
-    }
-    if (this._patternCanMatchRelative) {
-      {
-        let relativePath = this.context.relative(path);
-        if (this._ast.matches(toPosixPath(this.context, relativePath))) {
-          {
-            return new GlobMatch(path, this);
-          }
-        }
-      }
-    }
-    return null;
-  }
-  allMatches(path, start = 0) {
-    let match = this.matchAsPrefix(path, start);
-    return ((match === null) ? new Array(0).fill(null) : [match]);
-  }
-  toString() {
-    return this.pattern;
-  }
-  _listTreeForFileSystem(fileSystem) {
-    if (fileSystem instanceof MemoryFileSystem) {
-      return new ListTree(this._ast, fileSystem);
-    }
-    if (!(__dartEquals(fileSystem, this._previousFileSystem))) {
-      {
-        this._listTree = null;
-        this._previousFileSystem = fileSystem;
-      }
-    }
-    return (this._listTree ?? (this._listTree = new ListTree(this._ast, fileSystem)));
-  }
-}
-
-function $Glob__($newTarget, pattern, context_1, _ast, recursive) {
-  const $self = Object.create($newTarget.prototype);
-  $self._listTree = null;
-  $self._previousFileSystem = null;
-  $self._contextIsAbsoluteCache = null;
-  $self._patternCanMatchAbsoluteCache = null;
-  $self._patternCanMatchRelativeCache = null;
-  $self.pattern = pattern;
-  $self.context = context_1;
-  $self._ast = _ast;
-  $self.recursive = recursive;
-  return $self;
-}
-
-
-Object.defineProperty(Result, "captureStreamTransformer", { value: __dartConst("[\"instance\",\"class:CaptureStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(CaptureStreamTransformer.prototype))), enumerable: true });
-
-Object.defineProperty(Result, "releaseStreamTransformer", { value: __dartConst("[\"instance\",\"class:ReleaseStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(ReleaseStreamTransformer.prototype))), enumerable: true });
-
-Object.defineProperty(Result, "captureSinkTransformer", { value: __dartConst("[\"instance\",\"class:StreamTransformerWrapper\",[\"typeArgument\",\"InterfaceType(Object)\"],[\"typeArgument\",\"InterfaceType(Result<Object>)\"],[\"field\",\"field:StreamTransformerWrapper._transformer\",[\"instance\",\"class:CaptureStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]]]", () => Object.freeze(Object.assign(Object.create(StreamTransformerWrapper.prototype), { _transformer: __dartConst("[\"instance\",\"class:CaptureStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(CaptureStreamTransformer.prototype))) }))), enumerable: true });
-
-Object.defineProperty(Result, "releaseSinkTransformer", { value: __dartConst("[\"instance\",\"class:StreamTransformerWrapper\",[\"typeArgument\",\"InterfaceType(Result<Object>)\"],[\"typeArgument\",\"InterfaceType(Object)\"],[\"field\",\"field:StreamTransformerWrapper._transformer\",[\"instance\",\"class:ReleaseStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]]]", () => Object.freeze(Object.assign(Object.create(StreamTransformerWrapper.prototype), { _transformer: __dartConst("[\"instance\",\"class:ReleaseStreamTransformer\",[\"typeArgument\",\"InterfaceType(Object)\"]]", () => Object.freeze(Object.create(ReleaseStreamTransformer.prototype))) }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "classType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "classes", name: "classType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "constructor", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "constructors", name: "constructor" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "directive", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "directives", name: "directive" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "enumType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enums", name: "enumType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "enumValue", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enum values", name: "enumValue" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "exportDirective", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "export directives", name: "exportDirective" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "extension", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extensions", name: "extension" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "extensionType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extension types", name: "extensionType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "field", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "fields", name: "field" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "function", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level functions", name: "function" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "library", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "libraries", name: "library" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "getter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "getters", name: "getter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "importDirective", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "import directives", name: "importDirective" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "method", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "methods", name: "method" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "mixinType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "mixins", name: "mixinType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "optionalParameter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "optional parameters", name: "optionalParameter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "overridableMember", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "overridable members", name: "overridableMember" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "parameter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "parameters", name: "parameter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "partOfDirective", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "\"part of\" directives", name: "partOfDirective" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "setter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "setters", name: "setter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "topLevelVariable", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level variables", name: "topLevelVariable" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "type", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "types (classes, enums, mixins, or typedefs)", name: "type" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "typedefType", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "typedefs", name: "typedefType" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "typeParameter", { value: __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "type parameters", name: "typeParameter" }))), enumerable: true });
-
-Object.defineProperty(TargetKind, "values", { value: __dartConst("[\"list\",\"InterfaceType(TargetKind)\",[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]],[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]]", () => Object.freeze([__dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"classes\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"classType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "classes", name: "classType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"constructors\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"constructor\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "constructors", name: "constructor" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"directive\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "directives", name: "directive" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enums\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enums", name: "enumType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"enum values\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"enumValue\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "enum values", name: "enumValue" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"export directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"exportDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "export directives", name: "exportDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extensions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extension\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extensions", name: "extension" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"extension types\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"extensionType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "extension types", name: "extensionType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"fields\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"field\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "fields", name: "field" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level functions\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"function\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level functions", name: "function" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"libraries\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"library\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "libraries", name: "library" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"getters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"getter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "getters", name: "getter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"import directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"importDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "import directives", name: "importDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"methods\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"method\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "methods", name: "method" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"mixins\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"mixinType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "mixins", name: "mixinType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"optional parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"optionalParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "optional parameters", name: "optionalParameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"overridable members\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"overridableMember\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "overridable members", name: "overridableMember" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"parameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "parameters", name: "parameter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"\\\"part of\\\" directives\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"partOfDirective\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "\"part of\" directives", name: "partOfDirective" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"setters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"setter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "setters", name: "setter" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"top-level variables\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"topLevelVariable\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "top-level variables", name: "topLevelVariable" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"types (classes, enums, mixins, or typedefs)\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"type\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "types (classes, enums, mixins, or typedefs)", name: "type" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"typedefs\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typedefType\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "typedefs", name: "typedefType" }))), __dartConst("[\"instance\",\"class:TargetKind\",[\"field\",\"field:TargetKind.displayString\",[\"string\",\"type parameters\"]],[\"field\",\"field:TargetKind.name\",[\"string\",\"typeParameter\"]]]", () => Object.freeze(Object.assign(Object.create(TargetKind.prototype), { displayString: "type parameters", name: "typeParameter" })))])), enumerable: true });
 
 Object.defineProperty(_StreamGroupState, "dormant", { value: __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"dormant\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "dormant" }))), enumerable: true });
 
@@ -18538,17 +9599,26 @@ Object.defineProperty(_StreamGroupState, "paused", { value: __dartConst("[\"inst
 
 Object.defineProperty(_StreamGroupState, "canceled", { value: __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"canceled\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "canceled" }))), enumerable: true });
 
-Object.defineProperty(BoolList, "_entryShift", { value: 5, enumerable: true });
+const $MemoryFileStat_notFound = __dartLazyField("MemoryFileStat.notFound", () => MemoryFileStat._internalNotFound(), false);
+Object.defineProperty(MemoryFileStat, "notFound", {
+  get() { return $MemoryFileStat_notFound.get(); },
+  set(value) { $MemoryFileStat_notFound.set(value); },
+  enumerable: true,
+});
 
-Object.defineProperty(BoolList, "_bitsPerEntry", { value: 32, enumerable: true });
+Object.defineProperty(FileSystemOp, "read", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"0\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 0 }))), enumerable: true });
 
-Object.defineProperty(BoolList, "_entrySignBitIndex", { value: 31, enumerable: true });
+Object.defineProperty(FileSystemOp, "write", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"1\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 1 }))), enumerable: true });
 
-Object.defineProperty(_GrowableBoolList, "_growthFactor", { value: 2, enumerable: true });
+Object.defineProperty(FileSystemOp, "delete", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"2\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 2 }))), enumerable: true });
 
-Object.defineProperty(HeapPriorityQueue, "_initialCapacity", { value: 7, enumerable: true });
+Object.defineProperty(FileSystemOp, "create", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))), enumerable: true });
 
-Object.defineProperty(QueueList, "_initialCapacity", { value: 8, enumerable: true });
+Object.defineProperty(FileSystemOp, "open", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))), enumerable: true });
+
+Object.defineProperty(FileSystemOp, "copy", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"5\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 5 }))), enumerable: true });
+
+Object.defineProperty(FileSystemOp, "exists", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))), enumerable: true });
 
 const $Style_posix = __dartLazyField("Style.posix", () => new PosixStyle(), false);
 Object.defineProperty(Style, "posix", {
@@ -18594,985 +9664,11 @@ Object.defineProperty(_PathRelation, "different", { value: __dartConst("[\"insta
 
 Object.defineProperty(_PathRelation, "inconclusive", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"inconclusive\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))), enumerable: true });
 
-const $MemoryFileStat_notFound = __dartLazyField("MemoryFileStat.notFound", () => MemoryFileStat._internalNotFound(), false);
-Object.defineProperty(MemoryFileStat, "notFound", {
-  get() { return $MemoryFileStat_notFound.get(); },
-  set(value) { $MemoryFileStat_notFound.set(value); },
-  enumerable: true,
-});
-
-Object.defineProperty(FileSystemOp, "read", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"0\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 0 }))), enumerable: true });
-
-Object.defineProperty(FileSystemOp, "write", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"1\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 1 }))), enumerable: true });
-
-Object.defineProperty(FileSystemOp, "delete", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"2\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 2 }))), enumerable: true });
-
-Object.defineProperty(FileSystemOp, "create", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"3\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 3 }))), enumerable: true });
-
-Object.defineProperty(FileSystemOp, "open", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"4\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 4 }))), enumerable: true });
-
-Object.defineProperty(FileSystemOp, "copy", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"5\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 5 }))), enumerable: true });
-
-Object.defineProperty(FileSystemOp, "exists", { value: __dartConst("[\"instance\",\"class:FileSystemOp\",[\"field\",\"field:FileSystemOp._value\",[\"int\",\"6\"]]]", () => Object.freeze(Object.assign(Object.create(FileSystemOp.prototype), { _value: 6 }))), enumerable: true });
-
 Object.defineProperty(FileSystemStyle, "posix", { value: __dartConst("[\"instance\",\"class:_Posix\"]", () => Object.freeze(Object.create(_Posix.prototype))), enumerable: true });
 
 Object.defineProperty(FileSystemStyle, "windows", { value: __dartConst("[\"instance\",\"class:_Windows\"]", () => Object.freeze(Object.create(_Windows.prototype))), enumerable: true });
 
 Object.defineProperty(Highlighter, "_spacesPerTab", { value: 4, enumerable: true });
-function _forward(forwarder) {
-  return forwarder._forward();
-}
-
-function _extension_0_completeErrorIfPending(_this, error, stackTrace) {
-  if (_this.isCompleted) {
-    return;
-  }
-  _this.completeError(error, stackTrace);
-}
-
-function _extension_0_get_completeErrorIfPending(_this) {
-  return function(error, stackTrace) { return _extension_0_completeErrorIfPending(_this, error, stackTrace); };
-}
-
-function collectBytes(source) {
-  return _collectBytes(source, function(_, result) { return result; });
-}
-
-function collectBytesCancelable(source) {
-  return _collectBytes(source, function(subscription, result) { return CancelableOperation.fromFuture(result, { onCancel: __dartBind(subscription, "cancel") }); });
-}
-
-function _collectBytes(source, result) {
-  let bytes = __dartBytesBuilder(false);
-  let completer = __dartCompleter();
-  let subscription = __dartStreamListen(source, __dartBind(bytes, "add"), __dartBind(completer, "completeError"), function() {
-    completer.complete(bytes.takeBytes());
-}, true);
-  return (result)(subscription, completer.future);
-}
-
-async function ChunkedStreamReaderByteStreamExt_readBytes(_this, size) {
-  return await collectBytes(_this.readStream(size));
-}
-
-function ChunkedStreamReaderByteStreamExt_get_readBytes(_this) {
-  return function(size) { return ChunkedStreamReaderByteStreamExt_readBytes(_this, size); };
-}
-
-function _closeSink(sink) {
-  sink.close();
-}
-
-const alwaysThrows = __dartConst("[\"instance\",\"class:_AlwaysThrows\"]", () => Object.freeze(Object.create(_AlwaysThrows.prototype)));
-
-const awaitNotRequired = __dartConst("[\"instance\",\"class:_AwaitNotRequired\"]", () => Object.freeze(Object.create(_AwaitNotRequired.prototype)));
-
-const checked = __dartConst("[\"instance\",\"class:_Checked\"]", () => Object.freeze(Object.create(_Checked.prototype)));
-
-const doNotStore = __dartConst("[\"instance\",\"class:_DoNotStore\"]", () => Object.freeze(Object.create(_DoNotStore.prototype)));
-
-const doNotSubmit = __dartConst("[\"instance\",\"class:_DoNotSubmit\"]", () => Object.freeze(Object.create(_DoNotSubmit.prototype)));
-
-const experimental = __dartConst("[\"instance\",\"class:_Experimental\"]", () => Object.freeze(Object.create(_Experimental.prototype)));
-
-const factory = __dartConst("[\"instance\",\"class:_Factory\"]", () => Object.freeze(Object.create(_Factory.prototype)));
-
-const immutable = __dartConst("[\"instance\",\"class:Immutable\",[\"field\",\"field:Immutable.reason\",[\"string\",\"\"]]]", () => Object.freeze(Object.assign(Object.create(Immutable.prototype), { reason: "" })));
-
-const internal = __dartConst("[\"instance\",\"class:_Internal\"]", () => Object.freeze(Object.create(_Internal.prototype)));
-
-const isTest = __dartConst("[\"instance\",\"class:_IsTest\"]", () => Object.freeze(Object.create(_IsTest.prototype)));
-
-const isTestGroup = __dartConst("[\"instance\",\"class:_IsTestGroup\"]", () => Object.freeze(Object.create(_IsTestGroup.prototype)));
-
-const literal = __dartConst("[\"instance\",\"class:_Literal\"]", () => Object.freeze(Object.create(_Literal.prototype)));
-
-const mustBeConst = __dartConst("[\"instance\",\"class:_MustBeConst\"]", () => Object.freeze(Object.create(_MustBeConst.prototype)));
-
-const mustBeOverridden = __dartConst("[\"instance\",\"class:_MustBeOverridden\"]", () => Object.freeze(Object.create(_MustBeOverridden.prototype)));
-
-const mustCallSuper = __dartConst("[\"instance\",\"class:_MustCallSuper\"]", () => Object.freeze(Object.create(_MustCallSuper.prototype)));
-
-const nonVirtual = __dartConst("[\"instance\",\"class:_NonVirtual\"]", () => Object.freeze(Object.create(_NonVirtual.prototype)));
-
-const optionalTypeArgs = __dartConst("[\"instance\",\"class:_OptionalTypeArgs\"]", () => Object.freeze(Object.create(_OptionalTypeArgs.prototype)));
-
-const protected_1 = __dartConst("[\"instance\",\"class:_Protected\"]", () => Object.freeze(Object.create(_Protected.prototype)));
-
-const redeclare = __dartConst("[\"instance\",\"class:_Redeclare\"]", () => Object.freeze(Object.create(_Redeclare.prototype)));
-
-const reopen = __dartConst("[\"instance\",\"class:_Reopen\"]", () => Object.freeze(Object.create(_Reopen.prototype)));
-
-const required = __dartConst("[\"instance\",\"class:Required\",[\"field\",\"field:Required.reason\",[\"string\",\"\"]]]", () => Object.freeze(Object.assign(Object.create(Required.prototype), { reason: "" })));
-
-const sealed = __dartConst("[\"instance\",\"class:_Sealed\"]", () => Object.freeze(Object.create(_Sealed.prototype)));
-
-const useResult = __dartConst("[\"instance\",\"class:UseResult\",[\"field\",\"field:UseResult.parameterDefined\",[\"null\"]],[\"field\",\"field:UseResult.reason\",[\"string\",\"\"]]]", () => Object.freeze(Object.assign(Object.create(UseResult.prototype), { reason: "", parameterDefined: null })));
-
-const virtual = __dartConst("[\"instance\",\"class:_Virtual\"]", () => Object.freeze(Object.create(_Virtual.prototype)));
-
-const visibleForOverriding = __dartConst("[\"instance\",\"class:_VisibleForOverriding\"]", () => Object.freeze(Object.create(_VisibleForOverriding.prototype)));
-
-const visibleForTesting = __dartConst("[\"instance\",\"class:_VisibleForTesting\"]", () => Object.freeze(Object.create(_VisibleForTesting.prototype)));
-
-function StreamExtensions_slices(_this, length) {
-  if ((length < 1)) {
-    (() => { throw __dartCoreError("RangeError", length); })();
-  }
-  let slice = new Array(0).fill(null);
-  return __dartStreamTransform(_this, __dartStreamTransformerFromHandlers({ handleData: function(data, sink) {
-    (slice.push(data), null);
-    if (__dartEquals(slice.length, length)) {
-      {
-        sink.add(slice);
-        slice = new Array(0).fill(null);
-      }
-    }
-}, handleError: null, handleDone: function(sink) {
-    if (slice.length !== 0) {
-      sink.add(slice);
-    }
-    sink.close();
-} }));
-}
-
-function StreamExtensions_get_slices(_this) {
-  return function(length) { return StreamExtensions_slices(_this, length); };
-}
-
-function StreamExtensions_get_firstOrNull(_this) {
-  let completer = __dartCompleter();
-  const subscription = __dartStreamListen(_this, null, __dartBind(completer, "completeError"), __dartAs(__dartBind(completer, "complete"), value => typeof value === "function", "void Function([FutureOr<StreamExtensions|get#firstOrNull.T?>?])"), true);
-  subscription.onData(function(event) {
-    subscription.cancel().finally(function() {
-      completer.complete(event);
-});
-});
-  return completer.future;
-}
-
-function StreamExtensions_listenAndBuffer(_this) {
-  let controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-  let subscription = __dartStreamListen(_this, __dartAs(__dartBind(controller, "add"), value => typeof value === "function", "void Function(StreamExtensions|listenAndBuffer.T%)"), __dartBind(controller, "addError"), __dartBind(controller, "close"), false);
-  (() => { let v = controller; return (() => {
-    v.onPause = __dartBind(subscription, "pause");
-    v.onResume = __dartBind(subscription, "resume");
-    v.onCancel = __dartBind(subscription, "cancel");
-    return v;
-  })(); })();
-  return controller.stream;
-}
-
-function StreamExtensions_get_listenAndBuffer(_this) {
-  return function() { return StreamExtensions_listenAndBuffer(_this); };
-}
-
-function defaultCompare(value1, value2) {
-  return __dartCompare(__dartAs(value1, value => value != null && (typeof value === "number" || typeof value === "string" || typeof value === "bigint" || typeof value.compareTo === "function"), "Comparable<Object?>"), value2);
-}
-
-function identity(value) {
-  return value;
-}
-
-function compareComparable(a, b) {
-  return __dartCompare(a, b);
-}
-
-const _mergeSortLimit = 32;
-
-function binarySearch(sortedList, value, { compare = null } = {}) {
-  ((compare === null) ? compare = defaultCompare : null);
-  return binarySearchBy(sortedList, identity, compare, value);
-}
-
-function binarySearchBy(sortedList, keyOf, compare, value, start = 0, end = null) {
-  end = __dartCheckValidRange(start, end, sortedList.length, null, null, null);
-  let min_1 = start;
-  let max_1 = end;
-  let key = (keyOf)(value);
-  while ((min_1 < max_1)) {
-    {
-      let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-      let element = __dartIndexGet(sortedList, mid);
-      let comp = (compare)((keyOf)(element), key);
-      if (__dartEquals(comp, 0)) {
-        return mid;
-      }
-      if ((comp < 0)) {
-        {
-          min_1 = (mid + 1);
-        }
-      } else {
-        {
-          max_1 = mid;
-        }
-      }
-    }
-  }
-  return (-1);
-}
-
-function lowerBound(sortedList, value, { compare = null } = {}) {
-  ((compare === null) ? compare = defaultCompare : null);
-  return lowerBoundBy(sortedList, identity, compare, value);
-}
-
-function lowerBoundBy(sortedList, keyOf, compare, value, start = 0, end = null) {
-  end = __dartCheckValidRange(start, end, sortedList.length, null, null, null);
-  let min_1 = start;
-  let max_1 = end;
-  let key = (keyOf)(value);
-  while ((min_1 < max_1)) {
-    {
-      let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-      let element = __dartIndexGet(sortedList, mid);
-      let comp = (compare)((keyOf)(element), key);
-      if ((comp < 0)) {
-        {
-          min_1 = (mid + 1);
-        }
-      } else {
-        {
-          max_1 = mid;
-        }
-      }
-    }
-  }
-  return min_1;
-}
-
-function shuffle(elements, start = 0, end = null, random = null) {
-  ((random === null) ? random = __dartRandom(null, false) : null);
-  ((end === null) ? end = elements.length : null);
-  let length = (end - start);
-  while ((length > 1)) {
-    {
-      let pos = random.nextInt(length);
-      length = (length - 1);
-      let tmp1 = __dartIndexGet(elements, (start + pos));
-      __dartIndexSet(elements, (start + pos), __dartIndexGet(elements, (start + length)));
-      __dartIndexSet(elements, (start + length), tmp1);
-    }
-  }
-}
-
-function reverse(elements, start = 0, end = null) {
-  end = __dartCheckValidRange(start, end, elements.length, null, null, null);
-  _reverse(elements, start, end);
-}
-
-function _reverse(elements, start, end) {
-  for (let i = start, j = (end - 1); (i < j); i = (i + 1), j = (j - 1)) {
-    {
-      let tmp = __dartIndexGet(elements, i);
-      __dartIndexSet(elements, i, __dartIndexGet(elements, j));
-      __dartIndexSet(elements, j, tmp);
-    }
-  }
-}
-
-function insertionSort(elements, { compare = null, start = 0, end = null } = {}) {
-  ((compare === null) ? compare = defaultCompare : null);
-  ((end === null) ? end = elements.length : null);
-  for (let pos = (start + 1); (pos < end); pos = (pos + 1)) {
-    {
-      let min_1 = start;
-      let max_1 = pos;
-      let element = __dartIndexGet(elements, pos);
-      while ((min_1 < max_1)) {
-        {
-          let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-          let comparison = (compare)(element, __dartIndexGet(elements, mid));
-          if ((comparison < 0)) {
-            {
-              max_1 = mid;
-            }
-          } else {
-            {
-              min_1 = (mid + 1);
-            }
-          }
-        }
-      }
-      __dartListSetRange(elements, (min_1 + 1), (pos + 1), elements, min_1);
-      __dartIndexSet(elements, min_1, element);
-    }
-  }
-}
-
-function insertionSortBy(elements, keyOf, compare, start = 0, end = null) {
-  end = __dartCheckValidRange(start, end, elements.length, null, null, null);
-  _movingInsertionSort(elements, keyOf, compare, start, end, elements, start);
-}
-
-function mergeSort(elements, { start = 0, end = null, compare = null } = {}) {
-  end = __dartCheckValidRange(start, end, elements.length, null, null, null);
-  ((compare === null) ? compare = defaultCompare : null);
-  let length = (end - start);
-  if ((length < 2)) {
-    return;
-  }
-  if ((length < 32)) {
-    {
-      insertionSort(elements, { compare: compare, start: start, end: end });
-      return;
-    }
-  }
-  let firstLength = __dartShr((end - start), 1);
-  let middle = (start + firstLength);
-  let secondLength = (end - middle);
-  let scratchSpace = elements.slice(0, secondLength);
-  _mergeSort(elements, identity, compare, middle, end, scratchSpace, 0);
-  let firstTarget = (end - firstLength);
-  _mergeSort(elements, identity, compare, start, middle, elements, firstTarget);
-  _merge(identity, compare, elements, firstTarget, end, scratchSpace, 0, secondLength, elements, start);
-}
-
-function mergeSortBy(elements, keyOf, compare, start = 0, end = null) {
-  end = __dartCheckValidRange(start, end, elements.length, null, null, null);
-  let length = (end - start);
-  if ((length < 2)) {
-    return;
-  }
-  if ((length < 32)) {
-    {
-      _movingInsertionSort(elements, keyOf, compare, start, end, elements, start);
-      return;
-    }
-  }
-  let middle = (start + __dartShr(length, 1));
-  let firstLength = (middle - start);
-  let secondLength = (end - middle);
-  let scratchSpace = elements.slice(0, secondLength);
-  _mergeSort(elements, keyOf, compare, middle, end, scratchSpace, 0);
-  let firstTarget = (end - firstLength);
-  _mergeSort(elements, keyOf, compare, start, middle, elements, firstTarget);
-  _merge(keyOf, compare, elements, firstTarget, end, scratchSpace, 0, secondLength, elements, start);
-}
-
-function _movingInsertionSort(list, keyOf, compare, start, end, target, targetOffset) {
-  let length = (end - start);
-  if (__dartEquals(length, 0)) {
-    return;
-  }
-  __dartIndexSet(target, targetOffset, __dartIndexGet(list, start));
-  for (let i = 1; (i < length); i = (i + 1)) {
-    {
-      let element = __dartIndexGet(list, (start + i));
-      let elementKey = (keyOf)(element);
-      let min_1 = targetOffset;
-      let max_1 = (targetOffset + i);
-      while ((min_1 < max_1)) {
-        {
-          let mid = (min_1 + __dartShr((max_1 - min_1), 1));
-          if (((compare)(elementKey, (keyOf)(__dartIndexGet(target, mid))) < 0)) {
-            {
-              max_1 = mid;
-            }
-          } else {
-            {
-              min_1 = (mid + 1);
-            }
-          }
-        }
-      }
-      __dartListSetRange(target, (min_1 + 1), ((targetOffset + i) + 1), target, min_1);
-      __dartIndexSet(target, min_1, element);
-    }
-  }
-}
-
-function _mergeSort(elements, keyOf, compare, start, end, target, targetOffset) {
-  let length = (end - start);
-  if ((length < 32)) {
-    {
-      _movingInsertionSort(elements, keyOf, compare, start, end, target, targetOffset);
-      return;
-    }
-  }
-  let middle = (start + __dartShr(length, 1));
-  let firstLength = (middle - start);
-  let secondLength = (end - middle);
-  let targetMiddle = (targetOffset + firstLength);
-  _mergeSort(elements, keyOf, compare, middle, end, target, targetMiddle);
-  _mergeSort(elements, keyOf, compare, start, middle, elements, middle);
-  _merge(keyOf, compare, elements, middle, (middle + firstLength), target, targetMiddle, (targetMiddle + secondLength), target, targetOffset);
-}
-
-function _merge(keyOf, compare, firstList, firstStart, firstEnd, secondList, secondStart, secondEnd, target, targetOffset) {
-  let cursor1 = firstStart;
-  let cursor2 = secondStart;
-  let firstElement = __dartIndexGet(firstList, (() => { let v = cursor1; return (() => { let v_1 = cursor1 = (v + 1); return v; })(); })());
-  let firstKey = (keyOf)(firstElement);
-  let secondElement = __dartIndexGet(secondList, (() => { let v_2 = cursor2; return (() => { let v_3 = cursor2 = (v_2 + 1); return v_2; })(); })());
-  let secondKey = (keyOf)(secondElement);
-  L:
-  while (true) {
-    L_1:
-    {
-      if (((compare)(firstKey, secondKey) <= 0)) {
-        {
-          __dartIndexSet(target, (() => { let v_4 = targetOffset; return (() => { let v_5 = targetOffset = (v_4 + 1); return v_4; })(); })(), firstElement);
-          if (__dartEquals(cursor1, firstEnd)) {
-            break L;
-          }
-          firstElement = __dartIndexGet(firstList, (() => { let v_6 = cursor1; return (() => { let v_7 = cursor1 = (v_6 + 1); return v_6; })(); })());
-          firstKey = (keyOf)(firstElement);
-        }
-      } else {
-        {
-          __dartIndexSet(target, (() => { let v_8 = targetOffset; return (() => { let v_9 = targetOffset = (v_8 + 1); return v_8; })(); })(), secondElement);
-          if (!(__dartEquals(cursor2, secondEnd))) {
-            {
-              secondElement = __dartIndexGet(secondList, (() => { let v_10 = cursor2; return (() => { let v_11 = cursor2 = (v_10 + 1); return v_10; })(); })());
-              secondKey = (keyOf)(secondElement);
-              break L_1;
-            }
-          }
-          __dartIndexSet(target, (() => { let v_12 = targetOffset; return (() => { let v_13 = targetOffset = (v_12 + 1); return v_12; })(); })(), firstElement);
-          __dartListSetRange(target, targetOffset, (targetOffset + (firstEnd - cursor1)), firstList, cursor1);
-          return;
-        }
-      }
-    }
-  }
-  __dartIndexSet(target, (() => { let v_14 = targetOffset; return (() => { let v_15 = targetOffset = (v_14 + 1); return v_14; })(); })(), secondElement);
-  __dartListSetRange(target, targetOffset, (targetOffset + (secondEnd - cursor2)), secondList, cursor2);
-}
-
-function quickSort(elements, compare, start = 0, end = null) {
-  end = __dartCheckValidRange(start, end, elements.length, null, null, null);
-  _quickSort(elements, identity, compare, __dartRandom(null, false), start, end);
-}
-
-function quickSortBy(list, keyOf, compare, start = 0, end = null) {
-  end = __dartCheckValidRange(start, end, list.length, null, null, null);
-  _quickSort(list, keyOf, compare, __dartRandom(null, false), start, end);
-}
-
-function _quickSort(list, keyOf, compare, random, start, end) {
-  const minQuickSortLength = 24;
-  let length = (end - start);
-  while ((length >= 24)) {
-    {
-      let pivotIndex = (random.nextInt(length) + start);
-      let pivot = __dartIndexGet(list, pivotIndex);
-      let pivotKey = (keyOf)(pivot);
-      let endSmaller = start;
-      let startGreater = end;
-      let startPivots = (end - 1);
-      __dartIndexSet(list, pivotIndex, __dartIndexGet(list, startPivots));
-      __dartIndexSet(list, startPivots, pivot);
-      while ((endSmaller < startPivots)) {
-        {
-          let current_1 = __dartIndexGet(list, endSmaller);
-          let relation = (compare)((keyOf)(current_1), pivotKey);
-          if ((relation < 0)) {
-            {
-              endSmaller = (endSmaller + 1);
-            }
-          } else {
-            {
-              startPivots = (startPivots - 1);
-              let currentTarget = startPivots;
-              __dartIndexSet(list, endSmaller, __dartIndexGet(list, startPivots));
-              if ((relation > 0)) {
-                {
-                  startGreater = (startGreater - 1);
-                  currentTarget = startGreater;
-                  __dartIndexSet(list, startPivots, __dartIndexGet(list, startGreater));
-                }
-              }
-              __dartIndexSet(list, currentTarget, current_1);
-            }
-          }
-        }
-      }
-      if (((endSmaller - start) < (end - startGreater))) {
-        {
-          _quickSort(list, keyOf, compare, random, start, endSmaller);
-          start = startGreater;
-        }
-      } else {
-        {
-          _quickSort(list, keyOf, compare, random, startGreater, end);
-          end = endSmaller;
-        }
-      }
-      length = (end - start);
-    }
-  }
-  _movingInsertionSort(list, keyOf, compare, start, end, list, start);
-}
-
-const _zero = 48;
-
-const _upperCaseA = 65;
-
-const _upperCaseZ = 90;
-
-const _lowerCaseA = 97;
-
-const _lowerCaseZ = 122;
-
-const _asciiCaseBit = 32;
-
-function equalsIgnoreAsciiCase(a, b) {
-  if (!(__dartEquals(a.length, b.length))) {
-    return false;
-  }
-  for (let i = 0; (i < a.length); i = (i + 1)) {
-    L:
-    {
-      let aChar = a.charCodeAt(i);
-      let bChar = b.charCodeAt(i);
-      if (__dartEquals(aChar, bChar)) {
-        break L;
-      }
-      if (!(__dartEquals((aChar ^ bChar), 32))) {
-        return false;
-      }
-      let aCharLowerCase = (aChar | 32);
-      if (((97 <= aCharLowerCase) && (aCharLowerCase <= 122))) {
-        {
-          break L;
-        }
-      }
-      return false;
-    }
-  }
-  return true;
-}
-
-function hashIgnoreAsciiCase(string) {
-  let hash_1 = 0;
-  for (let i = 0; (i < string.length); i = (i + 1)) {
-    {
-      let char = string.charCodeAt(i);
-      if (((97 <= char) && (char <= 122))) {
-        char = (char - 32);
-      }
-      hash_1 = (536870911 & (hash_1 + char));
-      hash_1 = (536870911 & (hash_1 + ((524287 & hash_1) << 10)));
-      hash_1 = __dartShr(hash_1, 6);
-    }
-  }
-  hash_1 = (536870911 & (hash_1 + ((67108863 & hash_1) << 3)));
-  hash_1 = __dartShr(hash_1, 11);
-  return (536870911 & (hash_1 + ((16383 & hash_1) << 15)));
-}
-
-function compareAsciiUpperCase(a, b) {
-  let defaultResult = 0;
-  for (let i = 0; (i < a.length); i = (i + 1)) {
-    L:
-    {
-      if ((i >= b.length)) {
-        return 1;
-      }
-      let aChar = a.charCodeAt(i);
-      let bChar = b.charCodeAt(i);
-      if (__dartEquals(aChar, bChar)) {
-        break L;
-      }
-      let aUpperCase = aChar;
-      let bUpperCase = bChar;
-      if (((97 <= aChar) && (aChar <= 122))) {
-        {
-          aUpperCase = (aUpperCase - 32);
-        }
-      }
-      if (((97 <= bChar) && (bChar <= 122))) {
-        {
-          bUpperCase = (bUpperCase - 32);
-        }
-      }
-      if (!(__dartEquals(aUpperCase, bUpperCase))) {
-        return (Number.isNaN(Number((aUpperCase - bUpperCase))) ? Number.NaN : (Number((aUpperCase - bUpperCase)) < 0 ? -1 : (Number((aUpperCase - bUpperCase)) > 0 ? 1 : Number((aUpperCase - bUpperCase)))));
-      }
-      if (__dartEquals(defaultResult, 0)) {
-        defaultResult = (aChar - bChar);
-      }
-    }
-  }
-  if ((b.length > a.length)) {
-    return (-1);
-  }
-  return (Number.isNaN(Number(defaultResult)) ? Number.NaN : (Number(defaultResult) < 0 ? -1 : (Number(defaultResult) > 0 ? 1 : Number(defaultResult))));
-}
-
-function compareAsciiLowerCase(a, b) {
-  let defaultResult = 0;
-  for (let i = 0; (i < a.length); i = (i + 1)) {
-    L:
-    {
-      if ((i >= b.length)) {
-        return 1;
-      }
-      let aChar = a.charCodeAt(i);
-      let bChar = b.charCodeAt(i);
-      if (__dartEquals(aChar, bChar)) {
-        break L;
-      }
-      let aLowerCase = aChar;
-      let bLowerCase = bChar;
-      if (((65 <= bChar) && (bChar <= 90))) {
-        {
-          bLowerCase = (bLowerCase + 32);
-        }
-      }
-      if (((65 <= aChar) && (aChar <= 90))) {
-        {
-          aLowerCase = (aLowerCase + 32);
-        }
-      }
-      if (!(__dartEquals(aLowerCase, bLowerCase))) {
-        return (Number.isNaN(Number((aLowerCase - bLowerCase))) ? Number.NaN : (Number((aLowerCase - bLowerCase)) < 0 ? -1 : (Number((aLowerCase - bLowerCase)) > 0 ? 1 : Number((aLowerCase - bLowerCase)))));
-      }
-      if (__dartEquals(defaultResult, 0)) {
-        defaultResult = (aChar - bChar);
-      }
-    }
-  }
-  if ((b.length > a.length)) {
-    return (-1);
-  }
-  return (Number.isNaN(Number(defaultResult)) ? Number.NaN : (Number(defaultResult) < 0 ? -1 : (Number(defaultResult) > 0 ? 1 : Number(defaultResult))));
-}
-
-function compareNatural(a, b) {
-  for (let i = 0; (i < a.length); i = (i + 1)) {
-    {
-      if ((i >= b.length)) {
-        return 1;
-      }
-      let aChar = a.charCodeAt(i);
-      let bChar = b.charCodeAt(i);
-      if (!(__dartEquals(aChar, bChar))) {
-        {
-          return _compareNaturally(a, b, i, aChar, bChar);
-        }
-      }
-    }
-  }
-  if ((b.length > a.length)) {
-    return (-1);
-  }
-  return 0;
-}
-
-function compareAsciiLowerCaseNatural(a, b) {
-  let defaultResult = 0;
-  for (let i = 0; (i < a.length); i = (i + 1)) {
-    L:
-    {
-      if ((i >= b.length)) {
-        return 1;
-      }
-      let aChar = a.charCodeAt(i);
-      let bChar = b.charCodeAt(i);
-      if (__dartEquals(aChar, bChar)) {
-        break L;
-      }
-      let aLowerCase = aChar;
-      let bLowerCase = bChar;
-      if (((65 <= aChar) && (aChar <= 90))) {
-        {
-          aLowerCase = (aLowerCase + 32);
-        }
-      }
-      if (((65 <= bChar) && (bChar <= 90))) {
-        {
-          bLowerCase = (bLowerCase + 32);
-        }
-      }
-      if (!(__dartEquals(aLowerCase, bLowerCase))) {
-        {
-          return _compareNaturally(a, b, i, aLowerCase, bLowerCase);
-        }
-      }
-      if (__dartEquals(defaultResult, 0)) {
-        defaultResult = (aChar - bChar);
-      }
-    }
-  }
-  if ((b.length > a.length)) {
-    return (-1);
-  }
-  return (Number.isNaN(Number(defaultResult)) ? Number.NaN : (Number(defaultResult) < 0 ? -1 : (Number(defaultResult) > 0 ? 1 : Number(defaultResult))));
-}
-
-function compareAsciiUpperCaseNatural(a, b) {
-  let defaultResult = 0;
-  for (let i = 0; (i < a.length); i = (i + 1)) {
-    L:
-    {
-      if ((i >= b.length)) {
-        return 1;
-      }
-      let aChar = a.charCodeAt(i);
-      let bChar = b.charCodeAt(i);
-      if (__dartEquals(aChar, bChar)) {
-        break L;
-      }
-      let aUpperCase = aChar;
-      let bUpperCase = bChar;
-      if (((97 <= aChar) && (aChar <= 122))) {
-        {
-          aUpperCase = (aUpperCase - 32);
-        }
-      }
-      if (((97 <= bChar) && (bChar <= 122))) {
-        {
-          bUpperCase = (bUpperCase - 32);
-        }
-      }
-      if (!(__dartEquals(aUpperCase, bUpperCase))) {
-        {
-          return _compareNaturally(a, b, i, aUpperCase, bUpperCase);
-        }
-      }
-      if (__dartEquals(defaultResult, 0)) {
-        defaultResult = (aChar - bChar);
-      }
-    }
-  }
-  if ((b.length > a.length)) {
-    return (-1);
-  }
-  return (Number.isNaN(Number(defaultResult)) ? Number.NaN : (Number(defaultResult) < 0 ? -1 : (Number(defaultResult) > 0 ? 1 : Number(defaultResult))));
-}
-
-function _compareNaturally(a, b, index, aChar, bChar) {
-  let aIsDigit = _isDigit(aChar);
-  let bIsDigit = _isDigit(bChar);
-  if (aIsDigit) {
-    {
-      if (bIsDigit) {
-        {
-          return _compareNumerically(a, b, aChar, bChar, index);
-        }
-      } else {
-        if (((index > 0) && _isDigit(a.charCodeAt((index - 1))))) {
-          {
-            return 1;
-          }
-        }
-      }
-    }
-  } else {
-    if (((bIsDigit && (index > 0)) && _isDigit(b.charCodeAt((index - 1))))) {
-      {
-        return (-1);
-      }
-    }
-  }
-  return (Number.isNaN(Number((aChar - bChar))) ? Number.NaN : (Number((aChar - bChar)) < 0 ? -1 : (Number((aChar - bChar)) > 0 ? 1 : Number((aChar - bChar)))));
-}
-
-function _compareNumerically(a, b, aChar, bChar, index) {
-  if (_isNonZeroNumberSuffix(a, index)) {
-    {
-      let result = _compareDigitCount(a, b, index, index);
-      if (!(__dartEquals(result, 0))) {
-        return result;
-      }
-      return (Number.isNaN(Number((aChar - bChar))) ? Number.NaN : (Number((aChar - bChar)) < 0 ? -1 : (Number((aChar - bChar)) > 0 ? 1 : Number((aChar - bChar)))));
-    }
-  }
-  let aIndex = index;
-  let bIndex = index;
-  if (__dartEquals(aChar, 48)) {
-    {
-      do {
-        {
-          aIndex = (aIndex + 1);
-          if (__dartEquals(aIndex, a.length)) {
-            return (-1);
-          }
-          aChar = a.charCodeAt(aIndex);
-        }
-      } while (__dartEquals(aChar, 48));
-      if (!(_isDigit(aChar))) {
-        return (-1);
-      }
-    }
-  } else {
-    if (__dartEquals(bChar, 48)) {
-      {
-        do {
-          {
-            bIndex = (bIndex + 1);
-            if (__dartEquals(bIndex, b.length)) {
-              return 1;
-            }
-            bChar = b.charCodeAt(bIndex);
-          }
-        } while (__dartEquals(bChar, 48));
-        if (!(_isDigit(bChar))) {
-          return 1;
-        }
-      }
-    }
-  }
-  if (!(__dartEquals(aChar, bChar))) {
-    {
-      let result_1 = _compareDigitCount(a, b, aIndex, bIndex);
-      if (!(__dartEquals(result_1, 0))) {
-        return result_1;
-      }
-      return (Number.isNaN(Number((aChar - bChar))) ? Number.NaN : (Number((aChar - bChar)) < 0 ? -1 : (Number((aChar - bChar)) > 0 ? 1 : Number((aChar - bChar)))));
-    }
-  }
-  L:
-  while (true) {
-    L_1:
-    {
-      let aIsDigit = false;
-      let bIsDigit = false;
-      aChar = 0;
-      bChar = 0;
-      if (((aIndex = (aIndex + 1)) < a.length)) {
-        {
-          aChar = a.charCodeAt(aIndex);
-          aIsDigit = _isDigit(aChar);
-        }
-      }
-      if (((bIndex = (bIndex + 1)) < b.length)) {
-        {
-          bChar = b.charCodeAt(bIndex);
-          bIsDigit = _isDigit(bChar);
-        }
-      }
-      if (aIsDigit) {
-        {
-          if (bIsDigit) {
-            {
-              if (__dartEquals(aChar, bChar)) {
-                break L_1;
-              }
-              break L;
-            }
-          }
-          return 1;
-        }
-      } else {
-        if (bIsDigit) {
-          {
-            return (-1);
-          }
-        } else {
-          {
-            return (Number.isNaN(Number((aIndex - bIndex))) ? Number.NaN : (Number((aIndex - bIndex)) < 0 ? -1 : (Number((aIndex - bIndex)) > 0 ? 1 : Number((aIndex - bIndex)))));
-          }
-        }
-      }
-    }
-  }
-  let result_2 = _compareDigitCount(a, b, aIndex, bIndex);
-  if (!(__dartEquals(result_2, 0))) {
-    return result_2;
-  }
-  return (Number.isNaN(Number((aChar - bChar))) ? Number.NaN : (Number((aChar - bChar)) < 0 ? -1 : (Number((aChar - bChar)) > 0 ? 1 : Number((aChar - bChar)))));
-}
-
-function _compareDigitCount(a, b, i, j) {
-  while (((i = (i + 1)) < a.length)) {
-    L:
-    {
-      let aIsDigit = _isDigit(a.charCodeAt(i));
-      if (__dartEquals(j = (j + 1), b.length)) {
-        return (aIsDigit ? 1 : 0);
-      }
-      let bIsDigit = _isDigit(b.charCodeAt(j));
-      if (aIsDigit) {
-        {
-          if (bIsDigit) {
-            break L;
-          }
-          return 1;
-        }
-      } else {
-        if (bIsDigit) {
-          {
-            return (-1);
-          }
-        } else {
-          {
-            return 0;
-          }
-        }
-      }
-    }
-  }
-  if ((((j = (j + 1)) < b.length) && _isDigit(b.charCodeAt(j)))) {
-    {
-      return (-1);
-    }
-  }
-  return 0;
-}
-
-function _isDigit(charCode) {
-  return ((charCode ^ 48) <= 9);
-}
-
-function _isNonZeroNumberSuffix(string, index) {
-  while (((index = (index - 1)) >= 0)) {
-    {
-      let char = string.charCodeAt(index);
-      if (!(__dartEquals(char, 48))) {
-        return _isDigit(char);
-      }
-    }
-  }
-  return false;
-}
-
-const _hashMask = 2147483647;
-
-function mapMap(map, { key = null, value = null } = {}) {
-  let keyFn = (key ?? function(mapKey, _) { return __dartAs(mapKey, value => true, "K2"); });
-  let valueFn = (value ?? function(_, mapValue) { return __dartAs(mapValue, value => true, "V2"); });
-  let result = new Map([]);
-  __dartMapForEach(map, function(mapKey, mapValue) {
-    __dartMapSet(result, (keyFn)(mapKey, mapValue), (valueFn)(mapKey, mapValue));
-});
-  return result;
-}
-
-function mergeMaps(map1, map2, { value = null } = {}) {
-  let result = __dartMapFromEntries(map1);
-  if ((value === null)) {
-    return (() => { let v = result; return (() => {
-      __dartMapAddAll(v, map2);
-      return v;
-    })(); })();
-  }
-  __dartMapForEach(map2, function(key, mapValue) {
-    __dartMapSet(result, key, (__dartMapContainsKey(result, key) ? (value)((__dartMapGet(result, key) ?? __dartAs(v, value => true, "V")), mapValue) : mapValue));
-});
-  return result;
-}
-
-function lastBy(values, key) {
-  return (() => {
-    const v = new Map([]);
-    {
-      let _sync_for_iterator = __dartIterator(values);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let element = _sync_for_iterator.current;
-          __dartMapSet(v, (key)(element), element);
-        }
-      }
-    }
-    return v;
-  })();
-}
-
 function groupBy(values, key) {
   let map = new Map([]);
   {
@@ -19589,1763 +9685,52 @@ function groupBy(values, key) {
   return map;
 }
 
-function minBy(values, orderBy, { compare = null } = {}) {
-  ((compare === null) ? compare = defaultCompare : null);
-  let minValue = null;
-  let minOrderBy = null;
-  {
-    let _sync_for_iterator = __dartIterator(values);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          let elementOrderBy = (orderBy)(element);
-          if (((minOrderBy === null) || ((compare)(elementOrderBy, minOrderBy) < 0))) {
-            {
-              minValue = element;
-              minOrderBy = elementOrderBy;
-            }
-          }
-        }
-      }
-    }
-  }
-  return minValue;
+function noSuchFileOrDirectory(path) {
+  return _fsException(path, "No such file or directory", ErrorCodes.ENOENT);
 }
 
-function maxBy(values, orderBy, { compare = null } = {}) {
-  ((compare === null) ? compare = defaultCompare : null);
-  let maxValue = null;
-  let maxOrderBy = null;
-  {
-    let _sync_for_iterator = __dartIterator(values);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          let elementOrderBy = (orderBy)(element);
-          if (((maxOrderBy === null) || ((compare)(elementOrderBy, maxOrderBy) > 0))) {
-            {
-              maxValue = element;
-              maxOrderBy = elementOrderBy;
-            }
-          }
-        }
-      }
-    }
-  }
-  return maxValue;
+function notADirectory(path) {
+  return _fsException(path, "Not a directory", ErrorCodes.ENOTDIR);
 }
 
-function transitiveClosure(graph) {
-  let result = new Map([]);
-  __dartMapForEach(graph, function(vertex, edges) {
-    __dartMapSet(result, vertex, __dartSetFrom(edges));
-});
-  let keys = Array.from(Array.from(graph.keys()));
-  {
-    let _sync_for_iterator = __dartIterator(keys);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let vertex1 = _sync_for_iterator.current;
-        {
-          {
-            let _sync_for_iterator_1 = __dartIterator(keys);
-            for (; _sync_for_iterator_1.moveNext(); ) {
-              {
-                let vertex2 = _sync_for_iterator_1.current;
-                {
-                  {
-                    let _sync_for_iterator_2 = __dartIterator(keys);
-                    for (; _sync_for_iterator_2.moveNext(); ) {
-                      {
-                        let vertex3 = _sync_for_iterator_2.current;
-                        {
-                          if ((__dartIterableContains(__dartNullCheck(__dartMapGet(result, vertex2)), vertex1) && __dartIterableContains(__dartNullCheck(__dartMapGet(result, vertex1)), vertex3))) {
-                            {
-                              __dartSetAdd(__dartNullCheck(__dartMapGet(result, vertex2)), vertex3);
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return result;
+function isADirectory(path) {
+  return _fsException(path, "Is a directory", ErrorCodes.EISDIR);
 }
 
-function stronglyConnectedComponents(graph) {
-  let index = 0;
-  let stack = new Array(0).fill(null);
-  let result = new Array(0).fill(null);
-  let indices = new Map();
-  let lowLinks = new Map();
-  let onStack = new Set();
-  function strongConnect(vertex) {
-    __dartMapSet(indices, vertex, index);
-    __dartMapSet(lowLinks, vertex, index);
-    index = (index + 1);
-    (stack.push(vertex), null);
-    __dartSetAdd(onStack, vertex);
+function directoryNotEmpty(path) {
+  return _fsException(path, "Directory not empty", ErrorCodes.ENOTEMPTY);
+}
+
+function fileExists(path) {
+  return _fsException(path, "File exists", ErrorCodes.EEXIST);
+}
+
+function invalidArgument(path) {
+  return _fsException(path, "Invalid argument", ErrorCodes.EINVAL);
+}
+
+function tooManyLevelsOfSymbolicLinks(path) {
+  return _fsException(path, "Too many levels of symbolic links", ErrorCodes.ELOOP);
+}
+
+function badFileDescriptor(path) {
+  return _fsException(path, "Bad file descriptor", ErrorCodes.EBADF);
+}
+
+function _fsException(path, msg, errorCode) {
+  return __dartIoFileSystemException(msg, path, __dartIoOSError(msg, errorCode));
+}
+
+function checkExists(object, path) {
+  if ((object === null)) {
     {
-      let _sync_for_iterator = __dartIterator(__dartNullCheck(__dartMapGet(graph, vertex)));
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let successor = _sync_for_iterator.current;
-          {
-            if (!(__dartMapContainsKey(indices, successor))) {
-              {
-                strongConnect(successor);
-                __dartMapSet(lowLinks, vertex, Math.min(__dartNullCheck(__dartMapGet(lowLinks, vertex)), __dartNullCheck(__dartMapGet(lowLinks, successor))));
-              }
-            } else {
-              if (__dartIterableContains(onStack, successor)) {
-                {
-                  __dartMapSet(lowLinks, vertex, Math.min(__dartNullCheck(__dartMapGet(lowLinks, vertex)), __dartNullCheck(__dartMapGet(lowLinks, successor))));
-                }
-              }
-            }
-          }
-        }
-      }
+      (() => { throw noSuchFileOrDirectory(__dartAs((path)(), value => typeof value === "string", "String")); })();
     }
-    if (__dartEquals(__dartMapGet(lowLinks, vertex), __dartMapGet(indices, vertex))) {
-      {
-        let component = (() => {
-          const v = new Set();
-          return v;
-        })();
-        let neighbor = null;
-        do {
-          {
-            neighbor = stack.pop();
-            __dartSetRemove(onStack, neighbor);
-            __dartSetAdd(component, (neighbor ?? __dartAs(v, value => true, "T")));
-          }
-        } while (!(__dartEquals(neighbor, vertex)));
-        (result.push(component), null);
-      }
-    }
-  }
-  {
-    let _sync_for_iterator = __dartIterator(Array.from(graph.keys()));
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let vertex = _sync_for_iterator.current;
-        {
-          if (!(__dartMapContainsKey(indices, vertex))) {
-            strongConnect(vertex);
-          }
-        }
-      }
-    }
-  }
-  return Array.from(Array.from(result).reverse());
-}
-
-function IterableExtension_sample(_this, count, random = null) {
-  __dartCheckNotNegative(count, "count", null);
-  let iterator = __dartIterator(_this);
-  let chosen = new Array(0).fill(null);
-  ((random === null) ? random = __dartRandom(null, false) : null);
-  while ((chosen.length < count)) {
-    {
-      if (iterator.moveNext()) {
-        {
-          let nextElement = iterator.current;
-          let position = random.nextInt((chosen.length + 1));
-          if (__dartEquals(position, chosen.length)) {
-            {
-              (chosen.push(nextElement), null);
-            }
-          } else {
-            {
-              (chosen.push(__dartIndexGet(chosen, position)), null);
-              __dartIndexSet(chosen, position, nextElement);
-            }
-          }
-        }
-      } else {
-        {
-          return chosen;
-        }
-      }
-    }
-  }
-  let index = count;
-  while (iterator.moveNext()) {
-    {
-      index = (index + 1);
-      let position_1 = random.nextInt(index);
-      if ((position_1 < count)) {
-        __dartIndexSet(chosen, position_1, iterator.current);
-      }
-    }
-  }
-  return chosen;
-}
-
-function IterableExtension_get_sample(_this) {
-  return function(count, random = null) { return IterableExtension_sample(_this, count, random); };
-}
-
-function IterableExtension_whereNot(_this, test) {
-  return Array.from(_this).filter(function(element) { return !((test)(element)); });
-}
-
-function IterableExtension_get_whereNot(_this) {
-  return function(test) { return IterableExtension_whereNot(_this, test); };
-}
-
-function IterableExtension_sorted(_this, compare) {
-  return (() => { let v = (() => {
-    const v = Array.from(_this);
-    return v;
-  })(); return (() => {
-    __dartListSort(v, compare);
-    return v;
-  })(); })();
-}
-
-function IterableExtension_get_sorted(_this) {
-  return function(compare) { return IterableExtension_sorted(_this, compare); };
-}
-
-function IterableExtension_shuffled(_this, random = null) {
-  return (() => { let v = (() => {
-    const v = Array.from(_this);
-    return v;
-  })(); return (() => {
-    __dartListShuffle(v, random);
-    return v;
-  })(); })();
-}
-
-function IterableExtension_get_shuffled(_this) {
-  return function(random = null) { return IterableExtension_shuffled(_this, random); };
-}
-
-function IterableExtension_sortedBy(_this, keyOf) {
-  let elements = (() => {
-    const v = Array.from(_this);
-    return v;
-  })();
-  mergeSortBy(elements, keyOf, compareComparable);
-  return elements;
-}
-
-function IterableExtension_get_sortedBy(_this) {
-  return function(keyOf) { return IterableExtension_sortedBy(_this, keyOf); };
-}
-
-function IterableExtension_get_sortedByCompare(_this) {
-  return function(keyOf, compare) { return IterableExtension_sortedByCompare(_this, keyOf, compare); };
-}
-
-function IterableExtension_sortedByCompare(_this, keyOf, compare) {
-  let elements = (() => {
-    const v = Array.from(_this);
-    return v;
-  })();
-  mergeSortBy(elements, keyOf, compare);
-  return elements;
-}
-
-function IterableExtension_isSorted(_this, compare) {
-  let iterator = __dartIterator(_this);
-  if (!(iterator.moveNext())) {
-    return true;
-  }
-  let previousElement = iterator.current;
-  while (iterator.moveNext()) {
-    {
-      let element = iterator.current;
-      if (((compare)(previousElement, element) > 0)) {
-        return false;
-      }
-      previousElement = element;
-    }
-  }
-  return true;
-}
-
-function IterableExtension_get_isSorted(_this) {
-  return function(compare) { return IterableExtension_isSorted(_this, compare); };
-}
-
-function IterableExtension_isSortedBy(_this, keyOf) {
-  let iterator = __dartIterator(_this);
-  if (!(iterator.moveNext())) {
-    return true;
-  }
-  let previousKey = (keyOf)(iterator.current);
-  while (iterator.moveNext()) {
-    {
-      let key = (keyOf)(iterator.current);
-      if ((__dartCompare(previousKey, key) > 0)) {
-        return false;
-      }
-      previousKey = key;
-    }
-  }
-  return true;
-}
-
-function IterableExtension_get_isSortedBy(_this) {
-  return function(keyOf) { return IterableExtension_isSortedBy(_this, keyOf); };
-}
-
-function IterableExtension_isSortedByCompare(_this, keyOf, compare) {
-  let iterator = __dartIterator(_this);
-  if (!(iterator.moveNext())) {
-    return true;
-  }
-  let previousKey = (keyOf)(iterator.current);
-  while (iterator.moveNext()) {
-    {
-      let key = (keyOf)(iterator.current);
-      if (((compare)(previousKey, key) > 0)) {
-        return false;
-      }
-      previousKey = key;
-    }
-  }
-  return true;
-}
-
-function IterableExtension_get_isSortedByCompare(_this) {
-  return function(keyOf, compare) { return IterableExtension_isSortedByCompare(_this, keyOf, compare); };
-}
-
-function IterableExtension_forEachIndexed(_this, action) {
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          (action)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element);
-        }
-      }
-    }
-  }
-}
-
-function IterableExtension_get_forEachIndexed(_this) {
-  return function(action) { return IterableExtension_forEachIndexed(_this, action); };
-}
-
-function IterableExtension_forEachWhile(_this, action) {
-  L:
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if (!((action)(element))) {
-            break L;
-          }
-        }
-      }
-    }
-  }
-}
-
-function IterableExtension_get_forEachWhile(_this) {
-  return function(action) { return IterableExtension_forEachWhile(_this, action); };
-}
-
-function IterableExtension_forEachIndexedWhile(_this, action) {
-  let index = 0;
-  L:
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if (!((action)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element))) {
-            break L;
-          }
-        }
-      }
-    }
-  }
-}
-
-function IterableExtension_get_forEachIndexedWhile(_this) {
-  return function(action) { return IterableExtension_forEachIndexedWhile(_this, action); };
-}
-
-function* IterableExtension_mapIndexed(_this, convert) {
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          yield (convert)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element);
-        }
-      }
-    }
-  }
-}
-
-function IterableExtension_get_mapIndexed(_this) {
-  return function(convert) { return IterableExtension_mapIndexed(_this, convert); };
-}
-
-function* IterableExtension_whereIndexed(_this, test) {
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element)) {
-            yield element;
-          }
-        }
-      }
-    }
-  }
-}
-
-function IterableExtension_get_whereIndexed(_this) {
-  return function(test) { return IterableExtension_whereIndexed(_this, test); };
-}
-
-function* IterableExtension_whereNotIndexed(_this, test) {
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if (!((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element))) {
-            yield element;
-          }
-        }
-      }
-    }
-  }
-}
-
-function IterableExtension_get_whereNotIndexed(_this) {
-  return function(test) { return IterableExtension_whereNotIndexed(_this, test); };
-}
-
-function* IterableExtension_expandIndexed(_this, expand) {
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          yield* (expand)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element);
-        }
-      }
-    }
-  }
-}
-
-function IterableExtension_get_expandIndexed(_this) {
-  return function(expand) { return IterableExtension_expandIndexed(_this, expand); };
-}
-
-function IterableExtension_reduceIndexed(_this, combine) {
-  let iterator = __dartIterator(_this);
-  if (!(iterator.moveNext())) {
-    {
-      (() => { throw __dartCoreError("StateError", "no elements"); })();
-    }
-  }
-  let index = 1;
-  let result = iterator.current;
-  while (iterator.moveNext()) {
-    {
-      result = (combine)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), result, iterator.current);
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_reduceIndexed(_this) {
-  return function(combine) { return IterableExtension_reduceIndexed(_this, combine); };
-}
-
-function IterableExtension_foldIndexed(_this, initialValue, combine) {
-  let result = initialValue;
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          result = (combine)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), result, element);
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_foldIndexed(_this) {
-  return function(initialValue, combine) { return IterableExtension_foldIndexed(_this, initialValue, combine); };
-}
-
-function IterableExtension_get_firstWhereOrNull(_this) {
-  return function(test) { return IterableExtension_firstWhereOrNull(_this, test); };
-}
-
-function IterableExtension_firstWhereOrNull(_this, test) {
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)(element)) {
-            return element;
-          }
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function IterableExtension_firstWhereIndexedOrNull(_this, test) {
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element)) {
-            return element;
-          }
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function IterableExtension_get_firstWhereIndexedOrNull(_this) {
-  return function(test) { return IterableExtension_firstWhereIndexedOrNull(_this, test); };
-}
-
-function IterableExtension_get_firstOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    return iterator.current;
-  }
-  return null;
-}
-
-function IterableExtension_lastWhereOrNull(_this, test) {
-  let result = null;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)(element)) {
-            result = element;
-          }
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_lastWhereOrNull(_this) {
-  return function(test) { return IterableExtension_lastWhereOrNull(_this, test); };
-}
-
-function IterableExtension_lastWhereIndexedOrNull(_this, test) {
-  let result = null;
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element)) {
-            result = element;
-          }
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_lastWhereIndexedOrNull(_this) {
-  return function(test) { return IterableExtension_lastWhereIndexedOrNull(_this, test); };
-}
-
-function IterableExtension_get_lastOrNull(_this) {
-  if (__dartIterableIsEmpty(_this)) {
-    return null;
-  }
-  return __dartIterableLast(_this);
-}
-
-function IterableExtension_singleWhereOrNull(_this, test) {
-  let result = null;
-  let found = false;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)(element)) {
-            {
-              if (!(found)) {
-                {
-                  result = element;
-                  found = true;
-                }
-              } else {
-                {
-                  return null;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_singleWhereOrNull(_this) {
-  return function(test) { return IterableExtension_singleWhereOrNull(_this, test); };
-}
-
-function IterableExtension_get_singleWhereIndexedOrNull(_this) {
-  return function(test) { return IterableExtension_singleWhereIndexedOrNull(_this, test); };
-}
-
-function IterableExtension_singleWhereIndexedOrNull(_this, test) {
-  let result = null;
-  let found = false;
-  let index = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element)) {
-            {
-              if (!(found)) {
-                {
-                  result = element;
-                  found = true;
-                }
-              } else {
-                {
-                  return null;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_singleOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let result = iterator.current;
-      if (!(iterator.moveNext())) {
-        {
-          return result;
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function IterableExtension_elementAtOrNull(_this, index) {
-  return IterableExtension_get_firstOrNull(Array.from(_this).slice(index));
-}
-
-function IterableExtension_get_elementAtOrNull(_this) {
-  return function(index) { return IterableExtension_elementAtOrNull(_this, index); };
-}
-
-function IterableExtension_lastBy(_this, key) {
-  return lastBy(_this, key);
-}
-
-function IterableExtension_get_lastBy(_this) {
-  return function(key) { return IterableExtension_lastBy(_this, key); };
-}
-
-function IterableExtension_groupFoldBy(_this, keyOf, combine) {
-  let result = new Map([]);
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          let key = (keyOf)(element);
-          __dartMapSet(result, key, (combine)(__dartMapGet(result, key), element));
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_groupFoldBy(_this) {
-  return function(keyOf, combine) { return IterableExtension_groupFoldBy(_this, keyOf, combine); };
-}
-
-function IterableExtension_groupSetsBy(_this, keyOf) {
-  let result = new Map([]);
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          __dartSetAdd((() => { let v = result; return (() => { let v_1 = (keyOf)(element); return (__dartMapGet(v, v_1) ?? (() => { let v_2 = (() => {
-            const v = new Set();
-            return v;
-          })(); return (() => { let v_3 = __dartMapSet(v, v_1, v_2); return v_2; })(); })()); })(); })(), element);
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_groupSetsBy(_this) {
-  return function(keyOf) { return IterableExtension_groupSetsBy(_this, keyOf); };
-}
-
-function IterableExtension_groupListsBy(_this, keyOf) {
-  let result = new Map([]);
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          ((() => { let v = result; return (() => { let v_1 = (keyOf)(element); return (__dartMapGet(v, v_1) ?? (() => { let v_2 = new Array(0).fill(null); return (() => { let v_3 = __dartMapSet(v, v_1, v_2); return v_2; })(); })()); })(); })().push(element), null);
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableExtension_get_groupListsBy(_this) {
-  return function(keyOf) { return IterableExtension_groupListsBy(_this, keyOf); };
-}
-
-function IterableExtension_get_splitBefore(_this) {
-  return function(test) { return IterableExtension_splitBefore(_this, test); };
-}
-
-function IterableExtension_splitBefore(_this, test) {
-  return IterableExtension_splitBeforeIndexed(_this, function(_, element) { return (test)(element); });
-}
-
-function IterableExtension_splitAfter(_this, test) {
-  return IterableExtension_splitAfterIndexed(_this, function(_, element) { return (test)(element); });
-}
-
-function IterableExtension_get_splitAfter(_this) {
-  return function(test) { return IterableExtension_splitAfter(_this, test); };
-}
-
-function IterableExtension_splitBetween(_this, test) {
-  return IterableExtension_splitBetweenIndexed(_this, function(_, first, second) { return (test)(first, second); });
-}
-
-function IterableExtension_get_splitBetween(_this) {
-  return function(test) { return IterableExtension_splitBetween(_this, test); };
-}
-
-function* IterableExtension_splitBeforeIndexed(_this, test) {
-  let iterator = __dartIterator(_this);
-  if (!(iterator.moveNext())) {
-    {
-      return;
-    }
-  }
-  let index = 1;
-  let chunk = [iterator.current];
-  while (iterator.moveNext()) {
-    {
-      let element = iterator.current;
-      if ((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element)) {
-        {
-          yield chunk;
-          chunk = new Array(0).fill(null);
-        }
-      }
-      (chunk.push(element), null);
-    }
-  }
-  yield chunk;
-}
-
-function IterableExtension_get_splitBeforeIndexed(_this) {
-  return function(test) { return IterableExtension_splitBeforeIndexed(_this, test); };
-}
-
-function* IterableExtension_splitAfterIndexed(_this, test) {
-  let index = 0;
-  let chunk = null;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          ((chunk ?? (chunk = new Array(0).fill(null))).push(element), null);
-          if ((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), element)) {
-            {
-              yield chunk;
-              chunk = null;
-            }
-          }
-        }
-      }
-    }
-  }
-  if (!((chunk === null))) {
-    yield chunk;
-  }
-}
-
-function IterableExtension_get_splitAfterIndexed(_this) {
-  return function(test) { return IterableExtension_splitAfterIndexed(_this, test); };
-}
-
-function* IterableExtension_splitBetweenIndexed(_this, test) {
-  let iterator = __dartIterator(_this);
-  if (!(iterator.moveNext())) {
-    return;
-  }
-  let previous = iterator.current;
-  let chunk = [previous];
-  let index = 1;
-  while (iterator.moveNext()) {
-    {
-      let element = iterator.current;
-      if ((test)((() => { let v = index; return (() => { let v_1 = index = (v + 1); return v; })(); })(), previous, element)) {
-        {
-          yield chunk;
-          chunk = new Array(0).fill(null);
-        }
-      }
-      (chunk.push(element), null);
-      previous = element;
-    }
-  }
-  yield chunk;
-}
-
-function IterableExtension_get_splitBetweenIndexed(_this) {
-  return function(test) { return IterableExtension_splitBetweenIndexed(_this, test); };
-}
-
-function IterableExtension_get_none(_this) {
-  return function(test) { return IterableExtension_none(_this, test); };
-}
-
-function IterableExtension_none(_this, test) {
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if ((test)(element)) {
-            return false;
-          }
-        }
-      }
-    }
-  }
-  return true;
-}
-
-function* IterableExtension_slices(_this, length) {
-  if ((length < 1)) {
-    (() => { throw __dartCoreError("RangeError", length); })();
-  }
-  let iterator = __dartIterator(_this);
-  while (iterator.moveNext()) {
-    {
-      let slice = [iterator.current];
-      for (let i = 1; ((i < length) && iterator.moveNext()); i = (i + 1)) {
-        {
-          (slice.push(iterator.current), null);
-        }
-      }
-      yield slice;
-    }
-  }
-}
-
-function IterableExtension_get_slices(_this) {
-  return function(length) { return IterableExtension_slices(_this, length); };
-}
-
-function* IterableNullableExtension_whereNotNull(_this) {
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let element = _sync_for_iterator.current;
-        {
-          if (!((element === null))) {
-            yield element;
-          }
-        }
-      }
-    }
   }
-}
-
-function IterableNullableExtension_get_whereNotNull(_this) {
-  return function() { return IterableNullableExtension_whereNotNull(_this); };
-}
-
-function IterableNumberExtension_get_minOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      if (Number.isNaN(Number(value))) {
-        {
-          return value;
-        }
-      }
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if (Number.isNaN(Number(newValue))) {
-            {
-              return newValue;
-            }
-          }
-          if ((newValue < value)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableNumberExtension_get_min(_this) {
-  return (IterableNumberExtension_get_minOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableNumberExtension_get_maxOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      if (Number.isNaN(Number(value))) {
-        {
-          return value;
-        }
-      }
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if (Number.isNaN(Number(newValue))) {
-            {
-              return newValue;
-            }
-          }
-          if ((newValue > value)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableNumberExtension_get_max(_this) {
-  return (IterableNumberExtension_get_maxOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableNumberExtension_get_sum(_this) {
-  let result = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let value = _sync_for_iterator.current;
-        {
-          result = (result + value);
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableNumberExtension_get_average(_this) {
-  let result = 0.0;
-  let count = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let value = _sync_for_iterator.current;
-        {
-          count = (count + 1);
-          result = (result + ((value - result) / count));
-        }
-      }
-    }
-  }
-  if (__dartEquals(count, 0)) {
-    (() => { throw __dartCoreError("StateError", "No elements"); })();
-  }
-  return result;
-}
-
-function IterableIntegerExtension_get_minOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if ((newValue < value)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableIntegerExtension_get_min(_this) {
-  return (IterableIntegerExtension_get_minOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableIntegerExtension_get_maxOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if ((newValue > value)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableIntegerExtension_get_max(_this) {
-  return (IterableIntegerExtension_get_maxOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableIntegerExtension_get_sum(_this) {
-  let result = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let value = _sync_for_iterator.current;
-        {
-          result = (result + value);
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function IterableIntegerExtension_get_average(_this) {
-  let average = 0;
-  let remainder = 0;
-  let count = 0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let value = _sync_for_iterator.current;
-        {
-          count = (count + 1);
-          let delta = ((value - average) + remainder);
-          average = (average + __dartTruncDiv(delta, count));
-          remainder = (delta % count);
-        }
-      }
-    }
-  }
-  if (__dartEquals(count, 0)) {
-    (() => { throw __dartCoreError("StateError", "No elements"); })();
-  }
-  return (average + (remainder / count));
-}
-
-function IterableDoubleExtension_get_minOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      if (Number.isNaN(Number(value))) {
-        {
-          return value;
-        }
-      }
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if (Number.isNaN(Number(newValue))) {
-            {
-              return newValue;
-            }
-          }
-          if ((newValue < value)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableDoubleExtension_get_min(_this) {
-  return (IterableDoubleExtension_get_minOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableDoubleExtension_get_maxOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      if (Number.isNaN(Number(value))) {
-        {
-          return value;
-        }
-      }
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if (Number.isNaN(Number(newValue))) {
-            {
-              return newValue;
-            }
-          }
-          if ((newValue > value)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableDoubleExtension_get_max(_this) {
-  return (IterableDoubleExtension_get_maxOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableDoubleExtension_get_sum(_this) {
-  let result = 0.0;
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let value = _sync_for_iterator.current;
-        {
-          result = (result + value);
-        }
-      }
-    }
-  }
-  return result;
-}
-
-function* IterableIterableExtension_get_flattened(_this) {
-  {
-    let _sync_for_iterator = __dartIterator(_this);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let elements = _sync_for_iterator.current;
-        {
-          yield* elements;
-        }
-      }
-    }
-  }
-}
-
-function IterableIterableExtension_get_flattenedToList(_this) {
-  return (() => {
-    const v = new Array(0).fill(null);
-    {
-      let _sync_for_iterator = __dartIterator(_this);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          const elements = _sync_for_iterator.current;
-          (v.push(...Array.from(elements)), null);
-        }
-      }
-    }
-    return v;
-  })();
-}
-
-function IterableIterableExtension_get_flattenedToSet(_this) {
-  return (() => {
-    const v = new Set();
-    {
-      let _sync_for_iterator = __dartIterator(_this);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          const elements = _sync_for_iterator.current;
-          {
-            let _sync_for_iterator_1 = __dartIterator(elements);
-            for (; _sync_for_iterator_1.moveNext(); ) {
-              {
-                const v_1 = _sync_for_iterator_1.current;
-                {
-                  const v_2 = __dartAs(v_1, value => true, "T");
-                  __dartSetAdd(v, v_2);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    return v;
-  })();
-}
-
-function IterableComparableExtension_get_minOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if ((__dartCompare(value, newValue) > 0)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableComparableExtension_get_min(_this) {
-  return (IterableComparableExtension_get_minOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableComparableExtension_get_maxOrNull(_this) {
-  let iterator = __dartIterator(_this);
-  if (iterator.moveNext()) {
-    {
-      let value = iterator.current;
-      while (iterator.moveNext()) {
-        {
-          let newValue = iterator.current;
-          if ((__dartCompare(value, newValue) < 0)) {
-            {
-              value = newValue;
-            }
-          }
-        }
-      }
-      return value;
-    }
-  }
-  return null;
-}
-
-function IterableComparableExtension_get_max(_this) {
-  return (IterableComparableExtension_get_maxOrNull(_this) ?? (() => { throw __dartCoreError("StateError", "No element"); })());
-}
-
-function IterableComparableExtension_sorted(_this, compare = null) {
-  return (() => { let v = (() => {
-    const v = Array.from(_this);
-    return v;
-  })(); return (() => {
-    __dartListSort(v, compare);
-    return v;
-  })(); })();
-}
-
-function IterableComparableExtension_get_sorted(_this) {
-  return function(compare = null) { return IterableComparableExtension_sorted(_this, compare); };
-}
-
-function IterableComparableExtension_isSorted(_this, compare = null) {
-  if (!((compare === null))) {
-    {
-      return IterableExtension_isSorted(_this, compare);
-    }
-  }
-  let iterator = __dartIterator(_this);
-  if (!(iterator.moveNext())) {
-    return true;
-  }
-  let previousElement = iterator.current;
-  while (iterator.moveNext()) {
-    {
-      let element = iterator.current;
-      if ((__dartCompare(previousElement, element) > 0)) {
-        return false;
-      }
-      previousElement = element;
-    }
-  }
-  return true;
-}
-
-function IterableComparableExtension_get_isSorted(_this) {
-  return function(compare = null) { return IterableComparableExtension_isSorted(_this, compare); };
-}
-
-function ComparatorExtension_get_inverse(_this) {
-  return function(a, b) { return (_this)(b, a); };
-}
-
-function ComparatorExtension_compareBy(_this, keyOf) {
-  return function(a, b) { return (_this)((keyOf)(a), (keyOf)(b)); };
-}
-
-function ComparatorExtension_get_compareBy(_this) {
-  return function(keyOf) { return ComparatorExtension_compareBy(_this, keyOf); };
-}
-
-function ComparatorExtension_then(_this, tieBreaker) {
-  return function(a, b) {
-    let result = (_this)(a, b);
-    if (__dartEquals(result, 0)) {
-      result = (tieBreaker)(a, b);
-    }
-    return result;
-};
-}
-
-function ComparatorExtension_get_then(_this) {
-  return function(tieBreaker) { return ComparatorExtension_then(_this, tieBreaker); };
-}
-
-function ListExtensions_binarySearch(_this, element, compare) {
-  return binarySearchBy(_this, identity, compare, element);
-}
-
-function ListExtensions_get_binarySearch(_this) {
-  return function(element, compare) { return ListExtensions_binarySearch(_this, element, compare); };
-}
-
-function ListExtensions_binarySearchByCompare(_this, element, keyOf, compare, start = 0, end = null) {
-  return binarySearchBy(_this, keyOf, compare, element, start, end);
-}
-
-function ListExtensions_get_binarySearchByCompare(_this) {
-  return function(element, keyOf, compare, start = 0, end = null) { return ListExtensions_binarySearchByCompare(_this, element, keyOf, compare, start, end); };
-}
-
-function ListExtensions_binarySearchBy(_this, element, keyOf, start = 0, end = null) {
-  return binarySearchBy(_this, keyOf, function(a, b) { return __dartCompare(a, b); }, element, start, end);
-}
-
-function ListExtensions_get_binarySearchBy(_this) {
-  return function(element, keyOf, start = 0, end = null) { return ListExtensions_binarySearchBy(_this, element, keyOf, start, end); };
-}
-
-function ListExtensions_lowerBound(_this, element, compare) {
-  return lowerBoundBy(_this, identity, compare, element);
-}
-
-function ListExtensions_get_lowerBound(_this) {
-  return function(element, compare) { return ListExtensions_lowerBound(_this, element, compare); };
-}
-
-function ListExtensions_lowerBoundByCompare(_this, element, keyOf, compare, start = 0, end = null) {
-  return lowerBoundBy(_this, keyOf, compare, element, start, end);
-}
-
-function ListExtensions_get_lowerBoundByCompare(_this) {
-  return function(element, keyOf, compare, start = 0, end = null) { return ListExtensions_lowerBoundByCompare(_this, element, keyOf, compare, start, end); };
-}
-
-function ListExtensions_lowerBoundBy(_this, element, keyOf, start = 0, end = null) {
-  return lowerBoundBy(_this, keyOf, compareComparable, element, start, end);
-}
-
-function ListExtensions_get_lowerBoundBy(_this) {
-  return function(element, keyOf, start = 0, end = null) { return ListExtensions_lowerBoundBy(_this, element, keyOf, start, end); };
-}
-
-function ListExtensions_forEachIndexed(_this, action) {
-  for (let index = 0; (index < _this.length); index = (index + 1)) {
-    {
-      (action)(index, __dartIndexGet(_this, index));
-    }
-  }
-}
-
-function ListExtensions_get_forEachIndexed(_this) {
-  return function(action) { return ListExtensions_forEachIndexed(_this, action); };
-}
-
-function ListExtensions_forEachWhile(_this, action) {
-  L:
-  for (let index = 0; (index < _this.length); index = (index + 1)) {
-    {
-      if (!((action)(__dartIndexGet(_this, index)))) {
-        break L;
-      }
-    }
-  }
-}
-
-function ListExtensions_get_forEachWhile(_this) {
-  return function(action) { return ListExtensions_forEachWhile(_this, action); };
-}
-
-function ListExtensions_get_forEachIndexedWhile(_this) {
-  return function(action) { return ListExtensions_forEachIndexedWhile(_this, action); };
-}
-
-function ListExtensions_forEachIndexedWhile(_this, action) {
-  L:
-  for (let index = 0; (index < _this.length); index = (index + 1)) {
-    {
-      if (!((action)(index, __dartIndexGet(_this, index)))) {
-        break L;
-      }
-    }
-  }
-}
-
-function* ListExtensions_mapIndexed(_this, convert) {
-  for (let index = 0; (index < _this.length); index = (index + 1)) {
-    {
-      yield (convert)(index, __dartIndexGet(_this, index));
-    }
-  }
-}
-
-function ListExtensions_get_mapIndexed(_this) {
-  return function(convert) { return ListExtensions_mapIndexed(_this, convert); };
-}
-
-function* ListExtensions_whereIndexed(_this, test) {
-  for (let index = 0; (index < _this.length); index = (index + 1)) {
-    {
-      let element = __dartIndexGet(_this, index);
-      if ((test)(index, element)) {
-        yield element;
-      }
-    }
-  }
-}
-
-function ListExtensions_get_whereIndexed(_this) {
-  return function(test) { return ListExtensions_whereIndexed(_this, test); };
-}
-
-function* ListExtensions_whereNotIndexed(_this, test) {
-  for (let index = 0; (index < _this.length); index = (index + 1)) {
-    {
-      let element = __dartIndexGet(_this, index);
-      if (!((test)(index, element))) {
-        yield element;
-      }
-    }
-  }
-}
-
-function ListExtensions_get_whereNotIndexed(_this) {
-  return function(test) { return ListExtensions_whereNotIndexed(_this, test); };
-}
-
-function* ListExtensions_expandIndexed(_this, expand) {
-  for (let index = 0; (index < _this.length); index = (index + 1)) {
-    {
-      yield* (expand)(index, __dartIndexGet(_this, index));
-    }
-  }
-}
-
-function ListExtensions_get_expandIndexed(_this) {
-  return function(expand) { return ListExtensions_expandIndexed(_this, expand); };
-}
-
-function ListExtensions_sortRange(_this, start, end, compare) {
-  quickSortBy(_this, identity, compare, start, end);
-}
-
-function ListExtensions_get_sortRange(_this) {
-  return function(start, end, compare) { return ListExtensions_sortRange(_this, start, end, compare); };
-}
-
-function ListExtensions_sortByCompare(_this, keyOf, compare, start = 0, end = null) {
-  quickSortBy(_this, keyOf, compare, start, end);
-}
-
-function ListExtensions_get_sortByCompare(_this) {
-  return function(keyOf, compare, start = 0, end = null) { return ListExtensions_sortByCompare(_this, keyOf, compare, start, end); };
-}
-
-function ListExtensions_sortBy(_this, keyOf, start = 0, end = null) {
-  quickSortBy(_this, keyOf, compareComparable, start, end);
-}
-
-function ListExtensions_get_sortBy(_this) {
-  return function(keyOf, start = 0, end = null) { return ListExtensions_sortBy(_this, keyOf, start, end); };
-}
-
-function ListExtensions_shuffleRange(_this, start, end, random = null) {
-  __dartCheckValidRange(start, end, _this.length, null, null, null);
-  shuffle(_this, start, end, random);
-}
-
-function ListExtensions_get_shuffleRange(_this) {
-  return function(start, end, random = null) { return ListExtensions_shuffleRange(_this, start, end, random); };
-}
-
-function ListExtensions_reverseRange(_this, start, end) {
-  __dartCheckValidRange(start, end, _this.length, null, null, null);
-  while ((start < (end = (end - 1)))) {
-    {
-      let tmp = __dartIndexGet(_this, start);
-      __dartIndexSet(_this, start, __dartIndexGet(_this, end));
-      __dartIndexSet(_this, end, tmp);
-      start = (start + 1);
-    }
-  }
-}
-
-function ListExtensions_get_reverseRange(_this) {
-  return function(start, end) { return ListExtensions_reverseRange(_this, start, end); };
-}
-
-function ListExtensions_swap(_this, index1, index2) {
-  __dartCheckValidIndex(index1, _this, "index1", null, null);
-  __dartCheckValidIndex(index2, _this, "index2", null, null);
-  let tmp = __dartIndexGet(_this, index1);
-  __dartIndexSet(_this, index1, __dartIndexGet(_this, index2));
-  __dartIndexSet(_this, index2, tmp);
-}
-
-function ListExtensions_get_swap(_this) {
-  return function(index1, index2) { return ListExtensions_swap(_this, index1, index2); };
-}
-
-function ListExtensions_slice(_this, start, end = null) {
-  end = __dartCheckValidRange(start, end, _this.length, null, null, null);
-  let self = _this;
-  if (self instanceof ListSlice) {
-    return self.slice(start, end);
-  }
-  return new ListSlice(_this, start, end);
-}
-
-function ListExtensions_get_slice(_this) {
-  return function(start, end = null) { return ListExtensions_slice(_this, start, end); };
-}
-
-function ListExtensions_equals(_this, other, equality = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype)))) {
-  if (!(__dartEquals(_this.length, other.length))) {
-    return false;
-  }
-  for (let i = 0; (i < _this.length); i = (i + 1)) {
-    {
-      if (!(equality.equals(__dartIndexGet(_this, i), __dartIndexGet(other, i)))) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-function ListExtensions_get_equals(_this) {
-  return function(other, equality = __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype)))) { return ListExtensions_equals(_this, other, equality); };
-}
-
-function ListExtensions_elementAtOrNull(_this, index) {
-  return ((index < _this.length) ? __dartIndexGet(_this, index) : null);
-}
-
-function ListExtensions_get_elementAtOrNull(_this) {
-  return function(index) { return ListExtensions_elementAtOrNull(_this, index); };
-}
-
-function* ListExtensions_slices(_this, length) {
-  if ((length < 1)) {
-    (() => { throw __dartCoreError("RangeError", length); })();
-  }
-  for (let i = 0; (i < _this.length); i = (i + length)) {
-    {
-      yield ListExtensions_slice(_this, i, Math.min((i + length), _this.length));
-    }
-  }
-}
-
-function ListExtensions_get_slices(_this) {
-  return function(length) { return ListExtensions_slices(_this, length); };
-}
-
-function ListComparableExtensions_binarySearch(_this, element, compare = null) {
-  return binarySearchBy(_this, identity, (compare ?? compareComparable), element);
-}
-
-function ListComparableExtensions_get_binarySearch(_this) {
-  return function(element, compare = null) { return ListComparableExtensions_binarySearch(_this, element, compare); };
-}
-
-function ListComparableExtensions_lowerBound(_this, element, compare = null) {
-  return lowerBoundBy(_this, identity, (compare ?? compareComparable), element);
-}
-
-function ListComparableExtensions_get_lowerBound(_this) {
-  return function(element, compare = null) { return ListComparableExtensions_lowerBound(_this, element, compare); };
-}
-
-function ListComparableExtensions_sortRange(_this, start, end, compare = null) {
-  __dartCheckValidRange(start, end, _this.length, null, null, null);
-  quickSortBy(_this, identity, (compare ?? compareComparable), start, end);
-}
-
-function ListComparableExtensions_get_sortRange(_this) {
-  return function(start, end, compare = null) { return ListComparableExtensions_sortRange(_this, start, end, compare); };
-}
-
-function StreamSinkExtensions_transform(_this, transformer) {
-  return transformer.bind(_this);
-}
-
-function StreamSinkExtensions_get_transform(_this) {
-  return function(transformer) { return StreamSinkExtensions_transform(_this, transformer); };
-}
-
-function StreamSinkExtensions_rejectErrors(_this) {
-  return new RejectErrorsSink(_this);
-}
-
-function StreamSinkExtensions_get_rejectErrors(_this) {
-  return function() { return StreamSinkExtensions_rejectErrors(_this); };
-}
-
-function subscriptionTransformer({ handleCancel = null, handlePause = null, handleResume = null } = {}) {
-  return Object.freeze({ bind(stream) { return __dartBoundSubscriptionStream(stream, function(stream, cancelOnError) { return new _TransformedSubscription(__dartStreamListen(stream, null, null, null, cancelOnError), (handleCancel ?? function(inner) { return inner.cancel(); }), (handlePause ?? function(inner) {
-    inner.pause();
-}), (handleResume ?? function(inner) {
-    inner.resume();
-})); }); } });
-}
-
-function typedStreamTransformer(transformer) {
-  return (transformer != null && typeof transformer === "object" && typeof transformer.bind === "function" ? transformer : new _TypeSafeStreamTransformer(transformer));
 }
-
-const plus = 43;
-
-const minus = 45;
-
-const period = 46;
-
-const slash = 47;
-
-const zero = 48;
-
-const nine = 57;
-
-const colon = 58;
-
-const upperA = 65;
-
-const upperZ = 90;
-
-const lowerA = 97;
-
-const lowerZ = 122;
-
-const backslash = 92;
 
 function isAlphabetic(char) {
   return (((char >= 65) && (char <= 90)) || ((char >= 97) && (char <= 122)));
-}
-
-function isNumeric(char) {
-  return ((char >= 48) && (char <= 57));
 }
 
 function isDriveLetter(path, index) {
@@ -21380,8 +9765,6 @@ function driveLetterEnd(path, index) {
   }
   return (index + 3);
 }
-
-const _asciiCaseBit_1 = 32;
 
 function createInternal() {
   return Context._internal();
@@ -21474,148 +9857,20 @@ function current() {
   return __dartNullCheck(_current);
 }
 
-function separator() {
-  return context.separator;
-}
-
-function absolute(part1, part2 = null, part3 = null, part4 = null, part5 = null, part6 = null, part7 = null, part8 = null, part9 = null, part10 = null, part11 = null, part12 = null, part13 = null, part14 = null, part15 = null) {
-  return context.absolute(part1, part2, part3, part4, part5, part6, part7, part8, part9, part10, part11, part12, part13, part14, part15);
-}
-
-function basename(path) {
-  return context.basename(path);
-}
-
-function basenameWithoutExtension(path) {
-  return context.basenameWithoutExtension(path);
-}
-
-function dirname(path) {
-  return context.dirname(path);
-}
-
-function extension(path, level = 1) {
-  return context.extension(path, level);
-}
-
-function rootPrefix(path) {
-  return context.rootPrefix(path);
-}
-
 function isAbsolute(path) {
   return context.isAbsolute(path);
-}
-
-function isRelative(path) {
-  return context.isRelative(path);
-}
-
-function isRootRelative(path) {
-  return context.isRootRelative(path);
 }
 
 function join(part1, part2 = null, part3 = null, part4 = null, part5 = null, part6 = null, part7 = null, part8 = null, part9 = null, part10 = null, part11 = null, part12 = null, part13 = null, part14 = null, part15 = null, part16 = null) {
   return context.join(part1, part2, part3, part4, part5, part6, part7, part8, part9, part10, part11, part12, part13, part14, part15, part16);
 }
 
-function joinAll(parts) {
-  return context.joinAll(parts);
-}
-
-function split(path) {
-  return context.split(path);
-}
-
-function canonicalize(path) {
-  return context.canonicalize(path);
-}
-
-function normalize(path) {
-  return context.normalize(path);
-}
-
 function relative(path, { from = null } = {}) {
   return context.relative(path, { from: from });
 }
 
-function isWithin(parent, child) {
-  return context.isWithin(parent, child);
-}
-
-function equals(path1, path2) {
-  return context.equals(path1, path2);
-}
-
-function hash(path) {
-  return context.hash(path);
-}
-
-function withoutExtension(path) {
-  return context.withoutExtension(path);
-}
-
-function setExtension(path, extension_1) {
-  return context.setExtension(path, extension_1);
-}
-
-function fromUri(uri) {
-  return context.fromUri(__dartNullCheck(uri));
-}
-
-function toUri(path) {
-  return context.toUri(path);
-}
-
 function prettyUri(uri) {
   return context.prettyUri(__dartNullCheck(uri));
-}
-
-const operatingSystem = ((globalThis.process?.platform === "win32") ? "windows" : (globalThis.process?.platform === "darwin") ? "macos" : (globalThis.process?.platform === "linux") ? "linux" : "browser");
-
-const _platforms = __dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(_Codes)\",[[\"string\",\"linux\"],[\"instance\",\"class:_LinuxCodes\"]],[[\"string\",\"macos\"],[\"instance\",\"class:_MacOSCodes\"]],[[\"string\",\"windows\"],[\"instance\",\"class:_WindowsCodes\"]]]", () => __dartConstMap([["linux", __dartConst("[\"instance\",\"class:_LinuxCodes\"]", () => Object.freeze(Object.create(_LinuxCodes.prototype)))], ["macos", __dartConst("[\"instance\",\"class:_MacOSCodes\"]", () => Object.freeze(Object.create(_MacOSCodes.prototype)))], ["windows", __dartConst("[\"instance\",\"class:_WindowsCodes\"]", () => Object.freeze(Object.create(_WindowsCodes.prototype)))]]));
-
-function noSuchFileOrDirectory(path) {
-  return _fsException(path, "No such file or directory", ErrorCodes.ENOENT);
-}
-
-function notADirectory(path) {
-  return _fsException(path, "Not a directory", ErrorCodes.ENOTDIR);
-}
-
-function isADirectory(path) {
-  return _fsException(path, "Is a directory", ErrorCodes.EISDIR);
-}
-
-function directoryNotEmpty(path) {
-  return _fsException(path, "Directory not empty", ErrorCodes.ENOTEMPTY);
-}
-
-function fileExists(path) {
-  return _fsException(path, "File exists", ErrorCodes.EEXIST);
-}
-
-function invalidArgument(path) {
-  return _fsException(path, "Invalid argument", ErrorCodes.EINVAL);
-}
-
-function tooManyLevelsOfSymbolicLinks(path) {
-  return _fsException(path, "Too many levels of symbolic links", ErrorCodes.ELOOP);
-}
-
-function badFileDescriptor(path) {
-  return _fsException(path, "Bad file descriptor", ErrorCodes.EBADF);
-}
-
-function _fsException(path, msg, errorCode) {
-  return __dartIoFileSystemException(msg, path, __dartIoOSError(msg, errorCode));
-}
-
-function checkExists(object, path) {
-  if ((object === null)) {
-    {
-      (() => { throw noSuchFileOrDirectory(__dartAs((path)(), value => typeof value === "string", "String")); })();
-    }
-  }
 }
 
 function isFile(node) {
@@ -21717,24 +9972,15 @@ function resolveLinks(link, path, { ledger = null, tailVisitor = null } = {}) {
 
 const _systemTempCounter = __dartExpando(null);
 
-const _thisDir = ".";
-
-const _parentDir = "..";
-
 function _defaultOpHandle(context_1, operation) {
 }
+
+const operatingSystem = ((globalThis.process?.platform === "win32") ? "windows" : (globalThis.process?.platform === "darwin") ? "macos" : (globalThis.process?.platform === "linux") ? "linux" : "browser");
 
 const _quote = __dartRegExp("[+*?{}|[\\]\\\\().^$-]", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 
 function regExpQuote(contents) {
   return __dartStringReplaceAllMapped(contents, _quote, function(char) { return "\\" + __dartStr(char[0]); });
-}
-
-function separatorToForwardSlash(path) {
-  if (!(__dartEquals(style(), Style.windows))) {
-    return path;
-  }
-  return path.replaceAll("\\", "/");
 }
 
 function toPosixPath(context_1, path) {
@@ -21746,12 +9992,6 @@ function toPosixPath(context_1, path) {
   }
   return path;
 }
-
-const _separator = 47;
-
-const _enoent = 2;
-
-const _enoentWin = 3;
 
 function _join(components) {
   let componentsList = Array.from(components);
@@ -21777,30 +10017,12 @@ function _extension_0_ignoreMissing(_this) {
 }, function(error) { return (error instanceof Error || (error != null && typeof error === "object" && "message" in error) && _extension_1_get_isMissing(error)); });
 }
 
-function _extension_0_get_ignoreMissing(_this) {
-  return function() { return _extension_0_ignoreMissing(_this); };
-}
-
 function _extension_1_get_isMissing(_this) {
   const errorCode = ((_this.osError)?.errorCode ?? null);
   return (__dartEquals(errorCode, 2) || __dartEquals(errorCode, 3));
 }
 
-const $cr = 13;
-
-const $lf = 10;
-
-const $space = 32;
-
-const $tab = 9;
-
-const red = "\u001b[31m";
-
-const yellow = "\u001b[33m";
-
-const blue = "\u001b[34m";
-
-const none = "\u001b[0m";
+const _quoteRegExp = __dartRegExp("[*{[?\\\\}\\],\\-()]", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 
 function min(obj1, obj2) {
   return ((__dartCompare(obj1, obj2) > 0) ? obj2 : obj1);
@@ -21907,95 +10129,6 @@ function findLineStart(context_1, text, column) {
   return null;
 }
 
-function subspanLocations(span, start, end = null) {
-  const text = span.text;
-  const startLocation = span.start;
-  let line = startLocation.line;
-  let column = startLocation.column;
-  function consumeCodePoint(i) {
-    const codeUnit = text.charCodeAt(i);
-    if ((__dartEquals(codeUnit, 10) || (__dartEquals(codeUnit, 13) && (__dartEquals((i + 1), text.length) || !(__dartEquals(text.charCodeAt((i + 1)), 10)))))) {
-      {
-        line = (line + 1);
-        column = 0;
-      }
-    } else {
-      {
-        column = (column + 1);
-      }
-    }
-  }
-  for (let i = 0; (i < start); i = (i + 1)) {
-    {
-      consumeCodePoint(i);
-    }
-  }
-  const newStartLocation = new SourceLocation((startLocation.offset + start), { sourceUrl: span.sourceUrl, line: line, column: column });
-  let newEndLocation = null;
-  if (((end === null) || __dartEquals(end, span.length))) {
-    {
-      newEndLocation = span.end;
-    }
-  } else {
-    if (__dartEquals(end, start)) {
-      {
-        newEndLocation = newStartLocation;
-      }
-    } else {
-      {
-        for (let i_1 = start; (i_1 < end); i_1 = (i_1 + 1)) {
-          {
-            consumeCodePoint(i_1);
-          }
-        }
-        newEndLocation = new SourceLocation((startLocation.offset + end), { sourceUrl: span.sourceUrl, line: line, column: column });
-      }
-    }
-  }
-  return [newStartLocation, newEndLocation];
-}
-
-function SourceSpanWithContextExtension_subspan(_this, start, end = null) {
-  __dartCheckValidRange(start, end, _this.length, null, null, null);
-  if ((__dartEquals(start, 0) && ((end === null) || __dartEquals(end, _this.length)))) {
-    return _this;
-  }
-  const locations = subspanLocations(_this, start, end);
-  return new SourceSpanWithContext(__dartIndexGet(locations, 0), __dartIndexGet(locations, 1), _this.text.substring(start, end), _this.context);
-}
-
-function SourceSpanWithContextExtension_get_subspan(_this) {
-  return function(start, end = null) { return SourceSpanWithContextExtension_subspan(_this, start, end); };
-}
-
-function bullet() {
-  return glyphs().bullet;
-}
-
-function leftArrow() {
-  return glyphs().leftArrow;
-}
-
-function rightArrow() {
-  return glyphs().rightArrow;
-}
-
-function upArrow() {
-  return glyphs().upArrow;
-}
-
-function downArrow() {
-  return glyphs().downArrow;
-}
-
-function longLeftArrow() {
-  return glyphs().longLeftArrow;
-}
-
-function longRightArrow() {
-  return glyphs().longRightArrow;
-}
-
 function horizontalLine() {
   return glyphs().horizontalLine;
 }
@@ -22008,36 +10141,12 @@ function topLeftCorner() {
   return glyphs().topLeftCorner;
 }
 
-function topRightCorner() {
-  return glyphs().topRightCorner;
-}
-
 function bottomLeftCorner() {
   return glyphs().bottomLeftCorner;
 }
 
-function bottomRightCorner() {
-  return glyphs().bottomRightCorner;
-}
-
 function cross() {
   return glyphs().cross;
-}
-
-function teeUp() {
-  return glyphs().teeUp;
-}
-
-function teeDown() {
-  return glyphs().teeDown;
-}
-
-function teeLeft() {
-  return glyphs().teeLeft;
-}
-
-function teeRight() {
-  return glyphs().teeRight;
 }
 
 function upEnd() {
@@ -22048,169 +10157,9 @@ function downEnd() {
   return glyphs().downEnd;
 }
 
-function leftEnd() {
-  return glyphs().leftEnd;
-}
-
-function rightEnd() {
-  return glyphs().rightEnd;
-}
-
 function horizontalLineBold() {
   return glyphs().horizontalLineBold;
 }
-
-function verticalLineBold() {
-  return glyphs().verticalLineBold;
-}
-
-function topLeftCornerBold() {
-  return glyphs().topLeftCornerBold;
-}
-
-function topRightCornerBold() {
-  return glyphs().topRightCornerBold;
-}
-
-function bottomLeftCornerBold() {
-  return glyphs().bottomLeftCornerBold;
-}
-
-function bottomRightCornerBold() {
-  return glyphs().bottomRightCornerBold;
-}
-
-function crossBold() {
-  return glyphs().crossBold;
-}
-
-function teeUpBold() {
-  return glyphs().teeUpBold;
-}
-
-function teeDownBold() {
-  return glyphs().teeDownBold;
-}
-
-function teeLeftBold() {
-  return glyphs().teeLeftBold;
-}
-
-function teeRightBold() {
-  return glyphs().teeRightBold;
-}
-
-function upEndBold() {
-  return glyphs().upEndBold;
-}
-
-function downEndBold() {
-  return glyphs().downEndBold;
-}
-
-function leftEndBold() {
-  return glyphs().leftEndBold;
-}
-
-function rightEndBold() {
-  return glyphs().rightEndBold;
-}
-
-function horizontalLineDouble() {
-  return glyphs().horizontalLineDouble;
-}
-
-function verticalLineDouble() {
-  return glyphs().verticalLineDouble;
-}
-
-function topLeftCornerDouble() {
-  return glyphs().topLeftCornerDouble;
-}
-
-function topRightCornerDouble() {
-  return glyphs().topRightCornerDouble;
-}
-
-function bottomLeftCornerDouble() {
-  return glyphs().bottomLeftCornerDouble;
-}
-
-function bottomRightCornerDouble() {
-  return glyphs().bottomRightCornerDouble;
-}
-
-function crossDouble() {
-  return glyphs().crossDouble;
-}
-
-function teeUpDouble() {
-  return glyphs().teeUpDouble;
-}
-
-function teeDownDouble() {
-  return glyphs().teeDownDouble;
-}
-
-function teeLeftDouble() {
-  return glyphs().teeLeftDouble;
-}
-
-function teeRightDouble() {
-  return glyphs().teeRightDouble;
-}
-
-function horizontalLineDoubleDash() {
-  return glyphs().horizontalLineDoubleDash;
-}
-
-function horizontalLineDoubleDashBold() {
-  return glyphs().horizontalLineDoubleDashBold;
-}
-
-function verticalLineDoubleDash() {
-  return glyphs().verticalLineDoubleDash;
-}
-
-function verticalLineDoubleDashBold() {
-  return glyphs().verticalLineDoubleDashBold;
-}
-
-function horizontalLineTripleDash() {
-  return glyphs().horizontalLineTripleDash;
-}
-
-function horizontalLineTripleDashBold() {
-  return glyphs().horizontalLineTripleDashBold;
-}
-
-function verticalLineTripleDash() {
-  return glyphs().verticalLineTripleDash;
-}
-
-function verticalLineTripleDashBold() {
-  return glyphs().verticalLineTripleDashBold;
-}
-
-function horizontalLineQuadrupleDash() {
-  return glyphs().horizontalLineQuadrupleDash;
-}
-
-function horizontalLineQuadrupleDashBold() {
-  return glyphs().horizontalLineQuadrupleDashBold;
-}
-
-function verticalLineQuadrupleDash() {
-  return glyphs().verticalLineQuadrupleDash;
-}
-
-function verticalLineQuadrupleDashBold() {
-  return glyphs().verticalLineQuadrupleDashBold;
-}
-
-const asciiGlyphs = __dartConst("[\"instance\",\"class:AsciiGlyphSet\"]", () => Object.freeze(Object.create(AsciiGlyphSet.prototype)));
-
-const unicodeGlyphs = __dartConst("[\"instance\",\"class:UnicodeGlyphSet\"]", () => Object.freeze(Object.create(UnicodeGlyphSet.prototype)));
 
 let _glyphs = __dartConst("[\"instance\",\"class:UnicodeGlyphSet\"]", () => Object.freeze(Object.create(UnicodeGlyphSet.prototype)));
 
@@ -22218,101 +10167,9 @@ function glyphs() {
   return _glyphs;
 }
 
-function ascii() {
-  return __dartEquals(glyphs(), __dartConst("[\"instance\",\"class:AsciiGlyphSet\"]", () => Object.freeze(Object.create(AsciiGlyphSet.prototype))));
-}
-
-function ascii_1(value) {
-  _glyphs = (value ? __dartConst("[\"instance\",\"class:AsciiGlyphSet\"]", () => Object.freeze(Object.create(AsciiGlyphSet.prototype))) : __dartConst("[\"instance\",\"class:UnicodeGlyphSet\"]", () => Object.freeze(Object.create(UnicodeGlyphSet.prototype))));
-}
-
 function glyphOrAscii(glyph, alternative) {
   return glyphs().glyphOrAscii(glyph, alternative);
 }
-
-function SourceSpanExtension_messageMultiple(_this, message, label, secondarySpans, { color = false, primaryColor = null, secondaryColor = null } = {}) {
-  const buffer = (() => { let v = __dartStringBuffer(""); return (() => {
-    v.write("line " + __dartStr((_this.start.line + 1)) + ", column " + __dartStr((_this.start.column + 1)));
-    return v;
-  })(); })();
-  if (!((_this.sourceUrl === null))) {
-    buffer.write(" of " + __dartStr(prettyUri(_this.sourceUrl)));
-  }
-  (() => { let v_1 = buffer; return (() => {
-    v_1.writeln(": " + __dartStr(message));
-    v_1.write(SourceSpanExtension_highlightMultiple(_this, label, secondarySpans, { color: color, primaryColor: primaryColor, secondaryColor: secondaryColor }));
-    return v_1;
-  })(); })();
-  return __dartStr(buffer);
-}
-
-function SourceSpanExtension_get_messageMultiple(_this) {
-  return function(message, label, secondarySpans, { color = false, primaryColor = null, secondaryColor = null } = {}) { return SourceSpanExtension_messageMultiple(_this, message, label, secondarySpans, { color: color, primaryColor: primaryColor, secondaryColor: secondaryColor }); };
-}
-
-function SourceSpanExtension_highlightMultiple(_this, label, secondarySpans, { color = false, primaryColor = null, secondaryColor = null } = {}) {
-  return Highlighter.multiple(_this, label, secondarySpans, { color: color, primaryColor: primaryColor, secondaryColor: secondaryColor }).highlight();
-}
-
-function SourceSpanExtension_get_highlightMultiple(_this) {
-  return function(label, secondarySpans, { color = false, primaryColor = null, secondaryColor = null } = {}) { return SourceSpanExtension_highlightMultiple(_this, label, secondarySpans, { color: color, primaryColor: primaryColor, secondaryColor: secondaryColor }); };
-}
-
-function SourceSpanExtension_subspan(_this, start, end = null) {
-  __dartCheckValidRange(start, end, _this.length, null, null, null);
-  if ((__dartEquals(start, 0) && ((end === null) || __dartEquals(end, _this.length)))) {
-    return _this;
-  }
-  const locations = subspanLocations(_this, start, end);
-  return new SourceSpan(__dartIndexGet(locations, 0), __dartIndexGet(locations, 1), _this.text.substring(start, end));
-}
-
-function SourceSpanExtension_get_subspan(_this) {
-  return function(start, end = null) { return SourceSpanExtension_subspan(_this, start, end); };
-}
-
-const _lf = 10;
-
-const _cr = 13;
-
-function FileSpanExtension_subspan(_this, start, end = null) {
-  __dartCheckValidRange(start, end, _this.length, null, null, null);
-  if ((__dartEquals(start, 0) && ((end === null) || __dartEquals(end, _this.length)))) {
-    return _this;
-  }
-  const startOffset = _this.start.offset;
-  return _this.file.span((startOffset + start), ((end === null) ? _this.end.offset : (startOffset + end)));
-}
-
-function FileSpanExtension_get_subspan(_this) {
-  return function(start, end = null) { return FileSpanExtension_subspan(_this, start, end); };
-}
-
-const $backslash = 92;
-
-const $cr_1 = 13;
-
-const $doubleQuote = 34;
-
-const $f = 102;
-
-const $lf_1 = 10;
-
-const $space_1 = 32;
-
-const $x = 120;
-
-const _supplementaryPlaneLowerBound = 65536;
-
-const _supplementaryPlaneUpperBound = 1114111;
-
-const _highSurrogateLowerBound = 55296;
-
-const _lowSurrogateLowerBound = 56320;
-
-const _surrogateBits = 10;
-
-const _surrogateValueMask = 1023;
 
 function validateErrorArgs(string, match, position, length) {
   if ((!((match === null)) && (!((position === null)) || !((length === null))))) {
@@ -22371,16 +10228,6 @@ function decodeSurrogatePair(highSurrogate_1, lowSurrogate_1) {
   return (65536 + (((highSurrogate_1 & 1023) << 10) | (lowSurrogate_1 & 1023)));
 }
 
-const _newlineRegExp = __dartRegExp("\\n|\\r\\n|\\r(?!\\n)", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
-
-const _newlineRegExp_1 = __dartRegExp("\\r\\n?|\\n", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
-
-const _hyphen = 45;
-
-const _slash = 47;
-
-const _quoteRegExp = __dartRegExp("[*{[?\\\\}\\],\\-()]", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
-
 export function main() {
   const dartSources = new Glob("lib/{*.dart,src/**.dart}");
   const recursiveAssets = new Glob("assets/**", { recursive: true });
@@ -22393,16 +10240,4 @@ export function main() {
   __dartPrint("glob " + __dartStr(dartSources.matches("lib/main.dart")) + " " + __dartStr(dartSources.matches("lib/src/deep/file.dart")) + " " + __dartStr(dartSources.matches("lib/src/deep/file.txt")) + " " + __dartStr(recursiveAssets.matches("assets/icons/logo.svg")) + " " + __dartStr(recursiveAssets.matches("assets")) + " " + __dartStr(caseInsensitive.matches("readme.md")) + " " + __dartStr(urlGlob.matches("https://example.com/docs/index.html")) + " " + __dartStr(urlGlob.matches("https://example.com/assets/index.html")) + " " + __dartStr(escaped.matches("build/{literal}/*.dart")) + " " + __dartStr(__dartIterableLength(pattern.allMatches("test/glob_test.dart"))) + " " + __dartStr(((match)?.group(0) ?? null)) + " " + __dartStr(((match)?.start ?? null)) + ":" + __dartStr(((match)?.end ?? null)) + ":" + __dartStr(((match)?.groupCount ?? null)) + " " + __dartStr((() => { let v = match; return ((v === null) ? null : __dartIterableJoin(v.groups([0]), "|")); })()) + " " + __dartStr(quoted));
 }
 
-
-function $CaptureSink_new_tearoff(sink) {
-  return new CaptureSink(sink);
-}
-
-function $ValueResult_new_tearoff(value) {
-  return new ValueResult(value);
-}
-
-function $ErrorResult_new_tearoff(error, stackTrace = null) {
-  return new ErrorResult(error, stackTrace);
-}
 main();

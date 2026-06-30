@@ -136,8 +136,6 @@ export const constSet = __dartConst("[\"set\",\"InterfaceType(int)\",[\"int\",\"
 
 export const constMap = __dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(int)\",[[\"string\",\"one\"],[\"int\",\"1\"]],[[\"string\",\"two\"],[\"int\",\"2\"]]]", () => __dartConstMap([["one", 1], ["two", 2]]));
 
-const _privateConst = 9;
-
 function _privateLabel() {
   return "private:9";
 }

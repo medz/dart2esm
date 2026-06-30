@@ -293,170 +293,11 @@ function __dartIndexSet(receiver, index, value) {
   receiver[index] = value;
   return value;
 }
-function __dartCompare(left, right, compare = null) {
-  if (typeof compare === "function") return Number(compare(left, right));
-  const compareTo = left?.compareTo;
-  if (typeof compareTo === "function") return Number(compareTo.call(left, right));
-  return left < right ? -1 : (left > right ? 1 : 0);
-}
-function __dartSplaySortSet(set) {
-  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
-  set.clear();
-  for (const value of values) set.add(value);
-}
-function __dartSetAdd(set, value) {
-  if (set.__dartIdentitySet) {
-    if (set.has(value)) return false;
-    set.add(value);
-    return true;
-  }
-  if (set.__dartSplayCompare !== undefined) {
-    for (const candidate of set) {
-      if (__dartCompare(candidate, value, set.__dartSplayCompare) === 0) return false;
-    }
-    set.add(value);
-    __dartSplaySortSet(set);
-    return true;
-  }
-  if (__dartIterableContains(set, value)) return false;
-  set.add(value);
-  return true;
-}
-function __dartSetAddAll(set, values) {
-  for (const value of values) __dartSetAdd(set, value);
-  return null;
-}
-function __dartSetFrom(values) {
-  const set = new Set();
-  for (const value of values) __dartSetAdd(set, value);
-  return set;
-}
-function __dartSetDifference(set, other) {
-  const result = new Set();
-  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
-  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
-  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
-  for (const value of set) {
-    if (!__dartIterableContains(other, value)) result.add(value);
-  }
-  return result;
-}
-function __dartSetIntersection(set, other) {
-  const result = new Set();
-  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
-  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
-  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
-  for (const value of set) {
-    if (__dartIterableContains(other, value)) result.add(value);
-  }
-  return result;
-}
-function __dartSetUnion(set, other) {
-  const result = new Set(set);
-  if (set.__dartIdentitySet) Object.defineProperty(result, "__dartIdentitySet", { value: true });
-  if (set.__dartSplayCompare !== undefined) Object.defineProperty(result, "__dartSplayCompare", { value: set.__dartSplayCompare });
-  if (set.__dartSplayIsValidKey !== undefined) Object.defineProperty(result, "__dartSplayIsValidKey", { value: set.__dartSplayIsValidKey });
-  for (const value of other) __dartSetAdd(result, value);
-  return result;
-}
-function __dartSetRemove(set, needle) {
-  if (set.__dartIdentitySet) {
-    const found = set.has(needle);
-    set.delete(needle);
-    return found;
-  }
-  for (const value of set) {
-    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) {
-      set.delete(value);
-      return true;
-    }
-    if (__dartEquals(value, needle)) {
-      set.delete(value);
-      return true;
-    }
-  }
-  return false;
-}
-function __dartSetRemoveWhere(set, test) {
-  for (const value of Array.from(set)) {
-    if (test(value)) set.delete(value);
-  }
-  return null;
-}
-function __dartSetRetainWhere(set, test) {
-  for (const value of Array.from(set)) {
-    if (!test(value)) set.delete(value);
-  }
-  return null;
-}
-function __dartCustomHashMap(equals = null, hashCode = null, isValidKey = null) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartMapEquals", { value: equals });
-  Object.defineProperty(map, "__dartMapHashCode", { value: hashCode });
-  Object.defineProperty(map, "__dartMapIsValidKey", { value: isValidKey });
-  return map;
-}
-function __dartIterableContains(iterable, needle) {
-  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
-  for (const value of iterable) {
-    if (iterable instanceof Set && iterable.__dartSplayCompare !== undefined && __dartCompare(value, needle, iterable.__dartSplayCompare) === 0) return true;
-    if (__dartEquals(value, needle)) return true;
-  }
-  return false;
-}
 function __dartIterableIsEmpty(iterable) {
   if (typeof iterable.length === "number") return iterable.length === 0;
   if (typeof iterable.size === "number") return iterable.size === 0;
   for (const _ of iterable) return false;
   return true;
-}
-function __dartIterableLength(iterable) {
-  if (typeof iterable.length === "number") return iterable.length;
-  if (typeof iterable.size === "number") return iterable.size;
-  let count = 0;
-  for (const _ of iterable) count++;
-  return count;
-}
-function __dartSetLookup(set, needle) {
-  if (set.__dartIdentitySet) return set.has(needle) ? needle : null;
-  for (const value of set) {
-    if (set.__dartSplayCompare !== undefined && __dartCompare(value, needle, set.__dartSplayCompare) === 0) return value;
-    if (__dartEquals(value, needle)) return value;
-  }
-  return null;
-}
-function __dartSetContainsAll(set, values) {
-  for (const value of values) {
-    if (!__dartIterableContains(set, value)) return false;
-  }
-  return true;
-}
-function __dartSetRemoveAll(set, values) {
-  if (set.__dartIdentitySet) {
-    for (const value of values) set.delete(value);
-    return null;
-  }
-  for (const value of values) {
-    for (const candidate of Array.from(set)) {
-      if (set.__dartSplayCompare !== undefined && __dartCompare(candidate, value, set.__dartSplayCompare) === 0) {
-        set.delete(candidate);
-        break;
-      }
-      if (__dartEquals(candidate, value)) {
-        set.delete(candidate);
-        break;
-      }
-    }
-  }
-  return null;
-}
-function __dartSetRetainAll(set, values) {
-  const retained = Array.from(values);
-  for (const value of Array.from(set)) {
-    const index = set.__dartIdentitySet ? retained.indexOf(value) : retained.findIndex((needle) => set.__dartSplayCompare !== undefined ? __dartCompare(value, needle, set.__dartSplayCompare) === 0 : __dartEquals(value, needle));
-    if (index < 0) set.delete(value);
-  }
-  return null;
 }
 function __dartIterableJoin(iterable, separator = "") {
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
@@ -579,8 +420,8 @@ class ParsedPath {
   constructor() {
     throw new TypeError("Class ParsedPath has no unnamed constructor");
   }
-  static _(style_1, root, isRootRelative_1, parts, separators) {
-    return $ParsedPath__(ParsedPath, style_1, root, isRootRelative_1, parts, separators);
+  static _(style, root, isRootRelative, parts, separators) {
+    return $ParsedPath__(ParsedPath, style, root, isRootRelative, parts, separators);
   }
   extension(level = 1) {
     return __dartIndexGet(this._splitExtension(level), 1);
@@ -588,16 +429,16 @@ class ParsedPath {
   get isAbsolute() {
     return !((this.root === null));
   }
-  static parse(path, style_1) {
-    const root = style_1.getRoot(path);
-    const isRootRelative_1 = style_1.isRootRelative(path);
+  static parse(path, style) {
+    const root = style.getRoot(path);
+    const isRootRelative = style.isRootRelative(path);
     if (!((root === null))) {
       path = path.substring(root.length);
     }
     const parts = new Array(0).fill(null);
     const separators = new Array(0).fill(null);
     let start = 0;
-    if ((path.length !== 0 && style_1.isSeparator(path.charCodeAt(0)))) {
+    if ((path.length !== 0 && style.isSeparator(path.charCodeAt(0)))) {
       {
         (separators.push(path[0]), null);
         start = 1;
@@ -609,7 +450,7 @@ class ParsedPath {
     }
     for (let i = start; (i < path.length); i = (i + 1)) {
       {
-        if (style_1.isSeparator(path.charCodeAt(i))) {
+        if (style.isSeparator(path.charCodeAt(i))) {
           {
             (parts.push(path.substring(start, i)), null);
             (separators.push(path[i]), null);
@@ -624,7 +465,7 @@ class ParsedPath {
         (separators.push(""), null);
       }
     }
-    return ParsedPath._(style_1, root, isRootRelative_1, parts, separators);
+    return ParsedPath._(style, root, isRootRelative, parts, separators);
   }
   get basename() {
     const copy = this.clone();
@@ -651,7 +492,7 @@ class ParsedPath {
       __dartIndexSet(this.separators, (this.separators.length - 1), "");
     }
   }
-  normalize({ canonicalize: canonicalize_1 = false } = {}) {
+  normalize({ canonicalize = false } = {}) {
     let leadingDoubles = 0;
     const newParts = new Array(0).fill(null);
     {
@@ -678,7 +519,7 @@ class ParsedPath {
                 }
               } else {
                 {
-                  (newParts.push((canonicalize_1 ? this.style.canonicalizePart(part) : part)), null);
+                  (newParts.push((canonicalize ? this.style.canonicalizePart(part) : part)), null);
                 }
               }
             }
@@ -705,7 +546,7 @@ class ParsedPath {
     }
     if ((!((this.root === null)) && __dartEquals(this.style, Style.windows))) {
       {
-        if (canonicalize_1) {
+        if (canonicalize) {
           this.root = __dartNullCheck(this.root).toLowerCase();
         }
         this.root = __dartNullCheck(this.root).replaceAll("/", "\\");
@@ -771,11 +612,11 @@ class ParsedPath {
   }
 }
 
-function $ParsedPath__($newTarget, style_1, root, isRootRelative_1, parts, separators) {
+function $ParsedPath__($newTarget, style, root, isRootRelative, parts, separators) {
   const $self = Object.create($newTarget.prototype);
-  $self.style = style_1;
+  $self.style = style;
   $self.root = root;
-  $self.isRootRelative = isRootRelative_1;
+  $self.isRootRelative = isRootRelative;
   $self.parts = parts;
   $self.separators = separators;
   return $self;
@@ -1240,13 +1081,13 @@ class Context {
   static _internal() {
     return $Context__internal(Context);
   }
-  static _(style_1, _current_1) {
-    return $Context__(Context, style_1, _current_1);
+  static _(style, _current_1) {
+    return $Context__(Context, style, _current_1);
   }
-  constructor({ style: style_1 = null, current: current_1 = null } = {}) {
+  constructor({ style = null, current: current_1 = null } = {}) {
     if ((current_1 === null)) {
       {
-        if ((style_1 === null)) {
+        if ((style === null)) {
           {
             current_1 = current();
           }
@@ -1257,18 +1098,18 @@ class Context {
         }
       }
     }
-    if ((style_1 === null)) {
+    if ((style === null)) {
       {
-        style_1 = Style.platform;
+        style = Style.platform;
       }
     } else {
-      if (!(style_1 instanceof InternalStyle)) {
+      if (!(style instanceof InternalStyle)) {
         {
           (() => { throw __dartCoreError("ArgumentError", "Only styles defined by the path package are allowed."); })();
         }
       }
     }
-    return Context._(__dartAs(style_1, value => value instanceof InternalStyle, "InternalStyle"), current_1);
+    return Context._(__dartAs(style, value => value instanceof InternalStyle, "InternalStyle"), current_1);
   }
   get current() {
     return (this._current ?? current());
@@ -1581,10 +1422,10 @@ class Context {
     if (!(__dartEquals(result, __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"inconclusive\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })))))) {
       return result;
     }
-    let relative_1 = null;
+    let relative = null;
     try {
       {
-        relative_1 = this.relative(child, { from: parent });
+        relative = this.relative(child, { from: parent });
       }
     } catch ($error) {
       if ($error instanceof PathException) {
@@ -1596,16 +1437,16 @@ class Context {
         throw $error;
       }
     }
-    if (!(this.isRelative(relative_1))) {
+    if (!(this.isRelative(relative))) {
       return __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"different\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
     }
-    if (__dartEquals(relative_1, ".")) {
+    if (__dartEquals(relative, ".")) {
       return __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"equal\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" })));
     }
-    if (__dartEquals(relative_1, "..")) {
+    if (__dartEquals(relative, "..")) {
       return __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"different\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
     }
-    return ((((relative_1.length >= 3) && relative_1.startsWith("..")) && this.style.isSeparator(relative_1.charCodeAt(2))) ? __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"different\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))) : __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"within\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))));
+    return ((((relative.length >= 3) && relative.startsWith("..")) && this.style.isSeparator(relative.charCodeAt(2))) ? __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"different\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))) : __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"within\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))));
   }
   _isWithinOrEqualsFast(parent, child) {
     if (__dartEquals(parent, ".")) {
@@ -1828,7 +1669,7 @@ class Context {
     return __dartNullCheck(this._hashFast(__dartStr(parsed)));
   }
   _hashFast(path) {
-    let hash_1 = 4603;
+    let hash = 4603;
     let beginning = true;
     let wasSeparator = true;
     L:
@@ -1858,14 +1699,14 @@ class Context {
             }
           }
         }
-        hash_1 = (hash_1 & 67108863);
-        hash_1 = (hash_1 * 33);
-        hash_1 = (hash_1 ^ codeUnit);
+        hash = (hash & 67108863);
+        hash = (hash * 33);
+        hash = (hash ^ codeUnit);
         wasSeparator = false;
         beginning = false;
       }
     }
-    return hash_1;
+    return hash;
   }
   withoutExtension(path) {
     const parsed = this._parse(path);
@@ -1882,8 +1723,8 @@ class Context {
     }
     return __dartStr(parsed);
   }
-  setExtension(path, extension_1) {
-    return (this.withoutExtension(path) + extension_1);
+  setExtension(path, extension) {
+    return (this.withoutExtension(path) + extension);
   }
   fromUri(uri) {
     return this.style.pathFromUri(_parseUri(__dartNullCheck(uri)));
@@ -1928,9 +1769,9 @@ function $Context__internal($newTarget) {
   return $self;
 }
 
-function $Context__($newTarget, style_1, _current_1) {
+function $Context__($newTarget, style, _current_1) {
   const $self = Object.create($newTarget.prototype);
-  $self.style = style_1;
+  $self.style = style;
   $self._current = _current_1;
   return $self;
 }
@@ -1951,107 +1792,6 @@ class _PathRelation {
   toString() {
     return this.name;
   }
-}
-
-class PathMap {
-  constructor({ context: context_1 = null } = {}) {
-  }
-  static of(other, { context: context_1 = null } = {}) {
-    return $PathMap_of(PathMap, other, { context: context_1 });
-  }
-  static _create(context_1) {
-    ((context_1 === null) ? context_1 = context : null);
-    return __dartCustomHashMap(function(path1, path2) {
-      if ((path1 === null)) {
-        return (path2 === null);
-      }
-      if ((path2 === null)) {
-        return false;
-      }
-      return __dartNullCheck(context_1).equals(path1, path2);
-}, function(path) { return ((path === null) ? 0 : __dartNullCheck(context_1).hash(path)); }, function(path) { return (typeof path === "string" || (path === null)); });
-  }
-}
-
-function $PathMap_of($newTarget, other, { context: context_1 = null } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  return $self;
-}
-
-class PathSet {
-  constructor({ context: context_1 = null } = {}) {
-    this._inner = PathSet._create(context_1);
-  }
-  static of(other, { context: context_1 = null } = {}) {
-    return $PathSet_of(PathSet, other, { context: context_1 });
-  }
-  static _create(context_1) {
-    ((context_1 === null) ? context_1 = context : null);
-    return new Set();
-  }
-  get iterator() {
-    return __dartIterator(this._inner);
-  }
-  get length() {
-    return __dartIterableLength(this._inner);
-  }
-  add(value) {
-    return __dartSetAdd(this._inner, value);
-  }
-  addAll(elements) {
-    return __dartSetAddAll(this._inner, elements);
-  }
-  cast() {
-    return new Set(Array.from(this._inner, (value) => __dartAs(value, (value) => true, "TypeParameterType(PathSet.cast.T%)")));
-  }
-  clear() {
-    return this._inner.clear();
-  }
-  contains(element) {
-    return __dartIterableContains(this._inner, element);
-  }
-  containsAll(other) {
-    return __dartSetContainsAll(this._inner, other);
-  }
-  difference(other) {
-    return __dartSetDifference(this._inner, other);
-  }
-  intersection(other) {
-    return __dartSetIntersection(this._inner, other);
-  }
-  lookup(element) {
-    return __dartSetLookup(this._inner, element);
-  }
-  remove(value) {
-    return __dartSetRemove(this._inner, value);
-  }
-  removeAll(elements) {
-    return __dartSetRemoveAll(this._inner, elements);
-  }
-  removeWhere(test) {
-    return __dartSetRemoveWhere(this._inner, test);
-  }
-  retainAll(elements) {
-    return __dartSetRetainAll(this._inner, elements);
-  }
-  retainWhere(test) {
-    return __dartSetRetainWhere(this._inner, test);
-  }
-  union(other) {
-    return __dartSetUnion(this._inner, other);
-  }
-  toSet() {
-    return __dartSetFrom(this._inner);
-  }
-}
-
-function $PathSet_of($newTarget, other, { context: context_1 = null } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self._inner = (() => { let v = PathSet._create(context_1); return (() => {
-    __dartSetAddAll(v, other);
-    return v;
-  })(); })();
-  return $self;
 }
 
 
@@ -2098,36 +1838,8 @@ Object.defineProperty(_PathRelation, "equal", { value: __dartConst("[\"instance\
 Object.defineProperty(_PathRelation, "different", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"different\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))), enumerable: true });
 
 Object.defineProperty(_PathRelation, "inconclusive", { value: __dartConst("[\"instance\",\"class:_PathRelation\",[\"field\",\"field:_PathRelation.name\",[\"string\",\"inconclusive\"]]]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))), enumerable: true });
-const plus = 43;
-
-const minus = 45;
-
-const period = 46;
-
-const slash = 47;
-
-const zero = 48;
-
-const nine = 57;
-
-const colon = 58;
-
-const upperA = 65;
-
-const upperZ = 90;
-
-const lowerA = 97;
-
-const lowerZ = 122;
-
-const backslash = 92;
-
 function isAlphabetic(char) {
   return (((char >= 65) && (char <= 90)) || ((char >= 97) && (char <= 122)));
-}
-
-function isNumeric(char) {
-  return ((char >= 48) && (char <= 57));
 }
 
 function isDriveLetter(path, index) {
@@ -2162,8 +1874,6 @@ function driveLetterEnd(path, index) {
   }
   return (index + 3);
 }
-
-const _asciiCaseBit = 32;
 
 function createInternal() {
   return Context._internal();
@@ -2204,10 +1914,6 @@ function _validateArgList(method, args) {
   }
 }
 
-const posix = new Context({ style: Style.posix });
-
-const windows = new Context({ style: Style.windows });
-
 const url = new Context({ style: Style.url });
 
 const context = createInternal();
@@ -2215,10 +1921,6 @@ const context = createInternal();
 let _currentUriBase = null;
 
 let _current = null;
-
-function style() {
-  return context.style;
-}
 
 function current() {
   let uri = null;
@@ -2256,100 +1958,12 @@ function current() {
   return __dartNullCheck(_current);
 }
 
-function separator() {
-  return context.separator;
-}
-
-function absolute(part1, part2 = null, part3 = null, part4 = null, part5 = null, part6 = null, part7 = null, part8 = null, part9 = null, part10 = null, part11 = null, part12 = null, part13 = null, part14 = null, part15 = null) {
-  return context.absolute(part1, part2, part3, part4, part5, part6, part7, part8, part9, part10, part11, part12, part13, part14, part15);
-}
-
-function basename(path) {
-  return context.basename(path);
-}
-
-function basenameWithoutExtension(path) {
-  return context.basenameWithoutExtension(path);
-}
-
-function dirname(path) {
-  return context.dirname(path);
-}
-
-function extension(path, level = 1) {
-  return context.extension(path, level);
-}
-
-function rootPrefix(path) {
-  return context.rootPrefix(path);
-}
-
-function isAbsolute(path) {
-  return context.isAbsolute(path);
-}
-
-function isRelative(path) {
-  return context.isRelative(path);
-}
-
-function isRootRelative(path) {
-  return context.isRootRelative(path);
-}
-
-function join(part1, part2 = null, part3 = null, part4 = null, part5 = null, part6 = null, part7 = null, part8 = null, part9 = null, part10 = null, part11 = null, part12 = null, part13 = null, part14 = null, part15 = null, part16 = null) {
-  return context.join(part1, part2, part3, part4, part5, part6, part7, part8, part9, part10, part11, part12, part13, part14, part15, part16);
-}
-
-function joinAll(parts) {
-  return context.joinAll(parts);
-}
-
-function split(path) {
-  return context.split(path);
-}
-
-function canonicalize(path) {
-  return context.canonicalize(path);
-}
-
-function normalize(path) {
-  return context.normalize(path);
-}
-
-function relative(path, { from = null } = {}) {
-  return context.relative(path, { from: from });
-}
-
-function isWithin(parent, child) {
-  return context.isWithin(parent, child);
-}
-
 function equals(path1, path2) {
   return context.equals(path1, path2);
 }
 
-function hash(path) {
-  return context.hash(path);
-}
-
 function withoutExtension(path) {
   return context.withoutExtension(path);
-}
-
-function setExtension(path, extension_1) {
-  return context.setExtension(path, extension_1);
-}
-
-function fromUri(uri) {
-  return context.fromUri(__dartNullCheck(uri));
-}
-
-function toUri(path) {
-  return context.toUri(path);
-}
-
-function prettyUri(uri) {
-  return context.prettyUri(__dartNullCheck(uri));
 }
 
 export function main() {

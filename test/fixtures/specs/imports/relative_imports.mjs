@@ -32,8 +32,6 @@ class Greeter {
   }
 }
 
-const helperOffset = 5;
-
 let helperCounter = 0;
 
 function add(left, right) {

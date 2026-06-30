@@ -914,195 +914,6 @@ class Parser {
   }
 }
 
-class ArgParser {
-  static _(options, commands, _aliases, { allowTrailingOptions = true, usageLineLength = null } = {}) {
-    return $ArgParser__(ArgParser, options, commands, _aliases, { allowTrailingOptions: allowTrailingOptions, usageLineLength: usageLineLength });
-  }
-  get allowsAnything() {
-    return false;
-  }
-  constructor({ allowTrailingOptions = true, usageLineLength = null } = {}) {
-    return ArgParser._(new Map([]), new Map([]), new Map([]), { allowTrailingOptions: allowTrailingOptions, usageLineLength: usageLineLength });
-  }
-  static allowAnything() {
-    return new AllowAnythingParser();
-  }
-  addCommand(name, parser = null) {
-    if (__dartMapContainsKey(this._commands, name)) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "Duplicate command \"" + __dartStr(name) + "\"."); })();
-      }
-    }
-    ((parser === null) ? parser = new ArgParser() : null);
-    __dartMapSet(this._commands, name, parser);
-    return parser;
-  }
-  addFlag(name, { abbr = null, help = null, defaultsTo = false, negatable = true, callback = null, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    this._addOption(name, abbr, help, null, null, null, defaultsTo, ((callback === null) ? null : function(value) { return (callback)(value); }), __dartConst("[\"instance\",\"class:OptionType\",[\"field\",\"field:OptionType.name\",[\"string\",\"OptionType.flag\"]]]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.flag" }))), { negatable: negatable, hide: hide, hideNegatedUsage: hideNegatedUsage, aliases: aliases });
-  }
-  addOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, mandatory = false, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    this._addOption(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, __dartConst("[\"instance\",\"class:OptionType\",[\"field\",\"field:OptionType.name\",[\"string\",\"OptionType.single\"]]]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.single" }))), { mandatory: mandatory, hide: hide, aliases: aliases });
-  }
-  addMultiOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, splitCommas = true, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    this._addOption(name, abbr, help, valueHelp, allowed, allowedHelp, ((defaultsTo)?.toList() ?? new Array(0).fill(null)), ((callback === null) ? null : function(value) { return (callback)(value); }), __dartConst("[\"instance\",\"class:OptionType\",[\"field\",\"field:OptionType.name\",[\"string\",\"OptionType.multiple\"]]]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.multiple" }))), { splitCommas: splitCommas, hide: hide, aliases: aliases });
-  }
-  _addOption(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, type, { negatable = false, splitCommas = null, mandatory = false, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    let allNames = (() => {
-      const v = [name];
-      (v.push(...Array.from(aliases)), null);
-      return v;
-    })();
-    if (Array.from(allNames).some((name) => { return !((this.findByNameOrAlias(name) === null)); })) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "Duplicate option or alias \"" + __dartStr(name) + "\"."); })();
-      }
-    }
-    if (!((abbr === null))) {
-      {
-        let existing = this.findByAbbreviation(abbr);
-        if (!((existing === null))) {
-          {
-            (() => { throw __dartCoreError("ArgumentError", "Abbreviation \"" + __dartStr(abbr) + "\" is already used by \"" + __dartStr(existing.name) + "\"."); })();
-          }
-        }
-      }
-    }
-    if ((mandatory && !((defaultsTo === null)))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "The option " + __dartStr(name) + " cannot be mandatory and have a default value."); })();
-      }
-    }
-    if ((!(negatable) && hideNegatedUsage)) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "The option " + __dartStr(name) + " cannot have `hideNegatedUsage` " + "without being negatable."); })();
-      }
-    }
-    let option = newOption(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, type, { negatable: negatable, splitCommas: splitCommas, mandatory: mandatory, hide: hide, hideNegatedUsage: hideNegatedUsage, aliases: aliases });
-    __dartMapSet(this._options, name, option);
-    (this._optionsAndSeparators.push(option), null);
-    {
-      let _sync_for_iterator = __dartIterator(aliases);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let alias = _sync_for_iterator.current;
-          {
-            __dartMapSet(this._aliases, alias, name);
-          }
-        }
-      }
-    }
-  }
-  addSeparator(text) {
-    (this._optionsAndSeparators.push(text), null);
-  }
-  parse(args) {
-    return new Parser(null, this, Array.from(args)).parse();
-  }
-  get usage() {
-    return generateUsage(this._optionsAndSeparators, { lineLength: this.usageLineLength });
-  }
-  defaultFor(option) {
-    let value = this.findByNameOrAlias(option);
-    if ((value === null)) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "No option named " + __dartStr(option)); })();
-      }
-    }
-    return value.defaultsTo;
-  }
-  getDefault(option) {
-    return this.defaultFor(option);
-  }
-  findByAbbreviation(abbr) {
-    {
-      let _sync_for_iterator = __dartIterator(Array.from(this.options.values()));
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let option = _sync_for_iterator.current;
-          {
-            if (__dartEquals(option.abbr, abbr)) {
-              return option;
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-  findByNameOrAlias(name) {
-    return __dartMapGet(this.options, (__dartMapGet(this._aliases, name) ?? name));
-  }
-}
-Object.defineProperty(ArgParser, Symbol.hasInstance, { value(value) { return value != null && value[$ArgParser_interface] === true; } });
-
-function $ArgParser__($newTarget, options, commands, _aliases, { allowTrailingOptions = true, usageLineLength = null } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self._optionsAndSeparators = new Array(0).fill(null);
-  Object.defineProperty($self, $ArgParser_interface, { value: true });
-  $self._aliases = _aliases;
-  $self.allowTrailingOptions = allowTrailingOptions;
-  $self.usageLineLength = usageLineLength;
-  $self._options = options;
-  $self.options = __dartUnmodifiableMapView(options);
-  $self._commands = commands;
-  $self.commands = __dartUnmodifiableMapView(commands);
-  return $self;
-}
-
-class AllowAnythingParser {
-  constructor() {
-    Object.defineProperty(this, $ArgParser_interface, { value: true });
-  }
-  get options() {
-    return __dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(Option)\"]", () => __dartConstMap([]));
-  }
-  get commands() {
-    return __dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(ArgParser)\"]", () => __dartConstMap([]));
-  }
-  get allowTrailingOptions() {
-    return false;
-  }
-  get allowsAnything() {
-    return true;
-  }
-  get usageLineLength() {
-    return null;
-  }
-  addCommand(name, parser = null) {
-    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addCommands() isn't supported."); })();
-  }
-  addFlag(name, { abbr = null, help = null, defaultsTo = false, negatable = true, callback = null, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addFlag() isn't supported."); })();
-  }
-  addOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, allowMultiple = false, splitCommas = null, mandatory = false, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addOption() isn't supported."); })();
-  }
-  addMultiOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, splitCommas = true, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addMultiOption() isn't supported."); })();
-  }
-  addSeparator(text) {
-    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addSeparator() isn't supported."); })();
-  }
-  parse(args) {
-    return new Parser(null, this, Array.from(args)).parse();
-  }
-  get usage() {
-    return "";
-  }
-  defaultFor(option) {
-    (() => { throw __dartCoreError("ArgumentError", "No option named " + __dartStr(option)); })();
-  }
-  getDefault(option) {
-    (() => { throw __dartCoreError("ArgumentError", "No option named " + __dartStr(option)); })();
-  }
-  findByAbbreviation(abbr) {
-    return null;
-  }
-  findByNameOrAlias(name) {
-    return null;
-  }
-}
-
 class _Usage {
   constructor(_optionsAndSeparators, lineLength) {
     this._buffer = __dartStringBuffer("");
@@ -1409,6 +1220,195 @@ class _Usage {
   }
 }
 
+class ArgParser {
+  static _(options, commands, _aliases, { allowTrailingOptions = true, usageLineLength = null } = {}) {
+    return $ArgParser__(ArgParser, options, commands, _aliases, { allowTrailingOptions: allowTrailingOptions, usageLineLength: usageLineLength });
+  }
+  get allowsAnything() {
+    return false;
+  }
+  constructor({ allowTrailingOptions = true, usageLineLength = null } = {}) {
+    return ArgParser._(new Map([]), new Map([]), new Map([]), { allowTrailingOptions: allowTrailingOptions, usageLineLength: usageLineLength });
+  }
+  static allowAnything() {
+    return new AllowAnythingParser();
+  }
+  addCommand(name, parser = null) {
+    if (__dartMapContainsKey(this._commands, name)) {
+      {
+        (() => { throw __dartCoreError("ArgumentError", "Duplicate command \"" + __dartStr(name) + "\"."); })();
+      }
+    }
+    ((parser === null) ? parser = new ArgParser() : null);
+    __dartMapSet(this._commands, name, parser);
+    return parser;
+  }
+  addFlag(name, { abbr = null, help = null, defaultsTo = false, negatable = true, callback = null, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
+    this._addOption(name, abbr, help, null, null, null, defaultsTo, ((callback === null) ? null : function(value) { return (callback)(value); }), __dartConst("[\"instance\",\"class:OptionType\",[\"field\",\"field:OptionType.name\",[\"string\",\"OptionType.flag\"]]]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.flag" }))), { negatable: negatable, hide: hide, hideNegatedUsage: hideNegatedUsage, aliases: aliases });
+  }
+  addOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, mandatory = false, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
+    this._addOption(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, __dartConst("[\"instance\",\"class:OptionType\",[\"field\",\"field:OptionType.name\",[\"string\",\"OptionType.single\"]]]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.single" }))), { mandatory: mandatory, hide: hide, aliases: aliases });
+  }
+  addMultiOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, splitCommas = true, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
+    this._addOption(name, abbr, help, valueHelp, allowed, allowedHelp, ((defaultsTo)?.toList() ?? new Array(0).fill(null)), ((callback === null) ? null : function(value) { return (callback)(value); }), __dartConst("[\"instance\",\"class:OptionType\",[\"field\",\"field:OptionType.name\",[\"string\",\"OptionType.multiple\"]]]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.multiple" }))), { splitCommas: splitCommas, hide: hide, aliases: aliases });
+  }
+  _addOption(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, type, { negatable = false, splitCommas = null, mandatory = false, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
+    let allNames = (() => {
+      const v = [name];
+      (v.push(...Array.from(aliases)), null);
+      return v;
+    })();
+    if (Array.from(allNames).some((name) => { return !((this.findByNameOrAlias(name) === null)); })) {
+      {
+        (() => { throw __dartCoreError("ArgumentError", "Duplicate option or alias \"" + __dartStr(name) + "\"."); })();
+      }
+    }
+    if (!((abbr === null))) {
+      {
+        let existing = this.findByAbbreviation(abbr);
+        if (!((existing === null))) {
+          {
+            (() => { throw __dartCoreError("ArgumentError", "Abbreviation \"" + __dartStr(abbr) + "\" is already used by \"" + __dartStr(existing.name) + "\"."); })();
+          }
+        }
+      }
+    }
+    if ((mandatory && !((defaultsTo === null)))) {
+      {
+        (() => { throw __dartCoreError("ArgumentError", "The option " + __dartStr(name) + " cannot be mandatory and have a default value."); })();
+      }
+    }
+    if ((!(negatable) && hideNegatedUsage)) {
+      {
+        (() => { throw __dartCoreError("ArgumentError", "The option " + __dartStr(name) + " cannot have `hideNegatedUsage` " + "without being negatable."); })();
+      }
+    }
+    let option = newOption(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, type, { negatable: negatable, splitCommas: splitCommas, mandatory: mandatory, hide: hide, hideNegatedUsage: hideNegatedUsage, aliases: aliases });
+    __dartMapSet(this._options, name, option);
+    (this._optionsAndSeparators.push(option), null);
+    {
+      let _sync_for_iterator = __dartIterator(aliases);
+      for (; _sync_for_iterator.moveNext(); ) {
+        {
+          let alias = _sync_for_iterator.current;
+          {
+            __dartMapSet(this._aliases, alias, name);
+          }
+        }
+      }
+    }
+  }
+  addSeparator(text) {
+    (this._optionsAndSeparators.push(text), null);
+  }
+  parse(args) {
+    return new Parser(null, this, Array.from(args)).parse();
+  }
+  get usage() {
+    return generateUsage(this._optionsAndSeparators, { lineLength: this.usageLineLength });
+  }
+  defaultFor(option) {
+    let value = this.findByNameOrAlias(option);
+    if ((value === null)) {
+      {
+        (() => { throw __dartCoreError("ArgumentError", "No option named " + __dartStr(option)); })();
+      }
+    }
+    return value.defaultsTo;
+  }
+  getDefault(option) {
+    return this.defaultFor(option);
+  }
+  findByAbbreviation(abbr) {
+    {
+      let _sync_for_iterator = __dartIterator(Array.from(this.options.values()));
+      for (; _sync_for_iterator.moveNext(); ) {
+        {
+          let option = _sync_for_iterator.current;
+          {
+            if (__dartEquals(option.abbr, abbr)) {
+              return option;
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+  findByNameOrAlias(name) {
+    return __dartMapGet(this.options, (__dartMapGet(this._aliases, name) ?? name));
+  }
+}
+Object.defineProperty(ArgParser, Symbol.hasInstance, { value(value) { return value != null && value[$ArgParser_interface] === true; } });
+
+function $ArgParser__($newTarget, options, commands, _aliases, { allowTrailingOptions = true, usageLineLength = null } = {}) {
+  const $self = Object.create($newTarget.prototype);
+  $self._optionsAndSeparators = new Array(0).fill(null);
+  Object.defineProperty($self, $ArgParser_interface, { value: true });
+  $self._aliases = _aliases;
+  $self.allowTrailingOptions = allowTrailingOptions;
+  $self.usageLineLength = usageLineLength;
+  $self._options = options;
+  $self.options = __dartUnmodifiableMapView(options);
+  $self._commands = commands;
+  $self.commands = __dartUnmodifiableMapView(commands);
+  return $self;
+}
+
+class AllowAnythingParser {
+  constructor() {
+    Object.defineProperty(this, $ArgParser_interface, { value: true });
+  }
+  get options() {
+    return __dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(Option)\"]", () => __dartConstMap([]));
+  }
+  get commands() {
+    return __dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(ArgParser)\"]", () => __dartConstMap([]));
+  }
+  get allowTrailingOptions() {
+    return false;
+  }
+  get allowsAnything() {
+    return true;
+  }
+  get usageLineLength() {
+    return null;
+  }
+  addCommand(name, parser = null) {
+    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addCommands() isn't supported."); })();
+  }
+  addFlag(name, { abbr = null, help = null, defaultsTo = false, negatable = true, callback = null, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
+    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addFlag() isn't supported."); })();
+  }
+  addOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, allowMultiple = false, splitCommas = null, mandatory = false, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
+    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addOption() isn't supported."); })();
+  }
+  addMultiOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, splitCommas = true, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
+    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addMultiOption() isn't supported."); })();
+  }
+  addSeparator(text) {
+    (() => { throw __dartCoreError("UnsupportedError", "ArgParser.allowAnything().addSeparator() isn't supported."); })();
+  }
+  parse(args) {
+    return new Parser(null, this, Array.from(args)).parse();
+  }
+  get usage() {
+    return "";
+  }
+  defaultFor(option) {
+    (() => { throw __dartCoreError("ArgumentError", "No option named " + __dartStr(option)); })();
+  }
+  getDefault(option) {
+    (() => { throw __dartCoreError("ArgumentError", "No option named " + __dartStr(option)); })();
+  }
+  findByAbbreviation(abbr) {
+    return null;
+  }
+  findByNameOrAlias(name) {
+    return null;
+  }
+}
+
 
 const $Option__invalidChars = __dartLazyField("Option._invalidChars", () => __dartRegExp("[ \\t\\r\\n\"'\\\\/]", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), false);
 Object.defineProperty(Option, "_invalidChars", {
@@ -1438,58 +1438,6 @@ function _isLetterOrDigit(codeUnit) {
 
 function _isLetterDigitHyphenOrUnderscore(codeUnit) {
   return ((_isLetterOrDigit(codeUnit) || __dartEquals(codeUnit, 45)) || __dartEquals(codeUnit, 95));
-}
-
-function padRight(source, length) {
-  return (source + (" " * (length - source.length)));
-}
-
-function wrapText(text, { length = null, hangingIndent = null } = {}) {
-  if ((length === null)) {
-    return text;
-  }
-  ((hangingIndent === null) ? hangingIndent = 0 : null);
-  let splitText = text.split("\n");
-  let result = new Array(0).fill(null);
-  {
-    let _sync_for_iterator = __dartIterator(splitText);
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let line = _sync_for_iterator.current;
-        {
-          let trimmedText = line.trimStart();
-          const leadingWhitespace = line.substring(0, (line.length - trimmedText.length));
-          let notIndented = null;
-          if (!(__dartEquals(hangingIndent, 0))) {
-            {
-              let firstLineWrap = wrapTextAsLines(trimmedText, { length: (length - leadingWhitespace.length) });
-              notIndented = [firstLineWrap.splice(0, 1)[0]];
-              trimmedText = trimmedText.substring(__dartIndexGet(notIndented, 0).length).trimStart();
-              if (firstLineWrap.length !== 0) {
-                {
-                  (notIndented.push(...Array.from(wrapTextAsLines(trimmedText, { length: ((length - leadingWhitespace.length) - hangingIndent) }))), null);
-                }
-              }
-            }
-          } else {
-            {
-              notIndented = wrapTextAsLines(trimmedText, { length: (length - leadingWhitespace.length) });
-            }
-          }
-          let hangingIndentString = null;
-          (result.push(...Array.from(Array.from(notIndented, function(line) {
-            if (line.length === 0) {
-              return "";
-            }
-            let result = __dartStr((hangingIndentString ?? "")) + __dartStr(leadingWhitespace) + __dartStr(line);
-            ((hangingIndentString === null) ? hangingIndentString = (" " * __dartNullCheck(hangingIndent)) : null);
-            return result;
-}))), null);
-        }
-      }
-    }
-  }
-  return __dartIterableJoin(result, "\n");
 }
 
 function wrapTextAsLines(text, { start = 0, length = null } = {}) {

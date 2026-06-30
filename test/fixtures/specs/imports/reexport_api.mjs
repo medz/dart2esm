@@ -44,23 +44,7 @@ export class BarrelThing {
   }
 }
 
-class _PrivateBarrelThing {
-  label() {
-    return "private:6";
-  }
-}
-
 export const leafValue = 3;
-
-const hiddenLeafValue = 4;
-
-const barrelValue = 5;
-
-const _privateBarrelValue = 6;
-
-function privateBarrelLabel() {
-  return new _PrivateBarrelThing().label();
-}
 
 export function main() {
   const leaf = new LeafThing("api");

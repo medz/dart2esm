@@ -3635,101 +3635,13 @@ final class _EsmEmitter {
     if (jsInteropInvocation != null) {
       return jsInteropInvocation;
     }
-    if (isDartCoreReference(
-          expression.targetReference,
-          '@methods',
-          'EnumName|get#name',
-        ) &&
-        positionalArgs.length == 1) {
-      return '${positionalArgs.single}.name';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:core::@methods::EnumByName|byName' &&
-        positionalArgs.length == 2) {
-      _usedHelpers.add('__dartEnumByName');
-      return '__dartEnumByName(${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:core::@methods::EnumByName|asNameMap' &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartEnumAsNameMap');
-      return '__dartEnumAsNameMap(${positionalArgs.single})';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:core::@methods::DateTimeCopyWith|copyWith' &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartDateTime');
-      final options = expression.arguments.named.isEmpty
-          ? '{}'
-          : '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }';
-      return '__dartDateTimeCopyWith(${positionalArgs.single}, $options)';
-    }
-    if (isDartCoreReference(expression.targetReference, '@methods', 'print')) {
-      _usedHelpers.add('__dartPrint');
-      _usedHelpers.add('__dartStr');
-      return '__dartPrint($args)';
-    }
-    if (isDartCoreReference(
-          expression.targetReference,
-          '@methods',
-          'identical',
-        ) &&
-        positionalArgs.length == 2) {
-      return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (isDartCoreReference(
-          expression.targetReference,
-          '@methods',
-          'identityHashCode',
-        ) &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartObjectHash');
-      return '__dartHashValue(${positionalArgs.single})';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:core::Function::@methods::apply' &&
-        positionalArgs.length >= 2 &&
-        positionalArgs.length <= 3) {
-      _usedHelpers.add('__dartFunctionApply');
-      final namedArguments = positionalArgs.length == 3
-          ? positionalArgs[2]
-          : 'null';
-      return '__dartFunctionApply(${positionalArgs[0]}, ${positionalArgs[1]}, $namedArguments)';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:collection::@methods::NullableIterableExtensions|get#nonNulls' &&
-        positionalArgs.length == 1) {
-      return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:collection::@methods::IterableExtensions|get#indexed' &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartRecord');
-      return 'Array.from(${positionalArgs.single}, (value, index) => __dartRecord([index, value], {}))';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:collection::@methods::IterableExtensions|get#firstOrNull' &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartIterableFirstOrNull');
-      return '__dartIterableFirstOrNull(${positionalArgs.single})';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:collection::@methods::IterableExtensions|get#lastOrNull' &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartIterableLastOrNull');
-      return '__dartIterableLastOrNull(${positionalArgs.single})';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:collection::@methods::IterableExtensions|get#singleOrNull' &&
-        positionalArgs.length == 1) {
-      _usedHelpers.add('__dartIterableSingleOrNull');
-      return '__dartIterableSingleOrNull(${positionalArgs.single})';
-    }
-    if (kernelReferencePath(expression.targetReference) ==
-            'dart:collection::@methods::IterableExtensions|elementAtOrNull' &&
-        positionalArgs.length == 2) {
-      _usedHelpers.add('__dartIterableElementAtOrNull');
-      return '__dartIterableElementAtOrNull(${positionalArgs[0]}, ${positionalArgs[1]})';
+    final sdkStaticInvocation = _emitDartSdkStaticInvocation(
+      expression,
+      positionalArgs,
+      args,
+    );
+    if (sdkStaticInvocation != null) {
+      return sdkStaticInvocation;
     }
     final internalIterableInvocation = _emitInternalIterableStaticInvocation(
       expression,
@@ -3814,6 +3726,90 @@ final class _EsmEmitter {
       expression,
       'static invocation ${kernelReferencePath(expression.targetReference)}',
     );
+  }
+
+  String? _emitDartSdkStaticInvocation(
+    k.StaticInvocation expression,
+    List<String> positionalArgs,
+    String args,
+  ) {
+    switch (dartSdkStaticInvocationSymbol(expression.targetReference)) {
+      case DartSdkStaticInvocationSymbol.coreEnumName:
+        if (positionalArgs.length == 1) {
+          return '${positionalArgs.single}.name';
+        }
+      case DartSdkStaticInvocationSymbol.coreEnumByName:
+        if (positionalArgs.length == 2) {
+          _usedHelpers.add('__dartEnumByName');
+          return '__dartEnumByName(${positionalArgs[0]}, ${positionalArgs[1]})';
+        }
+      case DartSdkStaticInvocationSymbol.coreEnumAsNameMap:
+        if (positionalArgs.length == 1) {
+          _usedHelpers.add('__dartEnumAsNameMap');
+          return '__dartEnumAsNameMap(${positionalArgs.single})';
+        }
+      case DartSdkStaticInvocationSymbol.coreDateTimeCopyWith:
+        if (positionalArgs.length == 1) {
+          _usedHelpers.add('__dartDateTime');
+          final options = expression.arguments.named.isEmpty
+              ? '{}'
+              : '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }';
+          return '__dartDateTimeCopyWith(${positionalArgs.single}, $options)';
+        }
+      case DartSdkStaticInvocationSymbol.corePrint:
+        _usedHelpers.add('__dartPrint');
+        _usedHelpers.add('__dartStr');
+        return '__dartPrint($args)';
+      case DartSdkStaticInvocationSymbol.coreIdentical:
+        if (positionalArgs.length == 2) {
+          return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
+        }
+      case DartSdkStaticInvocationSymbol.coreIdentityHashCode:
+        if (positionalArgs.length == 1) {
+          _usedHelpers.add('__dartObjectHash');
+          return '__dartHashValue(${positionalArgs.single})';
+        }
+      case DartSdkStaticInvocationSymbol.coreFunctionApply:
+        if (positionalArgs.length >= 2 && positionalArgs.length <= 3) {
+          _usedHelpers.add('__dartFunctionApply');
+          final namedArguments = positionalArgs.length == 3
+              ? positionalArgs[2]
+              : 'null';
+          return '__dartFunctionApply(${positionalArgs[0]}, ${positionalArgs[1]}, $namedArguments)';
+        }
+      case DartSdkStaticInvocationSymbol.collectionNonNulls:
+        if (positionalArgs.length == 1) {
+          return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';
+        }
+      case DartSdkStaticInvocationSymbol.collectionIndexed:
+        if (positionalArgs.length == 1) {
+          _usedHelpers.add('__dartRecord');
+          return 'Array.from(${positionalArgs.single}, (value, index) => __dartRecord([index, value], {}))';
+        }
+      case DartSdkStaticInvocationSymbol.collectionFirstOrNull:
+        if (positionalArgs.length == 1) {
+          _usedHelpers.add('__dartIterableFirstOrNull');
+          return '__dartIterableFirstOrNull(${positionalArgs.single})';
+        }
+      case DartSdkStaticInvocationSymbol.collectionLastOrNull:
+        if (positionalArgs.length == 1) {
+          _usedHelpers.add('__dartIterableLastOrNull');
+          return '__dartIterableLastOrNull(${positionalArgs.single})';
+        }
+      case DartSdkStaticInvocationSymbol.collectionSingleOrNull:
+        if (positionalArgs.length == 1) {
+          _usedHelpers.add('__dartIterableSingleOrNull');
+          return '__dartIterableSingleOrNull(${positionalArgs.single})';
+        }
+      case DartSdkStaticInvocationSymbol.collectionElementAtOrNull:
+        if (positionalArgs.length == 2) {
+          _usedHelpers.add('__dartIterableElementAtOrNull');
+          return '__dartIterableElementAtOrNull(${positionalArgs[0]}, ${positionalArgs[1]})';
+        }
+      case null:
+        return null;
+    }
+    return null;
   }
 
   String? _emitInternalIterableStaticInvocation(

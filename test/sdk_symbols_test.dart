@@ -227,6 +227,53 @@ void main() {
     );
   });
 
+  test('classifies sdk static invocation symbols', () {
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:core::@methods::EnumName|get#name'),
+      ),
+      DartSdkStaticInvocationSymbol.coreEnumName,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:core::@methods::EnumByName|byName'),
+      ),
+      DartSdkStaticInvocationSymbol.coreEnumByName,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:core::@methods::DateTimeCopyWith|copyWith'),
+      ),
+      DartSdkStaticInvocationSymbol.coreDateTimeCopyWith,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference('dart:core::Function::@methods::apply'),
+      ),
+      DartSdkStaticInvocationSymbol.coreFunctionApply,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference(
+          'dart:collection::@methods::NullableIterableExtensions|get#nonNulls',
+        ),
+      ),
+      DartSdkStaticInvocationSymbol.collectionNonNulls,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
+        _reference(
+          'dart:collection::@methods::IterableExtensions|elementAtOrNull',
+        ),
+      ),
+      DartSdkStaticInvocationSymbol.collectionElementAtOrNull,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(_reference('dart:core::Object')),
+      isNull,
+    );
+  });
+
   test('classifies dart:async members', () {
     expect(
       isDartAsyncStreamMember(

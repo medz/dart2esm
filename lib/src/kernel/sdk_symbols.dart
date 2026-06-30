@@ -13,6 +13,23 @@ enum LegacyJsFactorySymbol {
 
 enum JsInteropStaticGetSymbol { globalThis, objectPrototype }
 
+enum DartSdkStaticInvocationSymbol {
+  coreEnumName,
+  coreEnumByName,
+  coreEnumAsNameMap,
+  coreDateTimeCopyWith,
+  corePrint,
+  coreIdentical,
+  coreIdentityHashCode,
+  coreFunctionApply,
+  collectionNonNulls,
+  collectionIndexed,
+  collectionFirstOrNull,
+  collectionLastOrNull,
+  collectionSingleOrNull,
+  collectionElementAtOrNull,
+}
+
 const dartCoreExceptionTypeNames = {
   'Exception',
   'FormatException',
@@ -54,6 +71,41 @@ bool kernelPathHasMember(String path, String name) {
 
 bool isDartCoreReference(k.Reference reference, String namespace, String name) {
   return kernelReferencePath(reference) == 'dart:core::$namespace::$name';
+}
+
+DartSdkStaticInvocationSymbol? dartSdkStaticInvocationSymbol(
+  k.Reference reference,
+) {
+  return switch (kernelReferencePath(reference)) {
+    'dart:core::@methods::EnumName|get#name' =>
+      DartSdkStaticInvocationSymbol.coreEnumName,
+    'dart:core::@methods::EnumByName|byName' =>
+      DartSdkStaticInvocationSymbol.coreEnumByName,
+    'dart:core::@methods::EnumByName|asNameMap' =>
+      DartSdkStaticInvocationSymbol.coreEnumAsNameMap,
+    'dart:core::@methods::DateTimeCopyWith|copyWith' =>
+      DartSdkStaticInvocationSymbol.coreDateTimeCopyWith,
+    'dart:core::@methods::print' => DartSdkStaticInvocationSymbol.corePrint,
+    'dart:core::@methods::identical' =>
+      DartSdkStaticInvocationSymbol.coreIdentical,
+    'dart:core::@methods::identityHashCode' =>
+      DartSdkStaticInvocationSymbol.coreIdentityHashCode,
+    'dart:core::Function::@methods::apply' =>
+      DartSdkStaticInvocationSymbol.coreFunctionApply,
+    'dart:collection::@methods::NullableIterableExtensions|get#nonNulls' =>
+      DartSdkStaticInvocationSymbol.collectionNonNulls,
+    'dart:collection::@methods::IterableExtensions|get#indexed' =>
+      DartSdkStaticInvocationSymbol.collectionIndexed,
+    'dart:collection::@methods::IterableExtensions|get#firstOrNull' =>
+      DartSdkStaticInvocationSymbol.collectionFirstOrNull,
+    'dart:collection::@methods::IterableExtensions|get#lastOrNull' =>
+      DartSdkStaticInvocationSymbol.collectionLastOrNull,
+    'dart:collection::@methods::IterableExtensions|get#singleOrNull' =>
+      DartSdkStaticInvocationSymbol.collectionSingleOrNull,
+    'dart:collection::@methods::IterableExtensions|elementAtOrNull' =>
+      DartSdkStaticInvocationSymbol.collectionElementAtOrNull,
+    _ => null,
+  };
 }
 
 bool isDartSdkLibraryClassMember(

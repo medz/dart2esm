@@ -2252,7 +2252,7 @@ final class KernelToEsmIrLoweringStage
               initializer,
               thisExpression: thisExpression,
             ),
-      mutable: statement.isAssignable,
+      mutable: statement.isAssignable || initializer == null,
     );
   }
 
@@ -4252,6 +4252,17 @@ final class KernelToEsmIrLoweringStage
     if (bigIntInvocation != null) {
       return bigIntInvocation;
     }
+    final numberInvocation = _lowerCoreNumberInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (numberInvocation != null) {
+      return numberInvocation;
+    }
     if (expression.name.text == '[]' &&
         expression.arguments.positional.length == 1) {
       final receiver = _lowerExpression(
@@ -4312,6 +4323,31 @@ final class KernelToEsmIrLoweringStage
       helpers.add(EsmRuntimeHelper.mapAddAll);
       return EsmCallIr(
         callee: runtimeHelpers.reference(EsmRuntimeHelper.mapAddAll),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::Map::@methods::containsKey' ||
+            target == 'dart:_compact_hash::_ConstMap::@methods::containsKey' ||
+            target == 'dart:_compact_hash::_Map::@methods::containsKey') &&
+        expression.arguments.positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.mapContainsKey);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.mapContainsKey),
         arguments: [
           _lowerExpression(
             world,
@@ -4538,6 +4574,40 @@ final class KernelToEsmIrLoweringStage
     return EsmCallIr(
       callee: EsmPropertyAccessIr(receiver: receiver, property: property),
       arguments: const [],
+    );
+  }
+
+  EsmExpressionIr? _lowerCoreNumberInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final positional = expression.arguments.positional;
+    if (!_isCoreCompareToTarget(target) || positional.length != 1) {
+      return null;
+    }
+    helpers.add(EsmRuntimeHelper.compare);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.compare),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          positional.single,
+          thisExpression: thisExpression,
+        ),
+      ],
     );
   }
 
@@ -4858,11 +4928,52 @@ final class KernelToEsmIrLoweringStage
         right: const EsmNumberLiteralIr(0),
       );
     }
+    final numberGet = _lowerCoreNumberInstanceGet(helpers, receiver, target);
+    if (numberGet != null) {
+      return numberGet;
+    }
     final bigIntGet = _lowerBigIntInstanceGet(helpers, receiver, target);
     if (bigIntGet != null) {
       return bigIntGet;
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerCoreNumberInstanceGet(
+    EsmRuntimeHelperUseSet helpers,
+    EsmExpressionIr receiver,
+    String target,
+  ) {
+    return switch (target) {
+      'dart:core::int::@getters::isEven' => EsmBinaryIr(
+        left: EsmBinaryIr(
+          left: _mathTrunc(receiver),
+          operator: '%',
+          right: const EsmNumberLiteralIr(2),
+        ),
+        operator: '===',
+        right: const EsmNumberLiteralIr(0),
+      ),
+      'dart:core::int::@getters::isOdd' => EsmBinaryIr(
+        left: EsmBinaryIr(
+          left: _mathTrunc(receiver),
+          operator: '%',
+          right: const EsmNumberLiteralIr(2),
+        ),
+        operator: '!==',
+        right: const EsmNumberLiteralIr(0),
+      ),
+      'dart:core::num::@getters::hashCode' ||
+      'dart:core::int::@getters::hashCode' ||
+      'dart:core::double::@getters::hashCode' => () {
+        helpers.add(EsmRuntimeHelper.objectHash);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartHashValue'),
+          arguments: [receiver],
+        );
+      }(),
+      _ => null,
+    };
   }
 
   EsmExpressionIr? _lowerBigIntInstanceGet(
@@ -5768,6 +5879,24 @@ final class KernelToEsmIrLoweringStage
     );
   }
 
+  EsmExpressionIr _mathTrunc(EsmExpressionIr value) {
+    return EsmCallIr(
+      callee: const EsmPropertyAccessIr(
+        receiver: EsmIdentifierIr('Math'),
+        property: 'trunc',
+      ),
+      arguments: [value],
+    );
+  }
+
+  bool _isCoreCompareToTarget(String target) {
+    return target == 'dart:core::Comparable::@methods::compareTo' ||
+        target == 'dart:core::num::@methods::compareTo' ||
+        target == 'dart:core::int::@methods::compareTo' ||
+        target == 'dart:core::double::@methods::compareTo' ||
+        target == 'dart:core::String::@methods::compareTo';
+  }
+
   EsmExpressionIr _andAll(List<EsmExpressionIr> expressions) {
     if (expressions.isEmpty) {
       return const EsmBooleanLiteralIr(true);
@@ -6348,9 +6477,12 @@ final class KernelToEsmIrLoweringStage
     if (bigIntStatic != null) {
       return bigIntStatic;
     }
-    if (target != 'dart:core::int::@methods::parse') {
-      return null;
-    }
+    final isTryParse = switch (target) {
+      'dart:core::int::@methods::parse' => false,
+      'dart:core::int::@methods::tryParse' => true,
+      _ => null,
+    };
+    if (isTryParse == null) return null;
     final positional = expression.arguments.positional;
     if (positional.length != 1 ||
         expression.arguments.named.any(
@@ -6368,7 +6500,9 @@ final class KernelToEsmIrLoweringStage
     final radix = radixArguments.isEmpty ? null : radixArguments.single;
     helpers.add(EsmRuntimeHelper.intParse);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.intParse),
+      callee: isTryParse
+          ? const EsmIdentifierIr('__dartIntTryParse')
+          : runtimeHelpers.reference(EsmRuntimeHelper.intParse),
       arguments: [
         _lowerExpression(
           world,

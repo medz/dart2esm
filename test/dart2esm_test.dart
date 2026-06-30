@@ -1318,6 +1318,70 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles pattern matching through the new core', () async {
+    final source = File(p.join(fixtureDir.path, 'syntax', 'patterns.dart'));
+    final expected = File(p.join(fixtureDir.path, 'syntax', 'patterns.mjs'));
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-patterns-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'patterns.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
+  test('compiles core number helpers through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-core-numbers-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  final parsed = int.parse('42');
+  final fallback = int.tryParse('nope') ?? -1;
+  final even = parsed.isEven;
+  final odd = fallback.isOdd;
+  final numberCompare = parsed.compareTo(fallback);
+  final textCompare = 'b'.compareTo('a');
+  final stableHash = parsed.hashCode == 42.hashCode;
+  print('numbers \$parsed \$fallback \$even \$odd '
+      '\$numberCompare \$textCompare \$stableHash');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartIntTryParse'));
+    expect(code, contains('__dartCompare'));
+    expect(code, contains('__dartHashValue'));
+    expect(code, contains('Math.trunc(parsed) % 2 === 0'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
   test('compiles const collections through the new core', () async {
     final source = File(
       p.join(fixtureDir.path, 'syntax', 'const_collections.dart'),

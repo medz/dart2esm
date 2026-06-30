@@ -3,6 +3,7 @@ import '../ir/esm_ir.dart';
 enum EsmRuntimeHelper {
   bigIntBitLength,
   bigIntParse,
+  compare,
   coreError,
   constMap,
   constSet,
@@ -22,6 +23,7 @@ enum EsmRuntimeHelper {
   listAdd,
   listAddAll,
   mapAddAll,
+  mapContainsKey,
   mapSet,
   mathPoint,
   mathRandom,
@@ -48,6 +50,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartAs',
     '__dartBigIntBitLength',
     '__dartBigIntParse',
+    '__dartCompare',
     '__dartCoreError',
     '__dartConst',
     '__dartConstMap',
@@ -70,6 +73,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartListAdd',
     '__dartListAddAll',
     '__dartMapAddAll',
+    '__dartMapContainsKey',
     '__dartMapSet',
     '__dartPoint',
     '__dartRandom',
@@ -102,6 +106,7 @@ final class EsmRuntimeHelperRegistry {
     return switch (helper) {
       EsmRuntimeHelper.bigIntBitLength => '__dartBigIntBitLength',
       EsmRuntimeHelper.bigIntParse => '__dartBigIntParse',
+      EsmRuntimeHelper.compare => '__dartCompare',
       EsmRuntimeHelper.coreError => '__dartCoreError',
       EsmRuntimeHelper.constMap => '__dartConstMap',
       EsmRuntimeHelper.constSet => '__dartConstSet',
@@ -122,6 +127,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.listAdd => '__dartListAdd',
       EsmRuntimeHelper.listAddAll => '__dartListAddAll',
       EsmRuntimeHelper.mapAddAll => '__dartMapAddAll',
+      EsmRuntimeHelper.mapContainsKey => '__dartMapContainsKey',
       EsmRuntimeHelper.mapSet => '__dartMapSet',
       EsmRuntimeHelper.mathPoint => '__dartPoint',
       EsmRuntimeHelper.mathRandom => '__dartRandom',
@@ -178,6 +184,14 @@ function __dartBigIntParse(source, radix = null, tryParse = false) {
     if (tryParse) return null;
     throw error;
   }
+}
+'''),
+      EsmRuntimeHelper.compare => EsmRawModuleItemIr('''
+function __dartCompare(left, right, compare = null) {
+  if (typeof compare === "function") return Number(compare(left, right));
+  const compareTo = left == null ? null : left.compareTo;
+  if (typeof compareTo === "function") return Number(compareTo.call(left, right));
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 '''),
       EsmRuntimeHelper.coreError => EsmRawModuleItemIr('''
@@ -632,6 +646,16 @@ function __dartMapAddAll(map, entries) {
   return null;
 }
 '''),
+      EsmRuntimeHelper.mapContainsKey => EsmRawModuleItemIr('''
+function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
+  if (map.has(key)) return true;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return true;
+  }
+  return false;
+}
+'''),
       EsmRuntimeHelper.nullCheck => EsmRawModuleItemIr('''
 function __dartNullCheck(value) {
   if (value == null) throw new TypeError("Null check operator used on a null value");
@@ -799,6 +823,7 @@ final class EsmRuntimeHelperUseSet {
     switch (helper) {
       case EsmRuntimeHelper.bigIntBitLength:
       case EsmRuntimeHelper.bigIntParse:
+      case EsmRuntimeHelper.compare:
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
       case EsmRuntimeHelper.constMap:
@@ -832,6 +857,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.nullCheck:
       case EsmRuntimeHelper.print:
         _helpers.add(EsmRuntimeHelper.stringify);
+      case EsmRuntimeHelper.mapContainsKey:
+        _helpers.add(EsmRuntimeHelper.equals);
       case EsmRuntimeHelper.mathRectangle:
         _helpers.add(EsmRuntimeHelper.mathPoint);
       case EsmRuntimeHelper.recordShape:

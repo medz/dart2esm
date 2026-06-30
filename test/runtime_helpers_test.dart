@@ -163,6 +163,19 @@ void main() {
     expect(isEsmLegacyStreamRuntimeHelper('__dartStreamController'), isFalse);
   });
 
+  test('exposes emitted runtime globals for name allocation', () {
+    expect(
+      esmRuntimeGlobalNames,
+      containsAll([
+        '__dartPrint',
+        '__dartStreamMap',
+        '__dartDateTime',
+        '__dartStringReplaceAll',
+        '__dartZoneValuesMap',
+      ]),
+    );
+  });
+
   test('runtime helper use set owns closure and registry lookups', () {
     final helpers = EsmRuntimeHelperUseSet({
       '__dartJsonUtf8Encoder',

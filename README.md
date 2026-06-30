@@ -45,6 +45,12 @@ dart2esm build/input.dill -o dist/input.mjs
    local Dart libraries are bundled into the same output module and only
    re-exported when the Dart entry library exports them.
 
+The working compiler architecture is tracked in
+[`docs/compiler-architecture.md`](docs/compiler-architecture.md). The current
+priority is to split frontend, program model, world/reachability, semantic
+lowering, runtime/helper selection, optimization passes, and ESM emission into
+clear phases before resuming local output-shape optimization.
+
 ## Unsupported Libraries
 
 `dart:io` APIs are not supported in 0.1.0.

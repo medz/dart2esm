@@ -4,17 +4,20 @@ import '../kernel/kernel_references.dart';
 import '../program/program_roots.dart';
 import '../world/reachability.dart';
 import 'class_runtime_plan.dart';
+import 'extension_type_member_plan.dart';
 
 final class EsmModulePlan {
   const EsmModulePlan({
     required this.classes,
     required this.libraries,
     required this.classRuntime,
+    required this.extensionTypeMembers,
   });
 
   final List<EsmClassPlan> classes;
   final List<EsmLibraryPlan> libraries;
   final EsmClassRuntimePlan classRuntime;
+  final EsmExtensionTypeMemberIndex extensionTypeMembers;
 }
 
 final class EsmLibraryPlan {
@@ -78,17 +81,24 @@ EsmModulePlan buildEsmModulePlan({
         );
       })
       .toList(growable: false);
+  final libraries = [
+    for (final library in orderedLibraries)
+      _buildLibraryPlan(
+        library,
+        world,
+        exportNamesByLibrary[library] ?? const <String>{},
+      ),
+  ];
   return EsmModulePlan(
     classes: classes,
-    libraries: [
-      for (final library in orderedLibraries)
-        _buildLibraryPlan(
-          library,
-          world,
-          exportNamesByLibrary[library] ?? const <String>{},
-        ),
-    ],
+    libraries: libraries,
     classRuntime: buildEsmClassRuntimePlan(classes.map((klass) => klass.node)),
+    extensionTypeMembers: buildEsmExtensionTypeMemberIndex(
+      libraries.expand(
+        (library) =>
+            library.extensionTypes.map((extensionType) => extensionType.node),
+      ),
+    ),
   );
 }
 

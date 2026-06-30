@@ -194,6 +194,54 @@ void main() {
     expect(plan.classRuntime.hasJsSuperclass(derived), isTrue);
     expect(plan.classRuntime.hasJsSuperclass(base), isFalse);
   });
+
+  test('indexes extension type members and tear-offs', () {
+    final libraryUri = Uri.parse('package:sample/main.dart');
+    final library = k.Library(libraryUri, fileUri: libraryUri);
+    final member = _procedure(r'$Box_get_value');
+    final tearOff = _procedure(r'$Box_get_value_tearoff');
+    member.isExtensionTypeMember = true;
+    tearOff.isExtensionTypeMember = true;
+    final descriptor = k.ExtensionTypeMemberDescriptor(
+      name: k.Name('value'),
+      kind: k.ExtensionTypeMemberKind.Getter,
+      memberReference: member.reference,
+      tearOffReference: tearOff.reference,
+    );
+    final extensionType = k.ExtensionTypeDeclaration(
+      name: 'Box',
+      declaredRepresentationType: const k.DynamicType(),
+      memberDescriptors: [descriptor],
+      fileUri: libraryUri,
+    );
+    extensionType.representationName = 'value';
+    library.addProcedure(member);
+    library.addProcedure(tearOff);
+    library.addExtensionTypeDeclaration(extensionType);
+
+    final world = EsmProgramPlan(
+      libraries: {library},
+      classes: const {},
+      extensionTypes: {extensionType},
+      topLevelFields: const {},
+      topLevelProcedures: const {},
+    );
+
+    final plan = buildEsmModulePlan(
+      orderedLibraries: [library],
+      world: world,
+      exportNamesByLibrary: const {},
+    );
+
+    final memberPlan = plan.extensionTypeMembers[member];
+    final tearOffPlan = plan.extensionTypeMembers[tearOff];
+    expect(memberPlan?.declaration, same(extensionType));
+    expect(memberPlan?.descriptor, same(descriptor));
+    expect(memberPlan?.isTearOff, isFalse);
+    expect(tearOffPlan?.declaration, same(extensionType));
+    expect(tearOffPlan?.descriptor, same(descriptor));
+    expect(tearOffPlan?.isTearOff, isTrue);
+  });
 }
 
 k.Field _field(String name) {

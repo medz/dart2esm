@@ -1,11 +1,14 @@
+import '../runtime/runtime_helpers.dart';
+
 sealed class EsmIrNode {
   const EsmIrNode();
 }
 
 final class EsmModuleIr extends EsmIrNode {
-  const EsmModuleIr(this.items);
+  const EsmModuleIr({required this.items, this.runtimeHelpers = const []});
 
   final List<EsmModuleItemIr> items;
+  final List<EsmRuntimeHelper> runtimeHelpers;
 }
 
 sealed class EsmModuleItemIr extends EsmIrNode {

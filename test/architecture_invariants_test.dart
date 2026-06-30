@@ -49,6 +49,21 @@ void main() {
     expect(codegen, isNot(contains('backend/esm_backend.dart')));
   });
 
+  test('runtime helpers are owned by compiler core, not legacy backend', () {
+    final runtime = _read('lib/src/compiler_core/runtime/runtime_helpers.dart');
+    final coreFiles = _dartFiles('lib/src/compiler_core');
+
+    expect(runtime, contains('enum EsmRuntimeHelper'));
+    expect(runtime, contains('__dartPrint'));
+    for (final file in coreFiles) {
+      expect(
+        file.readAsStringSync(),
+        isNot(contains('backend/runtime_helpers.dart')),
+        reason: file.path,
+      );
+    }
+  });
+
   test('legacy backend is isolated behind an oracle boundary', () {
     final coreFiles = _dartFiles('lib/src/compiler_core');
     final legacyOracle = p.join(

@@ -3,6 +3,7 @@ import 'package:kernel/kernel.dart' as k;
 import '../../names/js_names.dart';
 import '../frontend/kernel_frontend.dart';
 import '../new_compiler_unsupported.dart';
+import '../runtime/runtime_helpers.dart';
 
 final class SemanticWorldResult {
   const SemanticWorldResult({required this.kernel, required this.world});
@@ -56,7 +57,9 @@ final class SemanticWorldStage {
 
   SemanticWorldResult build(KernelFrontendResult kernel) {
     final mainLibrary = kernel.main.enclosingLibrary;
-    final allocator = JsNameAllocator();
+    final allocator = JsNameAllocator(
+      generatedGlobalNames: esmRuntimeHelperGlobalNames,
+    );
     final procedures = <EsmProcedureSymbol>[];
     for (final procedure in mainLibrary.procedures) {
       if (!_isTopLevelMethod(procedure)) {

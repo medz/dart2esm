@@ -97,6 +97,7 @@ final class KernelToEsmIrLoweringStage {
           _lowerExpression(world, helpers, locals, statement.expression),
         ),
       ],
+      k.IfStatement() => [_lowerIfStatement(world, helpers, locals, statement)],
       k.ReturnStatement() => [
         EsmReturnStatementIr(
           statement.expression == null
@@ -106,6 +107,22 @@ final class KernelToEsmIrLoweringStage {
       ],
       _ => throw NewCompilerUnsupported(statement, 'statement lowering'),
     };
+  }
+
+  EsmIfStatementIr _lowerIfStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.IfStatement statement,
+  ) {
+    final otherwise = statement.otherwise;
+    return EsmIfStatementIr(
+      condition: _lowerExpression(world, helpers, locals, statement.condition),
+      thenBody: _lowerStatementList(world, helpers, locals, statement.then),
+      otherwiseBody: otherwise == null
+          ? null
+          : _lowerStatementList(world, helpers, locals, otherwise),
+    );
   }
 
   EsmVariableDeclarationIr _lowerVariableDeclaration(

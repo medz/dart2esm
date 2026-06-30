@@ -81,6 +81,8 @@ final class _EsmIrPrinter {
               ? '$keyword ${statement.name};'
               : '$keyword ${statement.name} = ${_emitExpression(initializer)};',
         );
+      case EsmIfStatementIr():
+        _emitIfStatement(statement);
       case EsmReturnStatementIr():
         final expression = statement.expression;
         _writeIndented(
@@ -89,6 +91,27 @@ final class _EsmIrPrinter {
               : 'return ${_emitExpression(expression)};',
         );
     }
+  }
+
+  void _emitIfStatement(EsmIfStatementIr statement) {
+    _writeIndented('if (${_emitExpression(statement.condition)}) {');
+    _indent++;
+    for (final child in statement.thenBody) {
+      _emitStatement(child);
+    }
+    _indent--;
+    final otherwiseBody = statement.otherwiseBody;
+    if (otherwiseBody == null) {
+      _writeIndented('}');
+      return;
+    }
+    _writeIndented('} else {');
+    _indent++;
+    for (final child in otherwiseBody) {
+      _emitStatement(child);
+    }
+    _indent--;
+    _writeIndented('}');
   }
 
   String _emitExpression(EsmExpressionIr expression) {

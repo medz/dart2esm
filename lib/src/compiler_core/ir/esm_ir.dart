@@ -51,6 +51,18 @@ final class EsmVariableDeclarationIr extends EsmStatementIr {
   final bool mutable;
 }
 
+final class EsmIfStatementIr extends EsmStatementIr {
+  const EsmIfStatementIr({
+    required this.condition,
+    required this.thenBody,
+    required this.otherwiseBody,
+  });
+
+  final EsmExpressionIr condition;
+  final List<EsmStatementIr> thenBody;
+  final List<EsmStatementIr>? otherwiseBody;
+}
+
 final class EsmReturnStatementIr extends EsmStatementIr {
   const EsmReturnStatementIr(this.expression);
 

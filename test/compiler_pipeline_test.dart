@@ -66,7 +66,7 @@ main();
     final main = _procedure(
       'main',
       body: k.Block([
-        k.IfStatement(k.BoolLiteral(true), k.EmptyStatement(), null),
+        k.WhileStatement(k.BoolLiteral(false), k.EmptyStatement()),
       ]),
     );
     library.addProcedure(main);

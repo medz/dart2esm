@@ -1,6 +1,14 @@
 import '../ir/esm_ir.dart';
 
-enum EsmRuntimeHelper { functionApply, lazyField, print, typeCast }
+enum EsmRuntimeHelper {
+  functionApply,
+  lazyField,
+  print,
+  recordShape,
+  isRecord,
+  record,
+  typeCast,
+}
 
 final class EsmRuntimeHelperRegistry {
   const EsmRuntimeHelperRegistry();
@@ -9,14 +17,20 @@ final class EsmRuntimeHelperRegistry {
     '__dartAs',
     '__dartFunctionApply',
     '__dartLazyField',
+    '__dartIsRecord',
     '__dartPrint',
+    '__dartRecord',
+    '__dartRecordShape',
   };
 
   String name(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
+      EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
       EsmRuntimeHelper.print => '__dartPrint',
+      EsmRuntimeHelper.record => '__dartRecord',
+      EsmRuntimeHelper.recordShape => '__dartRecordShape',
       EsmRuntimeHelper.typeCast => '__dartAs',
     };
   }
@@ -43,6 +57,39 @@ function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
     if (hasNamed) args.push(options);
   }
   return fn(...args);
+}
+'''),
+      EsmRuntimeHelper.recordShape => const EsmRawModuleItemIr(
+        'const __dartRecordShape = Symbol("dart.recordShape");',
+      ),
+      EsmRuntimeHelper.isRecord => EsmRawModuleItemIr('''
+function __dartIsRecord(value) {
+  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
+}
+'''),
+      EsmRuntimeHelper.record => EsmRawModuleItemIr(r'''
+function __dartRecord(positional, named) {
+  const record = {};
+  const shape = [];
+  for (let i = 0; i < positional.length; i++) {
+    const name = "$" + (i + 1);
+    shape.push(name);
+    Object.defineProperty(record, name, { value: positional[i], enumerable: true });
+  }
+  for (const name of Object.keys(named).sort()) {
+    shape.push(name);
+    Object.defineProperty(record, name, { value: named[name], enumerable: true });
+  }
+  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });
+  Object.defineProperty(record, "toString", {
+    value() {
+      return "(" + shape.map((name) => {
+        const value = String(record[name]);
+        return name.startsWith("$") ? value : name + ": " + value;
+      }).join(", ") + ")";
+    },
+  });
+  return Object.freeze(record);
 }
 '''),
       EsmRuntimeHelper.lazyField => EsmRawModuleItemIr('''
@@ -134,7 +181,22 @@ function __dartLazyField(name, initialize, writable, publish = null) {
 final class EsmRuntimeHelperUseSet {
   final _helpers = <EsmRuntimeHelper>{};
 
-  bool add(EsmRuntimeHelper helper) => _helpers.add(helper);
+  bool add(EsmRuntimeHelper helper) {
+    switch (helper) {
+      case EsmRuntimeHelper.isRecord:
+        _helpers.add(EsmRuntimeHelper.recordShape);
+      case EsmRuntimeHelper.record:
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.functionApply:
+      case EsmRuntimeHelper.lazyField:
+      case EsmRuntimeHelper.print:
+      case EsmRuntimeHelper.recordShape:
+      case EsmRuntimeHelper.typeCast:
+        break;
+    }
+    return _helpers.add(helper);
+  }
 
   bool contains(EsmRuntimeHelper helper) => _helpers.contains(helper);
 

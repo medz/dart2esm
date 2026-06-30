@@ -270,6 +270,12 @@ final class EsmConditionalIr extends EsmExpressionIr {
   final EsmExpressionIr otherwiseExpression;
 }
 
+final class EsmParenthesizedIr extends EsmExpressionIr {
+  const EsmParenthesizedIr(this.expression);
+
+  final EsmExpressionIr expression;
+}
+
 final class EsmNumberLiteralIr extends EsmExpressionIr {
   const EsmNumberLiteralIr(this.value);
 

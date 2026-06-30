@@ -289,9 +289,12 @@ final class _EsmIrPrinter {
       EsmBinaryIr() =>
         '${_emitExpression(expression.left)} ${expression.operator} ${_emitExpression(expression.right)}',
       EsmUnaryIr() =>
-        '${expression.operator} ${_emitExpression(expression.operand)}',
+        expression.operator == '!'
+            ? '!${_emitUnaryOperand(expression.operand)}'
+            : '${expression.operator} ${_emitUnaryOperand(expression.operand)}',
       EsmConditionalIr() =>
         '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.thenExpression)} : ${_emitExpression(expression.otherwiseExpression)})',
+      EsmParenthesizedIr() => '(${_emitExpression(expression.expression)})',
       EsmNumberLiteralIr() => _emitNumber(expression.value),
       EsmBooleanLiteralIr() => expression.value ? 'true' : 'false',
       EsmNullLiteralIr() => 'null',
@@ -316,6 +319,15 @@ final class _EsmIrPrinter {
     };
   }
 
+  String _emitUnaryOperand(EsmExpressionIr expression) {
+    return switch (expression) {
+      EsmBinaryIr() ||
+      EsmAssignmentIr() ||
+      EsmConditionalIr() => '(${_emitExpression(expression)})',
+      _ => _emitExpression(expression),
+    };
+  }
+
   String _emitObjectLiteralProperty(EsmObjectLiteralPropertyIr property) {
     return '${_emitObjectPropertyName(property.name)}: ${_emitExpression(property.value)}';
   }
@@ -329,6 +341,7 @@ final class _EsmIrPrinter {
   String _emitInlineStatement(EsmStatementIr statement) {
     return switch (statement) {
       EsmExpressionStatementIr() => '${_emitExpression(statement.expression)};',
+      EsmVariableDeclarationIr() => _emitInlineVariableDeclaration(statement),
       EsmReturnStatementIr() =>
         statement.expression == null
             ? 'return;'
@@ -339,6 +352,14 @@ final class _EsmIrPrinter {
         'Expression codegen cannot inline ${statement.runtimeType}.',
       ),
     };
+  }
+
+  String _emitInlineVariableDeclaration(EsmVariableDeclarationIr statement) {
+    final keyword = statement.mutable ? 'let' : 'const';
+    final initializer = statement.initializer;
+    return initializer == null
+        ? '$keyword ${statement.name};'
+        : '$keyword ${statement.name} = ${_emitExpression(initializer)};';
   }
 
   String _emitObjectPropertyName(String name) {

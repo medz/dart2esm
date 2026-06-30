@@ -1378,6 +1378,30 @@ void main() {
     },
   );
 
+  test('compiles type tests through the new core', () async {
+    final source = File(p.join(fixtureDir.path, 'syntax', 'type_tests.dart'));
+    final expected = File(p.join(fixtureDir.path, 'syntax', 'type_tests.mjs'));
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-type-tests-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'type_tests.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
   test('can emit an ESM module without running main', () async {
     final fixture = _GoldenFixture(
       root: fixtureDir,

@@ -3323,6 +3323,31 @@ final class KernelToEsmIrLoweringStage {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
     final operator = expression.name.text;
+    final target = expression.interfaceTargetReference.node;
+    if (target is k.Procedure) {
+      final symbol = world.instanceProcedureSymbolFor(target);
+      if (symbol != null && symbol.kind == EsmProcedureKind.method) {
+        final receiver = _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        );
+        return EsmCallIr(
+          callee: _memberAccess(receiver, symbol.name),
+          arguments: _lowerArguments(
+            world,
+            helpers,
+            locals,
+            expression.arguments,
+            thisExpression: thisExpression,
+            contextNode: expression,
+            context: 'instance invocation arguments',
+          ),
+        );
+      }
+    }
     if (!_binaryOperators.contains(operator) ||
         expression.arguments.positional.length != 1 ||
         expression.arguments.named.isNotEmpty ||
@@ -3336,33 +3361,6 @@ final class KernelToEsmIrLoweringStage {
       );
       if (intrinsic != null) {
         return intrinsic;
-      }
-      final target = expression.interfaceTargetReference.node;
-      if (target is k.Procedure) {
-        final symbol = world.instanceProcedureSymbolFor(target);
-        if (symbol != null && symbol.kind == EsmProcedureKind.method) {
-          return EsmCallIr(
-            callee: EsmPropertyAccessIr(
-              receiver: _lowerExpression(
-                world,
-                helpers,
-                locals,
-                expression.receiver,
-                thisExpression: thisExpression,
-              ),
-              property: symbol.name,
-            ),
-            arguments: _lowerArguments(
-              world,
-              helpers,
-              locals,
-              expression.arguments,
-              thisExpression: thisExpression,
-              contextNode: expression,
-              context: 'instance invocation arguments',
-            ),
-          );
-        }
       }
       throw NewCompilerUnsupported(expression, 'instance invocation lowering');
     }
@@ -4892,6 +4890,16 @@ final class KernelToEsmIrLoweringStage {
       }
     }
     throw NewCompilerUnsupported(member, 'instance member lowering');
+  }
+
+  EsmExpressionIr _memberAccess(EsmExpressionIr receiver, String memberName) {
+    if (isJsIdentifierName(memberName)) {
+      return EsmPropertyAccessIr(receiver: receiver, property: memberName);
+    }
+    return EsmComputedPropertyAccessIr(
+      receiver: receiver,
+      property: EsmStringLiteralIr(memberName),
+    );
   }
 
   String _instanceFieldName(EsmSemanticWorld world, k.Field field) {

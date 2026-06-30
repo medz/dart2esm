@@ -422,7 +422,8 @@ final class SemanticWorldStage {
       return null;
     }
     return switch (procedure.kind) {
-      k.ProcedureKind.Method => EsmProcedureKind.method,
+      k.ProcedureKind.Method ||
+      k.ProcedureKind.Operator => EsmProcedureKind.method,
       k.ProcedureKind.Getter => EsmProcedureKind.getter,
       k.ProcedureKind.Setter => EsmProcedureKind.setter,
       _ => null,
@@ -436,7 +437,8 @@ final class SemanticWorldStage {
       return null;
     }
     return switch (procedure.kind) {
-      k.ProcedureKind.Method => EsmProcedureKind.method,
+      k.ProcedureKind.Method ||
+      k.ProcedureKind.Operator => EsmProcedureKind.method,
       k.ProcedureKind.Getter => EsmProcedureKind.getter,
       k.ProcedureKind.Setter => EsmProcedureKind.setter,
       _ => null,
@@ -479,13 +481,26 @@ final class SemanticWorldStage {
     EsmProcedureKind kind,
   ) {
     return switch (kind) {
-      EsmProcedureKind.method => _freshMemberName(usedNames, original),
+      EsmProcedureKind.method =>
+        isJsIdentifierName(original)
+            ? _freshMemberName(usedNames, original)
+            : _freshPropertyName(usedNames, original),
       EsmProcedureKind.getter ||
       EsmProcedureKind.setter => accessorNames.putIfAbsent(
         original,
         () => _freshMemberName(usedNames, original),
       ),
     };
+  }
+
+  String _freshPropertyName(Set<String> usedNames, String original) {
+    var candidate = original.isEmpty ? 'v' : original;
+    var suffix = 1;
+    while (!usedNames.add(candidate)) {
+      candidate = '${original}_$suffix';
+      suffix++;
+    }
+    return candidate;
   }
 
   bool _isPublic(String name) => !name.startsWith('_');

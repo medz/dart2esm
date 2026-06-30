@@ -91,7 +91,7 @@ final class _EsmIrPrinter {
       EsmClassMethodKindIr.setter => 'set ',
     };
     _writeIndented(
-      '$staticPrefix$prefix${method.name}(${method.parameters.map(_emitParameter).join(', ')}) {',
+      '$staticPrefix$prefix${_emitObjectPropertyName(method.name)}(${method.parameters.map(_emitParameter).join(', ')}) {',
     );
     _indent++;
     for (final statement in method.body) {

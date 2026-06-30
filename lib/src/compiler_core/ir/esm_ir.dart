@@ -15,6 +15,16 @@ sealed class EsmModuleItemIr extends EsmIrNode {
   const EsmModuleItemIr();
 }
 
+final class EsmRuntimeHelperDeclarationIr extends EsmModuleItemIr {
+  const EsmRuntimeHelperDeclarationIr({
+    required this.name,
+    required this.source,
+  });
+
+  final String name;
+  final String source;
+}
+
 final class EsmClassIr extends EsmModuleItemIr {
   const EsmClassIr({
     required this.name,

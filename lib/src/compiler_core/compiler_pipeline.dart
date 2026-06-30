@@ -5,6 +5,7 @@ import 'frontend/kernel_frontend.dart';
 import 'legacy_oracle.dart';
 import 'lowering/kernel_to_esm_ir.dart';
 import 'new_compiler_unsupported.dart';
+import 'runtime/runtime_linker.dart';
 import 'semantic/semantic_world.dart';
 import 'transform/module_normalizer.dart';
 
@@ -29,6 +30,7 @@ final class Dart2EsmPipelineResult {
     this.semantic,
     this.lowering,
     this.normalization,
+    this.runtime,
     this.codegen,
     this.legacyOracle,
   });
@@ -40,6 +42,7 @@ final class Dart2EsmPipelineResult {
   final SemanticWorldResult? semantic;
   final LoweringResult? lowering;
   final NormalizationResult? normalization;
+  final RuntimeLinkResult? runtime;
   final CodegenStageResult? codegen;
   final LegacyOracleResult? legacyOracle;
 
@@ -53,6 +56,7 @@ final class Dart2EsmCompilerPipeline {
     this.semanticWorld = const SemanticWorldStage(),
     this.lowering = const KernelToEsmIrLoweringStage(),
     this.normalizer = const ModuleNormalizerStage(),
+    this.runtimeLinker = const RuntimeLinkerStage(),
     this.codegen = const EsmCodegenStage(),
     this.legacyOracle = const LegacyBackendOracle(),
   });
@@ -62,6 +66,7 @@ final class Dart2EsmCompilerPipeline {
   final SemanticWorldStage semanticWorld;
   final KernelToEsmIrLoweringStage lowering;
   final ModuleNormalizerStage normalizer;
+  final RuntimeLinkerStage runtimeLinker;
   final EsmCodegenStage codegen;
   final LegacyBackendOracle legacyOracle;
 
@@ -71,7 +76,8 @@ final class Dart2EsmCompilerPipeline {
       final semantic = semanticWorld.build(kernel);
       final lowered = lowering.lower(semantic, runMain: options.runMain);
       final normalized = normalizer.normalize(lowered);
-      final codegenResult = codegen.emit(normalized);
+      final linked = runtimeLinker.link(normalized);
+      final codegenResult = codegen.emit(linked);
       return Dart2EsmPipelineResult(
         code: codegenResult.code,
         diagnostics: codegenResult.diagnostics,
@@ -80,6 +86,7 @@ final class Dart2EsmCompilerPipeline {
         semantic: semantic,
         lowering: lowered,
         normalization: normalized,
+        runtime: linked,
         codegen: codegenResult,
       );
     } on NewCompilerUnsupported catch (error) {

@@ -29,6 +29,7 @@ void main() {
     expect(pipeline, contains('final SemanticWorldResult? semantic'));
     expect(pipeline, contains('final LoweringResult? lowering'));
     expect(pipeline, contains('final NormalizationResult? normalization'));
+    expect(pipeline, contains('final RuntimeLinkResult? runtime'));
     expect(pipeline, contains('final CodegenStageResult? codegen'));
     expect(normalizer, contains('invalidatesSemanticWorld'));
     expect(pipeline, isNot(contains('File(')));
@@ -40,9 +41,11 @@ void main() {
   test('codegen only consumes prepared ESM IR', () {
     final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
 
-    expect(codegen, contains('CodegenStageResult emit(NormalizationResult'));
+    expect(codegen, contains('CodegenStageResult emit(RuntimeLinkResult'));
     expect(codegen, contains('EsmModuleIr'));
     expect(codegen, isNot(contains("package:kernel/kernel.dart")));
+    expect(codegen, isNot(contains('runtime/runtime_helpers.dart')));
+    expect(codegen, isNot(contains('esmRuntimeHelperSource')));
     expect(codegen, isNot(contains('buildEsmProgramModel')));
     expect(codegen, isNot(contains('emitEsm(')));
     expect(codegen, isNot(contains('emitEsmModel(')));
@@ -51,10 +54,13 @@ void main() {
 
   test('runtime helpers are owned by compiler core, not legacy backend', () {
     final runtime = _read('lib/src/compiler_core/runtime/runtime_helpers.dart');
+    final linker = _read('lib/src/compiler_core/runtime/runtime_linker.dart');
     final coreFiles = _dartFiles('lib/src/compiler_core');
 
     expect(runtime, contains('enum EsmRuntimeHelper'));
     expect(runtime, contains('__dartPrint'));
+    expect(linker, contains('final class RuntimeLinkerStage'));
+    expect(linker, contains('esmRuntimeHelperSource'));
     for (final file in coreFiles) {
       expect(
         file.readAsStringSync(),

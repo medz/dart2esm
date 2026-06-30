@@ -17,6 +17,28 @@ void main() {
     );
   });
 
+  test('resolves convert helper dependencies', () {
+    final helpers = resolveEsmRuntimeHelperDependencies({
+      '__dartJsonUtf8Encoder',
+      '__dartByteConversionSinkFrom',
+    });
+
+    expect(
+      helpers,
+      containsAll([
+        '__dartJsonUtf8Encoder',
+        '__dartJsonEncode',
+        '__dartToJson',
+        '__dartUtf8Encode',
+        '__dartConverterStartChunked',
+        '__dartConverterConvert',
+        '__dartByteConversionSinkFrom',
+        '__dartSinkAdd',
+        '__dartSinkClose',
+      ]),
+    );
+  });
+
   test('tracks helpers emitted by the legacy stream runtime block', () {
     expect(isEsmLegacyStreamRuntimeHelper('__dartStreamMap'), isTrue);
     expect(isEsmLegacyStreamRuntimeHelper('__dartStreamController'), isFalse);

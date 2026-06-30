@@ -72,6 +72,332 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     category: EsmRuntimeHelperCategory.async,
     dependencies: ['__dartIsolate'],
   ),
+  '__dartJsonCodec': EsmRuntimeHelperSpec(
+    name: '__dartJsonCodec',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartJsonEncode',
+      '__dartJsonDecode',
+      '__dartJsonEncoder',
+      '__dartJsonDecoder',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartJsonEncoder': EsmRuntimeHelperSpec(
+    name: '__dartJsonEncoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartJsonEncode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartJsonUtf8Encoder': EsmRuntimeHelperSpec(
+    name: '__dartJsonUtf8Encoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartJsonEncode',
+      '__dartUtf8Encode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartJsonDecoder': EsmRuntimeHelperSpec(
+    name: '__dartJsonDecoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartJsonDecode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartJsonEncode': EsmRuntimeHelperSpec(
+    name: '__dartJsonEncode',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartToJson'],
+  ),
+  '__dartJsonDecode': EsmRuntimeHelperSpec(
+    name: '__dartJsonDecode',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartFromJson', '__dartJsonRevive'],
+  ),
+  '__dartToJson': EsmRuntimeHelperSpec(
+    name: '__dartToJson',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartFromJson': EsmRuntimeHelperSpec(
+    name: '__dartFromJson',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartJsonRevive': EsmRuntimeHelperSpec(
+    name: '__dartJsonRevive',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartUtf8Codec': EsmRuntimeHelperSpec(
+    name: '__dartUtf8Codec',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartUtf8Encode',
+      '__dartUtf8Decode',
+      '__dartUtf8Encoder',
+      '__dartUtf8Decoder',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartUtf8Encoder': EsmRuntimeHelperSpec(
+    name: '__dartUtf8Encoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartUtf8Encode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartUtf8Decoder': EsmRuntimeHelperSpec(
+    name: '__dartUtf8Decoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartUtf8Decode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartUtf8Encode': EsmRuntimeHelperSpec(
+    name: '__dartUtf8Encode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartUtf8Decode': EsmRuntimeHelperSpec(
+    name: '__dartUtf8Decode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartAsciiCodec': EsmRuntimeHelperSpec(
+    name: '__dartAsciiCodec',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartAsciiEncode',
+      '__dartAsciiDecode',
+      '__dartAsciiEncoder',
+      '__dartAsciiDecoder',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartAsciiEncoder': EsmRuntimeHelperSpec(
+    name: '__dartAsciiEncoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartAsciiEncode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartAsciiDecoder': EsmRuntimeHelperSpec(
+    name: '__dartAsciiDecoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartAsciiDecode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartAsciiEncode': EsmRuntimeHelperSpec(
+    name: '__dartAsciiEncode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartAsciiDecode': EsmRuntimeHelperSpec(
+    name: '__dartAsciiDecode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartLatin1Codec': EsmRuntimeHelperSpec(
+    name: '__dartLatin1Codec',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartLatin1Encode',
+      '__dartLatin1Decode',
+      '__dartLatin1Encoder',
+      '__dartLatin1Decoder',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartLatin1Encoder': EsmRuntimeHelperSpec(
+    name: '__dartLatin1Encoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartLatin1Encode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartLatin1Decoder': EsmRuntimeHelperSpec(
+    name: '__dartLatin1Decoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartLatin1Decode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartLatin1Encode': EsmRuntimeHelperSpec(
+    name: '__dartLatin1Encode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartLatin1Decode': EsmRuntimeHelperSpec(
+    name: '__dartLatin1Decode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartBase64Codec': EsmRuntimeHelperSpec(
+    name: '__dartBase64Codec',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartBase64Encode',
+      '__dartBase64Decode',
+      '__dartBase64Normalize',
+      '__dartBase64Encoder',
+      '__dartBase64Decoder',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartBase64Encoder': EsmRuntimeHelperSpec(
+    name: '__dartBase64Encoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartBase64Encode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartBase64Decoder': EsmRuntimeHelperSpec(
+    name: '__dartBase64Decoder',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartBase64Decode',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartBase64Encode': EsmRuntimeHelperSpec(
+    name: '__dartBase64Encode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartBase64Decode': EsmRuntimeHelperSpec(
+    name: '__dartBase64Decode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartBase64Normalize': EsmRuntimeHelperSpec(
+    name: '__dartBase64Normalize',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartLineSplitter': EsmRuntimeHelperSpec(
+    name: '__dartLineSplitter',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartLineSplit',
+      '__dartLineSplitterSink',
+      '__dartLineSplitterBind',
+    ],
+  ),
+  '__dartLineSplit': EsmRuntimeHelperSpec(
+    name: '__dartLineSplit',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartLineSplitterSink': EsmRuntimeHelperSpec(
+    name: '__dartLineSplitterSink',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartLineSplitterBind': EsmRuntimeHelperSpec(
+    name: '__dartLineSplitterBind',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartHtmlEscape': EsmRuntimeHelperSpec(
+    name: '__dartHtmlEscape',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartHtmlEscapeMode',
+      '__dartHtmlEscapeChar',
+      '__dartConverterFuse',
+      '__dartConverterStartChunked',
+    ],
+  ),
+  '__dartHtmlEscapeMode': EsmRuntimeHelperSpec(
+    name: '__dartHtmlEscapeMode',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartHtmlEscapeChar': EsmRuntimeHelperSpec(
+    name: '__dartHtmlEscapeChar',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartSinkAdd': EsmRuntimeHelperSpec(
+    name: '__dartSinkAdd',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartSinkClose': EsmRuntimeHelperSpec(
+    name: '__dartSinkClose',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartConverterConvert': EsmRuntimeHelperSpec(
+    name: '__dartConverterConvert',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartConverterBind': EsmRuntimeHelperSpec(
+    name: '__dartConverterBind',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartConverterConvert'],
+  ),
+  '__dartConverterFuse': EsmRuntimeHelperSpec(
+    name: '__dartConverterFuse',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartConverterConvert',
+      '__dartConverterStartChunked',
+      '__dartConverterBind',
+    ],
+  ),
+  '__dartConverterStartChunked': EsmRuntimeHelperSpec(
+    name: '__dartConverterStartChunked',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartConverterConvert'],
+  ),
+  '__dartChunkedConversionSink': EsmRuntimeHelperSpec(
+    name: '__dartChunkedConversionSink',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartByteConversionSink': EsmRuntimeHelperSpec(
+    name: '__dartByteConversionSink',
+    category: EsmRuntimeHelperCategory.convert,
+  ),
+  '__dartByteConversionSinkFrom': EsmRuntimeHelperSpec(
+    name: '__dartByteConversionSinkFrom',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartSinkAdd', '__dartSinkClose'],
+  ),
+  '__dartStringConversionSinkAsUtf8Sink': EsmRuntimeHelperSpec(
+    name: '__dartStringConversionSinkAsUtf8Sink',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartUtf8Decode'],
+  ),
+  '__dartStringConversionSink': EsmRuntimeHelperSpec(
+    name: '__dartStringConversionSink',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartStringConversionSinkAsUtf8Sink'],
+  ),
+  '__dartStringConversionSinkFrom': EsmRuntimeHelperSpec(
+    name: '__dartStringConversionSinkFrom',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: [
+      '__dartSinkAdd',
+      '__dartSinkClose',
+      '__dartStringConversionSinkAsUtf8Sink',
+    ],
+  ),
+  '__dartStringConversionSinkFromStringSink': EsmRuntimeHelperSpec(
+    name: '__dartStringConversionSinkFromStringSink',
+    category: EsmRuntimeHelperCategory.convert,
+    dependencies: ['__dartSinkAdd', '__dartStringConversionSinkAsUtf8Sink'],
+  ),
   '__dartStreamFromFutures': EsmRuntimeHelperSpec(
     name: '__dartStreamFromFutures',
     category: EsmRuntimeHelperCategory.stream,

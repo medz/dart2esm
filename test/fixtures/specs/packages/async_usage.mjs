@@ -115,16 +115,6 @@ function __dartType(name) {
   __dartTypeCache.set(name, value);
   return value;
 }
-function __dartSinkAdd(sink, value) {
-  if (sink != null && typeof sink.add === "function") return sink.add(value);
-  if (sink != null && typeof sink.write === "function") return sink.write(value);
-  if (Array.isArray(sink)) { sink.push(value); return null; }
-  throw new TypeError("Sink.add is not available");
-}
-function __dartSinkClose(sink) {
-  if (sink != null && typeof sink.close === "function") return sink.close();
-  return null;
-}
 function __dartConverterConvert(converter, value) {
   if (converter != null && typeof converter.convert === "function") return converter.convert(value);
   if (converter != null && typeof converter.encode === "function") return converter.encode(value);
@@ -174,82 +164,6 @@ function __dartConverterStartChunked(converter, sink) {
     },
   };
   return input;
-}
-function __dartChunkedConversionSink(callback) {
-  const chunks = [];
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; chunks.push(chunk); return null; },
-    close() { if (closed) return null; closed = true; callback(chunks); return null; },
-  };
-}
-function __dartByteConversionSink(callback) {
-  const bytes = [];
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; bytes.push(...Array.from(chunk)); return null; },
-    addSlice(chunk, start, end, isLast = false) { if (closed) return null; bytes.push(...Array.from(chunk).slice(start, end)); if (isLast) this.close(); return null; },
-    close() { if (closed) return null; closed = true; callback(bytes); return null; },
-  };
-}
-function __dartByteConversionSinkFrom(sink) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, chunk); },
-    addSlice(chunk, start, end, isLast = false) {
-      if (closed) return null;
-      __dartSinkAdd(sink, Array.from(chunk).slice(start, end));
-      if (isLast) this.close();
-      return null;
-    },
-    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },
-  };
-}
-function __dartStringConversionSinkAsUtf8Sink(sink, allowMalformed = false) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed)); return null; },
-    addSlice(chunk, start, end, isLast = false) { if (closed) return null; sink.add(__dartUtf8Decode(chunk, allowMalformed, start, end)); if (isLast) this.close(); return null; },
-    close() { if (closed) return null; closed = true; return typeof sink.close === "function" ? sink.close() : null; },
-  };
-}
-function __dartStringConversionSink(callback) {
-  let text = "";
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; text += String(chunk); return null; },
-    addSlice(chunk, start, end, isLast = false) { if (closed) return null; text += String(chunk).slice(start, end); if (isLast) this.close(); return null; },
-    close() { if (closed) return null; closed = true; callback(text); return null; },
-    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
-  };
-}
-function __dartStringConversionSinkFrom(sink) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },
-    addSlice(chunk, start, end, isLast = false) {
-      if (closed) return null;
-      __dartSinkAdd(sink, String(chunk).slice(start, end));
-      if (isLast) this.close();
-      return null;
-    },
-    close() { if (closed) return null; closed = true; return __dartSinkClose(sink); },
-    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
-  };
-}
-function __dartStringConversionSinkFromStringSink(sink) {
-  let closed = false;
-  return {
-    add(chunk) { if (closed) return null; return __dartSinkAdd(sink, String(chunk)); },
-    addSlice(chunk, start, end, isLast = false) {
-      if (closed) return null;
-      __dartSinkAdd(sink, String(chunk).slice(start, end));
-      if (isLast) this.close();
-      return null;
-    },
-    close() { closed = true; return null; },
-    asUtf8Sink(allowMalformed = false) { return __dartStringConversionSinkAsUtf8Sink(this, allowMalformed); },
-  };
 }
 function __dartNullCheck(value) {
   if (value == null) {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:kernel/kernel.dart' as k;
 
 import '../js_ast/js_ast.dart';
+import '../kernel/kernel_references.dart';
 import '../lowering/lowering.dart';
 import '../module/class_runtime_plan.dart';
 import '../module/esm_module_plan.dart';
@@ -951,10 +952,11 @@ final class _EsmEmitter {
 
   k.Class? _jsSuperclassFor(k.Class klass) {
     final supertype = klass.supertype;
-    if (supertype == null || _isCoreClass(supertype.className, 'Object')) {
+    if (supertype == null ||
+        isKernelCoreClassReference(supertype.className, 'Object')) {
       return _jsInterfaceSuperclasses[klass];
     }
-    if (_referencePath(supertype.className).startsWith('dart:')) {
+    if (kernelReferencePath(supertype.className).startsWith('dart:')) {
       return null;
     }
     final node = supertype.className.node;
@@ -1392,7 +1394,9 @@ final class _EsmEmitter {
       if (_isCoreObjectConstructorReference(initializer.targetReference)) {
         continue;
       }
-      if (_referencePath(initializer.targetReference).startsWith('dart:')) {
+      if (kernelReferencePath(
+        initializer.targetReference,
+      ).startsWith('dart:')) {
         continue;
       }
       final target = initializer.target;
@@ -1487,7 +1491,7 @@ final class _EsmEmitter {
     if (_isCoreObjectConstructorReference(initializer.targetReference)) {
       return true;
     }
-    if (_referencePath(initializer.targetReference).startsWith('dart:')) {
+    if (kernelReferencePath(initializer.targetReference).startsWith('dart:')) {
       return true;
     }
     return false;
@@ -1498,7 +1502,7 @@ final class _EsmEmitter {
       return false;
     }
     final target = initializer.target;
-    if (_isCoreClass(target.enclosingClass.reference, 'Object')) {
+    if (isKernelCoreClassReference(target.enclosingClass.reference, 'Object')) {
       return false;
     }
     if (target.name.text.isNotEmpty) {
@@ -2877,7 +2881,7 @@ final class _EsmEmitter {
     if (coreErrorConstant != null) {
       return coreErrorConstant;
     }
-    switch (_referencePath(constant.classReference)) {
+    switch (kernelReferencePath(constant.classReference)) {
       case 'dart:core::Object':
         return _emitCanonicalConst(constant, 'Object.freeze({})');
       case 'dart:convert::JsonCodec':
@@ -3032,12 +3036,12 @@ final class _EsmEmitter {
         _emitUserInstanceConstant(classNode, constant),
       );
     }
-    final className = _referencePath(constant.classReference);
+    final className = kernelReferencePath(constant.classReference);
     throw UnsupportedKernelNode(constant, 'instance constant $className');
   }
 
   String? _emitIoEnumInstanceConstant(k.InstanceConstant constant) {
-    final path = _referencePath(constant.classReference);
+    final path = kernelReferencePath(constant.classReference);
     if (!path.startsWith('dart:io::')) {
       return null;
     }
@@ -3058,7 +3062,7 @@ final class _EsmEmitter {
 
   String? _emitCoreErrorInstanceConstant(k.InstanceConstant constant) {
     const prefix = 'dart:core::';
-    final path = _referencePath(constant.classReference);
+    final path = kernelReferencePath(constant.classReference);
     if (!path.startsWith(prefix)) {
       return null;
     }
@@ -3085,7 +3089,7 @@ final class _EsmEmitter {
       if (field is k.Field && field.name.text == name) {
         return _emitEsmConst(entry.value);
       }
-      if (_referencePath(entry.key).endsWith('::@fields::$name')) {
+      if (kernelReferencePath(entry.key).endsWith('::@fields::$name')) {
         return _emitEsmConst(entry.value);
       }
     }
@@ -3136,7 +3140,7 @@ final class _EsmEmitter {
           constant.name,
           constant.libraryReference == null
               ? null
-              : _referencePath(constant.libraryReference!),
+              : kernelReferencePath(constant.libraryReference!),
         ];
       case k.TypeLiteralConstant():
         return ['type', constant.type.toString()];
@@ -3241,7 +3245,7 @@ final class _EsmEmitter {
         node.enclosingLibrary.importUri.scheme != 'dart') {
       return 'constructor:${_className(node.enclosingClass)}.${node.name.text}';
     }
-    return _referencePath(reference);
+    return kernelReferencePath(reference);
   }
 
   String _emitUserInstanceConstant(k.Class klass, k.InstanceConstant constant) {
@@ -3264,7 +3268,7 @@ final class _EsmEmitter {
   bool _isBase64ConstantUrlSafe(k.InstanceConstant constant) {
     for (final value in constant.fieldValues.values) {
       if (value is k.InstanceConstant) {
-        if (_referencePath(value.classReference) ==
+        if (kernelReferencePath(value.classReference) ==
             'dart:convert::Base64Encoder') {
           for (final fieldValue in value.fieldValues.values) {
             if (fieldValue is k.BoolConstant) {
@@ -3338,7 +3342,7 @@ final class _EsmEmitter {
   String? _enumConstantName(k.InstanceConstant constant) {
     for (final entry in constant.fieldValues.entries) {
       final value = entry.value;
-      final path = _referencePath(entry.key);
+      final path = kernelReferencePath(entry.key);
       if ((path.endsWith('::_name') || path.endsWith('::_Enum::_name')) &&
           value is k.StringConstant) {
         return value.value;
@@ -3350,7 +3354,7 @@ final class _EsmEmitter {
   String? _enumConstantIndex(k.InstanceConstant constant) {
     for (final entry in constant.fieldValues.entries) {
       final value = entry.value;
-      final path = _referencePath(entry.key);
+      final path = kernelReferencePath(entry.key);
       if ((path.endsWith('::index') || path.endsWith('::_Enum::index')) &&
           value is k.IntConstant) {
         return value.value.toString();
@@ -3383,7 +3387,7 @@ final class _EsmEmitter {
     k.ConstructorInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path ==
             'dart:core::_InvocationMirror::@constructors::dart:core::_withType' &&
         positionalArgs.length == 5) {
@@ -3405,7 +3409,7 @@ final class _EsmEmitter {
     k.ConstructorInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (_isListIteratorConstructorReference(expression.targetReference) &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartIterator');
@@ -3489,7 +3493,7 @@ final class _EsmEmitter {
     k.Reference reference,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (path.startsWith(
           'dart:async::_StreamSubscriptionTransformer::@constructors::',
         ) &&
@@ -3546,7 +3550,7 @@ final class _EsmEmitter {
     if (internalIterableConstructor != null) {
       return internalIterableConstructor;
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:async::AsyncError::@constructors::' &&
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartAsyncError');
@@ -3608,7 +3612,7 @@ final class _EsmEmitter {
     if (target is! k.Constructor) {
       throw UnsupportedKernelNode(
         expression,
-        'constructor invocation ${_referencePath(expression.targetReference)}',
+        'constructor invocation ${kernelReferencePath(expression.targetReference)}',
       );
     }
     final args = _emitArguments(expression.arguments);
@@ -3622,7 +3626,7 @@ final class _EsmEmitter {
     k.Reference reference,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (path == 'dart:io::OSError::@constructors::' &&
         positionalArgs.length <= 2) {
       _usedHelpers.add('__dartIoOSError');
@@ -3649,7 +3653,7 @@ final class _EsmEmitter {
     k.Procedure target,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(target.reference);
+    final path = kernelReferencePath(target.reference);
     if (path == 'dart:js::JsObject::@factories::' &&
         positionalArgs.isNotEmpty &&
         positionalArgs.length <= 2) {
@@ -3691,7 +3695,7 @@ final class _EsmEmitter {
     if (target is! k.Class) {
       throw UnsupportedKernelNode(
         expression,
-        'instance creation ${_referencePath(expression.classReference)}',
+        'instance creation ${kernelReferencePath(expression.classReference)}',
       );
     }
     if (expression.fieldValues.isNotEmpty || expression.asserts.isNotEmpty) {
@@ -3805,19 +3809,19 @@ final class _EsmEmitter {
         positionalArgs.length == 1) {
       return '${positionalArgs.single}.name';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:core::@methods::EnumByName|byName' &&
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartEnumByName');
       return '__dartEnumByName(${positionalArgs[0]}, ${positionalArgs[1]})';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:core::@methods::EnumByName|asNameMap' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartEnumAsNameMap');
       return '__dartEnumAsNameMap(${positionalArgs.single})';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:core::@methods::DateTimeCopyWith|copyWith' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartDateTime');
@@ -3844,7 +3848,7 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartObjectHash');
       return '__dartHashValue(${positionalArgs.single})';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:core::Function::@methods::apply' &&
         positionalArgs.length >= 2 &&
         positionalArgs.length <= 3) {
@@ -3854,36 +3858,36 @@ final class _EsmEmitter {
           : 'null';
       return '__dartFunctionApply(${positionalArgs[0]}, ${positionalArgs[1]}, $namedArguments)';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:collection::@methods::NullableIterableExtensions|get#nonNulls' &&
         positionalArgs.length == 1) {
       return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:collection::@methods::IterableExtensions|get#indexed' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartRecord');
       return 'Array.from(${positionalArgs.single}, (value, index) => __dartRecord([index, value], {}))';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:collection::@methods::IterableExtensions|get#firstOrNull' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartIterableFirstOrNull');
       return '__dartIterableFirstOrNull(${positionalArgs.single})';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:collection::@methods::IterableExtensions|get#lastOrNull' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartIterableLastOrNull');
       return '__dartIterableLastOrNull(${positionalArgs.single})';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:collection::@methods::IterableExtensions|get#singleOrNull' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartIterableSingleOrNull');
       return '__dartIterableSingleOrNull(${positionalArgs.single})';
     }
-    if (_referencePath(expression.targetReference) ==
+    if (kernelReferencePath(expression.targetReference) ==
             'dart:collection::@methods::IterableExtensions|elementAtOrNull' &&
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartIterableElementAtOrNull');
@@ -3938,7 +3942,7 @@ final class _EsmEmitter {
     if (targetNode is! k.Procedure) {
       throw UnsupportedKernelNode(
         expression,
-        'static invocation ${_referencePath(expression.targetReference)}',
+        'static invocation ${kernelReferencePath(expression.targetReference)}',
       );
     }
     final target = targetNode;
@@ -3970,7 +3974,7 @@ final class _EsmEmitter {
     }
     throw UnsupportedKernelNode(
       expression,
-      'static invocation ${_referencePath(expression.targetReference)}',
+      'static invocation ${kernelReferencePath(expression.targetReference)}',
     );
   }
 
@@ -3978,7 +3982,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:_internal::@methods::checkNotNullable' &&
         positionalArgs.length == 2) {
       _usedHelpers.add('__dartNullCheck');
@@ -4017,7 +4021,7 @@ final class _EsmEmitter {
     if (positionalArgs.isNotEmpty) {
       return null;
     }
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:_internal::IterableElementError::@methods::')) {
       return null;
     }
@@ -4041,7 +4045,7 @@ final class _EsmEmitter {
     if (positionalArgs.length != 1) {
       return null;
     }
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:collection::ListBase::@methods::listToString') {
       _usedHelpers.add('__dartStr');
       return '("[" + Array.from(${positionalArgs.single}, (value) => __dartStr(value)).join(", ") + "]")';
@@ -4181,7 +4185,7 @@ final class _EsmEmitter {
   }
 
   String _emitStaticTearOffReference(k.Reference reference, Object node) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (path ==
         'dart:collection::ListBase::@methods::dart:collection::_compareAny') {
       _usedHelpers.add('__dartCompare');
@@ -4383,12 +4387,12 @@ final class _EsmEmitter {
     }
     throw UnsupportedKernelNode(
       expression,
-      'static get ${_referencePath(expression.targetReference)}',
+      'static get ${kernelReferencePath(expression.targetReference)}',
     );
   }
 
   String? _emitIoStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:io::Platform::@getters::')) {
       return null;
     }
@@ -4420,7 +4424,7 @@ final class _EsmEmitter {
   }
 
   String? _emitJsInteropStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:_js_helper::@getters::staticInteropGlobalContext' ||
         path == 'dart:js_interop::@getters::globalContext' ||
         path == 'dart:js_util::@getters::globalThis' ||
@@ -4468,7 +4472,7 @@ final class _EsmEmitter {
   }
 
   String? _emitFfiStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:ffi::@getters::nullptr') {
       _usedHelpers.add('__dartFfiPointer');
       return '__dartFfiPointer(0)';
@@ -4477,7 +4481,7 @@ final class _EsmEmitter {
   }
 
   String? _emitCoreStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path.startsWith('dart:core::BigInt::@getters::')) {
       return switch (path.split('::').last) {
         'zero' => '0n',
@@ -4534,7 +4538,7 @@ final class _EsmEmitter {
     }
     throw UnsupportedKernelNode(
       expression,
-      'static set ${_referencePath(expression.targetReference)}',
+      'static set ${kernelReferencePath(expression.targetReference)}',
     );
   }
 
@@ -6530,7 +6534,7 @@ final class _EsmEmitter {
     String name,
     String receiver,
   ) {
-    final path = _referencePath(target);
+    final path = kernelReferencePath(target);
     if (path.startsWith('dart:js_interop::JSSymbol::@getters::')) {
       return switch (name) {
         'description' => '($receiver.description ?? null)',
@@ -6776,7 +6780,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if ((path == 'dart:html::Element::@factories::tag' ||
             path ==
                 'dart:html::_ElementFactoryProvider::@methods::createElement_tag') &&
@@ -6801,7 +6805,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:web_audio::AudioContext::@factories::' &&
         positionalArgs.isEmpty &&
         expression.arguments.named.isEmpty) {
@@ -6847,7 +6851,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:indexed_db::KeyRange::@factories::only' &&
         positionalArgs.length == 1 &&
         expression.arguments.named.isEmpty) {
@@ -7151,7 +7155,7 @@ final class _EsmEmitter {
           classNode.enclosingLibrary.importUri.scheme != 'dart') {
         return '$operand instanceof ${_className(classNode)}';
       }
-      if (_isCoreClass(classReference, 'Object')) {
+      if (isKernelCoreClassReference(classReference, 'Object')) {
         return '$operand != null';
       }
       final nativeSdkTypeTest = _emitNativeSdkTypeTest(operand, type);
@@ -7302,7 +7306,7 @@ final class _EsmEmitter {
       return true;
     }
     return type is k.InterfaceType &&
-        _isCoreClass(type.classReference, 'Object') &&
+        isKernelCoreClassReference(type.classReference, 'Object') &&
         type.declaredNullability == k.Nullability.nullable;
   }
 
@@ -7319,7 +7323,7 @@ final class _EsmEmitter {
   }
 
   String? _emitIoTypeTest(String operand, k.InterfaceType type) {
-    final path = _referencePath(type.classReference);
+    final path = kernelReferencePath(type.classReference);
     if (!path.startsWith('dart:io::')) {
       return null;
     }
@@ -7351,7 +7355,7 @@ final class _EsmEmitter {
   }
 
   String? _nativeSdkConstructorExpression(k.Reference classReference) {
-    final constructorName = switch (_referencePath(classReference)) {
+    final constructorName = switch (kernelReferencePath(classReference)) {
       'dart:html::Window' => 'Window',
       'dart:html::Document' => 'Document',
       'dart:html::Node' => 'Node',
@@ -7379,7 +7383,7 @@ final class _EsmEmitter {
     if (constructorName != null) {
       return 'globalThis[${jsonEncode(constructorName)}]';
     }
-    if (_referencePath(classReference) == 'dart:web_audio::AudioContext') {
+    if (kernelReferencePath(classReference) == 'dart:web_audio::AudioContext') {
       return '(globalThis["AudioContext"] ?? globalThis["webkitAudioContext"])';
     }
     return null;
@@ -7483,7 +7487,7 @@ final class _EsmEmitter {
     if (node is k.Class) {
       return node.name;
     }
-    return _referencePath(type.classReference).split('::').last;
+    return kernelReferencePath(type.classReference).split('::').last;
   }
 
   String _emitLetExpression(k.Let expression) {
@@ -7615,7 +7619,7 @@ final class _EsmEmitter {
     _usedHelpers.add('__dartSymbol');
     final key = libraryReference == null
         ? name
-        : '${_referencePath(libraryReference)}::$name';
+        : '${kernelReferencePath(libraryReference)}::$name';
     return '__dartSymbol(${jsonEncode(key)}, ${jsonEncode(name)})';
   }
 
@@ -7658,7 +7662,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path.startsWith('dart:js_interop::@methods::')) {
       final member = path.split('::').last;
       final jsInteropInvocation = _emitModernJsInteropInvocation(
@@ -7804,7 +7808,7 @@ final class _EsmEmitter {
     k.Reference reference,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (path == 'dart:js_interop::JSObject::@constructors::' &&
         positionalArgs.isEmpty) {
       return '({})';
@@ -8147,7 +8151,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:isolate::ReceivePort::@factories::' &&
         positionalArgs.length <= 1) {
       _usedHelpers.add('__dartReceivePort');
@@ -8192,7 +8196,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:concurrent::Mutex::@factories::' &&
         positionalArgs.isEmpty) {
       _usedHelpers.add('__dartMutex');
@@ -8210,7 +8214,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:mirrors::MirrorSystem::@methods::getName' &&
         positionalArgs.length == 1) {
       return '${positionalArgs.single}.name';
@@ -8228,7 +8232,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:ffi::Pointer::@factories::fromAddress' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartFfiPointer');
@@ -8246,7 +8250,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:svg::SvgElement::@factories::tag' &&
         positionalArgs.length == 1) {
       return 'globalThis.document.createElementNS("http://www.w3.org/2000/svg", ${positionalArgs.single})';
@@ -8334,7 +8338,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:developer::')) {
       return null;
     }
@@ -8378,7 +8382,7 @@ final class _EsmEmitter {
   }
 
   String? _emitAsyncStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:async::Zone::@getters::current') {
       _usedHelpers.add('__dartZone');
       return '__dartCurrentZone';
@@ -8394,7 +8398,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:async::Future::@factories::' &&
         positionalArgs.length == 1) {
       return 'new Promise((resolve, reject) => setTimeout(() => { try { resolve((${positionalArgs.single})()); } catch (error) { reject(error); } }, 0))';
@@ -8606,7 +8610,7 @@ final class _EsmEmitter {
     k.Arguments arguments,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (path.startsWith('dart:core::Object::@constructors::') &&
         positionalArgs.isEmpty) {
       return '({})';
@@ -8938,7 +8942,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path.startsWith('dart:core::RegExp::@factories::')) {
       if (positionalArgs.length != 1) {
         return null;
@@ -9284,7 +9288,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:core::BigInt::@factories::from' &&
         positionalArgs.length == 1) {
       return 'BigInt(Math.trunc(${positionalArgs.single}))';
@@ -9311,7 +9315,7 @@ final class _EsmEmitter {
     if (positionalArgs.length != 1) {
       return null;
     }
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     final radix = _namedArgument(expression.arguments, 'radix') ?? 'null';
     switch (path) {
       case 'dart:core::int::@methods::parse':
@@ -9644,7 +9648,7 @@ final class _EsmEmitter {
   }
 
   String? _emitIsolateStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:isolate::Isolate::@getters::current') {
       _usedHelpers.add('__dartIsolate');
       return '__dartCurrentIsolate';
@@ -9653,7 +9657,7 @@ final class _EsmEmitter {
   }
 
   String? _emitDeveloperStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:developer::')) {
       return null;
     }
@@ -9680,7 +9684,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:convert::ByteConversionSink::@factories::withCallback' &&
         positionalArgs.length == 1) {
       _usedHelpers.add('__dartByteConversionSink');
@@ -9761,7 +9765,7 @@ final class _EsmEmitter {
   }
 
   String? _emitConvertStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:convert::')) {
       return null;
     }
@@ -9809,7 +9813,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if ((path == 'dart:math::Random::@factories::' ||
             path == 'dart:math::Random::@factories::secure') &&
         positionalArgs.length <= 1) {
@@ -9854,7 +9858,7 @@ final class _EsmEmitter {
   }
 
   String? _emitMathStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:math::')) {
       return null;
     }
@@ -9876,7 +9880,7 @@ final class _EsmEmitter {
     k.StaticInvocation expression,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:typed_data::')) {
       return null;
     }
@@ -10009,7 +10013,7 @@ final class _EsmEmitter {
   }
 
   String? _emitTypedDataStaticGet(k.StaticGet expression) {
-    final path = _referencePath(expression.targetReference);
+    final path = kernelReferencePath(expression.targetReference);
     if (!path.startsWith('dart:typed_data::Endian::')) {
       return null;
     }
@@ -10123,23 +10127,23 @@ final class _EsmEmitter {
   }
 
   bool _isCoreReference(k.Reference reference, String namespace, String name) {
-    return _referencePath(reference) == 'dart:core::$namespace::$name';
+    return kernelReferencePath(reference) == 'dart:core::$namespace::$name';
   }
 
   bool _isCoreGrowableListLiteral(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:core::_GrowableList::@factories::dart:core::_literal');
   }
 
   bool _isCoreGrowableListFactory(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:core::_GrowableList::@factories::');
   }
 
   bool _isCoreObjectConstructorReference(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:core::Object::@constructors::');
   }
@@ -10166,7 +10170,7 @@ final class _EsmEmitter {
   }
 
   String? _coreExceptionReferenceName(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     for (final name in _coreExceptionTypeNames) {
       if (path == 'dart:core::$name') {
         return name;
@@ -10176,7 +10180,7 @@ final class _EsmEmitter {
   }
 
   String? _coreExceptionConstructorTypeName(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     for (final name in _coreExceptionTypeNames) {
       if (path.startsWith('dart:core::$name::@constructors::')) {
         return name;
@@ -10185,16 +10189,12 @@ final class _EsmEmitter {
     return null;
   }
 
-  bool _isCoreClass(k.Reference reference, String name) {
-    return _referencePath(reference) == 'dart:core::$name';
-  }
-
   bool _hasDartConvertBase(k.Class klass, Set<String> names) {
     bool matches(k.Supertype? supertype) {
       if (supertype == null) {
         return false;
       }
-      final path = _referencePath(supertype.className);
+      final path = kernelReferencePath(supertype.className);
       return names.any((name) => path == 'dart:convert::$name');
     }
 
@@ -10205,25 +10205,25 @@ final class _EsmEmitter {
   }
 
   bool _isCompactHashSetConstructorReference(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:_compact_hash::_Set::@constructors::');
   }
 
   bool _isStreamIteratorConstructorReference(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:async::_StreamIterator::@constructors::');
   }
 
   bool _isListIteratorConstructorReference(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:_internal::ListIterator::@constructors::') ||
         path.startsWith('dart:collection::ListIterator::@constructors::');
   }
 
   bool _isFollowedByIterableConstructorReference(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith(
           'dart:_internal::FollowedByIterable::@constructors::',
         ) ||
@@ -10314,45 +10314,45 @@ final class _EsmEmitter {
   }
 
   bool _isCoreExpandoConstructorReference(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:core::Expando::@constructors::');
   }
 
   bool _isCoreWeakReferenceConstructorReference(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:core::WeakReference::@constructors::') ||
         path.startsWith('dart:core::_WeakReference::@constructors::');
   }
 
   bool _isCoreFinalizerConstructorReference(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:core::Finalizer::@constructors::') ||
         path.startsWith('dart:core::_FinalizerImpl::@constructors::');
   }
 
   bool _isCoreWeakReferenceMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return (path.startsWith('dart:core::WeakReference::') ||
             path.startsWith('dart:core::_WeakReference::')) &&
         _pathHasMember(path, name);
   }
 
   bool _isCoreFinalizerMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return (path.startsWith('dart:core::Finalizer::') ||
             path.startsWith('dart:core::_FinalizerImpl::')) &&
         _pathHasMember(path, name);
   }
 
   bool _isSymbolConstructorReference(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:_internal::Symbol::@constructors::');
   }
 
   bool _isMathPointConstructorReference(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:math::Point::@constructors::');
   }
@@ -10361,7 +10361,7 @@ final class _EsmEmitter {
     k.Reference reference,
     List<String> positionalArgs,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (!path.startsWith('dart:math::Rectangle::@constructors::')) {
       return null;
     }
@@ -10377,20 +10377,20 @@ final class _EsmEmitter {
   }
 
   bool _isCollectionQueueConstructorReference(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:collection::Queue::@constructors::') ||
         path.startsWith('dart:collection::ListQueue::@constructors::') ||
         path.startsWith('dart:collection::DoubleLinkedQueue::@constructors::');
   }
 
   bool _isEmptyIterableConstructorReference(k.Reference reference) {
-    return _referencePath(
+    return kernelReferencePath(
       reference,
     ).startsWith('dart:_internal::EmptyIterable::@constructors::');
   }
 
   String? _coreErrorConstructorName(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (path.startsWith('dart:_internal::ReachabilityError::@constructors::')) {
       return 'ReachabilityError';
     }
@@ -10403,7 +10403,7 @@ final class _EsmEmitter {
   }
 
   String? _coreErrorFactoryName(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     for (final name in _coreErrorTypeNames) {
       if (path.startsWith('dart:core::$name::@factories::')) {
         return name;
@@ -10413,7 +10413,7 @@ final class _EsmEmitter {
   }
 
   bool _isCoreMember(k.Reference reference, String className, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path == 'dart:core::$className::@methods::$name' ||
         path == 'dart:core::$className::@getters::$name' ||
         path == 'dart:core::$className::@setters::$name' ||
@@ -10437,7 +10437,7 @@ final class _EsmEmitter {
   bool _isLegacyJsExpression(k.Expression expression) {
     return switch (expression) {
       k.StaticGet(:final targetReference) =>
-        _referencePath(targetReference) == 'dart:js::@getters::context',
+        kernelReferencePath(targetReference) == 'dart:js::@getters::context',
       k.InstanceInvocation(:final interfaceTargetReference, :final name) =>
         _isLegacyJsMember(interfaceTargetReference, name.text),
       k.AsExpression(:final operand) => _isLegacyJsExpression(operand),
@@ -10450,7 +10450,7 @@ final class _EsmEmitter {
     String className,
     String name,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:js::$className::') &&
         _pathHasMember(path, name);
   }
@@ -10460,13 +10460,13 @@ final class _EsmEmitter {
     String className,
     String name,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:html::$className::') &&
         _pathHasMember(path, name);
   }
 
   bool _isSvgClassMember(k.Reference reference, String className, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:svg::$className::') &&
         _pathHasMember(path, name);
   }
@@ -10476,13 +10476,13 @@ final class _EsmEmitter {
     String className,
     String name,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:concurrent::$className::') &&
         _pathHasMember(path, name);
   }
 
   bool _isFfiClassMember(k.Reference reference, String className, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:ffi::$className::') &&
         _pathHasMember(path, name);
   }
@@ -10492,7 +10492,7 @@ final class _EsmEmitter {
     String className,
     String name,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:web_audio::$className::') &&
         _pathHasMember(path, name);
   }
@@ -10502,7 +10502,7 @@ final class _EsmEmitter {
     String className,
     String name,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:indexed_db::$className::') &&
         _pathHasMember(path, name);
   }
@@ -10514,14 +10514,14 @@ final class _EsmEmitter {
   }
 
   bool _isNativeOperatorTarget(k.Reference reference) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:core::') ||
         path.startsWith('dart:_') ||
         path.startsWith('dart:typed_data::');
   }
 
   bool _isCoreCollectionMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     if (!path.startsWith('dart:core::') &&
         !path.startsWith('dart:_') &&
         !path.startsWith('dart:collection::') &&
@@ -10560,7 +10560,7 @@ final class _EsmEmitter {
   }
 
   bool _isCoreListMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return _isCoreMember(reference, 'List', name) ||
         path.contains('::ListBase::') ||
         path.contains('::ListMixin::') ||
@@ -10569,7 +10569,7 @@ final class _EsmEmitter {
   }
 
   bool _isCoreSetMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return _isCoreMember(reference, 'Set', name) ||
         path.contains('::_Set::') ||
         path.startsWith('dart:_compact_hash::') ||
@@ -10578,7 +10578,7 @@ final class _EsmEmitter {
   }
 
   bool _isCoreMapMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return _isCoreMember(reference, 'Map', name) ||
         path.contains('::_Map::') ||
         path.contains('::SplayTreeMap::') ||
@@ -10586,7 +10586,7 @@ final class _EsmEmitter {
   }
 
   bool _isCoreUriMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
         path.contains('::@getters::$name') ||
@@ -10598,21 +10598,21 @@ final class _EsmEmitter {
   }
 
   bool _isAsyncStreamMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path == 'dart:async::Stream::@methods::$name' ||
         path == 'dart:async::Stream::@getters::$name' ||
         path == 'dart:async::Stream::$name';
   }
 
   bool _isAsyncStreamTransformerMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path == 'dart:async::StreamTransformer::@methods::$name' ||
         path == 'dart:async::StreamTransformer::@getters::$name' ||
         path == 'dart:async::StreamTransformer::$name';
   }
 
   bool _isAsyncStreamConsumerMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
         path.contains('::@getters::$name') ||
@@ -10629,14 +10629,14 @@ final class _EsmEmitter {
   }
 
   bool _isAsyncFutureMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path == 'dart:async::Future::@methods::$name' ||
         path == 'dart:async::Future::@getters::$name' ||
         path == 'dart:async::Future::$name';
   }
 
   bool _isAsyncZoneMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
         path.contains('::@getters::$name') ||
@@ -10648,7 +10648,7 @@ final class _EsmEmitter {
     k.Reference reference,
     String name,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
         path.contains('::@getters::$name') ||
@@ -10664,7 +10664,7 @@ final class _EsmEmitter {
   }
 
   bool _isConvertConverterMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
         path.contains('::@getters::$name') ||
@@ -10686,7 +10686,7 @@ final class _EsmEmitter {
   }
 
   bool _isConvertLineSplitterMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
         path.contains('::@getters::$name') ||
@@ -10695,7 +10695,7 @@ final class _EsmEmitter {
   }
 
   bool _isCollectionQueueMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     final hasMember =
         path.contains('::@methods::$name') ||
         path.contains('::@getters::$name') ||
@@ -10709,7 +10709,7 @@ final class _EsmEmitter {
   }
 
   bool _isTypedDataMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:typed_data::') &&
         (path.contains('::@methods::$name') ||
             path.contains('::@getters::$name') ||
@@ -10721,7 +10721,7 @@ final class _EsmEmitter {
     String className,
     String name,
   ) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:typed_data::$className::') &&
         (path.contains('::@methods::$name') ||
             path.contains('::@getters::$name') ||
@@ -10729,7 +10729,7 @@ final class _EsmEmitter {
   }
 
   bool _isTypedDataByteBufferMember(k.Reference reference, String name) {
-    final path = _referencePath(reference);
+    final path = kernelReferencePath(reference);
     return path.startsWith('dart:typed_data::ByteBuffer::') &&
         (path.contains('::@methods::$name') || path.endsWith('::$name'));
   }
@@ -10742,7 +10742,7 @@ final class _EsmEmitter {
       k.SetLiteral() || k.SetConcatenation() => 'Set',
       k.MapLiteral() || k.MapConcatenation() => 'Map',
       k.StaticInvocation(:final targetReference)
-          when _isCoreListFactoryPath(_referencePath(targetReference)) =>
+          when _isCoreListFactoryPath(kernelReferencePath(targetReference)) =>
         'List',
       k.InstanceInvocation(:final name) when name.text == 'toList' => 'List',
       k.InstanceInvocation(:final name) when name.text == 'toSet' => 'Set',
@@ -10831,12 +10831,6 @@ final class _EsmEmitter {
       'Iterable' => 'Iterable',
       _ => null,
     };
-  }
-
-  String _referencePath(k.Reference reference) {
-    return reference.canonicalName?.toStringInternal() ??
-        reference.node?.toStringInternal() ??
-        '<unbound>';
   }
 
   T _withFunctionNameScope<T>(T Function() body) {

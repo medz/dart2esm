@@ -14,6 +14,7 @@ import '../program/program_model.dart';
 import '../world/sdk_classification.dart';
 import '../world/kernel_analysis.dart';
 import 'runtime_helpers.dart';
+import 'sdk_static_invocations.dart';
 
 EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
   if (component.mainMethod == null) {
@@ -3635,11 +3636,10 @@ final class _EsmEmitter {
     if (jsInteropInvocation != null) {
       return jsInteropInvocation;
     }
-    final sdkStaticInvocation = _emitDartSdkStaticInvocation(
-      expression,
-      positionalArgs,
-      args,
-    );
+    final sdkStaticInvocation = DartSdkStaticInvocationEmitter(
+      helpers: _usedHelpers,
+      emitNamedArgument: _emitNamedArgument,
+    ).emit(expression, positionalArgs, args);
     if (sdkStaticInvocation != null) {
       return sdkStaticInvocation;
     }
@@ -3726,90 +3726,6 @@ final class _EsmEmitter {
       expression,
       'static invocation ${kernelReferencePath(expression.targetReference)}',
     );
-  }
-
-  String? _emitDartSdkStaticInvocation(
-    k.StaticInvocation expression,
-    List<String> positionalArgs,
-    String args,
-  ) {
-    switch (dartSdkStaticInvocationSymbol(expression.targetReference)) {
-      case DartSdkStaticInvocationSymbol.coreEnumName:
-        if (positionalArgs.length == 1) {
-          return '${positionalArgs.single}.name';
-        }
-      case DartSdkStaticInvocationSymbol.coreEnumByName:
-        if (positionalArgs.length == 2) {
-          _usedHelpers.add('__dartEnumByName');
-          return '__dartEnumByName(${positionalArgs[0]}, ${positionalArgs[1]})';
-        }
-      case DartSdkStaticInvocationSymbol.coreEnumAsNameMap:
-        if (positionalArgs.length == 1) {
-          _usedHelpers.add('__dartEnumAsNameMap');
-          return '__dartEnumAsNameMap(${positionalArgs.single})';
-        }
-      case DartSdkStaticInvocationSymbol.coreDateTimeCopyWith:
-        if (positionalArgs.length == 1) {
-          _usedHelpers.add('__dartDateTime');
-          final options = expression.arguments.named.isEmpty
-              ? '{}'
-              : '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }';
-          return '__dartDateTimeCopyWith(${positionalArgs.single}, $options)';
-        }
-      case DartSdkStaticInvocationSymbol.corePrint:
-        _usedHelpers.add('__dartPrint');
-        _usedHelpers.add('__dartStr');
-        return '__dartPrint($args)';
-      case DartSdkStaticInvocationSymbol.coreIdentical:
-        if (positionalArgs.length == 2) {
-          return 'Object.is(${positionalArgs[0]}, ${positionalArgs[1]})';
-        }
-      case DartSdkStaticInvocationSymbol.coreIdentityHashCode:
-        if (positionalArgs.length == 1) {
-          _usedHelpers.add('__dartObjectHash');
-          return '__dartHashValue(${positionalArgs.single})';
-        }
-      case DartSdkStaticInvocationSymbol.coreFunctionApply:
-        if (positionalArgs.length >= 2 && positionalArgs.length <= 3) {
-          _usedHelpers.add('__dartFunctionApply');
-          final namedArguments = positionalArgs.length == 3
-              ? positionalArgs[2]
-              : 'null';
-          return '__dartFunctionApply(${positionalArgs[0]}, ${positionalArgs[1]}, $namedArguments)';
-        }
-      case DartSdkStaticInvocationSymbol.collectionNonNulls:
-        if (positionalArgs.length == 1) {
-          return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';
-        }
-      case DartSdkStaticInvocationSymbol.collectionIndexed:
-        if (positionalArgs.length == 1) {
-          _usedHelpers.add('__dartRecord');
-          return 'Array.from(${positionalArgs.single}, (value, index) => __dartRecord([index, value], {}))';
-        }
-      case DartSdkStaticInvocationSymbol.collectionFirstOrNull:
-        if (positionalArgs.length == 1) {
-          _usedHelpers.add('__dartIterableFirstOrNull');
-          return '__dartIterableFirstOrNull(${positionalArgs.single})';
-        }
-      case DartSdkStaticInvocationSymbol.collectionLastOrNull:
-        if (positionalArgs.length == 1) {
-          _usedHelpers.add('__dartIterableLastOrNull');
-          return '__dartIterableLastOrNull(${positionalArgs.single})';
-        }
-      case DartSdkStaticInvocationSymbol.collectionSingleOrNull:
-        if (positionalArgs.length == 1) {
-          _usedHelpers.add('__dartIterableSingleOrNull');
-          return '__dartIterableSingleOrNull(${positionalArgs.single})';
-        }
-      case DartSdkStaticInvocationSymbol.collectionElementAtOrNull:
-        if (positionalArgs.length == 2) {
-          _usedHelpers.add('__dartIterableElementAtOrNull');
-          return '__dartIterableElementAtOrNull(${positionalArgs[0]}, ${positionalArgs[1]})';
-        }
-      case null:
-        return null;
-    }
-    return null;
   }
 
   String? _emitInternalIterableStaticInvocation(

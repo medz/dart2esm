@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:dart2esm/src/diagnostics/metrics.dart';
 import 'package:dart2esm/src/diagnostics/unsupported_kernel_node.dart';
 import 'package:dart2esm/src/kernel/kernel_header.dart';
-import 'package:dart2esm/src/pipeline/compiler_pipeline.dart';
+import 'package:dart2esm/src/compiler_core/compiler_pipeline.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 

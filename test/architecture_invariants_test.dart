@@ -4,47 +4,72 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  test('CLI compiler enters the compiler pipeline', () {
+  test('CLI compiler enters the new compiler core', () {
     final compiler = _read('lib/src/compiler.dart');
 
     expect(
       compiler,
       contains(
-        "import 'package:dart2esm/src/pipeline/compiler_pipeline.dart';",
+        "import 'package:dart2esm/src/compiler_core/compiler_pipeline.dart';",
       ),
     );
     expect(compiler, contains('Dart2EsmCompilerPipeline('));
-    expect(compiler, isNot(contains('emitEsm(component')));
+    expect(compiler, isNot(contains("src/pipeline/compiler_pipeline.dart")));
+    expect(Directory('lib/src/pipeline').existsSync(), isFalse);
   });
 
-  test('pipeline has explicit stage result boundaries and no file IO', () {
-    final pipeline = _read('lib/src/pipeline/compiler_pipeline.dart');
+  test('compiler core has explicit Oxc-style stage result boundaries', () {
+    final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
+    final normalizer = _read(
+      'lib/src/compiler_core/transform/module_normalizer.dart',
+    );
 
-    expect(pipeline, contains('final class KernelFrontendResult'));
-    expect(pipeline, contains('final class SemanticAnalysisResult'));
-    expect(pipeline, contains('final class CodegenStageResult'));
-    expect(pipeline, contains('final class KernelFrontendStage'));
-    expect(pipeline, contains('final class SemanticAnalysisStage'));
-    expect(pipeline, contains('final class EsmCodegenStage'));
+    expect(pipeline, contains('final class Dart2EsmPipelineResult'));
+    expect(pipeline, contains('final KernelFrontendResult kernel'));
+    expect(pipeline, contains('final SemanticWorldResult? semantic'));
+    expect(pipeline, contains('final LoweringResult? lowering'));
+    expect(pipeline, contains('final NormalizationResult? normalization'));
+    expect(pipeline, contains('final CodegenStageResult? codegen'));
+    expect(normalizer, contains('invalidatesSemanticWorld'));
     expect(pipeline, isNot(contains('File(')));
     expect(pipeline, isNot(contains('Directory(')));
     expect(pipeline, isNot(contains('Process.run')));
     expect(pipeline, isNot(contains('writeAsStringSync')));
   });
 
-  test('transitional backend codegen consumes a prepared program model', () {
-    final backend = _read('lib/src/backend/esm_backend.dart');
-    final pipeline = _read('lib/src/pipeline/compiler_pipeline.dart');
-    final codegenStage = _slice(
-      pipeline,
-      'final class EsmCodegenStage',
-      'final class Dart2EsmCompilerPipeline',
+  test('codegen only consumes prepared ESM IR', () {
+    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+
+    expect(codegen, contains('CodegenStageResult emit(NormalizationResult'));
+    expect(codegen, contains('EsmModuleIr'));
+    expect(codegen, isNot(contains("package:kernel/kernel.dart")));
+    expect(codegen, isNot(contains('buildEsmProgramModel')));
+    expect(codegen, isNot(contains('emitEsm(')));
+    expect(codegen, isNot(contains('emitEsmModel(')));
+    expect(codegen, isNot(contains('backend/esm_backend.dart')));
+  });
+
+  test('legacy backend is isolated behind an oracle boundary', () {
+    final coreFiles = _dartFiles('lib/src/compiler_core');
+    final legacyOracle = p.join(
+      Directory.current.path,
+      'lib/src/compiler_core/legacy_oracle.dart',
     );
 
-    expect(backend, contains('EsmBackendResult emitEsmModel('));
-    expect(backend, contains('EsmProgramModel model'));
-    expect(codegenStage, contains('emitEsmModel(semantic.model'));
-    expect(codegenStage, isNot(contains('buildEsmProgramModel(')));
+    for (final file in coreFiles) {
+      final source = file.readAsStringSync();
+      if (file.path == legacyOracle) {
+        expect(source, contains("../backend/esm_backend.dart"));
+      } else {
+        expect(
+          source,
+          isNot(contains('backend/esm_backend.dart')),
+          reason: file.path,
+        );
+        expect(source, isNot(contains('emitEsm(')), reason: file.path);
+        expect(source, isNot(contains('emitEsmModel(')), reason: file.path);
+      }
+    }
   });
 }
 
@@ -52,8 +77,14 @@ String _read(String relativePath) {
   return File(p.join(Directory.current.path, relativePath)).readAsStringSync();
 }
 
-String _slice(String source, String start, String end) {
-  final startIndex = source.indexOf(start);
-  final endIndex = source.indexOf(end, startIndex);
-  return source.substring(startIndex, endIndex);
+List<File> _dartFiles(String relativeDirectory) {
+  final directory = Directory(
+    p.join(Directory.current.path, relativeDirectory),
+  );
+  return directory
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .toList()
+    ..sort((left, right) => left.path.compareTo(right.path));
 }

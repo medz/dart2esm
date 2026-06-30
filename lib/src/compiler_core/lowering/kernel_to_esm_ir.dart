@@ -1,0 +1,171 @@
+import 'package:kernel/kernel.dart' as k;
+
+import '../../names/js_names.dart';
+import '../ir/esm_ir.dart';
+import '../new_compiler_unsupported.dart';
+import '../semantic/semantic_world.dart';
+
+final class LoweringResult {
+  const LoweringResult({required this.semantic, required this.module});
+
+  final SemanticWorldResult semantic;
+  final EsmModuleIr module;
+}
+
+final class KernelToEsmIrLoweringStage {
+  const KernelToEsmIrLoweringStage();
+
+  LoweringResult lower(SemanticWorldResult semantic, {required bool runMain}) {
+    final world = semantic.world;
+    final items = <EsmModuleItemIr>[
+      for (final procedure in world.procedures)
+        _lowerProcedure(world, procedure),
+      if (runMain)
+        EsmExpressionStatementIr(
+          EsmCallIr(
+            callee: EsmIdentifierIr(world.symbolForRequired(world.main).name),
+            arguments: const [],
+          ),
+        ),
+    ];
+    return LoweringResult(semantic: semantic, module: EsmModuleIr(items));
+  }
+
+  EsmFunctionIr _lowerProcedure(
+    EsmSemanticWorld world,
+    EsmProcedureSymbol procedure,
+  ) {
+    final function = procedure.node.function;
+    if (function.asyncMarker != k.AsyncMarker.Sync) {
+      throw NewCompilerUnsupported(function, 'async function lowering');
+    }
+    if (function.namedParameters.isNotEmpty) {
+      throw NewCompilerUnsupported(function, 'named parameter lowering');
+    }
+    final locals = <k.VariableDeclaration, String>{};
+    final usedParameters = <String>{};
+    final parameters = [
+      for (final parameter in function.positionalParameters)
+        _bindParameter(locals, usedParameters, parameter),
+    ];
+    final body = function.body;
+    if (body == null) {
+      throw NewCompilerUnsupported(function, 'procedure without body');
+    }
+    return EsmFunctionIr(
+      name: procedure.name,
+      export: procedure.export,
+      parameters: parameters,
+      body: _lowerStatementList(world, locals, body),
+    );
+  }
+
+  String _bindParameter(
+    Map<k.VariableDeclaration, String> locals,
+    Set<String> usedParameters,
+    k.VariableDeclaration parameter,
+  ) {
+    final original = parameter.name ?? 'arg';
+    final name = _freshIn(usedParameters, original);
+    locals[parameter] = name;
+    return name;
+  }
+
+  List<EsmStatementIr> _lowerStatementList(
+    EsmSemanticWorld world,
+    Map<k.VariableDeclaration, String> locals,
+    k.Statement statement,
+  ) {
+    return switch (statement) {
+      k.Block() => [
+        for (final child in statement.statements)
+          ..._lowerStatementList(world, locals, child),
+      ],
+      k.EmptyStatement() => const [],
+      k.ExpressionStatement() => [
+        EsmExpressionStatementIr(
+          _lowerExpression(world, locals, statement.expression),
+        ),
+      ],
+      k.ReturnStatement() => [
+        EsmReturnStatementIr(
+          statement.expression == null
+              ? null
+              : _lowerExpression(world, locals, statement.expression!),
+        ),
+      ],
+      _ => throw NewCompilerUnsupported(statement, 'statement lowering'),
+    };
+  }
+
+  EsmExpressionIr _lowerExpression(
+    EsmSemanticWorld world,
+    Map<k.VariableDeclaration, String> locals,
+    k.Expression expression,
+  ) {
+    return switch (expression) {
+      k.StaticInvocation() => _lowerStaticInvocation(world, locals, expression),
+      k.VariableGet() => _lowerVariableGet(locals, expression),
+      k.StringLiteral() => EsmStringLiteralIr(expression.value),
+      k.IntLiteral() => EsmNumberLiteralIr(expression.value),
+      k.DoubleLiteral() => EsmNumberLiteralIr(expression.value),
+      k.BoolLiteral() => EsmBooleanLiteralIr(expression.value),
+      k.NullLiteral() => const EsmNullLiteralIr(),
+      _ => throw NewCompilerUnsupported(expression, 'expression lowering'),
+    };
+  }
+
+  EsmExpressionIr _lowerStaticInvocation(
+    EsmSemanticWorld world,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression,
+  ) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      throw NewCompilerUnsupported(expression, 'static invocation arguments');
+    }
+    final targetNode = expression.targetReference.node;
+    if (targetNode is! k.Procedure) {
+      throw NewCompilerUnsupported(
+        expression.targetReference,
+        'external static target',
+      );
+    }
+    final target = world.symbolFor(targetNode);
+    if (target == null) {
+      throw NewCompilerUnsupported(expression.target, 'external static target');
+    }
+    return EsmCallIr(
+      callee: EsmIdentifierIr(target.name),
+      arguments: [
+        for (final argument in expression.arguments.positional)
+          _lowerExpression(world, locals, argument),
+      ],
+    );
+  }
+
+  EsmExpressionIr _lowerVariableGet(
+    Map<k.VariableDeclaration, String> locals,
+    k.VariableGet expression,
+  ) {
+    final name = locals[expression.variable];
+    if (name == null) {
+      throw NewCompilerUnsupported(expression, 'unbound variable get');
+    }
+    return EsmIdentifierIr(name);
+  }
+
+  String _freshIn(Set<String> usedNames, String original) {
+    var name = sanitizeJsIdentifier(original);
+    if (!isJsBindingIdentifier(name)) {
+      name = '\$$name';
+    }
+    var candidate = name;
+    var suffix = 1;
+    while (!usedNames.add(candidate)) {
+      candidate = '${name}_$suffix';
+      suffix++;
+    }
+    return candidate;
+  }
+}

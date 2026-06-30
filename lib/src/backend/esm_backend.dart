@@ -19,6 +19,7 @@ import 'sdk_collection_instances.dart';
 import 'sdk_constructor_invocations.dart';
 import 'sdk_instance_invocations.dart';
 import 'sdk_js_interop_invocations.dart';
+import 'sdk_legacy_js_invocations.dart';
 import 'sdk_static_gets.dart';
 import 'sdk_static_invocations.dart';
 import 'sdk_text_instances.dart';
@@ -3252,34 +3253,6 @@ final class _EsmEmitter {
     return _emitFactoryTargetCall(target, _emitArguments(arguments));
   }
 
-  String? _emitLegacyJsFactoryInvocation(
-    k.Procedure target,
-    List<String> positionalArgs,
-  ) {
-    return switch (legacyJsFactorySymbol(target.reference)) {
-      LegacyJsFactorySymbol.jsObject
-          when positionalArgs.isNotEmpty && positionalArgs.length <= 2 =>
-        'new ${positionalArgs[0]}(...Array.from(${positionalArgs.length == 2 ? positionalArgs[1] : '[]'} ?? []))',
-      LegacyJsFactorySymbol.jsObjectFromBrowserObject
-          when positionalArgs.length == 1 =>
-        positionalArgs.single,
-      LegacyJsFactorySymbol.jsObjectJsify when positionalArgs.length == 1 =>
-        _emitJsify(positionalArgs.single),
-      LegacyJsFactorySymbol.jsArray when positionalArgs.isEmpty => '[]',
-      LegacyJsFactorySymbol.jsArrayFrom when positionalArgs.length == 1 =>
-        'Array.from(${positionalArgs.single})',
-      LegacyJsFactorySymbol.jsFunctionWithThis
-          when positionalArgs.length == 1 =>
-        '(function(...args) { return (${positionalArgs.single})(this, ...args); })',
-      _ => null,
-    };
-  }
-
-  String _emitJsify(String value) {
-    _usedHelpers.add('__dartJsify');
-    return '__dartJsify($value)';
-  }
-
   String _emitFactoryTargetCall(k.Procedure target, String args) {
     if (target.name.text.isEmpty) {
       return 'new ${_className(target.enclosingClass!)}($args)';
@@ -3431,10 +3404,11 @@ final class _EsmEmitter {
         expression,
       );
     }
-    final legacyJsFactory = _emitLegacyJsFactoryInvocation(
-      target,
-      positionalArgs,
-    );
+    final legacyJsFactory = DartSdkLegacyJsInvocationEmitter(
+      helpers: _usedHelpers,
+      namedArgument: _namedArgument,
+      hasOnlyNamedArguments: _hasOnlyNamedArguments,
+    ).emitFactory(target, positionalArgs);
     if (legacyJsFactory != null) {
       return legacyJsFactory;
     }
@@ -3853,13 +3827,18 @@ final class _EsmEmitter {
     if (webInvocation != null) {
       return webInvocation;
     }
-    final legacyJsInvocation = _emitLegacyJsInstanceInvocation(
-      target,
-      name,
-      left,
-      positionalArgs,
-      expression.arguments,
-    );
+    final legacyJsInvocation =
+        DartSdkLegacyJsInvocationEmitter(
+          helpers: _usedHelpers,
+          namedArgument: _namedArgument,
+          hasOnlyNamedArguments: _hasOnlyNamedArguments,
+        ).emitInstanceInvocation(
+          target,
+          name,
+          left,
+          positionalArgs,
+          expression.arguments,
+        );
     if (legacyJsInvocation != null) {
       return legacyJsInvocation;
     }
@@ -4148,13 +4127,18 @@ final class _EsmEmitter {
     final positionalArgsList = expression.arguments.positional
         .map(emitExpression)
         .toList();
-    final legacyJsInvocation = _emitLegacyJsDynamicInvocation(
-      expression.receiver,
-      name,
-      receiver,
-      positionalArgsList,
-      expression.arguments,
-    );
+    final legacyJsInvocation =
+        DartSdkLegacyJsInvocationEmitter(
+          helpers: _usedHelpers,
+          namedArgument: _namedArgument,
+          hasOnlyNamedArguments: _hasOnlyNamedArguments,
+        ).emitDynamicInvocation(
+          expression.receiver,
+          name,
+          receiver,
+          positionalArgsList,
+          expression.arguments,
+        );
     if (legacyJsInvocation != null) {
       return legacyJsInvocation;
     }
@@ -4176,145 +4160,6 @@ final class _EsmEmitter {
         ? 'null'
         : '{ ${expression.arguments.named.map(_emitNamedArgument).join(', ')} }';
     return '__dartCall($receiver, ${jsonEncode(name)}, [$positionalArgs], $namedArgs)';
-  }
-
-  String? _emitLegacyJsDynamicInvocation(
-    k.Expression receiverExpression,
-    String name,
-    String receiver,
-    List<String> positionalArgs,
-    k.Arguments arguments,
-  ) {
-    if (!_isLegacyJsExpression(receiverExpression)) {
-      return null;
-    }
-    if (arguments.named.isEmpty &&
-        name == 'callMethod' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2) {
-      final args = positionalArgs.length == 2 ? positionalArgs[1] : '[]';
-      return '$receiver[${positionalArgs[0]}](...Array.from($args ?? []))';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'hasProperty' &&
-        positionalArgs.length == 1) {
-      return '(${positionalArgs.single} in $receiver)';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'deleteProperty' &&
-        positionalArgs.length == 1) {
-      return '(delete $receiver[${positionalArgs.single}], null)';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'instanceof' &&
-        positionalArgs.length == 1) {
-      return '$receiver instanceof ${positionalArgs.single}';
-    }
-    if (name == 'apply' &&
-        positionalArgs.length == 1 &&
-        _hasOnlyNamedArguments(arguments, {'thisArg'})) {
-      final thisArg = _namedArgument(arguments, 'thisArg') ?? 'undefined';
-      return '$receiver.apply($thisArg, Array.from(${positionalArgs.single}))';
-    }
-    return null;
-  }
-
-  String? _emitLegacyJsInstanceInvocation(
-    k.Reference target,
-    String name,
-    String receiver,
-    List<String> positionalArgs,
-    k.Arguments arguments,
-  ) {
-    if (!_isLegacyJsMember(target, name)) {
-      return null;
-    }
-    if (arguments.named.isEmpty && name == '[]' && positionalArgs.length == 1) {
-      return '$receiver[${positionalArgs.single}]';
-    }
-    if (arguments.named.isEmpty &&
-        name == '[]=' &&
-        positionalArgs.length == 2) {
-      return '($receiver[${positionalArgs[0]}] = ${positionalArgs[1]})';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'hasProperty' &&
-        positionalArgs.length == 1) {
-      return '(${positionalArgs.single} in $receiver)';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'deleteProperty' &&
-        positionalArgs.length == 1) {
-      return '(delete $receiver[${positionalArgs.single}], null)';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'instanceof' &&
-        positionalArgs.length == 1) {
-      return '$receiver instanceof ${positionalArgs.single}';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'toString' &&
-        positionalArgs.isEmpty) {
-      return 'String($receiver)';
-    }
-    if (arguments.named.isEmpty &&
-        name == 'callMethod' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2) {
-      final args = positionalArgs.length == 2 ? positionalArgs[1] : '[]';
-      return '$receiver[${positionalArgs[0]}](...Array.from($args ?? []))';
-    }
-    final jsArrayInvocation = _emitLegacyJsArrayInvocation(
-      target,
-      name,
-      receiver,
-      positionalArgs,
-      arguments,
-    );
-    if (jsArrayInvocation != null) {
-      return jsArrayInvocation;
-    }
-    if (name == 'apply' &&
-        _isLegacyJsClassMember(target, 'JsFunction', name) &&
-        positionalArgs.length == 1 &&
-        _hasOnlyNamedArguments(arguments, {'thisArg'})) {
-      final thisArg = _namedArgument(arguments, 'thisArg') ?? 'undefined';
-      return '$receiver.apply($thisArg, Array.from(${positionalArgs.single}))';
-    }
-    return null;
-  }
-
-  String? _emitLegacyJsArrayInvocation(
-    k.Reference target,
-    String name,
-    String receiver,
-    List<String> positionalArgs,
-    k.Arguments arguments,
-  ) {
-    if (!_isLegacyJsClassMember(target, 'JsArray', name) ||
-        arguments.named.isNotEmpty) {
-      return null;
-    }
-    return switch (name) {
-      'add' when positionalArgs.length == 1 =>
-        '($receiver.push(${positionalArgs.single}), null)',
-      'addAll' when positionalArgs.length == 1 =>
-        '($receiver.push(...Array.from(${positionalArgs.single})), null)',
-      'insert' when positionalArgs.length == 2 =>
-        '($receiver.splice(${positionalArgs[0]}, 0, ${positionalArgs[1]}), null)',
-      'removeAt' when positionalArgs.length == 1 =>
-        '$receiver.splice(${positionalArgs.single}, 1)[0]',
-      'removeLast' when positionalArgs.isEmpty => '$receiver.pop()',
-      'removeRange' when positionalArgs.length == 2 =>
-        '($receiver.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}), null)',
-      'setRange'
-          when positionalArgs.length >= 3 && positionalArgs.length <= 4 =>
-        '($receiver.splice(${positionalArgs[0]}, ${positionalArgs[1]} - ${positionalArgs[0]}, ...Array.from(${positionalArgs[2]}).slice(${positionalArgs.length == 4 ? positionalArgs[3] : '0'}, ${positionalArgs.length == 4 ? positionalArgs[3] : '0'} + (${positionalArgs[1]} - ${positionalArgs[0]}))), null)',
-      'sort' when positionalArgs.isEmpty => '($receiver.sort(), null)',
-      'sort' when positionalArgs.length == 1 =>
-        '($receiver.sort(${positionalArgs.single}), null)',
-      _ => null,
-    };
   }
 
   String _emitDynamicGet(k.DynamicGet expression) {
@@ -6205,31 +6050,6 @@ final class _EsmEmitter {
 
   bool _hasOnlyNamedArguments(k.Arguments arguments, Set<String> names) {
     return arguments.named.every((argument) => names.contains(argument.name));
-  }
-
-  bool _isLegacyJsMember(k.Reference reference, String name) {
-    return _isLegacyJsClassMember(reference, 'JsObject', name) ||
-        _isLegacyJsClassMember(reference, 'JsFunction', name) ||
-        _isLegacyJsClassMember(reference, 'JsArray', name);
-  }
-
-  bool _isLegacyJsExpression(k.Expression expression) {
-    return switch (expression) {
-      k.StaticGet(:final targetReference) =>
-        kernelReferencePath(targetReference) == 'dart:js::@getters::context',
-      k.InstanceInvocation(:final interfaceTargetReference, :final name) =>
-        _isLegacyJsMember(interfaceTargetReference, name.text),
-      k.AsExpression(:final operand) => _isLegacyJsExpression(operand),
-      _ => false,
-    };
-  }
-
-  bool _isLegacyJsClassMember(
-    k.Reference reference,
-    String className,
-    String name,
-  ) {
-    return isDartSdkLibraryClassMember(reference, 'dart:js', className, name);
   }
 
   bool _isConcurrentClassMember(

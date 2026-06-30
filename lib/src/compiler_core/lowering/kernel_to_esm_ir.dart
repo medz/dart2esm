@@ -3248,6 +3248,15 @@ final class KernelToEsmIrLoweringStage
     Object context,
   ) {
     final klass = constant.classReference.node;
+    final mathConstant = _lowerDartMathInstanceConstant(
+      world,
+      helpers,
+      constant,
+      context,
+    );
+    if (mathConstant != null) {
+      return mathConstant;
+    }
     if (klass is! k.Class ||
         klass.enclosingLibrary.importUri.scheme == 'dart') {
       throw NewCompilerUnsupported(context, 'constant expression lowering');
@@ -3354,6 +3363,55 @@ final class KernelToEsmIrLoweringStage
         ),
       ],
     );
+  }
+
+  EsmExpressionIr? _lowerDartMathInstanceConstant(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.InstanceConstant constant,
+    Object context,
+  ) {
+    final classPath = kernelReferencePath(constant.classReference);
+    if (classPath == 'dart:math::Point') {
+      helpers.add(EsmRuntimeHelper.mathPoint);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathPoint),
+        arguments: [
+          _lowerConstantField(world, helpers, constant, 'x', context),
+          _lowerConstantField(world, helpers, constant, 'y', context),
+        ],
+      );
+    }
+    if (classPath == 'dart:math::Rectangle') {
+      helpers.add(EsmRuntimeHelper.mathRectangle);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathRectangle),
+        arguments: [
+          _lowerConstantField(world, helpers, constant, 'left', context),
+          _lowerConstantField(world, helpers, constant, 'top', context),
+          _lowerConstantField(world, helpers, constant, 'width', context),
+          _lowerConstantField(world, helpers, constant, 'height', context),
+        ],
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr _lowerConstantField(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.InstanceConstant constant,
+    String fieldName,
+    Object context,
+  ) {
+    for (final entry in constant.fieldValues.entries) {
+      final path = kernelReferencePath(entry.key);
+      if (path.endsWith('::@fields::$fieldName') ||
+          path.endsWith('::$fieldName')) {
+        return _lowerConstant(world, helpers, entry.value, context);
+      }
+    }
+    throw NewCompilerUnsupported(context, 'constant expression lowering');
   }
 
   String? _enumBackingFieldName(k.Reference reference) {
@@ -3644,6 +3702,10 @@ final class KernelToEsmIrLoweringStage
   }
 
   EsmExpressionIr? _lowerRuntimeStaticGet(k.StaticGet expression) {
+    final mathGet = _lowerMathStaticGet(expression);
+    if (mathGet != null) {
+      return mathGet;
+    }
     final developerGet = _lowerDeveloperStaticGet(expression);
     if (developerGet != null) {
       return developerGet;
@@ -3668,6 +3730,28 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerMathStaticGet(k.StaticGet expression) {
+    final property = switch (dartMathStaticGetSymbol(
+      expression.targetReference,
+    )) {
+      DartMathStaticGetSymbol.pi => 'PI',
+      DartMathStaticGetSymbol.e => 'E',
+      DartMathStaticGetSymbol.ln2 => 'LN2',
+      DartMathStaticGetSymbol.ln10 => 'LN10',
+      DartMathStaticGetSymbol.log2e => 'LOG2E',
+      DartMathStaticGetSymbol.log10e => 'LOG10E',
+      DartMathStaticGetSymbol.sqrt1_2 => 'SQRT1_2',
+      DartMathStaticGetSymbol.sqrt2 => 'SQRT2',
+      null => null,
+    };
+    return property == null
+        ? null
+        : EsmPropertyAccessIr(
+            receiver: const EsmIdentifierIr('Math'),
+            property: property,
+          );
   }
 
   EsmExpressionIr? _lowerDeveloperStaticGet(k.StaticGet expression) {
@@ -3926,6 +4010,16 @@ final class KernelToEsmIrLoweringStage
         );
       }
     }
+    final sdkIntrinsic = _lowerSdkInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (sdkIntrinsic != null) {
+      return sdkIntrinsic;
+    }
     if (!_binaryOperators.contains(operator) ||
         expression.arguments.positional.length != 1 ||
         expression.arguments.named.isNotEmpty ||
@@ -3958,6 +4052,83 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.positional.single,
         thisExpression: thisExpression,
       ),
+    );
+  }
+
+  EsmExpressionIr? _lowerSdkInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    return _lowerMathInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+  }
+
+  EsmExpressionIr? _lowerMathInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final target = kernelReferencePath(expression.interfaceTargetReference);
+    final isPoint =
+        target.startsWith('dart:math::Point::') ||
+        target.startsWith('dart:math::_PointBase::');
+    final isRectangle =
+        target.startsWith('dart:math::Rectangle::') ||
+        target.startsWith('dart:math::_RectangleBase::');
+    final isRandom = target.startsWith('dart:math::Random::');
+    if (!isPoint && !isRectangle && !isRandom) {
+      return null;
+    }
+    final name = expression.name.text;
+    final positional = expression.arguments.positional;
+    final expectedArity = switch (name) {
+      '+' || '-' || '*' || 'distanceTo' || 'squaredDistanceTo' => 1,
+      'containsPoint' ||
+      'containsRectangle' ||
+      'intersects' ||
+      'intersection' ||
+      'boundingBox' => 1,
+      'nextInt' => 1,
+      'nextDouble' || 'nextBool' => 0,
+      'toString' => 0,
+      _ => null,
+    };
+    if (expectedArity == null || positional.length != expectedArity) {
+      return null;
+    }
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    return EsmCallIr(
+      callee: _memberAccess(receiver, name),
+      arguments: [
+        for (final argument in positional)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+      ],
     );
   }
 
@@ -4065,7 +4236,8 @@ final class KernelToEsmIrLoweringStage
     k.InstanceInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    if (expression.arguments.named.isNotEmpty) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
       return null;
     }
     final target = kernelReferencePath(expression.interfaceTargetReference);
@@ -4293,6 +4465,44 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
+    final numberFormatMethod = switch (target) {
+      'dart:core::num::@methods::toStringAsFixed' ||
+      'dart:core::double::@methods::toStringAsFixed' => 'toFixed',
+      'dart:core::num::@methods::toStringAsExponential' ||
+      'dart:core::double::@methods::toStringAsExponential' => 'toExponential',
+      'dart:core::num::@methods::toStringAsPrecision' ||
+      'dart:core::double::@methods::toStringAsPrecision' => 'toPrecision',
+      _ => null,
+    };
+    if (numberFormatMethod != null &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: EsmCallIr(
+            callee: const EsmIdentifierIr('Number'),
+            arguments: [
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                expression.receiver,
+                thisExpression: thisExpression,
+              ),
+            ],
+          ),
+          property: numberFormatMethod,
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
     if (expression.arguments.positional.isNotEmpty) {
       return null;
     }
@@ -4339,8 +4549,7 @@ final class KernelToEsmIrLoweringStage
     String target, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    if (expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
+    if (expression.arguments.named.isNotEmpty) {
       return null;
     }
     final receiver = _lowerExpression(
@@ -4444,6 +4653,16 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       );
     }
+    final sdkIntrinsic = _lowerSdkInstanceGet(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (sdkIntrinsic != null) {
+      return sdkIntrinsic;
+    }
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'instance get lowering');
@@ -4457,6 +4676,69 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       ),
       property: _instanceMemberName(world, target),
+    );
+  }
+
+  EsmExpressionIr? _lowerSdkInstanceGet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceGet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    return _lowerMathInstanceGet(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+  }
+
+  EsmExpressionIr? _lowerMathInstanceGet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceGet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final target = kernelReferencePath(expression.interfaceTargetReference);
+    final isPoint =
+        target.startsWith('dart:math::Point::') ||
+        target.startsWith('dart:math::_PointBase::');
+    final isRectangle =
+        target.startsWith('dart:math::Rectangle::') ||
+        target.startsWith('dart:math::_RectangleBase::');
+    if (!isPoint && !isRectangle) {
+      return null;
+    }
+    final property = expression.name.text;
+    final allowed = switch (property) {
+      'x' || 'y' || 'magnitude' => isPoint,
+      'left' ||
+      'top' ||
+      'width' ||
+      'height' ||
+      'right' ||
+      'bottom' ||
+      'topLeft' ||
+      'topRight' ||
+      'bottomLeft' ||
+      'bottomRight' => isRectangle,
+      _ => false,
+    };
+    if (!allowed) {
+      return null;
+    }
+    return EsmPropertyAccessIr(
+      receiver: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
+      property: property,
     );
   }
 
@@ -4895,6 +5177,16 @@ final class KernelToEsmIrLoweringStage
     if (expression.arguments.named.isNotEmpty) {
       return null;
     }
+    final mathConstructor = _lowerMathConstructorInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (mathConstructor != null) {
+      return mathConstructor;
+    }
     final coreErrorName = dartCoreErrorConstructorName(
       expression.targetReference,
     );
@@ -4941,6 +5233,51 @@ final class KernelToEsmIrLoweringStage
             argument,
             thisExpression: thisExpression,
           ),
+        ],
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerMathConstructorInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.ConstructorInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final positional = expression.arguments.positional;
+    if (isDartMathPointConstructorReference(expression.targetReference) &&
+        positional.length == 2) {
+      helpers.add(EsmRuntimeHelper.mathPoint);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathPoint),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    if (isDartMathRectangleConstructorReference(expression.targetReference) &&
+        positional.length == 4) {
+      helpers.add(EsmRuntimeHelper.mathRectangle);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathRectangle),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
         ],
       );
     }
@@ -5202,6 +5539,12 @@ final class KernelToEsmIrLoweringStage
       if (dartCoreErrorTypeNames.contains(typeName)) {
         return _lowerCoreErrorTypeTest(helpers, value, typeName);
       }
+      if (target == 'dart:math::Point') {
+        return _lowerDartTypeTagTest(value, 'Point');
+      }
+      if (target == 'dart:math::Rectangle') {
+        return _lowerDartTypeTagTest(value, 'Rectangle');
+      }
       return switch (typeName) {
         'String' => _typeofEquals(value, 'string'),
         'BigInt' => _typeofEquals(value, 'bigint'),
@@ -5366,6 +5709,17 @@ final class KernelToEsmIrLoweringStage
       callee: runtimeHelpers.reference(EsmRuntimeHelper.isRecord),
       arguments: [value],
     );
+  }
+
+  EsmExpressionIr _lowerDartTypeTagTest(EsmExpressionIr value, String tag) {
+    return _andAll([
+      _notNull(value),
+      _typeofEquals(value, 'object'),
+      _strictEquals(
+        EsmPropertyAccessIr(receiver: value, property: '__dartType'),
+        EsmStringLiteralIr(tag),
+      ),
+    ]);
   }
 
   bool _isTopType(k.DartType type) {
@@ -5669,6 +6023,16 @@ final class KernelToEsmIrLoweringStage
     if (coreObjectStatic != null) {
       return coreObjectStatic;
     }
+    final mathStatic = _lowerMathStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (mathStatic != null) {
+      return mathStatic;
+    }
     final developerStatic = _lowerDeveloperStaticInvocation(
       world,
       helpers,
@@ -5716,6 +6080,119 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerMathStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty) {
+      return null;
+    }
+    final symbol = dartMathStaticInvocationSymbol(expression.targetReference);
+    if (symbol == null) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    switch (symbol) {
+      case DartMathStaticInvocationSymbol.random:
+      case DartMathStaticInvocationSymbol.randomSecure:
+        if (positional.length > 1) {
+          return null;
+        }
+        helpers.add(EsmRuntimeHelper.mathRandom);
+        return EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.mathRandom),
+          arguments: [
+            positional.isEmpty
+                ? const EsmNullLiteralIr()
+                : _lowerExpression(
+                    world,
+                    helpers,
+                    locals,
+                    positional.single,
+                    thisExpression: thisExpression,
+                  ),
+            EsmBooleanLiteralIr(
+              symbol == DartMathStaticInvocationSymbol.randomSecure,
+            ),
+          ],
+        );
+      case DartMathStaticInvocationSymbol.rectangleFromPoints:
+        if (positional.length != 2) {
+          return null;
+        }
+        helpers.add(EsmRuntimeHelper.mathRectangle);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartRectangleFromPoints'),
+          arguments: [
+            for (final argument in positional)
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                argument,
+                thisExpression: thisExpression,
+              ),
+          ],
+        );
+      case DartMathStaticInvocationSymbol.min:
+      case DartMathStaticInvocationSymbol.max:
+      case DartMathStaticInvocationSymbol.pow:
+      case DartMathStaticInvocationSymbol.atan2:
+        if (positional.length != 2) {
+          return null;
+        }
+      case DartMathStaticInvocationSymbol.sqrt:
+      case DartMathStaticInvocationSymbol.sin:
+      case DartMathStaticInvocationSymbol.cos:
+      case DartMathStaticInvocationSymbol.tan:
+      case DartMathStaticInvocationSymbol.asin:
+      case DartMathStaticInvocationSymbol.acos:
+      case DartMathStaticInvocationSymbol.atan:
+      case DartMathStaticInvocationSymbol.exp:
+      case DartMathStaticInvocationSymbol.log:
+        if (positional.length != 1) {
+          return null;
+        }
+    }
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(
+        receiver: const EsmIdentifierIr('Math'),
+        property: switch (symbol) {
+          DartMathStaticInvocationSymbol.min => 'min',
+          DartMathStaticInvocationSymbol.max => 'max',
+          DartMathStaticInvocationSymbol.pow => 'pow',
+          DartMathStaticInvocationSymbol.sqrt => 'sqrt',
+          DartMathStaticInvocationSymbol.sin => 'sin',
+          DartMathStaticInvocationSymbol.cos => 'cos',
+          DartMathStaticInvocationSymbol.tan => 'tan',
+          DartMathStaticInvocationSymbol.asin => 'asin',
+          DartMathStaticInvocationSymbol.acos => 'acos',
+          DartMathStaticInvocationSymbol.atan => 'atan',
+          DartMathStaticInvocationSymbol.atan2 => 'atan2',
+          DartMathStaticInvocationSymbol.exp => 'exp',
+          DartMathStaticInvocationSymbol.log => 'log',
+          DartMathStaticInvocationSymbol.random ||
+          DartMathStaticInvocationSymbol.randomSecure ||
+          DartMathStaticInvocationSymbol.rectangleFromPoints =>
+            throw StateError('not a Math static method'),
+        },
+      ),
+      arguments: [
+        for (final argument in positional)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+      ],
+    );
   }
 
   EsmExpressionIr? _lowerDeveloperStaticInvocation(

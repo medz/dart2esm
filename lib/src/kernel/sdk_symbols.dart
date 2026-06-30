@@ -243,6 +243,75 @@ DartDeveloperStaticGetSymbol? dartDeveloperStaticGetSymbol(
   };
 }
 
+enum DartMathStaticInvocationSymbol {
+  min,
+  max,
+  pow,
+  sqrt,
+  sin,
+  cos,
+  tan,
+  asin,
+  acos,
+  atan,
+  atan2,
+  exp,
+  log,
+  random,
+  randomSecure,
+  rectangleFromPoints,
+}
+
+DartMathStaticInvocationSymbol? dartMathStaticInvocationSymbol(
+  k.Reference reference,
+) {
+  return switch (kernelReferencePath(reference)) {
+    'dart:math::@methods::min' => DartMathStaticInvocationSymbol.min,
+    'dart:math::@methods::max' => DartMathStaticInvocationSymbol.max,
+    'dart:math::@methods::pow' => DartMathStaticInvocationSymbol.pow,
+    'dart:math::@methods::sqrt' => DartMathStaticInvocationSymbol.sqrt,
+    'dart:math::@methods::sin' => DartMathStaticInvocationSymbol.sin,
+    'dart:math::@methods::cos' => DartMathStaticInvocationSymbol.cos,
+    'dart:math::@methods::tan' => DartMathStaticInvocationSymbol.tan,
+    'dart:math::@methods::asin' => DartMathStaticInvocationSymbol.asin,
+    'dart:math::@methods::acos' => DartMathStaticInvocationSymbol.acos,
+    'dart:math::@methods::atan' => DartMathStaticInvocationSymbol.atan,
+    'dart:math::@methods::atan2' => DartMathStaticInvocationSymbol.atan2,
+    'dart:math::@methods::exp' => DartMathStaticInvocationSymbol.exp,
+    'dart:math::@methods::log' => DartMathStaticInvocationSymbol.log,
+    'dart:math::Random::@factories::' => DartMathStaticInvocationSymbol.random,
+    'dart:math::Random::@factories::secure' =>
+      DartMathStaticInvocationSymbol.randomSecure,
+    'dart:math::Rectangle::@factories::fromPoints' =>
+      DartMathStaticInvocationSymbol.rectangleFromPoints,
+    _ => null,
+  };
+}
+
+enum DartMathStaticGetSymbol { pi, e, ln2, ln10, log2e, log10e, sqrt1_2, sqrt2 }
+
+DartMathStaticGetSymbol? dartMathStaticGetSymbol(k.Reference reference) {
+  return switch (kernelReferencePath(reference)) {
+    'dart:math::@getters::pi' ||
+    'dart:math::@fields::pi' => DartMathStaticGetSymbol.pi,
+    'dart:math::@getters::e' ||
+    'dart:math::@fields::e' => DartMathStaticGetSymbol.e,
+    'dart:math::@getters::ln2' ||
+    'dart:math::@fields::ln2' => DartMathStaticGetSymbol.ln2,
+    'dart:math::@getters::ln10' ||
+    'dart:math::@fields::ln10' => DartMathStaticGetSymbol.ln10,
+    'dart:math::@getters::log2e' ||
+    'dart:math::@fields::log2e' => DartMathStaticGetSymbol.log2e,
+    'dart:math::@getters::log10e' ||
+    'dart:math::@fields::log10e' => DartMathStaticGetSymbol.log10e,
+    'dart:math::@getters::sqrt1_2' ||
+    'dart:math::@fields::sqrt1_2' => DartMathStaticGetSymbol.sqrt1_2,
+    'dart:math::@getters::sqrt2' ||
+    'dart:math::@fields::sqrt2' => DartMathStaticGetSymbol.sqrt2,
+    _ => null,
+  };
+}
+
 bool isDartSdkLibraryClassMember(
   k.Reference reference,
   String libraryUri,
@@ -671,6 +740,12 @@ bool isDartMathPointConstructorReference(k.Reference reference) {
   return kernelReferencePath(
     reference,
   ).startsWith('dart:math::Point::@constructors::');
+}
+
+bool isDartMathRectangleConstructorReference(k.Reference reference) {
+  return kernelReferencePath(
+    reference,
+  ).startsWith('dart:math::Rectangle::@constructors::');
 }
 
 bool isDartCollectionQueueConstructorReference(k.Reference reference) {

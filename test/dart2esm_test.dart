@@ -1515,6 +1515,30 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles dart:math helpers through the new core', () async {
+    final source = File(p.join(fixtureDir.path, 'libraries', 'math.dart'));
+    final expected = File(p.join(fixtureDir.path, 'libraries', 'math.mjs'));
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-math-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'math.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
   test('compiles exception and assert flow through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-exceptions-core-',

@@ -190,6 +190,39 @@ void main() {
     );
   });
 
+  test('classifies dart:math symbols', () {
+    expect(
+      dartMathStaticInvocationSymbol(_reference('dart:math::@methods::min')),
+      DartMathStaticInvocationSymbol.min,
+    );
+    expect(
+      dartMathStaticInvocationSymbol(
+        _reference('dart:math::Random::@factories::secure'),
+      ),
+      DartMathStaticInvocationSymbol.randomSecure,
+    );
+    expect(
+      dartMathStaticInvocationSymbol(
+        _reference('dart:math::Rectangle::@factories::fromPoints'),
+      ),
+      DartMathStaticInvocationSymbol.rectangleFromPoints,
+    );
+    expect(
+      dartMathStaticGetSymbol(_reference('dart:math::@fields::sqrt2')),
+      DartMathStaticGetSymbol.sqrt2,
+    );
+    expect(
+      isDartMathRectangleConstructorReference(
+        _reference('dart:math::Rectangle::@constructors::'),
+      ),
+      isTrue,
+    );
+    expect(
+      dartMathStaticInvocationSymbol(_reference('dart:core::Object')),
+      isNull,
+    );
+  });
+
   test('classifies dart:core object and collection members', () {
     expect(
       isDartCoreWeakReferenceMember(

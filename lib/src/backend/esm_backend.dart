@@ -21,6 +21,7 @@ import 'sdk_instance_invocations.dart';
 import 'sdk_static_gets.dart';
 import 'sdk_static_invocations.dart';
 import 'sdk_text_instances.dart';
+import 'sdk_typed_data_instances.dart';
 
 EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
   if (component.mainMethod == null) {
@@ -4006,6 +4007,12 @@ final class _EsmEmitter {
     if (textInvocation != null) {
       return textInvocation;
     }
+    final typedDataInvocation = DartSdkTypedDataInstanceEmitter(
+      helpers: _usedHelpers,
+    ).emitInvocation(target, name, left, positionalArgs, expression.arguments);
+    if (typedDataInvocation != null) {
+      return typedDataInvocation;
+    }
     final collectionInvocation =
         DartSdkCollectionInstanceEmitter(
           helpers: _usedHelpers,
@@ -4040,81 +4047,6 @@ final class _EsmEmitter {
         );
     if (asyncInvocation != null) {
       return asyncInvocation;
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'setAll' &&
-        positionalArgs.length == 2 &&
-        isDartTypedDataMember(target, name)) {
-      return '($left.set(Array.from(${positionalArgs[1]}), ${positionalArgs[0]}), null)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'setRange' &&
-        positionalArgs.length >= 3 &&
-        positionalArgs.length <= 4 &&
-        isDartTypedDataMember(target, name)) {
-      _usedHelpers.add('__dartListSetRange');
-      final skipCount = positionalArgs.length == 4 ? positionalArgs[3] : '0';
-      return '__dartListSetRange($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, $skipCount)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'sublist' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartTypedDataMember(target, name)) {
-      if (positionalArgs.length == 1) {
-        return '$left.slice(${positionalArgs.single})';
-      }
-      return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'getRange' &&
-        positionalArgs.length == 2 &&
-        isDartTypedDataMember(target, name)) {
-      return '$left.slice(${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'fillRange' &&
-        positionalArgs.length >= 2 &&
-        positionalArgs.length <= 3 &&
-        isDartTypedDataMember(target, name)) {
-      final fillValue = positionalArgs.length == 3 ? positionalArgs[2] : '0';
-      return '($left.fill($fillValue, ${positionalArgs[0]}, ${positionalArgs[1]}), null)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'asMap' &&
-        positionalArgs.isEmpty &&
-        isDartTypedDataMember(target, name)) {
-      _usedHelpers.add('__dartListAsMap');
-      return '__dartListAsMap($left)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'indexOf' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartTypedDataMember(target, name)) {
-      if (positionalArgs.length == 1) {
-        return '$left.indexOf(${positionalArgs.single})';
-      }
-      return '$left.indexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'lastIndexOf' &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2 &&
-        isDartTypedDataMember(target, name)) {
-      if (positionalArgs.length == 1) {
-        return '$left.lastIndexOf(${positionalArgs.single})';
-      }
-      return '$left.lastIndexOf(${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    final byteBufferView = _emitTypedDataByteBufferViewInvocation(
-      target,
-      name,
-      left,
-      positionalArgs,
-    );
-    if (byteBufferView != null) {
-      return byteBufferView;
     }
     if (expression.arguments.named.isEmpty &&
         positionalArgs.isEmpty &&
@@ -4165,9 +4097,11 @@ final class _EsmEmitter {
     if (textGet != null) {
       return textGet;
     }
-    if (name == 'lengthInBytes' &&
-        isDartTypedDataMember(expression.interfaceTargetReference, name)) {
-      return '$receiver.byteLength';
+    final typedDataGet = DartSdkTypedDataInstanceEmitter(
+      helpers: _usedHelpers,
+    ).emitGet(expression.interfaceTargetReference, name, receiver);
+    if (typedDataGet != null) {
+      return typedDataGet;
     }
     if (name == 'target' &&
         isDartCoreWeakReferenceMember(
@@ -4230,18 +4164,6 @@ final class _EsmEmitter {
       if (bigIntGet != null) {
         return bigIntGet;
       }
-    }
-    if (name == 'offsetInBytes' &&
-        isDartTypedDataMember(expression.interfaceTargetReference, name)) {
-      return '$receiver.byteOffset';
-    }
-    if (name == 'buffer' &&
-        isDartTypedDataMember(expression.interfaceTargetReference, name)) {
-      return '$receiver.buffer';
-    }
-    if (name == 'elementSizeInBytes' &&
-        isDartTypedDataMember(expression.interfaceTargetReference, name)) {
-      return _typedDataElementSizeExpression(receiver);
     }
     final receiverCollectionKind = _expressionCollectionKind(
       expression.receiver,
@@ -7303,34 +7225,6 @@ final class _EsmEmitter {
     return '${decimal}n';
   }
 
-  String? _emitTypedDataByteBufferViewInvocation(
-    k.Reference target,
-    String name,
-    String receiver,
-    List<String> positionalArgs,
-  ) {
-    if (!isDartTypedDataByteBufferMember(target, name)) {
-      return null;
-    }
-    final constructor = switch (name) {
-      'asByteData' => 'DataView',
-      'asInt8List' => 'Int8Array',
-      'asUint8List' => 'Uint8Array',
-      'asUint8ClampedList' => 'Uint8ClampedArray',
-      'asInt16List' => 'Int16Array',
-      'asUint16List' => 'Uint16Array',
-      'asInt32List' => 'Int32Array',
-      'asUint32List' => 'Uint32Array',
-      'asFloat32List' => 'Float32Array',
-      'asFloat64List' => 'Float64Array',
-      _ => null,
-    };
-    if (constructor == null || positionalArgs.length > 2) {
-      return null;
-    }
-    return _emitTypedDataView(constructor, [receiver, ...positionalArgs]);
-  }
-
   String? _emitTypedDataView(String constructor, List<String> positionalArgs) {
     if (positionalArgs.isEmpty || positionalArgs.length > 3) {
       return null;
@@ -7357,10 +7251,6 @@ final class _EsmEmitter {
     final start = positionalArgs.length >= 2 ? positionalArgs[1] : '0';
     final end = positionalArgs.length >= 3 ? positionalArgs[2] : 'null';
     return '__dartTypedDataSublistView(${positionalArgs[0]}, $start, $end, $constructor, $bytesPerElement)';
-  }
-
-  String _typedDataElementSizeExpression(String value) {
-    return '($value instanceof DataView ? 1 : $value.BYTES_PER_ELEMENT)';
   }
 
   String? _typedArrayConstructorName(String dartTypeName) {

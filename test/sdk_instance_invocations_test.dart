@@ -86,33 +86,6 @@ void main() {
     expect(helpers, contains('__dartCompare'));
   });
 
-  test('emits ByteData 64-bit accessors as native DataView operations', () {
-    final helpers = EsmRuntimeHelperUseSet();
-    final emitter = DartSdkInstanceInvocationEmitter(helpers: helpers);
-
-    expect(
-      emitter.emitInvocation(
-        _reference('dart:typed_data::ByteData::@methods::getInt64'),
-        'getInt64',
-        'data',
-        ['offset', 'true'],
-        k.Arguments.empty(),
-      ),
-      'Number(data.getBigInt64(offset, true))',
-    );
-    expect(
-      emitter.emitInvocation(
-        _reference('dart:typed_data::ByteData::@methods::setUint64'),
-        'setUint64',
-        'data',
-        ['offset', 'value'],
-        k.Arguments.empty(),
-      ),
-      '(data.setBigUint64(offset, BigInt(value), false), null)',
-    );
-    expect(helpers, isEmpty);
-  });
-
   test('emits number instance getters', () {
     final helpers = EsmRuntimeHelperUseSet();
     final emitter = DartSdkInstanceInvocationEmitter(helpers: helpers);

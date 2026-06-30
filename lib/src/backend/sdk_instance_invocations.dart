@@ -43,13 +43,6 @@ final class DartSdkInstanceInvocationEmitter {
           receiver,
           positionalArgs,
           namedArgumentsEmpty,
-        ) ??
-        _emitByteDataInstanceInvocation(
-          target,
-          name,
-          receiver,
-          positionalArgs,
-          namedArgumentsEmpty,
         );
   }
 
@@ -178,34 +171,6 @@ final class DartSdkInstanceInvocationEmitter {
       'toStringAsPrecision' => 'Number($receiver).toPrecision($argument)',
       _ => null,
     };
-  }
-
-  String? _emitByteDataInstanceInvocation(
-    k.Reference target,
-    String name,
-    String receiver,
-    List<String> positionalArgs,
-    bool namedArgumentsEmpty,
-  ) {
-    if (!namedArgumentsEmpty ||
-        !isDartTypedDataClassMember(target, 'ByteData', name)) {
-      return null;
-    }
-    if ((name == 'getInt64' || name == 'getUint64') &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2) {
-      final method = name == 'getInt64' ? 'getBigInt64' : 'getBigUint64';
-      final endian = positionalArgs.length == 2 ? positionalArgs[1] : 'false';
-      return 'Number($receiver.$method(${positionalArgs[0]}, $endian))';
-    }
-    if ((name == 'setInt64' || name == 'setUint64') &&
-        positionalArgs.length >= 2 &&
-        positionalArgs.length <= 3) {
-      final method = name == 'setInt64' ? 'setBigInt64' : 'setBigUint64';
-      final endian = positionalArgs.length == 3 ? positionalArgs[2] : 'false';
-      return '($receiver.$method(${positionalArgs[0]}, BigInt(${positionalArgs[1]}), $endian), null)';
-    }
-    return null;
   }
 
   String? _emitBigIntInstanceInvocation(

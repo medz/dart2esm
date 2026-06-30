@@ -7,8 +7,11 @@ enum EsmRuntimeHelper {
   constValue,
   dynamicCall,
   equals,
+  enumAsNameMap,
+  enumByName,
   functionApply,
   lazyField,
+  nullCheck,
   print,
   recordShape,
   isRecord,
@@ -32,11 +35,14 @@ final class EsmRuntimeHelperRegistry {
     '__dartConstSet',
     '__dartConstValues',
     '__dartDynamicCall',
+    '__dartEnumAsNameMap',
+    '__dartEnumByName',
     '__dartEquals',
     '__dartFunctionApply',
     '__dartLazyField',
     '__dartIsRecord',
     '__dartIsCoreError',
+    '__dartNullCheck',
     '__dartPrint',
     '__dartRecord',
     '__dartRecordShape',
@@ -57,9 +63,12 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.constValue => '__dartConst',
       EsmRuntimeHelper.dynamicCall => '__dartDynamicCall',
       EsmRuntimeHelper.equals => '__dartEquals',
+      EsmRuntimeHelper.enumAsNameMap => '__dartEnumAsNameMap',
+      EsmRuntimeHelper.enumByName => '__dartEnumByName',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
+      EsmRuntimeHelper.nullCheck => '__dartNullCheck',
       EsmRuntimeHelper.print => '__dartPrint',
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
@@ -137,6 +146,21 @@ function __dartDynamicCall(receiver, positionalArguments, namedArguments = null)
   const call = receiver?.call;
   if (typeof call === "function") return call.apply(receiver, args);
   throw new TypeError("Object is not callable");
+}
+'''),
+      EsmRuntimeHelper.enumAsNameMap => EsmRawModuleItemIr('''
+function __dartEnumAsNameMap(values) {
+  const map = new Map();
+  for (const value of values) map.set(value.name, value);
+  return map;
+}
+'''),
+      EsmRuntimeHelper.enumByName => EsmRawModuleItemIr('''
+function __dartEnumByName(values, name) {
+  for (const value of values) {
+    if (value.name === name) return value;
+  }
+  throw new RangeError("No enum value with name " + name);
 }
 '''),
       EsmRuntimeHelper.equals => EsmRawModuleItemIr('''
@@ -262,6 +286,12 @@ function __dartLazyField(name, initialize, writable, publish = null) {
   return { get, set };
 }
 '''),
+      EsmRuntimeHelper.nullCheck => EsmRawModuleItemIr('''
+function __dartNullCheck(value) {
+  if (value == null) throw new TypeError("Null check operator used on a null value");
+  return value;
+}
+'''),
       EsmRuntimeHelper.print => EsmFunctionIr(
         name: name(helper),
         export: false,
@@ -376,6 +406,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.constMap:
       case EsmRuntimeHelper.constSet:
       case EsmRuntimeHelper.dynamicCall:
+      case EsmRuntimeHelper.enumAsNameMap:
+      case EsmRuntimeHelper.enumByName:
         break;
       case EsmRuntimeHelper.equals:
         _helpers.add(EsmRuntimeHelper.recordShape);
@@ -387,6 +419,7 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.functionApply:
       case EsmRuntimeHelper.lazyField:
+      case EsmRuntimeHelper.nullCheck:
       case EsmRuntimeHelper.print:
       case EsmRuntimeHelper.recordShape:
       case EsmRuntimeHelper.safeToString:

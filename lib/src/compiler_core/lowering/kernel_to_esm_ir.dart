@@ -69,11 +69,145 @@ final class KernelToEsmIrLoweringStage {
           ),
           mutable: false,
         ),
-      _lowerClass(world, helpers, klass),
+      klass.node.isEnum
+          ? _lowerEnumClass(world, helpers, klass)
+          : _lowerClass(world, helpers, klass),
       for (final field in klass.staticFields)
         ..._lowerStaticFieldItems(world, helpers, klass, field),
       if (markerName != null) _lowerInterfaceHasInstance(klass, markerName),
     ];
+  }
+
+  EsmClassIr _lowerEnumClass(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmClassSymbol klass,
+  ) {
+    final interfaceMarkers = _interfaceMarkersForClass(world, klass);
+    final enumIndex = r'$index';
+    final enumName = r'$name';
+    return EsmClassIr(
+      name: klass.name,
+      export: klass.export,
+      superclass: null,
+      constructor: EsmClassConstructorIr(
+        parameters: [
+          EsmIdentifierParameterIr(name: enumIndex),
+          EsmIdentifierParameterIr(name: enumName),
+          for (final field in klass.fields)
+            EsmIdentifierParameterIr(name: field.name),
+        ],
+        body: [
+          _lowerDefineProperty(
+            const EsmThisIr(),
+            'index',
+            EsmIdentifierIr(enumIndex),
+            enumerable: true,
+          ),
+          _lowerDefineProperty(
+            const EsmThisIr(),
+            '__dartEnumName',
+            EsmIdentifierIr(enumName),
+          ),
+          _lowerDefineProperty(
+            const EsmThisIr(),
+            'name',
+            EsmIdentifierIr(enumName),
+            enumerable: true,
+          ),
+          for (final field in klass.fields)
+            _lowerDefineProperty(
+              const EsmThisIr(),
+              field.name,
+              EsmIdentifierIr(field.name),
+              enumerable: true,
+            ),
+          ..._lowerInterfaceMarkerDefinitions(
+            const EsmThisIr(),
+            interfaceMarkers,
+          ),
+          const EsmExpressionStatementIr(
+            EsmCallIr(
+              callee: EsmPropertyAccessIr(
+                receiver: EsmIdentifierIr('Object'),
+                property: 'freeze',
+              ),
+              arguments: [EsmThisIr()],
+            ),
+          ),
+        ],
+      ),
+      methods: [
+        for (final procedure in klass.staticProcedures)
+          if (procedure.node.kind != k.ProcedureKind.Factory ||
+              procedure.node.name.text.isNotEmpty)
+            _lowerClassProcedure(
+              world,
+              helpers,
+              klass,
+              procedure,
+              isStatic: true,
+            ),
+        for (final procedure in klass.procedures)
+          if (procedure.node.name.text != '_enumToString')
+            _lowerClassProcedure(world, helpers, klass, procedure),
+        if (!_hasInstanceProcedure(klass, 'toString'))
+          _lowerEnumToString(klass),
+      ],
+    );
+  }
+
+  EsmClassMethodIr _lowerEnumToString(EsmClassSymbol klass) {
+    return EsmClassMethodIr(
+      name: 'toString',
+      kind: EsmClassMethodKindIr.method,
+      isStatic: false,
+      parameters: const [],
+      body: [
+        EsmReturnStatementIr(
+          EsmStringConcatenationIr([
+            EsmStringLiteralIr('${klass.node.name}.'),
+            const EsmPropertyAccessIr(
+              receiver: EsmThisIr(),
+              property: '__dartEnumName',
+            ),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  bool _hasInstanceProcedure(EsmClassSymbol klass, String name) {
+    return klass.procedures.any(
+      (procedure) => procedure.node.name.text == name,
+    );
+  }
+
+  EsmExpressionStatementIr _lowerDefineProperty(
+    EsmExpressionIr receiver,
+    String property,
+    EsmExpressionIr value, {
+    bool enumerable = false,
+  }) {
+    return EsmExpressionStatementIr(
+      EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr('Object'),
+          property: 'defineProperty',
+        ),
+        arguments: [
+          receiver,
+          EsmStringLiteralIr(property),
+          EsmObjectLiteralIr([
+            EsmObjectLiteralPropertyIr(name: 'value', value: value),
+            EsmObjectLiteralPropertyIr(
+              name: 'enumerable',
+              value: EsmBooleanLiteralIr(enumerable),
+            ),
+          ]),
+        ],
+      ),
+    );
   }
 
   EsmClassIr _lowerClass(
@@ -1836,6 +1970,13 @@ final class KernelToEsmIrLoweringStage {
         expression,
         thisExpression: thisExpression,
       ),
+      k.NullCheck() => _lowerNullCheck(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
       k.Not() => EsmUnaryIr(
         operator: '!',
         operand: EsmParenthesizedIr(
@@ -2040,6 +2181,28 @@ final class KernelToEsmIrLoweringStage {
       ),
       _ => throw NewCompilerUnsupported(expression, 'expression lowering'),
     };
+  }
+
+  EsmExpressionIr _lowerNullCheck(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.NullCheck expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    helpers.add(EsmRuntimeHelper.nullCheck);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.nullCheck),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.operand,
+          thisExpression: thisExpression,
+        ),
+      ],
+    );
   }
 
   EsmExpressionIr _lowerRecordLiteral(
@@ -2548,7 +2711,44 @@ final class KernelToEsmIrLoweringStage {
       throw NewCompilerUnsupported(context, 'constant expression lowering');
     }
     final fields = <EsmObjectLiteralPropertyIr>[];
+    String? enumName;
     for (final entry in constant.fieldValues.entries) {
+      final enumBackingName = klass.isEnum
+          ? _enumBackingFieldName(entry.key)
+          : null;
+      if (enumBackingName != null) {
+        final loweredValue = _lowerConstant(
+          world,
+          helpers,
+          entry.value,
+          context,
+        );
+        switch (enumBackingName) {
+          case 'index':
+            fields.add(
+              EsmObjectLiteralPropertyIr(name: 'index', value: loweredValue),
+            );
+          case '_name':
+            enumName = entry.value is k.StringConstant
+                ? (entry.value as k.StringConstant).value
+                : null;
+            fields.add(
+              EsmObjectLiteralPropertyIr(
+                name: '__dartEnumName',
+                value: loweredValue,
+              ),
+            );
+            fields.add(
+              EsmObjectLiteralPropertyIr(name: 'name', value: loweredValue),
+            );
+          default:
+            throw NewCompilerUnsupported(
+              context,
+              'constant expression lowering',
+            );
+        }
+        continue;
+      }
       final field = entry.key.node;
       if (field is! k.Field) {
         throw NewCompilerUnsupported(context, 'constant expression lowering');
@@ -2561,6 +2761,21 @@ final class KernelToEsmIrLoweringStage {
         EsmObjectLiteralPropertyIr(
           name: fieldSymbol.name,
           value: _lowerConstant(world, helpers, entry.value, context),
+        ),
+      );
+    }
+    if (klass.isEnum && enumName != null) {
+      fields.add(
+        EsmObjectLiteralPropertyIr(
+          name: 'toString',
+          value: EsmFunctionExpressionIr(
+            parameters: const [],
+            body: [
+              EsmReturnStatementIr(
+                EsmStringLiteralIr('${klass.name}.$enumName'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -2593,6 +2808,20 @@ final class KernelToEsmIrLoweringStage {
         ),
       ],
     );
+  }
+
+  String? _enumBackingFieldName(k.Reference reference) {
+    final path = kernelReferencePath(reference);
+    if (!path.contains('::_Enum::')) {
+      return null;
+    }
+    if (path.endsWith('::index') || path.endsWith('::@fields::index')) {
+      return 'index';
+    }
+    if (path.endsWith('::_name') || path.endsWith('::@fields::_name')) {
+      return '_name';
+    }
+    return null;
   }
 
   EsmExpressionIr _lowerConstructorTearOffConstant(
@@ -3107,28 +3336,37 @@ final class KernelToEsmIrLoweringStage {
     k.InstanceInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    if (expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
+    if (expression.arguments.named.isNotEmpty) {
       return null;
     }
     final target = expression.interfaceTargetReference.toStringInternal();
     if (expression.name.text == '[]' &&
         expression.arguments.positional.length == 1) {
+      final receiver = _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      );
+      final property = _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.arguments.positional.single,
+        thisExpression: thisExpression,
+      );
+      if (target == 'dart:core::Map::@methods::[]' ||
+          target == 'dart:_compact_hash::_ConstMap::@methods::[]' ||
+          target == 'dart:_compact_hash::_Map::@methods::[]') {
+        return EsmCallIr(
+          callee: EsmPropertyAccessIr(receiver: receiver, property: 'get'),
+          arguments: [property],
+        );
+      }
       return EsmComputedPropertyAccessIr(
-        receiver: _lowerExpression(
-          world,
-          helpers,
-          locals,
-          expression.receiver,
-          thisExpression: thisExpression,
-        ),
-        property: _lowerExpression(
-          world,
-          helpers,
-          locals,
-          expression.arguments.positional.single,
-          thisExpression: thisExpression,
-        ),
+        receiver: receiver,
+        property: property,
       );
     }
     if (target == 'dart:core::Set::@methods::add' &&
@@ -3267,6 +3505,12 @@ final class KernelToEsmIrLoweringStage {
     if (target == 'dart:core::List::@getters::length' ||
         target == 'dart:core::String::@getters::length') {
       return EsmPropertyAccessIr(receiver: receiver, property: 'length');
+    }
+    if (target == 'dart:core::_Enum::@getters::index') {
+      return EsmPropertyAccessIr(receiver: receiver, property: 'index');
+    }
+    if (target == 'dart:core::_Enum::@getters::name') {
+      return EsmPropertyAccessIr(receiver: receiver, property: 'name');
     }
     if (target == 'dart:core::String::@getters::isEmpty') {
       return EsmBinaryIr(
@@ -4069,6 +4313,16 @@ final class KernelToEsmIrLoweringStage {
     k.StaticInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final enumStatic = _lowerCoreEnumStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (enumStatic != null) {
+      return enumStatic;
+    }
     final coreErrorFactoryName = dartCoreErrorFactoryName(
       expression.targetReference,
     );
@@ -4131,6 +4385,66 @@ final class KernelToEsmIrLoweringStage {
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerCoreEnumStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    switch (dartSdkStaticInvocationSymbol(expression.targetReference)) {
+      case DartSdkStaticInvocationSymbol.coreEnumName
+          when positional.length == 1:
+        return EsmPropertyAccessIr(
+          receiver: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+          property: 'name',
+        );
+      case DartSdkStaticInvocationSymbol.coreEnumByName
+          when positional.length == 2:
+        helpers.add(EsmRuntimeHelper.enumByName);
+        return EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.enumByName),
+          arguments: [
+            for (final argument in positional)
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                argument,
+                thisExpression: thisExpression,
+              ),
+          ],
+        );
+      case DartSdkStaticInvocationSymbol.coreEnumAsNameMap
+          when positional.length == 1:
+        helpers.add(EsmRuntimeHelper.enumAsNameMap);
+        return EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.enumAsNameMap),
+          arguments: [
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.single,
+              thisExpression: thisExpression,
+            ),
+          ],
+        );
+      default:
+        return null;
+    }
   }
 
   EsmExpressionIr? _lowerCoreErrorStaticInvocation(

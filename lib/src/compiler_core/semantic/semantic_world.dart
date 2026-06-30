@@ -409,8 +409,7 @@ final class SemanticWorldStage {
     );
   }
 
-  bool _isTopLevelClass(k.Class klass) =>
-      !klass.isEnum && !klass.isAnonymousMixin;
+  bool _isTopLevelClass(k.Class klass) => !klass.isAnonymousMixin;
 
   bool _isTopLevelField(k.Field field) {
     return field.isStatic && !field.isExternal && !field.isExtensionTypeMember;

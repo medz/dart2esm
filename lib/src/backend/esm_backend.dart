@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:kernel/kernel.dart' as k;
 
+import '../js_ast/js_ast.dart';
 import '../program/program_roots.dart';
 import '../world/reachability.dart';
 import 'runtime_helpers.dart';
@@ -2182,11 +2183,11 @@ final class _EsmEmitter {
 
   void _emitMainCall(k.Procedure main) {
     final name = _procedureName(main);
-    if (main.function.asyncMarker == k.AsyncMarker.Async) {
-      writeln('await $name();');
-    } else {
-      writeln('$name();');
-    }
+    final call = JsCallExpression(callee: JsIdentifier(name));
+    final expression = main.function.asyncMarker == k.AsyncMarker.Async
+        ? JsAwaitExpression(call)
+        : call;
+    emitJsStatement(JsExpressionStatement(expression));
   }
 
   void emitStatement(k.Statement statement) {
@@ -17511,6 +17512,12 @@ final class _EsmEmitter {
     }
     _buffer.write('  ' * _indent);
     _buffer.writeln(line);
+  }
+
+  void emitJsStatement(JsStatement statement) {
+    for (final line in generateJs(statement).trimRight().split('\n')) {
+      writeln(line);
+    }
   }
 }
 

@@ -169,6 +169,24 @@ Target boundary:
 - Move the remaining inline helper source blocks out of `esm_backend.dart` and
   into declarative helper specs.
 
+## JS / ESM AST and Codegen
+
+Oxc keeps syntax trees and code generation as reusable infrastructure. dart2esm
+uses the same boundary for generated JavaScript: lowering and optimization
+should build typed JavaScript/ESM nodes, and codegen should print those nodes.
+
+Current implementation:
+
+- `lib/src/js_ast/` contains the first typed JavaScript AST nodes and printer.
+- The backend uses this layer for top-level `main()` invocation emission.
+
+Target boundary:
+
+- Expand the typed AST as backend string emission migrates.
+- Keep Dart semantic normalization out of this module.
+- Make the ESM emitter consume lowered IR or JS AST nodes rather than ad hoc
+  fragments.
+
 ## Optimization Passes
 
 Optimization is a pass pipeline, not a collection of local emitter shortcuts.
@@ -243,6 +261,7 @@ lib/src/kernel/                Kernel file/header utilities
 lib/src/program/               Library graph, export graph, ESM API roots
 lib/src/world/                 Reachability and world planning
 lib/src/lowering/              Kernel -> dart2esm semantic IR
+lib/src/js_ast/                JavaScript/ESM AST and codegen
 lib/src/optimizer/             Optimization pass pipeline
 lib/src/backend/               ESM emitter and runtime/helper registry
 lib/src/diagnostics/           Structured diagnostics and metrics

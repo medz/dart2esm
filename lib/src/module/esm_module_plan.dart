@@ -1,13 +1,20 @@
 import 'package:kernel/kernel.dart' as k;
 
+import '../kernel/kernel_references.dart';
 import '../program/program_roots.dart';
 import '../world/reachability.dart';
+import 'class_runtime_plan.dart';
 
 final class EsmModulePlan {
-  const EsmModulePlan({required this.classes, required this.libraries});
+  const EsmModulePlan({
+    required this.classes,
+    required this.libraries,
+    required this.classRuntime,
+  });
 
   final List<EsmClassPlan> classes;
   final List<EsmLibraryPlan> libraries;
+  final EsmClassRuntimePlan classRuntime;
 }
 
 final class EsmLibraryPlan {
@@ -61,17 +68,18 @@ EsmModulePlan buildEsmModulePlan({
   required EsmProgramPlan world,
   required Map<k.Library, Set<String>> exportNamesByLibrary,
 }) {
+  final classes = _classesInGlobalEmitOrder(orderedLibraries, world.classes)
+      .map((klass) {
+        final exportNames =
+            exportNamesByLibrary[klass.enclosingLibrary] ?? const <String>{};
+        return EsmClassPlan(
+          node: klass,
+          export: _shouldExport(klass.name, exportNames),
+        );
+      })
+      .toList(growable: false);
   return EsmModulePlan(
-    classes: _classesInGlobalEmitOrder(orderedLibraries, world.classes)
-        .map((klass) {
-          final exportNames =
-              exportNamesByLibrary[klass.enclosingLibrary] ?? const <String>{};
-          return EsmClassPlan(
-            node: klass,
-            export: _shouldExport(klass.name, exportNames),
-          );
-        })
-        .toList(growable: false),
+    classes: classes,
     libraries: [
       for (final library in orderedLibraries)
         _buildLibraryPlan(
@@ -80,6 +88,7 @@ EsmModulePlan buildEsmModulePlan({
           exportNamesByLibrary[library] ?? const <String>{},
         ),
     ],
+    classRuntime: buildEsmClassRuntimePlan(classes.map((klass) => klass.node)),
   );
 }
 
@@ -148,7 +157,7 @@ List<k.Class> _classesInGlobalEmitOrder(
       throw EsmModulePlanError(klass, 'cyclic class hierarchy');
     }
     void visitSupertype(k.Supertype? supertype) {
-      final superclass = _localClassFromSupertype(supertype, classes);
+      final superclass = localClassFromSupertype(supertype, classes);
       if (superclass != null) {
         visit(superclass);
       }
@@ -172,33 +181,6 @@ List<k.Class> _classesInGlobalEmitOrder(
     }
   }
   return result;
-}
-
-k.Class? _localClassFromSupertype(
-  k.Supertype? supertype,
-  Set<k.Class> localClasses,
-) {
-  if (supertype == null || _isCoreClass(supertype.className, 'Object')) {
-    return null;
-  }
-  if (_referencePath(supertype.className).startsWith('dart:')) {
-    return null;
-  }
-  final klass = supertype.classNode;
-  return localClasses.contains(klass) ? klass : null;
-}
-
-bool _isCoreClass(k.Reference reference, String name) {
-  final node = reference.node;
-  return node is k.Class &&
-      node.name == name &&
-      node.enclosingLibrary.importUri.toString() == 'dart:core';
-}
-
-String _referencePath(k.Reference reference) {
-  return reference.canonicalName?.toStringInternal() ??
-      reference.node?.toStringInternal() ??
-      '<unbound>';
 }
 
 final class EsmModulePlanError implements Exception {

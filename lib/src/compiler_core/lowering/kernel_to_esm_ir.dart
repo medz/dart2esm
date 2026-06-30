@@ -101,6 +101,7 @@ final class KernelToEsmIrLoweringStage {
       k.WhileStatement() => [
         _lowerWhileStatement(world, helpers, locals, statement),
       ],
+      k.DoStatement() => [_lowerDoStatement(world, helpers, locals, statement)],
       k.ForStatement() => [
         _lowerForStatement(world, helpers, locals, statement),
       ],
@@ -140,6 +141,18 @@ final class KernelToEsmIrLoweringStage {
     return EsmWhileStatementIr(
       condition: _lowerExpression(world, helpers, locals, statement.condition),
       body: _lowerStatementList(world, helpers, locals, statement.body),
+    );
+  }
+
+  EsmDoStatementIr _lowerDoStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.DoStatement statement,
+  ) {
+    return EsmDoStatementIr(
+      body: _lowerStatementList(world, helpers, locals, statement.body),
+      condition: _lowerExpression(world, helpers, locals, statement.condition),
     );
   }
 

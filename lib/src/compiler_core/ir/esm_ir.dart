@@ -70,6 +70,13 @@ final class EsmWhileStatementIr extends EsmStatementIr {
   final List<EsmStatementIr> body;
 }
 
+final class EsmDoStatementIr extends EsmStatementIr {
+  const EsmDoStatementIr({required this.body, required this.condition});
+
+  final List<EsmStatementIr> body;
+  final EsmExpressionIr condition;
+}
+
 final class EsmForStatementIr extends EsmStatementIr {
   const EsmForStatementIr({
     required this.initializers,

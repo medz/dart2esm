@@ -1,6 +1,6 @@
 import '../ir/esm_ir.dart';
 
-enum EsmRuntimeHelper { functionApply, print, typeCast }
+enum EsmRuntimeHelper { functionApply, lazyField, print, typeCast }
 
 final class EsmRuntimeHelperRegistry {
   const EsmRuntimeHelperRegistry();
@@ -8,12 +8,14 @@ final class EsmRuntimeHelperRegistry {
   static const generatedGlobalNames = {
     '__dartAs',
     '__dartFunctionApply',
+    '__dartLazyField',
     '__dartPrint',
   };
 
   String name(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
+      EsmRuntimeHelper.lazyField => '__dartLazyField',
       EsmRuntimeHelper.print => '__dartPrint',
       EsmRuntimeHelper.typeCast => '__dartAs',
     };
@@ -41,6 +43,41 @@ function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
     if (hasNamed) args.push(options);
   }
   return fn(...args);
+}
+'''),
+      EsmRuntimeHelper.lazyField => EsmRawModuleItemIr('''
+function __dartLazyField(name, initialize, writable, publish = null) {
+  let state = 0;
+  let value;
+  function get() {
+    if (state === 2) return value;
+    if (state === 1) {
+      throw new Error("Cyclic initialization of field " + name);
+    }
+    if (initialize == null) {
+      throw new Error("Late field " + name + " has not been initialized");
+    }
+    state = 1;
+    try {
+      value = initialize();
+      if (publish) publish(value);
+      state = 2;
+      return value;
+    } catch (error) {
+      state = 0;
+      throw error;
+    }
+  }
+  function set(next) {
+    if (writable === false || (writable === "once" && state === 2)) {
+      throw new TypeError("Cannot assign to final field " + name);
+    }
+    value = next;
+    if (publish) publish(value);
+    state = 2;
+    return next;
+  }
+  return { get, set };
 }
 '''),
       EsmRuntimeHelper.print => EsmFunctionIr(

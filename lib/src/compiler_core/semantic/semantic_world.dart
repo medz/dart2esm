@@ -31,9 +31,18 @@ final class EsmSemanticWorld {
          for (final klass in classes)
            for (final field in klass.fields) field.node: field,
        },
+       _staticFieldSymbols = {
+         for (final klass in classes)
+           for (final field in klass.staticFields) field.node: field,
+       },
        _instanceProcedureSymbols = {
          for (final klass in classes)
            for (final procedure in klass.procedures) procedure.node: procedure,
+       },
+       _staticProcedureSymbols = {
+         for (final klass in classes)
+           for (final procedure in klass.staticProcedures)
+             procedure.node: procedure,
        },
        _fieldSymbols = {for (final field in fields) field.node: field},
        _procedureSymbols = {
@@ -48,7 +57,9 @@ final class EsmSemanticWorld {
   final Map<k.Class, EsmClassSymbol> _classSymbols;
   final Map<k.Constructor, EsmConstructorSymbol> _constructorSymbols;
   final Map<k.Field, EsmInstanceFieldSymbol> _instanceFieldSymbols;
+  final Map<k.Field, EsmStaticFieldSymbol> _staticFieldSymbols;
   final Map<k.Procedure, EsmInstanceProcedureSymbol> _instanceProcedureSymbols;
+  final Map<k.Procedure, EsmStaticProcedureSymbol> _staticProcedureSymbols;
   final Map<k.Field, EsmFieldSymbol> _fieldSymbols;
   final Map<k.Procedure, EsmProcedureSymbol> _procedureSymbols;
 
@@ -64,10 +75,18 @@ final class EsmSemanticWorld {
     return _instanceFieldSymbols[field];
   }
 
+  EsmStaticFieldSymbol? staticFieldSymbolFor(k.Field field) {
+    return _staticFieldSymbols[field];
+  }
+
   EsmInstanceProcedureSymbol? instanceProcedureSymbolFor(
     k.Procedure procedure,
   ) {
     return _instanceProcedureSymbols[procedure];
+  }
+
+  EsmStaticProcedureSymbol? staticProcedureSymbolFor(k.Procedure procedure) {
+    return _staticProcedureSymbols[procedure];
   }
 
   EsmFieldSymbol? fieldSymbolFor(k.Field field) {
@@ -104,10 +123,14 @@ final class EsmClassSymbol {
     required this.localSuperclass,
     required List<EsmConstructorSymbol> constructors,
     required List<EsmInstanceFieldSymbol> fields,
+    required List<EsmStaticFieldSymbol> staticFields,
     required List<EsmInstanceProcedureSymbol> procedures,
+    required List<EsmStaticProcedureSymbol> staticProcedures,
   }) : constructors = List.unmodifiable(constructors),
        fields = List.unmodifiable(fields),
-       procedures = List.unmodifiable(procedures);
+       staticFields = List.unmodifiable(staticFields),
+       procedures = List.unmodifiable(procedures),
+       staticProcedures = List.unmodifiable(staticProcedures);
 
   final k.Class node;
   final String name;
@@ -116,7 +139,9 @@ final class EsmClassSymbol {
   final k.Class? localSuperclass;
   final List<EsmConstructorSymbol> constructors;
   final List<EsmInstanceFieldSymbol> fields;
+  final List<EsmStaticFieldSymbol> staticFields;
   final List<EsmInstanceProcedureSymbol> procedures;
+  final List<EsmStaticProcedureSymbol> staticProcedures;
 }
 
 final class EsmConstructorSymbol {
@@ -133,8 +158,40 @@ final class EsmInstanceFieldSymbol {
   final String name;
 }
 
-final class EsmInstanceProcedureSymbol {
+final class EsmStaticFieldSymbol {
+  const EsmStaticFieldSymbol({
+    required this.node,
+    required this.name,
+    required this.backingName,
+    required this.mutable,
+  });
+
+  final k.Field node;
+  final String name;
+  final String backingName;
+  final bool mutable;
+}
+
+abstract interface class EsmClassProcedureSymbol {
+  k.Procedure get node;
+  String get name;
+  EsmProcedureKind get kind;
+}
+
+final class EsmInstanceProcedureSymbol implements EsmClassProcedureSymbol {
   const EsmInstanceProcedureSymbol({
+    required this.node,
+    required this.name,
+    required this.kind,
+  });
+
+  final k.Procedure node;
+  final String name;
+  final EsmProcedureKind kind;
+}
+
+final class EsmStaticProcedureSymbol implements EsmClassProcedureSymbol {
+  const EsmStaticProcedureSymbol({
     required this.node,
     required this.name,
     required this.kind,
@@ -244,6 +301,7 @@ final class SemanticWorldStage {
     final usedNames = <String>{};
     final usedStaticNames = <String>{};
     final accessorNames = <String, String>{};
+    final staticAccessorNames = <String, String>{};
     final localSuperclass = klass.supertype?.className.node;
     return EsmClassSymbol(
       node: klass,
@@ -275,6 +333,18 @@ final class SemanticWorldStage {
               name: _freshMemberName(usedNames, field.name.text),
             ),
       ],
+      staticFields: [
+        for (final field in klass.fields)
+          if (field.isStatic && !field.isExternal)
+            EsmStaticFieldSymbol(
+              node: field,
+              name: _freshMemberName(usedStaticNames, field.name.text),
+              backingName: allocator.freshGlobal(
+                '\$${klass.name}_${field.name.text}',
+              ),
+              mutable: field.hasSetter,
+            ),
+      ],
       procedures: [
         for (final procedure in klass.procedures)
           if (_instanceProcedureKind(procedure) case final kind?)
@@ -283,6 +353,20 @@ final class SemanticWorldStage {
               name: _freshProcedureMemberName(
                 usedNames,
                 accessorNames,
+                procedure.name.text,
+                kind,
+              ),
+              kind: kind,
+            ),
+      ],
+      staticProcedures: [
+        for (final procedure in klass.procedures)
+          if (_staticProcedureKind(procedure) case final kind?)
+            EsmStaticProcedureSymbol(
+              node: procedure,
+              name: _freshProcedureMemberName(
+                usedStaticNames,
+                staticAccessorNames,
                 procedure.name.text,
                 kind,
               ),
@@ -315,6 +399,20 @@ final class SemanticWorldStage {
 
   EsmProcedureKind? _instanceProcedureKind(k.Procedure procedure) {
     if (procedure.isStatic ||
+        procedure.isExternal ||
+        procedure.isExtensionTypeMember) {
+      return null;
+    }
+    return switch (procedure.kind) {
+      k.ProcedureKind.Method => EsmProcedureKind.method,
+      k.ProcedureKind.Getter => EsmProcedureKind.getter,
+      k.ProcedureKind.Setter => EsmProcedureKind.setter,
+      _ => null,
+    };
+  }
+
+  EsmProcedureKind? _staticProcedureKind(k.Procedure procedure) {
+    if (!procedure.isStatic ||
         procedure.isExternal ||
         procedure.isExtensionTypeMember) {
       return null;

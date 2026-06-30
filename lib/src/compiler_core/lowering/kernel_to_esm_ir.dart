@@ -66,6 +66,8 @@ final class KernelToEsmIrLoweringStage {
           mutable: false,
         ),
       _lowerClass(world, helpers, klass),
+      for (final field in klass.staticFields)
+        ..._lowerStaticFieldItems(world, helpers, klass, field),
       if (markerName != null) _lowerInterfaceHasInstance(klass, markerName),
     ];
   }
@@ -119,10 +121,104 @@ final class KernelToEsmIrLoweringStage {
       methods: [
         for (final constructor in namedConstructors)
           _lowerNamedConstructor(world, helpers, constructor),
+        for (final procedure in klass.staticProcedures)
+          _lowerClassProcedure(
+            world,
+            helpers,
+            klass,
+            procedure,
+            isStatic: true,
+          ),
         for (final procedure in klass.procedures)
           _lowerClassProcedure(world, helpers, klass, procedure),
       ],
     );
+  }
+
+  List<EsmModuleItemIr> _lowerStaticFieldItems(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmClassSymbol klass,
+    EsmStaticFieldSymbol field,
+  ) {
+    helpers.add(EsmRuntimeHelper.lazyField);
+    final initializer = field.node.initializer;
+    return [
+      EsmVariableDeclarationIr(
+        name: field.backingName,
+        initializer: EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.lazyField),
+          arguments: [
+            EsmStringLiteralIr('${klass.node.name}.${field.node.name.text}'),
+            EsmArrowFunctionIr(
+              parameters: const [],
+              body: initializer == null
+                  ? const EsmNullLiteralIr()
+                  : _lowerExpression(
+                      world,
+                      helpers,
+                      const <k.VariableDeclaration, String>{},
+                      initializer,
+                    ),
+            ),
+            EsmBooleanLiteralIr(field.mutable),
+          ],
+        ),
+        mutable: false,
+      ),
+      EsmExpressionStatementIr(
+        EsmCallIr(
+          callee: const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Object'),
+            property: 'defineProperty',
+          ),
+          arguments: [
+            EsmIdentifierIr(klass.name),
+            EsmStringLiteralIr(field.name),
+            EsmObjectLiteralIr([
+              EsmObjectLiteralPropertyIr(
+                name: 'get',
+                value: EsmFunctionExpressionIr(
+                  parameters: const [],
+                  body: [
+                    EsmReturnStatementIr(
+                      EsmCallIr(
+                        callee: EsmPropertyAccessIr(
+                          receiver: EsmIdentifierIr(field.backingName),
+                          property: 'get',
+                        ),
+                        arguments: const [],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              EsmObjectLiteralPropertyIr(
+                name: 'set',
+                value: EsmFunctionExpressionIr(
+                  parameters: const [EsmIdentifierParameterIr(name: 'value')],
+                  body: [
+                    EsmExpressionStatementIr(
+                      EsmCallIr(
+                        callee: EsmPropertyAccessIr(
+                          receiver: EsmIdentifierIr(field.backingName),
+                          property: 'set',
+                        ),
+                        arguments: const [EsmIdentifierIr('value')],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const EsmObjectLiteralPropertyIr(
+                name: 'enumerable',
+                value: EsmBooleanLiteralIr(true),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    ];
   }
 
   EsmExpressionStatementIr _lowerInterfaceHasInstance(
@@ -670,8 +766,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     EsmClassSymbol klass,
-    EsmInstanceProcedureSymbol procedure,
-  ) {
+    EsmClassProcedureSymbol procedure, {
+    bool isStatic = false,
+  }) {
     final function = procedure.node.function;
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw NewCompilerUnsupported(function, 'async function lowering');
@@ -694,7 +791,7 @@ final class KernelToEsmIrLoweringStage {
         EsmProcedureKind.getter => EsmClassMethodKindIr.getter,
         EsmProcedureKind.setter => EsmClassMethodKindIr.setter,
       },
-      isStatic: false,
+      isStatic: isStatic,
       parameters: parameters,
       body: body == null
           ? _lowerAbstractMemberBody(klass, procedure)
@@ -704,7 +801,7 @@ final class KernelToEsmIrLoweringStage {
 
   List<EsmStatementIr> _lowerAbstractMemberBody(
     EsmClassSymbol klass,
-    EsmInstanceProcedureSymbol procedure,
+    EsmClassProcedureSymbol procedure,
   ) {
     return [
       EsmThrowStatementIr(
@@ -1631,6 +1728,16 @@ final class KernelToEsmIrLoweringStage {
       if (symbol != null) {
         return EsmIdentifierIr(symbol.name);
       }
+      final staticSymbol = world.staticFieldSymbolFor(target);
+      if (target.enclosingClass case final enclosingClass?) {
+        final klass = world.classSymbolFor(enclosingClass);
+        if (staticSymbol != null && klass != null) {
+          return EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr(klass.name),
+            property: staticSymbol.name,
+          );
+        }
+      }
     }
     if (target is k.Procedure) {
       final symbol = world.symbolFor(target);
@@ -1646,6 +1753,26 @@ final class KernelToEsmIrLoweringStage {
             'static setter get lowering',
           ),
         };
+      }
+      final staticSymbol = world.staticProcedureSymbolFor(target);
+      if (target.enclosingClass case final enclosingClass?) {
+        final klass = world.classSymbolFor(enclosingClass);
+        if (staticSymbol != null && klass != null) {
+          return switch (staticSymbol.kind) {
+            EsmProcedureKind.method => EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr(klass.name),
+              property: staticSymbol.name,
+            ),
+            EsmProcedureKind.getter => EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr(klass.name),
+              property: staticSymbol.name,
+            ),
+            EsmProcedureKind.setter => throw NewCompilerUnsupported(
+              expression,
+              'static setter get lowering',
+            ),
+          };
+        }
       }
     }
     throw NewCompilerUnsupported(expression, 'static get lowering');
@@ -1676,6 +1803,28 @@ final class KernelToEsmIrLoweringStage {
           ),
         );
       }
+      final staticSymbol = world.staticFieldSymbolFor(target);
+      if (target.enclosingClass case final enclosingClass?) {
+        final klass = world.classSymbolFor(enclosingClass);
+        if (staticSymbol != null && klass != null) {
+          if (!staticSymbol.mutable) {
+            throw NewCompilerUnsupported(expression, 'write to final field');
+          }
+          return EsmAssignmentIr(
+            target: EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr(klass.name),
+              property: staticSymbol.name,
+            ),
+            value: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.value,
+              thisExpression: thisExpression,
+            ),
+          );
+        }
+      }
     }
     if (target is k.Procedure) {
       final symbol = world.symbolFor(target);
@@ -1692,6 +1841,27 @@ final class KernelToEsmIrLoweringStage {
             ),
           ],
         );
+      }
+      final staticSymbol = world.staticProcedureSymbolFor(target);
+      if (target.enclosingClass case final enclosingClass?) {
+        final klass = world.classSymbolFor(enclosingClass);
+        if (staticSymbol != null &&
+            klass != null &&
+            staticSymbol.kind == EsmProcedureKind.setter) {
+          return EsmAssignmentIr(
+            target: EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr(klass.name),
+              property: staticSymbol.name,
+            ),
+            value: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.value,
+              thisExpression: thisExpression,
+            ),
+          );
+        }
       }
     }
     throw NewCompilerUnsupported(expression, 'static set lowering');
@@ -2125,24 +2295,47 @@ final class KernelToEsmIrLoweringStage {
       );
     }
     final target = world.symbolFor(targetNode);
-    if (target == null) {
-      throw NewCompilerUnsupported(expression.target, 'external static target');
+    if (target != null) {
+      if (target.kind != EsmProcedureKind.method) {
+        throw NewCompilerUnsupported(expression.target, 'static accessor call');
+      }
+      return EsmCallIr(
+        callee: EsmIdentifierIr(target.name),
+        arguments: _lowerArguments(
+          world,
+          helpers,
+          locals,
+          expression.arguments,
+          thisExpression: thisExpression,
+          contextNode: expression,
+          context: 'static invocation arguments',
+        ),
+      );
     }
-    if (target.kind != EsmProcedureKind.method) {
-      throw NewCompilerUnsupported(expression.target, 'static accessor call');
+    final staticTarget = world.staticProcedureSymbolFor(targetNode);
+    if (targetNode.enclosingClass case final enclosingClass?) {
+      final klass = world.classSymbolFor(enclosingClass);
+      if (staticTarget != null &&
+          klass != null &&
+          staticTarget.kind == EsmProcedureKind.method) {
+        return EsmCallIr(
+          callee: EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr(klass.name),
+            property: staticTarget.name,
+          ),
+          arguments: _lowerArguments(
+            world,
+            helpers,
+            locals,
+            expression.arguments,
+            thisExpression: thisExpression,
+            contextNode: expression,
+            context: 'static invocation arguments',
+          ),
+        );
+      }
     }
-    return EsmCallIr(
-      callee: EsmIdentifierIr(target.name),
-      arguments: _lowerArguments(
-        world,
-        helpers,
-        locals,
-        expression.arguments,
-        thisExpression: thisExpression,
-        contextNode: expression,
-        context: 'static invocation arguments',
-      ),
-    );
+    throw NewCompilerUnsupported(expression.target, 'external static target');
   }
 
   EsmExpressionIr? _lowerRuntimeStaticInvocation(

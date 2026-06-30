@@ -499,6 +499,52 @@ main();
     expect((nodeResult.stdout as String).trim(), 'ada person:ada true');
   });
 
+  test('compiles static members through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'classes', 'static_members.dart'),
+    );
+    final expected = File(
+      p.join(fixtureDir.path, 'classes', 'static_members.mjs'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-static-members-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+
+    final nodeResult = await Process.run('node', [output.path]);
+    expect(
+      nodeResult.exitCode,
+      0,
+      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+    );
+    expect(
+      (nodeResult.stdout as String).trim(),
+      'offset 3\n'
+      'init total\n'
+      'first 10\n'
+      'bump 17\n'
+      'instance 25\n'
+      'double 50\n'
+      'init readonly\n'
+      'readonly 40\n'
+      'count 2',
+    );
+  });
+
   test('compiles named constructors through the new core', () async {
     final source = File(
       p.join(fixtureDir.path, 'classes', 'named_constructors.dart'),

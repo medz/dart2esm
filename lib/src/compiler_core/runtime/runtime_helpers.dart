@@ -1,6 +1,7 @@
 import '../ir/esm_ir.dart';
 
 enum EsmRuntimeHelper {
+  coreError,
   constMap,
   constSet,
   constValue,
@@ -12,8 +13,10 @@ enum EsmRuntimeHelper {
   recordShape,
   isRecord,
   record,
+  safeToString,
   stringify,
   symbol,
+  throwWithStackTrace,
   type,
   typeCast,
 }
@@ -23,6 +26,7 @@ final class EsmRuntimeHelperRegistry {
 
   static const generatedGlobalNames = {
     '__dartAs',
+    '__dartCoreError',
     '__dartConst',
     '__dartConstMap',
     '__dartConstSet',
@@ -32,18 +36,22 @@ final class EsmRuntimeHelperRegistry {
     '__dartFunctionApply',
     '__dartLazyField',
     '__dartIsRecord',
+    '__dartIsCoreError',
     '__dartPrint',
     '__dartRecord',
     '__dartRecordShape',
+    '__dartSafeToString',
     '__dartStr',
     '__dartSymbol',
     '__dartSymbolCache',
+    '__dartThrowWithStackTrace',
     '__dartType',
     '__dartTypeCache',
   };
 
   String name(EsmRuntimeHelper helper) {
     return switch (helper) {
+      EsmRuntimeHelper.coreError => '__dartCoreError',
       EsmRuntimeHelper.constMap => '__dartConstMap',
       EsmRuntimeHelper.constSet => '__dartConstSet',
       EsmRuntimeHelper.constValue => '__dartConst',
@@ -55,8 +63,10 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.print => '__dartPrint',
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
+      EsmRuntimeHelper.safeToString => '__dartSafeToString',
       EsmRuntimeHelper.stringify => '__dartStr',
       EsmRuntimeHelper.symbol => '__dartSymbol',
+      EsmRuntimeHelper.throwWithStackTrace => '__dartThrowWithStackTrace',
       EsmRuntimeHelper.type => '__dartType',
       EsmRuntimeHelper.typeCast => '__dartAs',
     };
@@ -68,6 +78,29 @@ final class EsmRuntimeHelperRegistry {
 
   EsmModuleItemIr declaration(EsmRuntimeHelper helper) {
     return switch (helper) {
+      EsmRuntimeHelper.coreError => EsmRawModuleItemIr('''
+function __dartCoreError(typeName, message) {
+  const text = message == null ? "" : String(message);
+  const display = text === "" ? typeName : typeName + ": " + text;
+  const error = new Error(text);
+  error.name = typeName;
+  Object.defineProperty(error, "__dartCoreErrorType", { value: typeName });
+  Object.defineProperty(error, "toString", { value() { return display; } });
+  return error;
+}
+function __dartIsCoreError(value, typeName) {
+  const actual = value == null ? null : value.__dartCoreErrorType;
+  if (actual != null) {
+    if (actual === typeName) return true;
+    if (typeName === "Exception" && actual === "FormatException") return true;
+    if (typeName === "RangeError" && actual === "IndexError") return true;
+    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
+    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
+  }
+  if (typeName === "TypeError" && value instanceof TypeError) return true;
+  return typeName === "Error" && value instanceof Error;
+}
+'''),
       EsmRuntimeHelper.constValue => EsmRawModuleItemIr('''
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
@@ -177,6 +210,23 @@ function __dartRecord(positional, named) {
   return Object.freeze(record);
 }
 '''),
+      EsmRuntimeHelper.safeToString => EsmRawModuleItemIr('''
+function __dartSafeToString(value) {
+  try {
+    if (value == null) return "null";
+    if (typeof value === "object") {
+      const toString = value.toString;
+      if (typeof toString === "function" && toString !== Object.prototype.toString) return String(toString.call(value));
+      const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+      return "Instance of '" + typeName + "'";
+    }
+    return String(value);
+  } catch (_) {
+    const typeName = value != null && value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+}
+'''),
       EsmRuntimeHelper.lazyField => EsmRawModuleItemIr('''
 function __dartLazyField(name, initialize, writable, publish = null) {
   let state = 0;
@@ -261,6 +311,14 @@ function __dartSymbol(key, name) {
   return value;
 }
 '''),
+      EsmRuntimeHelper.throwWithStackTrace => EsmRawModuleItemIr('''
+function __dartThrowWithStackTrace(error, stackTrace) {
+  if (error != null && (typeof error === "object" || typeof error === "function")) {
+    try { error.stack = String(stackTrace); } catch (_) {}
+  }
+  throw error;
+}
+'''),
       EsmRuntimeHelper.type => EsmRawModuleItemIr('''
 const __dartTypeCache = new Map();
 function __dartType(name) {
@@ -313,6 +371,7 @@ final class EsmRuntimeHelperUseSet {
 
   bool add(EsmRuntimeHelper helper) {
     switch (helper) {
+      case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
       case EsmRuntimeHelper.constMap:
       case EsmRuntimeHelper.constSet:
@@ -330,8 +389,10 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.lazyField:
       case EsmRuntimeHelper.print:
       case EsmRuntimeHelper.recordShape:
+      case EsmRuntimeHelper.safeToString:
       case EsmRuntimeHelper.stringify:
       case EsmRuntimeHelper.symbol:
+      case EsmRuntimeHelper.throwWithStackTrace:
       case EsmRuntimeHelper.type:
       case EsmRuntimeHelper.typeCast:
         break;

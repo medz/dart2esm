@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:kernel/kernel.dart' as k;
 
 import '../../kernel/kernel_references.dart';
+import '../../kernel/sdk_symbols.dart';
 import '../../names/js_names.dart';
 import '../ir/esm_ir.dart';
 import '../new_compiler_unsupported.dart';
@@ -2791,6 +2792,10 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     k.StaticGet expression,
   ) {
+    final runtimeStaticGet = _lowerRuntimeStaticGet(expression);
+    if (runtimeStaticGet != null) {
+      return runtimeStaticGet;
+    }
     final target = expression.targetReference.node;
     if (target is k.Field) {
       final symbol = world.fieldSymbolFor(target);
@@ -2845,6 +2850,20 @@ final class KernelToEsmIrLoweringStage {
       }
     }
     throw NewCompilerUnsupported(expression, 'static get lowering');
+  }
+
+  EsmExpressionIr? _lowerRuntimeStaticGet(k.StaticGet expression) {
+    final target = kernelReferencePath(expression.targetReference);
+    if (target == 'dart:core::StackTrace::@getters::current') {
+      return const EsmNullishCoalesceIr(
+        left: EsmPropertyAccessIr(
+          receiver: EsmNewIr(callee: EsmIdentifierIr('Error'), arguments: []),
+          property: 'stack',
+        ),
+        right: EsmStringLiteralIr(''),
+      );
+    }
+    return null;
   }
 
   EsmExpressionIr _lowerStaticSet(
@@ -3249,6 +3268,20 @@ final class KernelToEsmIrLoweringStage {
         target == 'dart:core::String::@getters::length') {
       return EsmPropertyAccessIr(receiver: receiver, property: 'length');
     }
+    if (target == 'dart:core::String::@getters::isEmpty') {
+      return EsmBinaryIr(
+        left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
+        operator: '===',
+        right: const EsmNumberLiteralIr(0),
+      );
+    }
+    if (target == 'dart:core::String::@getters::isNotEmpty') {
+      return EsmBinaryIr(
+        left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
+        operator: '>',
+        right: const EsmNumberLiteralIr(0),
+      );
+    }
     return null;
   }
 
@@ -3433,6 +3466,19 @@ final class KernelToEsmIrLoweringStage {
     if (expression.arguments.named.isNotEmpty) {
       return null;
     }
+    final coreErrorName = dartCoreErrorConstructorName(
+      expression.targetReference,
+    );
+    if (coreErrorName != null) {
+      return _lowerCoreErrorCreation(
+        world,
+        helpers,
+        locals,
+        coreErrorName,
+        expression.arguments.positional,
+        thisExpression: thisExpression,
+      );
+    }
     final target = kernelReferencePath(expression.targetReference);
     if (target == 'dart:_compact_hash::_Set::@constructors::' &&
         expression.arguments.positional.isEmpty) {
@@ -3470,6 +3516,32 @@ final class KernelToEsmIrLoweringStage {
       );
     }
     return null;
+  }
+
+  EsmExpressionIr _lowerCoreErrorCreation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    String typeName,
+    List<k.Expression> positionalArguments, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    helpers.add(EsmRuntimeHelper.coreError);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.coreError),
+      arguments: [
+        EsmStringLiteralIr(typeName),
+        positionalArguments.isEmpty
+            ? const EsmNullLiteralIr()
+            : _lowerExpression(
+                world,
+                helpers,
+                locals,
+                positionalArguments.first,
+                thisExpression: thisExpression,
+              ),
+      ],
+    );
   }
 
   bool _isSyntheticDefaultConstructor(k.Constructor constructor) {
@@ -3684,6 +3756,9 @@ final class KernelToEsmIrLoweringStage {
         return _notNull(value);
       }
       final typeName = _typeName(type);
+      if (dartCoreErrorTypeNames.contains(typeName)) {
+        return _lowerCoreErrorTypeTest(helpers, value, typeName);
+      }
       return switch (typeName) {
         'String' => _typeofEquals(value, 'string'),
         'BigInt' => _typeofEquals(value, 'bigint'),
@@ -3766,6 +3841,18 @@ final class KernelToEsmIrLoweringStage {
       };
     }
     throw NewCompilerUnsupported(type, 'type test lowering');
+  }
+
+  EsmExpressionIr _lowerCoreErrorTypeTest(
+    EsmRuntimeHelperUseSet helpers,
+    EsmExpressionIr value,
+    String typeName,
+  ) {
+    helpers.add(EsmRuntimeHelper.coreError);
+    return EsmCallIr(
+      callee: const EsmIdentifierIr('__dartIsCoreError'),
+      arguments: [value, EsmStringLiteralIr(typeName)],
+    );
   }
 
   EsmExpressionIr _lowerRecordTypeTest(
@@ -3982,6 +4069,31 @@ final class KernelToEsmIrLoweringStage {
     k.StaticInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final coreErrorFactoryName = dartCoreErrorFactoryName(
+      expression.targetReference,
+    );
+    if (coreErrorFactoryName != null &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.types.isEmpty) {
+      return _lowerCoreErrorCreation(
+        world,
+        helpers,
+        locals,
+        coreErrorFactoryName,
+        expression.arguments.positional,
+        thisExpression: thisExpression,
+      );
+    }
+    final coreErrorStatic = _lowerCoreErrorStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (coreErrorStatic != null) {
+      return coreErrorStatic;
+    }
     if (_isCoreFunctionApply(expression.targetReference)) {
       return _lowerCoreFunctionApply(
         world,
@@ -4016,6 +4128,54 @@ final class KernelToEsmIrLoweringStage {
         locals,
         expression,
         thisExpression: thisExpression,
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerCoreErrorStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final target = kernelReferencePath(expression.targetReference);
+    if (target == 'dart:core::Error::@methods::safeToString' &&
+        expression.arguments.positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.safeToString);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.safeToString),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (target == 'dart:core::Error::@methods::throwWithStackTrace' &&
+        expression.arguments.positional.length == 2) {
+      helpers.add(EsmRuntimeHelper.throwWithStackTrace);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.throwWithStackTrace),
+        arguments: [
+          for (final argument in expression.arguments.positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
       );
     }
     return null;

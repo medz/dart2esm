@@ -1500,6 +1500,7 @@ void main() {
 
     for (final id in const [
       'classes/const_instances',
+      'control_flow/core_exceptions',
       'control_flow/exceptions',
       'syntax/asserts',
       'syntax/casts',

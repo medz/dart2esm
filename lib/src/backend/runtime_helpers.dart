@@ -170,6 +170,25 @@ const _dartFinalizerSource = r'''function __dartFinalizer(callback) {
   return Object.freeze(finalizer);
 }''';
 
+const _dartMapForEachSource = r'''function __dartMapForEach(map, callback) {
+  if (map instanceof Map) {
+    map.forEach((value, key) => callback(key, value));
+    return null;
+  }
+  if (map != null && typeof map.forEach === "function") {
+    map.forEach(callback);
+    return null;
+  }
+  for (const entry of map) {
+    if (Array.isArray(entry)) {
+      callback(entry[0], entry[1]);
+    } else {
+      callback(entry.key, entry.value);
+    }
+  }
+  return null;
+}''';
+
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
     name: '__dartPrint',
@@ -222,6 +241,11 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     name: '__dartFinalizer',
     category: EsmRuntimeHelperCategory.core,
     source: _dartFinalizerSource,
+  ),
+  '__dartMapForEach': EsmRuntimeHelperSpec(
+    name: '__dartMapForEach',
+    category: EsmRuntimeHelperCategory.collection,
+    source: _dartMapForEachSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',

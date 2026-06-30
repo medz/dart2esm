@@ -34,6 +34,24 @@ function __dartStringBuffer(initial = "") {
     get isNotEmpty() { return value.length !== 0; },
   };
 }
+function __dartMapForEach(map, callback) {
+  if (map instanceof Map) {
+    map.forEach((value, key) => callback(key, value));
+    return null;
+  }
+  if (map != null && typeof map.forEach === "function") {
+    map.forEach(callback);
+    return null;
+  }
+  for (const entry of map) {
+    if (Array.isArray(entry)) {
+      callback(entry[0], entry[1]);
+    } else {
+      callback(entry.key, entry.value);
+    }
+  }
+  return null;
+}
 function __dartRegExp(pattern, options = {}) {
   const source = String(pattern);
   const caseSensitive = options.caseSensitive !== false;
@@ -212,9 +230,11 @@ function __dartMapKey(map, key) {
   return __dartMapMissingKey;
 }
 function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
   return __dartMapKey(map, key) !== __dartMapMissingKey;
 }
 function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
   const actualKey = __dartMapKey(map, key);
   return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
@@ -245,8 +265,9 @@ function __dartUnmodifiableListView(source) {
   });
 }
 function __dartUnmodifiableMapView(source) {
-  const map = source instanceof Map ? source : new Map(source);
-  const readonly = new Set(["set", "delete", "clear"]);
+  const mapLike = source != null && typeof source === "object" && (source instanceof Map || typeof source["[]"] === "function");
+  const map = mapLike ? source : new Map(source);
+  const readonly = new Set(["set", "delete", "clear", "[]=", "addAll", "addEntries", "remove", "removeWhere", "update", "updateAll", "putIfAbsent"]);
   return new Proxy(map, {
     get(target, property) {
       if (readonly.has(property)) return () => { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); };
@@ -433,11 +454,11 @@ class ArgResults {
   }
   get options() {
     let result = __dartSetFrom(Array.from(this._parsed.keys()));
-    (this._parser.options.forEach((value, key) => (function(name, option) {
+    __dartMapForEach(this._parser.options, function(name, option) {
       if (!((option.defaultsTo === null))) {
         __dartSetAdd(result, name);
       }
-})(key, value)), null);
+});
     return result;
   }
   wasParsed(name) {
@@ -657,7 +678,7 @@ class Parser {
         (this._rest.push(this._args.shift()), null);
       }
     }
-    (this._grammar.options.forEach((value, key) => ((name, option) => {
+    __dartMapForEach(this._grammar.options, (name, option) => {
       let parsedOption = __dartMapGet(this._results, name);
       let callback = option.callback;
       if ((callback === null)) {
@@ -669,7 +690,7 @@ class Parser {
         }
       }
       (callback)(option.valueOrDefault(parsedOption));
-})(key, value)), null);
+});
     (this._rest.push(...Array.from(this._args)), null);
     (this._args.length = 0, null);
     return newArgResults(this._grammar, this._results, this._commandName, commandResults, this._rest, arguments_1);

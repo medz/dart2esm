@@ -56,6 +56,24 @@ function __dartExpando(name = null) {
   Object.defineProperty(expando, "__dartType", { value: "Expando" });
   return Object.freeze(expando);
 }
+function __dartMapForEach(map, callback) {
+  if (map instanceof Map) {
+    map.forEach((value, key) => callback(key, value));
+    return null;
+  }
+  if (map != null && typeof map.forEach === "function") {
+    map.forEach(callback);
+    return null;
+  }
+  for (const entry of map) {
+    if (Array.isArray(entry)) {
+      callback(entry[0], entry[1]);
+    } else {
+      callback(entry.key, entry.value);
+    }
+  }
+  return null;
+}
 function __dartPatternRegExp(pattern, global = false) {
   if (pattern != null && typeof pattern.__dartRegExpMake === "function") return pattern.__dartRegExpMake(global);
   if (pattern instanceof RegExp) {
@@ -942,9 +960,11 @@ function __dartMapKey(map, key) {
   return __dartMapMissingKey;
 }
 function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
   return __dartMapKey(map, key) !== __dartMapMissingKey;
 }
 function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
   const actualKey = __dartMapKey(map, key);
   return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
@@ -4177,13 +4197,13 @@ class StreamGroup {
   }
   _onCancelBroadcast() {
     this._state = __dartConst("[\"instance\",\"class:_StreamGroupState\",[\"field\",\"field:_StreamGroupState.name\",[\"string\",\"dormant\"]]]", () => Object.freeze(Object.assign(Object.create(_StreamGroupState.prototype), { name: "dormant" })));
-    (this._subscriptions.forEach((value, key) => ((stream, subscription) => {
+    __dartMapForEach(this._subscriptions, (stream, subscription) => {
       if (!((stream.isBroadcast === true))) {
         return;
       }
       __dartNullCheck(subscription).cancel();
       __dartMapSet(this._subscriptions, stream, null);
-})(key, value)), null);
+});
   }
   _listenToStream(stream) {
     let subscription = __dartStreamListen(stream, __dartAs(__dartBind(this._controller, "add"), value => typeof value === "function", "void Function(StreamGroup.T%)"), __dartBind(this._controller, "addError"), () => { return this.remove(stream); }, false);
@@ -4839,7 +4859,7 @@ class DelegatingMap {
     return Array.from(this._base, ([key, value]) => ({ key, value }));
   }
   forEach(f) {
-    (this._base.forEach((value, key) => (f)(key, value)), null);
+    __dartMapForEach(this._base, f);
   }
   get isEmpty() {
     return this._base.size === 0;
@@ -5087,11 +5107,11 @@ class MapValueSet extends _DelegatingIterableBase {
   }
   removeWhere(test) {
     let toRemove = new Array(0).fill(null);
-    (this._baseMap.forEach((value, key) => (function(key, value) {
+    __dartMapForEach(this._baseMap, function(key, value) {
       if ((test)(value)) {
         (toRemove.push(key), null);
       }
-})(key, value)), null);
+});
     (Array.from(toRemove).forEach(__dartBind(this._baseMap, "remove")), null);
   }
   retainAll(elements) {
@@ -5116,11 +5136,11 @@ class MapValueSet extends _DelegatingIterableBase {
       }
     }
     let keysToRemove = new Array(0).fill(null);
-    (this._baseMap.forEach((value, key) => (function(k, v) {
+    __dartMapForEach(this._baseMap, function(k, v) {
       if (!(__dartIterableContains(valuesToRetain, v))) {
         (keysToRemove.push(k), null);
       }
-})(key, value)), null);
+});
     (Array.from(keysToRemove).forEach(__dartBind(this._baseMap, "remove")), null);
   }
   retainWhere(test) {
@@ -6394,7 +6414,7 @@ class CanonicalizedMap {
     __dartMapSet(this._base, (() => { let v = key; return (this._canonicalize)(v); })(), Object.freeze({ key: key, value: value }));
   }
   addAll(other) {
-    (other.forEach((value, key) => ((key, value) => { return (() => { let v = key; return (() => { let v_1 = value; return (() => { let v_2 = this["[]="](v, v_1); return v_1; })(); })(); })(); })(key, value)), null);
+    __dartMapForEach(other, (key, value) => { return (() => { let v = key; return (() => { let v_1 = value; return (() => { let v_2 = this["[]="](v, v_1); return v_1; })(); })(); })(); });
   }
   addEntries(entries) {
     return __dartMapAddEntries(this._base, Array.from(entries, (e) => { return Object.freeze({ key: (() => { let v = e.key; return (this._canonicalize)(v); })(), value: Object.freeze({ key: e.key, value: e.value }) }); }));
@@ -6418,7 +6438,7 @@ class CanonicalizedMap {
     return Array.from(Array.from(this._base, ([key, value]) => ({ key, value })), function(e) { return Object.freeze({ key: e.value.key, value: e.value.value }); });
   }
   forEach(f) {
-    (this._base.forEach((value, key) => (function(key, pair) { return (f)(pair.key, pair.value); })(key, value)), null);
+    __dartMapForEach(this._base, function(key, pair) { return (f)(pair.key, pair.value); });
   }
   get isEmpty() {
     return this._base.size === 0;
@@ -8667,15 +8687,35 @@ class QueueList extends _QueueList_Object_ListMixin {
 function $QueueList__init($newTarget, initialCapacity) {
   const $self = Reflect.construct(_QueueList_Object_ListMixin, [], $newTarget);
   $self._table = __dartFixedList(new Array(initialCapacity).fill(null));
-  $self._head = 0;
-  $self._tail = 0;
+  Object.defineProperty($self, "_head", {
+    value: 0,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+  Object.defineProperty($self, "_tail", {
+    value: 0,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
   return $self;
 }
 
 function $QueueList__($newTarget, _head, _tail, _table) {
   const $self = Reflect.construct(_QueueList_Object_ListMixin, [], $newTarget);
-  $self._head = _head;
-  $self._tail = _tail;
+  Object.defineProperty($self, "_head", {
+    value: _head,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+  Object.defineProperty($self, "_tail", {
+    value: _tail,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
   $self._table = _table;
   return $self;
 }
@@ -14247,7 +14287,7 @@ class MemoryDirectory extends _MemoryDirectory_MemoryFileSystemEntity_DirectoryA
     while (tasks.length !== 0) {
       {
         let task = tasks.pop();
-        (task.dir.children.forEach((value, key) => ((name, child) => {
+        __dartMapForEach(task.dir.children, (name, child) => {
           let breadcrumbs = __dartSetFrom(task.breadcrumbs);
           let childPath = this.fileSystem.path.join(task.path, name);
           while (((followLinks && isLink(child)) && __dartSetAdd(breadcrumbs, __dartAs(child, value => value instanceof LinkNode, "LinkNode")))) {
@@ -14282,7 +14322,7 @@ class MemoryDirectory extends _MemoryDirectory_MemoryFileSystemEntity_DirectoryA
               }
             }
           }
-})(key, value)), null);
+});
       }
     }
     return listing;
@@ -15206,9 +15246,9 @@ class _ListTreeNode {
     if ((this._isIntermediate && this._caseSensitive)) {
       {
         let resultGroup = new StreamGroup();
-        (__dartNullCheck(this.children).forEach((value, key) => (function(sequence, child) {
+        __dartMapForEach(__dartNullCheck(this.children), function(sequence, child) {
           resultGroup.add(child.list(join(dir, __dartAs(__dartIterableSingle(sequence.nodes), value => value instanceof LiteralNode, "LiteralNode").text), fileSystem, { followLinks: followLinks }));
-})(key, value)), null);
+});
         resultGroup.close();
         return resultGroup.stream;
       }
@@ -15229,7 +15269,7 @@ class _ListTreeNode {
               if (this._matches(basename_1)) {
                 resultController.add(entity);
               }
-              (__dartNullCheck(this.children).forEach((value, key) => (function(sequence, child) {
+              __dartMapForEach(__dartNullCheck(this.children), function(sequence, child) {
                 if (!(entity instanceof Directory)) {
                   return;
                 }
@@ -15238,7 +15278,7 @@ class _ListTreeNode {
                 }
                 let stream = child.list(join(dir, basename_1), fileSystem, { followLinks: followLinks });
                 resultGroup.add(stream);
-})(key, value)), null);
+});
             }
           }
         }
@@ -15342,7 +15382,7 @@ class _ListTreeNode {
     if (this._caseSensitive) {
       return;
     }
-    (__dartNullCheck(this.children).forEach((value, key) => (function(sequence, child) {
+    __dartMapForEach(__dartNullCheck(this.children), function(sequence, child) {
       if (!(child._isIntermediate)) {
         return;
       }
@@ -15352,7 +15392,7 @@ class _ListTreeNode {
         }
       }
       child.listSync(join(dir, __dartAs(__dartIterableSingle(sequence.nodes), value => value instanceof LiteralNode, "LiteralNode").text), fileSystem);
-})(key, value)), null);
+});
   }
   _matches(path) {
     return ((this._validator)?.matches(toPosixPath(context, path)) ?? false);
@@ -17464,7 +17504,12 @@ class SourceSpanFormatException extends SourceSpanException {
   constructor(message, span, source = null) {
     super(message, span);
     Object.defineProperty(this, "__dartCoreErrorType", { value: "FormatException", writable: true, configurable: true });
-    this.source = source;
+    Object.defineProperty(this, "source", {
+      value: source,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
   }
   get offset() {
     return (() => { let v = this.span; return ((v === null) ? null : v.start.offset); })();
@@ -19492,9 +19537,9 @@ function mapMap(map, { key = null, value = null } = {}) {
   let keyFn = (key ?? function(mapKey, _) { return __dartAs(mapKey, value => true, "K2"); });
   let valueFn = (value ?? function(_, mapValue) { return __dartAs(mapValue, value => true, "V2"); });
   let result = new Map([]);
-  (map.forEach((value, key) => (function(mapKey, mapValue) {
+  __dartMapForEach(map, function(mapKey, mapValue) {
     __dartMapSet(result, (keyFn)(mapKey, mapValue), (valueFn)(mapKey, mapValue));
-})(key, value)), null);
+});
   return result;
 }
 
@@ -19506,9 +19551,9 @@ function mergeMaps(map1, map2, { value = null } = {}) {
       return v;
     })(); })();
   }
-  (map2.forEach((value, key) => (function(key, mapValue) {
+  __dartMapForEach(map2, function(key, mapValue) {
     __dartMapSet(result, key, (__dartMapContainsKey(result, key) ? (value)((__dartMapGet(result, key) ?? __dartAs(v, value => true, "V")), mapValue) : mapValue));
-})(key, value)), null);
+});
   return result;
 }
 
@@ -19594,9 +19639,9 @@ function maxBy(values, orderBy, { compare = null } = {}) {
 
 function transitiveClosure(graph) {
   let result = new Map([]);
-  (graph.forEach((value, key) => (function(vertex, edges) {
+  __dartMapForEach(graph, function(vertex, edges) {
     __dartMapSet(result, vertex, __dartSetFrom(edges));
-})(key, value)), null);
+});
   let keys = Array.from(Array.from(graph.keys()));
   {
     let _sync_for_iterator = __dartIterator(keys);

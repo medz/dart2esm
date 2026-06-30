@@ -43,6 +43,10 @@ void main() {
     expect(esmRuntimeHelperSource('__dartPrint'), contains('__dartStr(value)'));
     expect(esmRuntimeHelperSource('__dartStr'), contains('function __dartStr'));
     expect(
+      esmRuntimeHelperSource('__dartMapForEach'),
+      contains('function __dartMapForEach'),
+    );
+    expect(
       esmRuntimeHelperSource('__dartStringBuffer'),
       contains('function __dartStringBuffer'),
     );

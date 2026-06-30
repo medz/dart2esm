@@ -24,6 +24,24 @@ function __dartStr(value) {
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
+function __dartMapForEach(map, callback) {
+  if (map instanceof Map) {
+    map.forEach((value, key) => callback(key, value));
+    return null;
+  }
+  if (map != null && typeof map.forEach === "function") {
+    map.forEach(callback);
+    return null;
+  }
+  for (const entry of map) {
+    if (Array.isArray(entry)) {
+      callback(entry[0], entry[1]);
+    } else {
+      callback(entry.key, entry.value);
+    }
+  }
+  return null;
+}
 function __dartRandom(seed = null, secure = false) {
   let state = seed == null ? 0 : Number(seed) >>> 0;
   function nextUint32() {
@@ -195,9 +213,11 @@ function __dartMapKey(map, key) {
   return __dartMapMissingKey;
 }
 function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
   return __dartMapKey(map, key) !== __dartMapMissingKey;
 }
 function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
   const actualKey = __dartMapKey(map, key);
   return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
@@ -761,9 +781,9 @@ export function main() {
   __dartMapUpdate(counts, "two", function(value) { return (value * 10); }, null);
   __dartMapUpdate(counts, "missing", function(value) { return value; }, function() { return 4; });
   const mapPairs = new Array(0).fill(null);
-  (counts.forEach((value, key) => (function(key, value) {
+  __dartMapForEach(counts, function(key, value) {
     (mapPairs.push(__dartStr(key) + "=" + __dartStr(value)), null);
-})(key, value)), null);
+});
   __dartPrint("map ops " + __dartStr(three) + " " + __dartStr(__dartMapGet(counts, "two")) + " " + __dartStr(__dartMapGet(counts, "missing")) + " " + __dartStr(__dartIterableJoin(mapPairs, "|")));
   const transformSource = new Map([["a", 1], ["b", 2]]);
   __dartMapAddEntries(transformSource, [Object.freeze({ key: "c", value: 3 })]);

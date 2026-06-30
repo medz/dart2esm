@@ -1,7 +1,3 @@
-const __dartRecordShape = Symbol("dart.recordShape");
-function __dartIsRecord(value) {
-  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
-}
 function __dartStr(value) {
   if (value == null) return "null";
   if (Array.isArray(value)) {
@@ -320,6 +316,92 @@ function __dartNumParse(source) {
   if (value == null) throw __dartFormatException("Invalid number literal");
   return value;
 }
+function __dartDurationToString(micros) {
+  const sign = micros < 0 ? "-" : "";
+  let rest = Math.abs(micros);
+  const microseconds = rest % 1000000;
+  const totalSeconds = Math.trunc(rest / 1000000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.trunc(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.trunc(totalMinutes / 60);
+  return sign + hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(microseconds).padStart(6, "0");
+}
+function __dartDuration(options = {}) {
+  const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));
+  return {
+    get inDays() { return Math.trunc(micros / 86400000000); },
+    get inHours() { return Math.trunc(micros / 3600000000); },
+    get inMinutes() { return Math.trunc(micros / 60000000); },
+    get inSeconds() { return Math.trunc(micros / 1000000); },
+    get inMilliseconds() { return Math.trunc(micros / 1000); },
+    get inMicroseconds() { return micros; },
+    get isNegative() { return micros < 0; },
+    get hashCode() { return micros & 0x1fffffff; },
+    "=="(other) { return other != null && other.inMicroseconds === micros; },
+    compareTo(other) { const diff = micros - other.inMicroseconds; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
+    abs() { return __dartDuration({ microseconds: Math.abs(micros) }); },
+    toString() { return __dartDurationToString(micros); },
+  };
+}
+function __dartDateTimeFromParts(isUtc, year, month = 1, day = 1, hour = 0, minute = 0, second = 0, millisecond = 0, microsecond = 0) {
+  const millis = isUtc ? Date.UTC(year, month - 1, day, hour, minute, second, millisecond) : new Date(year, month - 1, day, hour, minute, second, millisecond).getTime();
+  return __dartDateTimeFromMicros(millis * 1000 + microsecond, isUtc);
+}
+function __dartDateTimeFromMicros(micros, isUtc) {
+  const millis = Math.floor(micros / 1000);
+  const microsecond = ((micros % 1000) + 1000) % 1000;
+  return __dartDateTime(millis, isUtc, microsecond);
+}
+function __dartDateTime(millis, isUtc = false, microsecond = 0) {
+  const date = new Date(millis);
+  const read = (utcName, localName) => isUtc ? date[utcName]() : date[localName]();
+  return {
+    get millisecondsSinceEpoch() { return millis; },
+    get microsecondsSinceEpoch() { return millis * 1000 + microsecond; },
+    get microsecond() { return microsecond; },
+    get millisecond() { return read("getUTCMilliseconds", "getMilliseconds"); },
+    get second() { return read("getUTCSeconds", "getSeconds"); },
+    get minute() { return read("getUTCMinutes", "getMinutes"); },
+    get hour() { return read("getUTCHours", "getHours"); },
+    get day() { return read("getUTCDate", "getDate"); },
+    get month() { return read("getUTCMonth", "getMonth") + 1; },
+    get year() { return read("getUTCFullYear", "getFullYear"); },
+    get weekday() { const day = read("getUTCDay", "getDay"); return day === 0 ? 7 : day; },
+    get isUtc() { return isUtc; },
+    get timeZoneName() { return isUtc ? "UTC" : ""; },
+    get timeZoneOffset() { return __dartDuration({ minutes: isUtc ? 0 : -date.getTimezoneOffset() }); },
+    get hashCode() { return this.microsecondsSinceEpoch & 0x1fffffff; },
+    "=="(other) { return other != null && typeof other.microsecondsSinceEpoch === "number" && this.microsecondsSinceEpoch === other.microsecondsSinceEpoch; },
+    compareTo(other) { const diff = this.microsecondsSinceEpoch - other.microsecondsSinceEpoch; return diff < 0 ? -1 : diff > 0 ? 1 : 0; },
+    isBefore(other) { return this.microsecondsSinceEpoch < other.microsecondsSinceEpoch; },
+    isAfter(other) { return this.microsecondsSinceEpoch > other.microsecondsSinceEpoch; },
+    isAtSameMomentAs(other) { return this.microsecondsSinceEpoch === other.microsecondsSinceEpoch; },
+    add(duration) { return __dartDateTimeFromMicros(this.microsecondsSinceEpoch + duration.inMicroseconds, isUtc); },
+    subtract(duration) { return __dartDateTimeFromMicros(this.microsecondsSinceEpoch - duration.inMicroseconds, isUtc); },
+    difference(other) { return __dartDuration({ microseconds: this.microsecondsSinceEpoch - other.microsecondsSinceEpoch }); },
+    toUtc() { return __dartDateTime(millis, true, microsecond); },
+    toLocal() { return __dartDateTime(millis, false, microsecond); },
+    toIso8601String() { const text = date.toISOString(); return microsecond === 0 ? text : text.replace(/(\.\d{3})Z$/, "$1" + String(microsecond).padStart(3, "0") + "Z"); },
+    toString() { return this.toIso8601String(); },
+  };
+}
+function __dartDateTimeParse(source, tryParse = false) {
+  const text = String(source);
+  const millis = Date.parse(text);
+  if (Number.isNaN(millis)) {
+    if (tryParse) return null;
+    throw __dartCoreError("FormatException", "Invalid date format");
+  }
+  const isUtc = /(?:z|[+-]\d\d(?::?\d\d)?)$/i.test(text);
+  const fraction = /\.(\d+)/.exec(text);
+  const microsecond = fraction == null ? 0 : Number((fraction[1] + "000000").slice(0, 6).slice(3));
+  return __dartDateTime(millis, isUtc, microsecond);
+}
+function __dartDateTimeCopyWith(value, options = {}) {
+  const isUtc = options.isUtc ?? value.isUtc;
+  return __dartDateTimeFromParts(isUtc, options.year ?? value.year, options.month ?? value.month, options.day ?? value.day, options.hour ?? value.hour, options.minute ?? value.minute, options.second ?? value.second, options.millisecond ?? value.millisecond, options.microsecond ?? value.microsecond);
+}
 function __dartUriParse(source, tryParse = false) {
   const text = String(source);
   let url;
@@ -574,15 +656,55 @@ function __dartRuntimeType(value) {
   const name = value.constructor && value.constructor.name ? value.constructor.name : "Object";
   return __dartType(name);
 }
-const __dartSymbolCache = new Map();
-function __dartSymbol(key, name) {
-  if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
-  const value = Object.freeze({
-    name,
-    toString() { return "Symbol(" + JSON.stringify(name) + ")"; },
-  });
-  __dartSymbolCache.set(key, value);
-  return value;
+function __dartConverterConvert(converter, value) {
+  if (converter != null && typeof converter.convert === "function") return converter.convert(value);
+  if (converter != null && typeof converter.encode === "function") return converter.encode(value);
+  throw new TypeError("Converter.convert is not available");
+}
+function __dartConverterBind(converter, stream) {
+  return (async function*() {
+    for await (const value of stream) {
+      yield __dartConverterConvert(converter, value);
+    }
+  })();
+}
+function __dartConverterFuse(first, second) {
+  const fused = {
+    convert(value) { return __dartConverterConvert(second, __dartConverterConvert(first, value)); },
+    fuse(next) { return __dartConverterFuse(fused, next); },
+    startChunkedConversion(sink) { return __dartConverterStartChunked(fused, sink); },
+    bind(stream) { return __dartConverterBind(fused, stream); },
+  };
+  if (typeof first?.encode === "function" && typeof first?.decode === "function" && typeof second?.encode === "function" && typeof second?.decode === "function") {
+    fused.encode = (value) => second.encode(first.encode(value));
+    fused.decode = (value) => first.decode(second.decode(value));
+    Object.defineProperty(fused, "encoder", { get() { return __dartConverterFuse(first.encoder, second.encoder); } });
+    Object.defineProperty(fused, "decoder", { get() { return __dartConverterFuse(second.decoder, first.decoder); } });
+  }
+  return fused;
+}
+function __dartConverterStartChunked(converter, sink) {
+  const chunks = [];
+  const input = {
+    add(value) { chunks.push(value); return null; },
+    addSlice(value, start, end, isLast = false) {
+      const slice = typeof value === "string" ? value.slice(start, end) : Array.from(value).slice(start, end);
+      chunks.push(slice);
+      if (isLast) this.close();
+      return null;
+    },
+    close() {
+      let value;
+      if (chunks.length === 0) value = "";
+      else if (chunks.every((chunk) => typeof chunk === "string")) value = chunks.join("");
+      else if (chunks.every((chunk) => Array.isArray(chunk) || ArrayBuffer.isView(chunk))) value = chunks.flatMap((chunk) => Array.from(chunk));
+      else value = chunks.length === 1 ? chunks[0] : chunks;
+      sink.add(__dartConverterConvert(converter, value));
+      if (typeof sink.close === "function") sink.close();
+      return null;
+    },
+  };
+  return input;
 }
 function __dartNullCheck(value) {
   if (value == null) {
@@ -644,37 +766,6 @@ function __dartBind(receiver, name) {
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
-function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {
-  const memberName = name != null && typeof name === "object" && "name" in name ? name : __dartSymbol(name, name);
-  const displayName = memberName?.name ?? String(name);
-  const named = new Map();
-  if (namedArguments instanceof Map) {
-    for (const [key, value] of namedArguments) {
-      named.set(key, value);
-    }
-  } else if (namedArguments != null) {
-    for (const [key, value] of Object.entries(namedArguments)) {
-      named.set(__dartSymbol(key, key), value);
-    }
-  }
-  return Object.freeze({
-    memberName,
-    positionalArguments: Array.from(positionalArguments),
-    namedArguments: named,
-    get isMethod() { return kind === "method"; },
-    get isGetter() { return kind === "getter"; },
-    get isSetter() { return kind === "setter"; },
-    get isAccessor() { return kind !== "method"; },
-    toString() { return "Invocation(" + kind + " " + displayName + ")"; },
-  });
-}
-function __dartNoSuchMethod(receiver, kind, name, positionalArguments = [], namedArguments = null) {
-  const noSuchMethod = receiver?.noSuchMethod;
-  if (typeof noSuchMethod === "function") {
-    return noSuchMethod.call(receiver, __dartInvocation(kind, name, positionalArguments, namedArguments));
-  }
-  throw new TypeError("No such method " + String(name));
-}
 function __dartIndexGet(receiver, index) {
   if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
   const op = receiver?.["[]"];
@@ -687,68 +778,6 @@ function __dartIndexSet(receiver, index, value) {
   if (typeof op === "function") return op.call(receiver, index, value);
   receiver[index] = value;
   return value;
-}
-function __dartCall(receiver, name, args, namedArgs = null) {
-  const callArgs = namedArgs == null ? args : [...args, namedArgs];
-  if (name === "call") {
-    if (typeof receiver === "function") return receiver(...callArgs);
-    const call = receiver.call;
-    if (typeof call === "function") return call.apply(receiver, callArgs);
-  }
-  if (Array.isArray(receiver)) {
-    switch (name) {
-      case "[]": return receiver[args[0]];
-      case "[]=": receiver[args[0]] = args[1]; return args[1];
-      case "add": receiver.push(args[0]); return null;
-      case "addAll": receiver.push(...Array.from(args[0])); return null;
-      case "clear": receiver.length = 0; return null;
-      case "contains": return __dartIterableContains(receiver, args[0]);
-      case "elementAt": return receiver[args[0]];
-      case "join": return receiver.map(__dartStr).join(args.length === 0 ? "" : args[0]);
-      case "remove": { const index = receiver.findIndex(value => __dartEquals(value, args[0])); if (index < 0) return false; receiver.splice(index, 1); return true; }
-      case "removeAt": return receiver.splice(args[0], 1)[0];
-      case "removeLast": return receiver.pop();
-      case "toList": return Array.from(receiver);
-      case "toSet": return new Set(receiver);
-    }
-  }
-  if (receiver instanceof Map) {
-    switch (name) {
-      case "[]": return __dartMapGet(receiver, args[0]);
-      case "[]=": return __dartMapSet(receiver, args[0], args[1]);
-      case "clear": receiver.clear(); return null;
-      case "containsKey": return __dartMapContainsKey(receiver, args[0]);
-      case "remove": return __dartMapRemove(receiver, args[0]);
-    }
-  }
-  if (receiver instanceof Set) {
-    switch (name) {
-      case "add": return __dartSetAdd(receiver, args[0]);
-      case "addAll": for (const value of args[0]) __dartSetAdd(receiver, value); return null;
-      case "clear": receiver.clear(); return null;
-      case "contains": return __dartIterableContains(receiver, args[0]);
-      case "remove": return __dartSetRemove(receiver, args[0]);
-      case "toList": return Array.from(receiver);
-      case "toSet": return new Set(receiver);
-    }
-  }
-  if (typeof receiver === "string") {
-    switch (name) {
-      case "contains": return receiver.includes(args[0], args.length > 1 ? args[1] : 0);
-      case "endsWith": return receiver.endsWith(args[0]);
-      case "indexOf": return receiver.indexOf(args[0], args.length > 1 ? args[1] : 0);
-      case "lastIndexOf": return args.length > 1 ? receiver.lastIndexOf(args[0], args[1]) : receiver.lastIndexOf(args[0]);
-      case "split": return receiver.split(args[0]);
-      case "startsWith": return receiver.startsWith(args[0], args.length > 1 ? args[1] : 0);
-      case "substring": return receiver.substring(args[0], args.length > 1 ? args[1] : undefined);
-      case "toLowerCase": return receiver.toLowerCase();
-      case "toUpperCase": return receiver.toUpperCase();
-      case "trim": return receiver.trim();
-    }
-  }
-  const method = receiver[name];
-  if (typeof method === "function") return method.apply(receiver, callArgs);
-  return __dartNoSuchMethod(receiver, "method", name, args, namedArgs);
 }
 function __dartCompare(left, right, compare = null) {
   if (typeof compare === "function") return Number(compare(left, right));
@@ -899,19 +928,6 @@ function __dartMapGet(map, key) {
   const actualKey = __dartMapKey(map, key);
   return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
-function __dartMapBaseKeys(map) {
-  const keys = map.keys;
-  return typeof keys === "function" ? keys.call(map) : keys;
-}
-function __dartMapBaseValue(map, key) {
-  if (map instanceof Map) return __dartMapGet(map, key);
-  if (map != null && typeof map["[]"] === "function") return map["[]"](key);
-  if (map != null && typeof map.get === "function") return map.get(key);
-  return map == null ? null : map[key];
-}
-function __dartMapBaseValues(map) {
-  return Array.from(__dartMapBaseKeys(map), (key) => __dartMapBaseValue(map, key));
-}
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
@@ -986,19 +1002,6 @@ function __dartMapUpdateAll(map, update) {
     map.set(key, update(key, value));
   }
   return null;
-}
-function __dartUnmodifiableListView(source) {
-  const list = Array.isArray(source) ? source : Array.from(source);
-  const readonly = new Set(["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"]);
-  return new Proxy(list, {
-    get(target, property, receiver) {
-      if (readonly.has(property)) return () => { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); };
-      return Reflect.get(target, property, receiver);
-    },
-    set() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
-    deleteProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
-    defineProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
-  });
 }
 function __dartUnmodifiableMapView(source) {
   const mapLike = source != null && typeof source === "object" && (source instanceof Map || typeof source["[]"] === "function");
@@ -1247,23 +1250,202 @@ function __dartListSetRange(target, start, end, source, skipCount = 0) {
   }
   return null;
 }
+function __dartStreamController(broadcast = false, options = {}) {
+  let onListen = options.onListen ?? null;
+  let onPause = options.onPause ?? null;
+  let onResume = options.onResume ?? null;
+  let onCancel = options.onCancel ?? null;
+  const listeners = new Set();
+  let closed = false;
+  let singleListened = false;
+  let activeSubscriptions = 0;
+  let resolveDone;
+  const done = new Promise((resolve) => { resolveDone = resolve; });
+  function makeState(bufferBeforeListen = false) {
+    return { queue: [], waiters: [], active: false, bufferBeforeListen, ended: false };
+  }
+  const singleState = makeState(true);
+  function subscriptionStarted() {
+    activeSubscriptions++;
+    if (activeSubscriptions === 1 && typeof onListen === "function") onListen();
+  }
+  function subscriptionEnded(canceled) {
+    if (activeSubscriptions > 0) activeSubscriptions--;
+    if (canceled && activeSubscriptions === 0 && typeof onCancel === "function") return onCancel();
+    return null;
+  }
+  function endState(state, canceled, remove) {
+    if (state.ended) return null;
+    state.ended = true;
+    if (remove) remove();
+    return subscriptionEnded(canceled);
+  }
+  function stateHasPending(state) {
+    return state.queue.length > 0 || state.waiters.length > 0;
+  }
+  function hasActiveListener() {
+    if (broadcast) return listeners.size > 0;
+    return singleState.active;
+  }
+  function maybeResolveDone() {
+    if (!closed) return;
+    if (broadcast) {
+      if (listeners.size > 0) return;
+      resolveDone(null);
+      return;
+    }
+    if (!singleState.active && !stateHasPending(singleState)) resolveDone(null);
+  }
+  function settle(waiter, item) {
+    if (item.done === true) waiter.resolve({ done: true });
+    else if ("error" in item) waiter.reject(item.error);
+    else waiter.resolve({ value: item.value, done: false });
+  }
+  function nextResult(item) {
+    if (item.done === true) return Promise.resolve({ done: true });
+    if ("error" in item) return Promise.reject(item.error);
+    return Promise.resolve({ value: item.value, done: false });
+  }
+  function enqueue(state, item) {
+    if (!state.active && !state.bufferBeforeListen) return;
+    const waiter = state.waiters.shift();
+    if (waiter) settle(waiter, item);
+    else state.queue.push(item);
+  }
+  function clearWaiters(state) {
+    while (state.waiters.length > 0) settle(state.waiters.shift(), { done: true });
+  }
+  function cancelState(state) {
+    state.active = false;
+    state.bufferBeforeListen = false;
+    state.queue.length = 0;
+    clearWaiters(state);
+    maybeResolveDone();
+  }
+  function deliver(item) {
+    if (closed) throw new Error("Cannot add event after closing");
+    if (broadcast) {
+      for (const listener of listeners) enqueue(listener, item);
+      return;
+    }
+    enqueue(singleState, item);
+  }
+  function closeQueue() {
+    if (closed) return;
+    closed = true;
+    if (broadcast) {
+      for (const listener of listeners) {
+        const remove = () => listeners.delete(listener);
+        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); endState(listener, false, remove); }
+      }
+    } else if (singleState.queue.length === 0) {
+      singleState.active = false;
+      clearWaiters(singleState);
+      endState(singleState, false, null);
+    }
+    maybeResolveDone();
+  }
+  function iteratorForState(state, remove) {
+    return {
+      next() {
+        const item = state.queue.shift();
+        if (item) {
+          const result = nextResult(item);
+          maybeResolveDone();
+          return result;
+        }
+        if (closed || !state.active) {
+          state.active = false;
+          state.bufferBeforeListen = false;
+          const endResult = endState(state, false, remove);
+          maybeResolveDone();
+          return Promise.resolve(endResult).then(() => ({ done: true }));
+        }
+        return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));
+      },
+      return() {
+        cancelState(state);
+        const endResult = endState(state, true, remove);
+        return Promise.resolve(endResult).then(() => ({ done: true }));
+      },
+    };
+  }
+  const controller = {
+    get stream() { return stream; },
+    get sink() { return controller; },
+    get done() { return done; },
+    get isClosed() { return closed; },
+    get isPaused() { return !hasActiveListener() && !closed; },
+    get hasListener() { return hasActiveListener(); },
+    get onListen() { return onListen; },
+    set onListen(value) { onListen = value; },
+    get onPause() { return onPause; },
+    set onPause(value) { onPause = value; },
+    get onResume() { return onResume; },
+    set onResume(value) { onResume = value; },
+    get onCancel() { return onCancel; },
+    set onCancel(value) { onCancel = value; },
+    add(value) { deliver({ value }); return null; },
+    addError(error, stackTrace = null) { deliver({ error }); return null; },
+    close() { closeQueue(); return done; },
+    async addStream(source, options = {}) {
+      const iterator = source?.[Symbol.asyncIterator]?.();
+      if (iterator == null) {
+        for (const value of Array.from(source ?? [])) deliver({ value });
+        return null;
+      }
+      while (true) {
+        let step;
+        try {
+          step = await iterator.next();
+        } catch (error) {
+          deliver({ error });
+          if (options.cancelOnError === true) {
+            if (typeof iterator.return === "function") await iterator.return();
+            return null;
+          }
+          continue;
+        }
+        if (step.done === true) return null;
+        deliver({ value: step.value });
+      }
+    },
+  };
+  const stream = {
+    isBroadcast: broadcast,
+    _onPause() { return typeof onPause === "function" ? onPause() : null; },
+    _onResume() { return typeof onResume === "function" ? onResume() : null; },
+    [Symbol.asyncIterator]() {
+      if (broadcast) {
+        const state = makeState();
+        state.active = true;
+        listeners.add(state);
+        subscriptionStarted();
+        return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });
+      }
+      if (singleListened) {
+        throw new Error("Bad state: Stream has already been listened to.");
+      }
+      singleListened = true;
+      singleState.active = true;
+      singleState.bufferBeforeListen = false;
+      subscriptionStarted();
+      return iteratorForState(singleState, null);
+    },
+  };
+  return controller;
+}
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
   if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
-  if (__dartIsRecord(left) && __dartIsRecord(right)) {
-    const leftShape = left[__dartRecordShape];
-    const rightShape = right[__dartRecordShape];
-    if (leftShape.length !== rightShape.length) return false;
-    for (let i = 0; i < leftShape.length; i++) {
-      const name = leftShape[i];
-      if (name !== rightShape[i]) return false;
-      if (!__dartEquals(left[name], right[name])) return false;
-    }
-    return true;
-  }
   const equals = left["=="];
   return typeof equals === "function" ? equals.call(left, right) : false;
+}
+function __dartIntToRadixString(value, radix) {
+  const base = Math.trunc(radix);
+  if (base < 2 || base > 36) throw __dartCoreError("RangeError", "Invalid value");
+  return Math.trunc(value).toString(base);
 }
 const __dartIdentityHashes = new WeakMap();
 let __dartNextIdentityHash = 1;
@@ -1313,29 +1495,6 @@ function __dartTruncDiv(left, right) {
 }
 function __dartShr(left, right) {
   return Math.floor(left / (2 ** right));
-}
-function __dartRecord(positional, named) {
-  const record = {};
-  const shape = [];
-  for (let i = 0; i < positional.length; i++) {
-    const name = "$" + (i + 1);
-    shape.push(name);
-    Object.defineProperty(record, name, { value: positional[i], enumerable: true });
-  }
-  for (const name of Object.keys(named).sort()) {
-    shape.push(name);
-    Object.defineProperty(record, name, { value: named[name], enumerable: true });
-  }
-  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });
-  Object.defineProperty(record, "toString", {
-    value() {
-      return "(" + shape.map((name) => {
-        const value = String(record[name]);
-        return name.startsWith("$") ? value : name + ": " + value;
-      }).join(", ") + ")";
-    },
-  });
-  return Object.freeze(record);
 }
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
@@ -1406,23 +1565,19 @@ function __dartIterator(iterable) {
 // Generated by dart2esm.
 
 const $Equality_interface = Symbol("Equality");
-const $Event_interface = Symbol("Event");
 const $FileSpan_interface = Symbol("FileSpan");
 const $GlyphSet_interface = Symbol("GlyphSet");
 const $LineScanner_interface = Symbol("LineScanner");
 const $LineScannerState_interface = Symbol("LineScannerState");
 const $NonGrowableListMixin_interface = Symbol("NonGrowableListMixin");
 const $PriorityQueue_interface = Symbol("PriorityQueue");
+const $QueueList_interface = Symbol("QueueList");
 const $SourceLocation_interface = Symbol("SourceLocation");
 const $SourceSpan_interface = Symbol("SourceSpan");
 const $SourceSpanWithContext_interface = Symbol("SourceSpanWithContext");
 const $SpanScanner_interface = Symbol("SpanScanner");
-const $Token_interface = Symbol("Token");
-const $UnmodifiableMapMixin_interface = Symbol("UnmodifiableMapMixin");
 const $UnmodifiableSetMixin_interface = Symbol("UnmodifiableSetMixin");
 const $UnmodifiableSetView_interface = Symbol("UnmodifiableSetView");
-const $YamlList_interface = Symbol("YamlList");
-const $YamlMap_interface = Symbol("YamlMap");
 
 class _DelegatingIterableBase {
   constructor() {
@@ -2333,7 +2488,6 @@ class NonGrowableListView extends _NonGrowableListView_DelegatingList_NonGrowabl
 
 class UnmodifiableMapMixin {
   constructor() {
-    Object.defineProperty(this, $UnmodifiableMapMixin_interface, { value: true });
   }
   static _throw() {
     (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable Map"); })();
@@ -2360,7 +2514,6 @@ class UnmodifiableMapMixin {
     return UnmodifiableMapMixin._throw();
   }
 }
-Object.defineProperty(UnmodifiableMapMixin, Symbol.hasInstance, { value(value) { return value != null && value[$UnmodifiableMapMixin_interface] === true; } });
 
 class _BoolList_Object_ListMixin {
   constructor() {
@@ -5624,9 +5777,11 @@ class QueueList extends _QueueList_Object_ListMixin {
     this._head = 0;
   }
 }
+Object.defineProperty(QueueList, Symbol.hasInstance, { value(value) { return value != null && value[$QueueList_interface] === true; } });
 
 function $QueueList__init($newTarget, initialCapacity) {
   const $self = Reflect.construct(_QueueList_Object_ListMixin, [], $newTarget);
+  Object.defineProperty($self, $QueueList_interface, { value: true });
   $self._table = __dartFixedList(new Array(initialCapacity).fill(null));
   Object.defineProperty($self, "_head", {
     value: 0,
@@ -5645,6 +5800,7 @@ function $QueueList__init($newTarget, initialCapacity) {
 
 function $QueueList__($newTarget, _head, _tail, _table) {
   const $self = Reflect.construct(_QueueList_Object_ListMixin, [], $newTarget);
+  Object.defineProperty($self, $QueueList_interface, { value: true });
   Object.defineProperty($self, "_head", {
     value: _head,
     writable: true,
@@ -5796,6 +5952,31 @@ function $UnionSetController__($newTarget, _sets, disjoint) {
   const $self = Object.create($newTarget.prototype);
   $self._sets = _sets;
   $self.set = new UnionSet(_sets, { disjoint: disjoint });
+  return $self;
+}
+
+class CaseInsensitiveMap extends CanonicalizedMap {
+  constructor() {
+    super(CaseInsensitiveMap._canonicalizer);
+  }
+  static from(other) {
+    return $CaseInsensitiveMap_from(CaseInsensitiveMap, other);
+  }
+  static fromEntries(entries) {
+    return $CaseInsensitiveMap_fromEntries(CaseInsensitiveMap, entries);
+  }
+  static _canonicalizer(key) {
+    return key.toLowerCase();
+  }
+}
+
+function $CaseInsensitiveMap_from($newTarget, other) {
+  const $self = $CanonicalizedMap_from($newTarget, other, CaseInsensitiveMap._canonicalizer);
+  return $self;
+}
+
+function $CaseInsensitiveMap_fromEntries($newTarget, entries) {
+  const $self = $CanonicalizedMap_fromEntries($newTarget, entries, CaseInsensitiveMap._canonicalizer);
   return $self;
 }
 
@@ -9425,18 +9606,6 @@ class MultiSourceSpanFormatException extends MultiSourceSpanException {
   }
 }
 
-class StringScannerException extends SourceSpanFormatException {
-  constructor(message, span, source) {
-    super(message, span, source);
-  }
-  get source() {
-    return __dartAs(super.source, value => typeof value === "string", "String");
-  }
-  get sourceUrl() {
-    return ((this.span)?.sourceUrl ?? null);
-  }
-}
-
 class StringScanner {
   constructor(string, { sourceUrl = null, position = null } = {}) {
     this._position = 0;
@@ -9620,6 +9789,18 @@ class StringScanner {
   }
   _fail(name) {
     this.error("expected " + __dartStr(name) + ".", { position: this.position, length: 0 });
+  }
+}
+
+class StringScannerException extends SourceSpanFormatException {
+  constructor(message, span, source) {
+    super(message, span, source);
+  }
+  get source() {
+    return __dartAs(super.source, value => typeof value === "string", "String");
+  }
+  get sourceUrl() {
+    return ((this.span)?.sourceUrl ?? null);
   }
 }
 
@@ -9851,101 +10032,6 @@ class SpanScanner extends StringScanner {
 }
 Object.defineProperty(SpanScanner, Symbol.hasInstance, { value(value) { return value != null && value[$SpanScanner_interface] === true; } });
 
-class RelativeSpanScanner extends StringScanner {
-  constructor(span) {
-    super(span.text, { sourceUrl: span.sourceUrl });
-    this._lastSpan = null;
-    this._sourceFile = span.file;
-    this._startLocation = span.start;
-    Object.defineProperty(this, $LineScanner_interface, { value: true });
-    Object.defineProperty(this, $SpanScanner_interface, { value: true });
-  }
-  get line() {
-    return (this._sourceFile.getLine((this._startLocation.offset + this.position)) - this._startLocation.line);
-  }
-  get column() {
-    const line = this._sourceFile.getLine((this._startLocation.offset + this.position));
-    const column = this._sourceFile.getColumn((this._startLocation.offset + this.position), { line: line });
-    return (__dartEquals(line, this._startLocation.line) ? (column - this._startLocation.column) : column);
-  }
-  get state() {
-    return new _SpanScannerState(this, this.position);
-  }
-  set state(state) {
-    if ((!(state instanceof _SpanScannerState) || !(Object.is(state._scanner, this)))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "The given LineScannerState was not returned by this LineScanner."); })();
-      }
-    }
-    this.position = state.position;
-  }
-  get lastSpan() {
-    return this._lastSpan;
-  }
-  get location() {
-    return this._sourceFile.location((this._startLocation.offset + this.position));
-  }
-  get emptySpan() {
-    return this.location.pointSpan();
-  }
-  spanFrom(startState, endState = null) {
-    const endPosition = ((endState === null) ? this.position : endState.position);
-    return this._sourceFile.span((this._startLocation.offset + startState.position), (this._startLocation.offset + endPosition));
-  }
-  spanFromPosition(startPosition, endPosition = null) {
-    __dartCheckValidRange(startPosition, endPosition, (this._sourceFile.length - this._startLocation.offset), "startPosition", "endPosition", null);
-    return this._sourceFile.span((this._startLocation.offset + startPosition), (this._startLocation.offset + (endPosition ?? this.position)));
-  }
-  matches(pattern) {
-    if (!(super.matches(pattern))) {
-      {
-        this._lastSpan = null;
-        return false;
-      }
-    }
-    this._lastSpan = this._sourceFile.span((this._startLocation.offset + this.position), (this._startLocation.offset + __dartNullCheck(this.lastMatch).end));
-    return true;
-  }
-  error(message, { match = null, position = null, length = null } = {}) {
-    validateErrorArgs(this.string, match, position, length);
-    if ((((match === null) && (position === null)) && (length === null))) {
-      match = this.lastMatch;
-    }
-    ((position === null) ? position = ((match === null) ? this.position : match.start) : null);
-    ((length === null) ? length = ((match === null) ? 1 : (match.end - match.start)) : null);
-    const span = this._sourceFile.span((this._startLocation.offset + position), ((this._startLocation.offset + position) + length));
-    (() => { throw new StringScannerException(message, span, this.string); })();
-  }
-}
-
-class _SpanScannerState {
-  constructor(_scanner, position) {
-    this._scanner = _scanner;
-    this.position = position;
-    Object.defineProperty(this, $LineScannerState_interface, { value: true });
-  }
-  get line() {
-    return this._scanner._sourceFile.getLine(this.position);
-  }
-  get column() {
-    return this._scanner._sourceFile.getColumn(this.position);
-  }
-}
-
-class _SpanScannerState_1 {
-  constructor(_scanner, position) {
-    this._scanner = _scanner;
-    this.position = position;
-    Object.defineProperty(this, $LineScannerState_interface, { value: true });
-  }
-  get line() {
-    return this._scanner._sourceFile.getLine(this.position);
-  }
-  get column() {
-    return this._scanner._sourceFile.getColumn(this.position);
-  }
-}
-
 class EagerSpanScanner extends SpanScanner {
   constructor(string, { sourceUrl = null, position = null } = {}) {
     super(string, { sourceUrl: sourceUrl, position: position });
@@ -10072,3008 +10158,726 @@ class _EagerSpanScannerState {
   }
 }
 
-class YamlException extends SourceSpanFormatException {
-  constructor(message, span) {
-    super(message, span);
+class RelativeSpanScanner extends StringScanner {
+  constructor(span) {
+    super(span.text, { sourceUrl: span.sourceUrl });
+    this._lastSpan = null;
+    this._sourceFile = span.file;
+    this._startLocation = span.start;
+    Object.defineProperty(this, $LineScanner_interface, { value: true });
+    Object.defineProperty(this, $SpanScanner_interface, { value: true });
   }
-}
-
-class ErrorListener {
-  constructor() {
+  get line() {
+    return (this._sourceFile.getLine((this._startLocation.offset + this.position)) - this._startLocation.line);
   }
-  onError(error) {
-    throw new TypeError("Abstract member ErrorListener.onError");
+  get column() {
+    const line = this._sourceFile.getLine((this._startLocation.offset + this.position));
+    const column = this._sourceFile.getColumn((this._startLocation.offset + this.position), { line: line });
+    return (__dartEquals(line, this._startLocation.line) ? (column - this._startLocation.column) : column);
   }
-}
-
-class ErrorCollector extends ErrorListener {
-  constructor() {
-    super();
-    this.errors = new Array(0).fill(null);
+  get state() {
+    return new _SpanScannerState(this, this.position);
   }
-  onError(error) {
-    return (this.errors.push(error), null);
-  }
-}
-
-class ScalarStyle {
-  constructor() {
-    throw new TypeError("Class ScalarStyle has no unnamed constructor");
-  }
-  static _(name) {
-    return $ScalarStyle__(ScalarStyle, name);
-  }
-  get isQuoted() {
-    return (__dartEquals(this, __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"SINGLE_QUOTED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "SINGLE_QUOTED" })))) || __dartEquals(this, __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"DOUBLE_QUOTED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "DOUBLE_QUOTED" })))));
-  }
-  toString() {
-    return this.name;
-  }
-}
-
-function $ScalarStyle__($newTarget, name) {
-  const $self = Object.create($newTarget.prototype);
-  $self.name = name;
-  return $self;
-}
-
-class CollectionStyle {
-  constructor() {
-    throw new TypeError("Class CollectionStyle has no unnamed constructor");
-  }
-  static _(name) {
-    return $CollectionStyle__(CollectionStyle, name);
-  }
-  toString() {
-    return this.name;
-  }
-}
-
-function $CollectionStyle__($newTarget, name) {
-  const $self = Object.create($newTarget.prototype);
-  $self.name = name;
-  return $self;
-}
-
-class Token {
-  constructor(type, span) {
-    this.type = type;
-    this.span = span;
-    Object.defineProperty(this, $Token_interface, { value: true });
-  }
-  toString() {
-    return __dartStr(this.type);
-  }
-}
-Object.defineProperty(Token, Symbol.hasInstance, { value(value) { return value != null && value[$Token_interface] === true; } });
-
-class VersionDirectiveToken {
-  constructor(span, major, minor) {
-    this.span = span;
-    this.major = major;
-    this.minor = minor;
-    Object.defineProperty(this, $Token_interface, { value: true });
-  }
-  get type() {
-    return TokenType.versionDirective;
-  }
-  toString() {
-    return "VERSION_DIRECTIVE " + __dartStr(this.major) + "." + __dartStr(this.minor);
-  }
-}
-
-class TagDirectiveToken {
-  constructor(span, handle, prefix) {
-    this.span = span;
-    this.handle = handle;
-    this.prefix = prefix;
-    Object.defineProperty(this, $Token_interface, { value: true });
-  }
-  get type() {
-    return TokenType.tagDirective;
-  }
-  toString() {
-    return "TAG_DIRECTIVE " + __dartStr(this.handle) + " " + __dartStr(this.prefix);
-  }
-}
-
-class AnchorToken {
-  constructor(span, name) {
-    this.span = span;
-    this.name = name;
-    Object.defineProperty(this, $Token_interface, { value: true });
-  }
-  get type() {
-    return TokenType.anchor;
-  }
-  toString() {
-    return "ANCHOR " + __dartStr(this.name);
-  }
-}
-
-class AliasToken {
-  constructor(span, name) {
-    this.span = span;
-    this.name = name;
-    Object.defineProperty(this, $Token_interface, { value: true });
-  }
-  get type() {
-    return TokenType.alias;
-  }
-  toString() {
-    return "ALIAS " + __dartStr(this.name);
-  }
-}
-
-class TagToken {
-  constructor(span, handle, suffix) {
-    this.span = span;
-    this.handle = handle;
-    this.suffix = suffix;
-    Object.defineProperty(this, $Token_interface, { value: true });
-  }
-  get type() {
-    return TokenType.tag;
-  }
-  toString() {
-    return "TAG " + __dartStr(this.handle) + " " + __dartStr(this.suffix);
-  }
-}
-
-class ScalarToken {
-  constructor(span, value, style_1) {
-    this.span = span;
-    this.value = value;
-    this.style = style_1;
-    Object.defineProperty(this, $Token_interface, { value: true });
-  }
-  get type() {
-    return TokenType.scalar;
-  }
-  toString() {
-    return "SCALAR " + __dartStr(this.style) + " \"" + __dartStr(this.value) + "\"";
-  }
-}
-
-class TokenType {
-  constructor($index, $name) {
-    Object.defineProperty(this, "index", { value: $index, enumerable: true });
-    Object.defineProperty(this, "__dartEnumName", {
-      value: $name,
-      enumerable: false,
-    });
-    Object.defineProperty(this, "name", { value: $name, enumerable: true });
-    Object.freeze(this);
-  }
-  toString() {
-    return "TokenType." + this.__dartEnumName;
-  }
-}
-Object.defineProperties(TokenType, {
-  streamStart: { value: new TokenType(0, "streamStart"), enumerable: true },
-  streamEnd: { value: new TokenType(1, "streamEnd"), enumerable: true },
-  versionDirective: { value: new TokenType(2, "versionDirective"), enumerable: true },
-  tagDirective: { value: new TokenType(3, "tagDirective"), enumerable: true },
-  documentStart: { value: new TokenType(4, "documentStart"), enumerable: true },
-  documentEnd: { value: new TokenType(5, "documentEnd"), enumerable: true },
-  blockSequenceStart: { value: new TokenType(6, "blockSequenceStart"), enumerable: true },
-  blockMappingStart: { value: new TokenType(7, "blockMappingStart"), enumerable: true },
-  blockEnd: { value: new TokenType(8, "blockEnd"), enumerable: true },
-  flowSequenceStart: { value: new TokenType(9, "flowSequenceStart"), enumerable: true },
-  flowSequenceEnd: { value: new TokenType(10, "flowSequenceEnd"), enumerable: true },
-  flowMappingStart: { value: new TokenType(11, "flowMappingStart"), enumerable: true },
-  flowMappingEnd: { value: new TokenType(12, "flowMappingEnd"), enumerable: true },
-  blockEntry: { value: new TokenType(13, "blockEntry"), enumerable: true },
-  flowEntry: { value: new TokenType(14, "flowEntry"), enumerable: true },
-  key: { value: new TokenType(15, "key"), enumerable: true },
-  value: { value: new TokenType(16, "value"), enumerable: true },
-  alias: { value: new TokenType(17, "alias"), enumerable: true },
-  anchor: { value: new TokenType(18, "anchor"), enumerable: true },
-  tag: { value: new TokenType(19, "tag"), enumerable: true },
-  scalar: { value: new TokenType(20, "scalar"), enumerable: true }
-});
-Object.defineProperty(TokenType, "values", { value: Object.freeze([TokenType.streamStart, TokenType.streamEnd, TokenType.versionDirective, TokenType.tagDirective, TokenType.documentStart, TokenType.documentEnd, TokenType.blockSequenceStart, TokenType.blockMappingStart, TokenType.blockEnd, TokenType.flowSequenceStart, TokenType.flowSequenceEnd, TokenType.flowMappingStart, TokenType.flowMappingEnd, TokenType.blockEntry, TokenType.flowEntry, TokenType.key, TokenType.value, TokenType.alias, TokenType.anchor, TokenType.tag, TokenType.scalar]), enumerable: true });
-
-class Scanner {
-  constructor(source, { sourceUrl = null, recover = false, errorListener = null } = {}) {
-    this._streamStartProduced = false;
-    this._streamEndProduced = false;
-    this._tokens = new QueueList();
-    this._tokensParsed = 0;
-    this._tokenAvailable = false;
-    this._indents = [(-1)];
-    this._simpleKeyAllowed = true;
-    this._simpleKeys = [null];
-    this._recover = recover;
-    this._errorListener = errorListener;
-    this._scanner = new EagerSpanScanner(source, { sourceUrl: sourceUrl });
-  }
-  get _indent() {
-    return __dartIterableLast(this._indents);
-  }
-  get _inBlockContext() {
-    return __dartEquals(this._simpleKeys.length, 1);
-  }
-  get _isBreakOrEnd() {
-    return (this._scanner.isDone || this._isBreak);
-  }
-  get _isBreak() {
-    return this._isBreakAt(0);
-  }
-  get _isBlankOrEnd() {
-    return this._isBlankOrEndAt(0);
-  }
-  get _isBlank() {
-    return this._isBlankAt(0);
-  }
-  get _isTagChar() {
-    let char = this._scanner.peekChar();
-    if ((char === null)) {
-      return false;
-    }
-    L:
-    switch (char) {
-      case 45:
-      case 59:
-      case 47:
-      case 58:
-      case 64:
-      case 38:
-      case 61:
-      case 43:
-      case 36:
-      case 46:
-      case 126:
-      case 63:
-      case 42:
-      case 39:
-      case 40:
-      case 41:
-      case 37:
-        {
-          return true;
-        }
-      default:
-        {
-          return ((((char >= 48) && (char <= 57)) || ((char >= 97) && (char <= 122))) || ((char >= 65) && (char <= 90)));
-        }
-    }
-  }
-  get _isAnchorChar() {
-    if (!(this._isNonSpace)) {
-      return false;
-    }
-    L:
-    switch (this._scanner.peekChar()) {
-      case 44:
-      case 91:
-      case 93:
-      case 123:
-      case 125:
-        {
-          return false;
-        }
-      default:
-        {
-          return true;
-        }
-    }
-  }
-  get _isDigit() {
-    let char = this._scanner.peekChar();
-    return (!((char === null)) && ((char >= 48) && (char <= 57)));
-  }
-  get _isHex() {
-    let char = this._scanner.peekChar();
-    if ((char === null)) {
-      return false;
-    }
-    return ((((char >= 48) && (char <= 57)) || ((char >= 97) && (char <= 102))) || ((char >= 65) && (char <= 70)));
-  }
-  get _isPlainChar() {
-    return this._isPlainCharAt(0);
-  }
-  get _isNonBreak() {
-    let char = this._scanner.peekChar();
-    return (() => {
-      let v = null;
-      const _0_0 = char;
-      const _0_1 = null;
-      const _0_3 = 10;
-      const _0_5 = 13;
-      const _0_7 = 65279;
-      const _0_9 = 9;
-      const _0_11 = 133;
-      L:
+  set state(state) {
+    if ((!(state instanceof _SpanScannerState) || !(Object.is(state._scanner, this)))) {
       {
-        {
-          if ((_0_0 === null)) {
-            {
-              v = false;
-              break L;
-            }
-          }
-        }
-        {
-          if (((__dartEquals(10, _0_0) || __dartEquals(13, _0_0)) || __dartEquals(65279, _0_0))) {
-            {
-              v = false;
-              break L;
-            }
-          }
-        }
-        {
-          if ((__dartEquals(9, _0_0) || __dartEquals(133, _0_0))) {
-            {
-              v = true;
-              break L;
-            }
-          }
-        }
-        {
-          if (true) {
-            {
-              v = this._isStandardCharacterAt(0);
-              break L;
-            }
-          }
-        }
+        (() => { throw __dartCoreError("ArgumentError", "The given LineScannerState was not returned by this LineScanner."); })();
       }
-      return v;
-    })();
+    }
+    this.position = state.position;
   }
-  get _isNonSpace() {
-    let char = this._scanner.peekChar();
-    return (() => {
-      let v = null;
-      const _0_0 = char;
-      const _0_1 = null;
-      const _0_3 = 10;
-      const _0_5 = 13;
-      const _0_7 = 65279;
-      const _0_9 = 32;
-      const _0_11 = 133;
-      L:
+  get lastSpan() {
+    return this._lastSpan;
+  }
+  get location() {
+    return this._sourceFile.location((this._startLocation.offset + this.position));
+  }
+  get emptySpan() {
+    return this.location.pointSpan();
+  }
+  spanFrom(startState, endState = null) {
+    const endPosition = ((endState === null) ? this.position : endState.position);
+    return this._sourceFile.span((this._startLocation.offset + startState.position), (this._startLocation.offset + endPosition));
+  }
+  spanFromPosition(startPosition, endPosition = null) {
+    __dartCheckValidRange(startPosition, endPosition, (this._sourceFile.length - this._startLocation.offset), "startPosition", "endPosition", null);
+    return this._sourceFile.span((this._startLocation.offset + startPosition), (this._startLocation.offset + (endPosition ?? this.position)));
+  }
+  matches(pattern) {
+    if (!(super.matches(pattern))) {
       {
-        {
-          if ((_0_0 === null)) {
-            {
-              v = false;
-              break L;
-            }
-          }
-        }
-        {
-          if ((((__dartEquals(10, _0_0) || __dartEquals(13, _0_0)) || __dartEquals(65279, _0_0)) || __dartEquals(32, _0_0))) {
-            {
-              v = false;
-              break L;
-            }
-          }
-        }
-        {
-          if (__dartEquals(133, _0_0)) {
-            {
-              v = true;
-              break L;
-            }
-          }
-        }
-        {
-          if (true) {
-            {
-              v = this._isStandardCharacterAt(0);
-              break L;
-            }
-          }
-        }
+        this._lastSpan = null;
+        return false;
       }
-      return v;
-    })();
-  }
-  get _isDocumentIndicator() {
-    return ((__dartEquals(this._scanner.column, 0) && this._isBlankOrEndAt(3)) && (this._scanner.matches("---") || this._scanner.matches("...")));
-  }
-  scan() {
-    if (this._streamEndProduced) {
-      (() => { throw __dartCoreError("StateError", "Out of tokens."); })();
     }
-    if (!(this._tokenAvailable)) {
-      this._fetchMoreTokens();
-    }
-    let token = this._tokens.removeFirst();
-    this._tokenAvailable = false;
-    this._tokensParsed = (this._tokensParsed + 1);
-    this._streamEndProduced = __dartEquals(token.type, TokenType.streamEnd);
-    return token;
+    this._lastSpan = this._sourceFile.span((this._startLocation.offset + this.position), (this._startLocation.offset + __dartNullCheck(this.lastMatch).end));
+    return true;
   }
-  advance() {
-    this.scan();
-    return this.peek();
-  }
-  peek() {
-    if (this._streamEndProduced) {
-      return null;
+  error(message, { match = null, position = null, length = null } = {}) {
+    validateErrorArgs(this.string, match, position, length);
+    if ((((match === null) && (position === null)) && (length === null))) {
+      match = this.lastMatch;
     }
-    if (!(this._tokenAvailable)) {
-      this._fetchMoreTokens();
-    }
-    return this._tokens.first;
+    ((position === null) ? position = ((match === null) ? this.position : match.start) : null);
+    ((length === null) ? length = ((match === null) ? 1 : (match.end - match.start)) : null);
+    const span = this._sourceFile.span((this._startLocation.offset + position), ((this._startLocation.offset + position) + length));
+    (() => { throw new StringScannerException(message, span, this.string); })();
   }
-  _fetchMoreTokens() {
-    L:
-    while (true) {
-      {
-        if (this._tokens.isNotEmpty) {
+}
+
+class _SpanScannerState {
+  constructor(_scanner, position) {
+    this._scanner = _scanner;
+    this.position = position;
+    Object.defineProperty(this, $LineScannerState_interface, { value: true });
+  }
+  get line() {
+    return this._scanner._sourceFile.getLine(this.position);
+  }
+  get column() {
+    return this._scanner._sourceFile.getColumn(this.position);
+  }
+}
+
+class _SpanScannerState_1 {
+  constructor(_scanner, position) {
+    this._scanner = _scanner;
+    this.position = position;
+    Object.defineProperty(this, $LineScannerState_interface, { value: true });
+  }
+  get line() {
+    return this._scanner._sourceFile.getLine(this.position);
+  }
+  get column() {
+    return this._scanner._sourceFile.getColumn(this.position);
+  }
+}
+
+class AuthenticationChallenge {
+  constructor(scheme, parameters) {
+    this.scheme = scheme;
+    this.parameters = __dartUnmodifiableMapView(CaseInsensitiveMap.from(parameters));
+  }
+  static parseHeader(header) {
+    return wrapFormatException("authentication header", header, function() {
+      const scanner = new StringScanner(header);
+      scanner.scan(whitespace);
+      const challenges = parseList(scanner, function() {
+        const scheme = AuthenticationChallenge._scanScheme(scanner, { whitespaceName: "\" \" or \"=\"" });
+        const params = new Map([]);
+        while (scanner.scan(",")) {
           {
-            this._staleSimpleKeys();
-            if (__dartEquals(this._tokens.last.type, TokenType.streamEnd)) {
-              break L;
+            scanner.scan(whitespace);
+          }
+        }
+        AuthenticationChallenge._scanAuthParam(scanner, params);
+        let beforeComma = scanner.position;
+        L:
+        while (scanner.scan(",")) {
+          L_1:
+          {
+            scanner.scan(whitespace);
+            if ((scanner.matches(",") || scanner.isDone)) {
+              break L_1;
             }
-            if (!(Array.from(this._simpleKeys).some((key) => { return (!((key === null)) && __dartEquals(key.tokenNumber, this._tokensParsed)); }))) {
+            scanner.expect(token, { name: "a token" });
+            const name = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]);
+            scanner.scan(whitespace);
+            if (!(scanner.scan("="))) {
               {
+                scanner.position = beforeComma;
                 break L;
               }
             }
+            scanner.scan(whitespace);
+            if (scanner.scan(token)) {
+              {
+                __dartMapSet(params, name, __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]));
+              }
+            } else {
+              {
+                __dartMapSet(params, name, expectQuotedString(scanner, { name: "a token or a quoted string" }));
+              }
+            }
+            scanner.scan(whitespace);
+            beforeComma = scanner.position;
           }
         }
-        this._fetchNextToken();
+        return new AuthenticationChallenge(scheme, params);
+});
+      scanner.expectDone();
+      return challenges;
+});
+  }
+  static parse(challenge) {
+    return wrapFormatException("authentication challenge", challenge, function() {
+      const scanner = new StringScanner(challenge);
+      scanner.scan(whitespace);
+      const scheme = AuthenticationChallenge._scanScheme(scanner);
+      const params = new Map([]);
+      parseList(scanner, function() { return AuthenticationChallenge._scanAuthParam(scanner, params); });
+      scanner.expectDone();
+      return new AuthenticationChallenge(scheme, params);
+});
+  }
+  static _scanScheme(scanner, { whitespaceName = null } = {}) {
+    scanner.expect(token, { name: "a token" });
+    const scheme = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]).toLowerCase();
+    scanner.scan(whitespace);
+    if (((scanner.lastMatch === null) || !(__dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]).includes(" ")))) {
+      {
+        scanner.expect(" ", { name: whitespaceName });
       }
     }
-    this._tokenAvailable = true;
+    return scheme;
   }
-  _fetchNextToken() {
-    if (!(this._streamStartProduced)) {
+  static _scanAuthParam(scanner, params) {
+    scanner.expect(token, { name: "a token" });
+    const name = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]);
+    scanner.scan(whitespace);
+    scanner.expect("=");
+    scanner.scan(whitespace);
+    if (scanner.scan(token)) {
       {
-        this._fetchStreamStart();
+        __dartMapSet(params, name, __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]));
+      }
+    } else {
+      {
+        __dartMapSet(params, name, expectQuotedString(scanner, { name: "a token or a quoted string" }));
+      }
+    }
+    scanner.scan(whitespace);
+  }
+}
+
+class TypedDataBuffer {
+  constructor(buffer) {
+    this._buffer = buffer;
+    this._length = buffer.length;
+  }
+  get length() {
+    return this._length;
+  }
+  "[]"(index) {
+    if ((index >= this.length)) {
+      (() => { throw __dartCoreError("IndexError", index); })();
+    }
+    return __dartIndexGet(this._buffer, index);
+  }
+  "[]="(index, value) {
+    if ((index >= this.length)) {
+      (() => { throw __dartCoreError("IndexError", index); })();
+    }
+    __dartIndexSet(this._buffer, index, value);
+  }
+  set length(newLength) {
+    if ((newLength < this._length)) {
+      {
+        let defaultValue = this._defaultValue;
+        for (let i = newLength; (i < this._length); i = (i + 1)) {
+          {
+            __dartIndexSet(this._buffer, i, defaultValue);
+          }
+        }
+      }
+    } else {
+      if ((newLength > this._buffer.length)) {
+        {
+          let newBuffer = null;
+          if (__dartIterableIsEmpty(this._buffer)) {
+            {
+              newBuffer = this._createBuffer(newLength);
+            }
+          } else {
+            {
+              newBuffer = this._createBiggerBuffer(newLength);
+            }
+          }
+          __dartListSetRange(newBuffer, 0, this._length, this._buffer, 0);
+          this._buffer = newBuffer;
+        }
+      }
+    }
+    this._length = newLength;
+  }
+  _add(value) {
+    if (__dartEquals(this._length, this._buffer.length)) {
+      this._grow(this._length);
+    }
+    __dartIndexSet(this._buffer, (() => { let v = this._length; return (() => { let v_1 = this._length = (v + 1); return v; })(); })(), value);
+  }
+  add(element) {
+    this._add(element);
+  }
+  addAll(values, start = 0, end = null) {
+    __dartCheckNotNegative(start, "start", null);
+    if ((!((end === null)) && (start > end))) {
+      {
+        (() => { throw __dartCoreError("RangeError", end); })();
+      }
+    }
+    this._addAll(values, start, end);
+  }
+  insertAll(index, values, start = 0, end = null) {
+    __dartCheckValidIndex(index, this, "index", (this._length + 1), null);
+    __dartCheckNotNegative(start, "start", null);
+    if (!((end === null))) {
+      {
+        if ((start > end)) {
+          {
+            (() => { throw __dartCoreError("RangeError", end); })();
+          }
+        }
+        if (__dartEquals(start, end)) {
+          return;
+        }
+      }
+    }
+    if (__dartEquals(index, this._length)) {
+      {
+        this._addAll(values, start, end);
         return;
       }
     }
-    this._scanToNextToken();
-    this._staleSimpleKeys();
-    this._unrollIndent(this._scanner.column);
-    if (this._scanner.isDone) {
+    if (((end === null) && (Array.isArray(values) || (ArrayBuffer.isView(values) && !(values instanceof DataView))))) {
       {
-        this._fetchStreamEnd();
+        end = __dartIterableLength(values);
+      }
+    }
+    if (!((end === null))) {
+      {
+        this._insertKnownLength(index, values, start, end);
         return;
       }
     }
-    if (__dartEquals(this._scanner.column, 0)) {
-      {
-        if (__dartEquals(this._scanner.peekChar(), 37)) {
+    let writeIndex = this._length;
+    let skipCount = start;
+    {
+      let _sync_for_iterator = __dartIterator(values);
+      for (; _sync_for_iterator.moveNext(); ) {
+        {
+          let value = _sync_for_iterator.current;
+          L:
           {
-            this._fetchDirective();
-            return;
-          }
-        }
-        if (this._isBlankOrEndAt(3)) {
-          {
-            if (this._scanner.matches("---")) {
+            if ((skipCount > 0)) {
               {
-                this._fetchDocumentIndicator(TokenType.documentStart);
-                return;
+                skipCount = (skipCount - 1);
+                break L;
               }
             }
-            if (this._scanner.matches("...")) {
+            if (__dartEquals(writeIndex, this._buffer.length)) {
               {
-                this._fetchDocumentIndicator(TokenType.documentEnd);
-                return;
+                this._grow(writeIndex);
               }
             }
+            __dartIndexSet(this._buffer, (() => { let v = writeIndex; return (() => { let v_1 = writeIndex = (v + 1); return v; })(); })(), value);
           }
         }
       }
     }
-    L:
-    switch (this._scanner.peekChar()) {
-      case 91:
-        {
-          this._fetchFlowCollectionStart(TokenType.flowSequenceStart);
-          return;
-        }
-      case 123:
-        {
-          this._fetchFlowCollectionStart(TokenType.flowMappingStart);
-          return;
-        }
-      case 93:
-        {
-          this._fetchFlowCollectionEnd(TokenType.flowSequenceEnd);
-          return;
-        }
-      case 125:
-        {
-          this._fetchFlowCollectionEnd(TokenType.flowMappingEnd);
-          return;
-        }
-      case 44:
-        {
-          this._fetchFlowEntry();
-          return;
-        }
-      case 42:
-        {
-          this._fetchAnchor({ anchor: false });
-          return;
-        }
-      case 38:
-        {
-          this._fetchAnchor();
-          return;
-        }
-      case 33:
-        {
-          this._fetchTag();
-          return;
-        }
-      case 39:
-        {
-          this._fetchFlowScalar({ singleQuote: true });
-          return;
-        }
-      case 34:
-        {
-          this._fetchFlowScalar();
-          return;
-        }
-      case 124:
-        {
-          if (!(this._inBlockContext)) {
-            this._invalidScalarCharacter();
-          }
-          this._fetchBlockScalar({ literal: true });
-          return;
-        }
-      case 62:
-        {
-          if (!(this._inBlockContext)) {
-            this._invalidScalarCharacter();
-          }
-          this._fetchBlockScalar();
-          return;
-        }
-      case 37:
-      case 64:
-      case 96:
-        {
-          this._invalidScalarCharacter();
-          return;
-        }
-      case 45:
-        {
-          if (this._isPlainCharAt(1)) {
-            {
-              this._fetchPlainScalar();
-            }
-          } else {
-            {
-              this._fetchBlockEntry();
-            }
-          }
-          return;
-        }
-      case 63:
-        {
-          if (this._isPlainCharAt(1)) {
-            {
-              this._fetchPlainScalar();
-            }
-          } else {
-            {
-              this._fetchKey();
-            }
-          }
-          return;
-        }
-      case 58:
-        {
-          if ((!(this._inBlockContext) && this._tokens.isNotEmpty)) {
-            {
-              let token = this._tokens.last;
-              if (((__dartEquals(token.type, TokenType.flowSequenceEnd) || __dartEquals(token.type, TokenType.flowMappingEnd)) || (__dartEquals(token.type, TokenType.scalar) && __dartAs(token, value => value instanceof ScalarToken, "ScalarToken").style.isQuoted))) {
-                {
-                  this._fetchValue();
-                  return;
-                }
-              }
-            }
-          }
-          if (this._isPlainCharAt(1)) {
-            {
-              this._fetchPlainScalar();
-            }
-          } else {
-            {
-              this._fetchValue();
-            }
-          }
-          return;
-        }
-      default:
-        {
-          if (!(this._isNonBreak)) {
-            this._invalidScalarCharacter();
-          }
-          this._fetchPlainScalar();
-          return;
-        }
-    }
-  }
-  _invalidScalarCharacter() {
-    return this._scanner.error("Unexpected character.", { length: 1 });
-  }
-  _staleSimpleKeys() {
-    for (let i = 0; (i < this._simpleKeys.length); i = (i + 1)) {
-      L:
+    if ((skipCount > 0)) {
       {
-        let key = __dartIndexGet(this._simpleKeys, i);
-        if ((key === null)) {
-          break L;
-        }
-        if (!(this._inBlockContext)) {
-          break L;
-        }
-        if (__dartEquals(key.line, this._scanner.line)) {
-          break L;
-        }
-        if (key.required) {
-          {
-            this._reportError(new YamlException("Expected ':'.", this._scanner.emptySpan));
-            this._tokens.insert((key.tokenNumber - this._tokensParsed), new Token(TokenType.key, __dartAs(key.location.pointSpan(), value => value instanceof FileSpan, "FileSpan")));
-          }
-        }
-        __dartIndexSet(this._simpleKeys, i, null);
+        (() => { throw __dartCoreError("StateError", "Too few elements"); })();
+      }
+    }
+    if ((!((end === null)) && (writeIndex < end))) {
+      {
+        (() => { throw __dartCoreError("RangeError", end); })();
+      }
+    }
+    TypedDataBuffer._reverse(this._buffer, index, this._length);
+    TypedDataBuffer._reverse(this._buffer, this._length, writeIndex);
+    TypedDataBuffer._reverse(this._buffer, index, writeIndex);
+    this._length = writeIndex;
+    return;
+  }
+  static _reverse(buffer, start, end) {
+    end = (end - 1);
+    while ((start < end)) {
+      {
+        let first = __dartIndexGet(buffer, start);
+        let last = __dartIndexGet(buffer, end);
+        __dartIndexSet(buffer, end, first);
+        __dartIndexSet(buffer, start, last);
+        start = (start + 1);
+        end = (end - 1);
       }
     }
   }
-  _saveSimpleKey() {
-    let required = (this._inBlockContext && __dartEquals(this._indent, this._scanner.column));
-    if (!(this._simpleKeyAllowed)) {
+  _addAll(values, start = 0, end = null) {
+    if ((Array.isArray(values) || (ArrayBuffer.isView(values) && !(values instanceof DataView)))) {
+      ((end === null) ? end = __dartIterableLength(values) : null);
+    }
+    if (!((end === null))) {
+      {
+        this._insertKnownLength(this._length, values, start, end);
+        return;
+      }
+    }
+    let i = 0;
+    {
+      let _sync_for_iterator = __dartIterator(values);
+      for (; _sync_for_iterator.moveNext(); ) {
+        {
+          let value = _sync_for_iterator.current;
+          {
+            if ((i >= start)) {
+              this.add(value);
+            }
+            i = (i + 1);
+          }
+        }
+      }
+    }
+    if ((i < start)) {
+      (() => { throw __dartCoreError("StateError", "Too few elements"); })();
+    }
+  }
+  _insertKnownLength(index, values, start, end) {
+    if ((Array.isArray(values) || (ArrayBuffer.isView(values) && !(values instanceof DataView)))) {
+      {
+        if (((start > __dartIterableLength(values)) || (end > __dartIterableLength(values)))) {
+          {
+            (() => { throw __dartCoreError("StateError", "Too few elements"); })();
+          }
+        }
+      }
+    }
+    let valuesLength = (end - start);
+    let newLength = (this._length + valuesLength);
+    this._ensureCapacity(newLength);
+    __dartListSetRange(this._buffer, (index + valuesLength), (this._length + valuesLength), this._buffer, index);
+    __dartListSetRange(this._buffer, index, (index + valuesLength), values, start);
+    this._length = newLength;
+  }
+  insert(index, element) {
+    if (((index < 0) || (index > this._length))) {
+      {
+        (() => { throw __dartCoreError("RangeError", index); })();
+      }
+    }
+    if ((this._length < this._buffer.length)) {
+      {
+        __dartListSetRange(this._buffer, (index + 1), (this._length + 1), this._buffer, index);
+        __dartIndexSet(this._buffer, index, element);
+        this._length = (this._length + 1);
+        return;
+      }
+    }
+    let newBuffer = this._createBiggerBuffer(null);
+    __dartListSetRange(newBuffer, 0, index, this._buffer, 0);
+    __dartListSetRange(newBuffer, (index + 1), (this._length + 1), this._buffer, index);
+    __dartIndexSet(newBuffer, index, element);
+    this._length = (this._length + 1);
+    this._buffer = newBuffer;
+  }
+  _ensureCapacity(requiredCapacity) {
+    if ((requiredCapacity <= this._buffer.length)) {
       return;
     }
-    this._removeSimpleKey();
-    __dartIndexSet(this._simpleKeys, (this._simpleKeys.length - 1), new _SimpleKey((this._tokensParsed + this._tokens.length), this._scanner.line, this._scanner.column, this._scanner.location, { required: required }));
+    let newBuffer = this._createBiggerBuffer(requiredCapacity);
+    __dartListSetRange(newBuffer, 0, this._length, this._buffer, 0);
+    this._buffer = newBuffer;
   }
-  _removeSimpleKey() {
-    let key = __dartIterableLast(this._simpleKeys);
-    if ((!((key === null)) && key.required)) {
+  _createBiggerBuffer(requiredCapacity) {
+    let newLength = (this._buffer.length * 2);
+    if ((!((requiredCapacity === null)) && (newLength < requiredCapacity))) {
       {
-        (() => { throw new YamlException("Could not find expected ':' for simple key.", key.location.pointSpan()); })();
-      }
-    }
-    __dartIndexSet(this._simpleKeys, (this._simpleKeys.length - 1), null);
-  }
-  _increaseFlowLevel() {
-    (this._simpleKeys.push(null), null);
-  }
-  _decreaseFlowLevel() {
-    if (this._inBlockContext) {
-      return;
-    }
-    this._simpleKeys.pop();
-  }
-  _rollIndent(column, type, location, { tokenNumber = null } = {}) {
-    if (!(this._inBlockContext)) {
-      return;
-    }
-    if ((!(__dartEquals(this._indent, (-1))) && (this._indent >= column))) {
-      return;
-    }
-    (this._indents.push(column), null);
-    let token = new Token(type, __dartAs(location.pointSpan(), value => value instanceof FileSpan, "FileSpan"));
-    if ((tokenNumber === null)) {
-      {
-        this._tokens.add(token);
+        newLength = requiredCapacity;
       }
     } else {
-      {
-        this._tokens.insert((tokenNumber - this._tokensParsed), token);
-      }
-    }
-  }
-  _unrollIndent(column) {
-    if (!(this._inBlockContext)) {
-      return;
-    }
-    while ((this._indent > column)) {
-      {
-        this._tokens.add(new Token(TokenType.blockEnd, this._scanner.emptySpan));
-        this._indents.pop();
-      }
-    }
-  }
-  _resetIndent() {
-    return this._unrollIndent((-1));
-  }
-  _fetchStreamStart() {
-    this._streamStartProduced = true;
-    this._tokens.add(new Token(TokenType.streamStart, this._scanner.emptySpan));
-  }
-  _fetchStreamEnd() {
-    this._resetIndent();
-    this._removeSimpleKey();
-    this._simpleKeyAllowed = false;
-    this._tokens.add(new Token(TokenType.streamEnd, this._scanner.emptySpan));
-  }
-  _fetchDirective() {
-    this._resetIndent();
-    this._removeSimpleKey();
-    this._simpleKeyAllowed = false;
-    let directive = this._scanDirective();
-    if (!((directive === null))) {
-      this._tokens.add(directive);
-    }
-  }
-  _fetchDocumentIndicator(type) {
-    this._resetIndent();
-    this._removeSimpleKey();
-    this._simpleKeyAllowed = false;
-    let start = this._scanner.state;
-    this._scanner.readCodePoint();
-    this._scanner.readCodePoint();
-    this._scanner.readCodePoint();
-    this._tokens.add(new Token(type, this._scanner.spanFrom(start)));
-  }
-  _fetchFlowCollectionStart(type) {
-    this._saveSimpleKey();
-    this._increaseFlowLevel();
-    this._simpleKeyAllowed = true;
-    this._addCharToken(type);
-  }
-  _fetchFlowCollectionEnd(type) {
-    this._removeSimpleKey();
-    this._decreaseFlowLevel();
-    this._simpleKeyAllowed = false;
-    this._addCharToken(type);
-  }
-  _fetchFlowEntry() {
-    this._removeSimpleKey();
-    this._simpleKeyAllowed = true;
-    this._addCharToken(TokenType.flowEntry);
-  }
-  _fetchBlockEntry() {
-    if (this._inBlockContext) {
-      {
-        if (!(this._simpleKeyAllowed)) {
-          {
-            (() => { throw new YamlException("Block sequence entries are not allowed here.", this._scanner.emptySpan); })();
-          }
-        }
-        this._rollIndent(this._scanner.column, TokenType.blockSequenceStart, this._scanner.location);
-      }
-    } else {
-      {
-      }
-    }
-    this._removeSimpleKey();
-    this._simpleKeyAllowed = true;
-    this._addCharToken(TokenType.blockEntry);
-  }
-  _fetchKey() {
-    if (this._inBlockContext) {
-      {
-        if (!(this._simpleKeyAllowed)) {
-          {
-            (() => { throw new YamlException("Mapping keys are not allowed here.", this._scanner.emptySpan); })();
-          }
-        }
-        this._rollIndent(this._scanner.column, TokenType.blockMappingStart, this._scanner.location);
-      }
-    }
-    this._simpleKeyAllowed = this._inBlockContext;
-    this._addCharToken(TokenType.key);
-  }
-  _fetchValue() {
-    let simpleKey = __dartIterableLast(this._simpleKeys);
-    if (!((simpleKey === null))) {
-      {
-        this._tokens.insert((simpleKey.tokenNumber - this._tokensParsed), new Token(TokenType.key, __dartAs(simpleKey.location.pointSpan(), value => value instanceof FileSpan, "FileSpan")));
-        this._rollIndent(simpleKey.column, TokenType.blockMappingStart, simpleKey.location, { tokenNumber: simpleKey.tokenNumber });
-        __dartIndexSet(this._simpleKeys, (this._simpleKeys.length - 1), null);
-        this._simpleKeyAllowed = false;
-      }
-    } else {
-      if (this._inBlockContext) {
+      if ((newLength < 8)) {
         {
-          if (!(this._simpleKeyAllowed)) {
-            {
-              (() => { throw new YamlException("Mapping values are not allowed here. Did you miss a colon earlier?", this._scanner.emptySpan); })();
-            }
-          }
-          this._rollIndent(this._scanner.column, TokenType.blockMappingStart, this._scanner.location);
-          this._simpleKeyAllowed = true;
-        }
-      } else {
-        if (this._simpleKeyAllowed) {
-          {
-            this._simpleKeyAllowed = false;
-            this._addCharToken(TokenType.key);
-          }
+          newLength = 8;
         }
       }
     }
-    this._addCharToken(TokenType.value);
+    return this._createBuffer(newLength);
   }
-  _addCharToken(type) {
-    let start = this._scanner.state;
-    this._scanner.readCodePoint();
-    this._tokens.add(new Token(type, this._scanner.spanFrom(start)));
-  }
-  _fetchAnchor({ anchor = true } = {}) {
-    this._saveSimpleKey();
-    this._simpleKeyAllowed = false;
-    this._tokens.add(this._scanAnchor({ anchor: anchor }));
-  }
-  _fetchTag() {
-    this._saveSimpleKey();
-    this._simpleKeyAllowed = false;
-    this._tokens.add(this._scanTag());
-  }
-  _fetchBlockScalar({ literal = false } = {}) {
-    this._removeSimpleKey();
-    this._simpleKeyAllowed = true;
-    this._tokens.add(this._scanBlockScalar({ literal: literal }));
-  }
-  _fetchFlowScalar({ singleQuote = false } = {}) {
-    this._saveSimpleKey();
-    this._simpleKeyAllowed = false;
-    this._tokens.add(this._scanFlowScalar({ singleQuote: singleQuote }));
-  }
-  _fetchPlainScalar() {
-    this._saveSimpleKey();
-    this._simpleKeyAllowed = false;
-    this._tokens.add(this._scanPlainScalar());
-  }
-  _scanToNextToken() {
-    let afterLineBreak = false;
-    L:
-    while (true) {
-      {
-        if (__dartEquals(this._scanner.column, 0)) {
-          this._scanner.scan("﻿");
-        }
-        while ((__dartEquals(this._scanner.peekChar(), 32) || ((!(this._inBlockContext) || !(afterLineBreak)) && __dartEquals(this._scanner.peekChar(), 9)))) {
-          {
-            this._scanner.readChar();
-          }
-        }
-        if (__dartEquals(this._scanner.peekChar(), 9)) {
-          {
-            this._scanner.error("Tab characters are not allowed as indentation.", { length: 1 });
-          }
-        }
-        this._skipComment();
-        if (this._isBreak) {
-          {
-            this._skipLine();
-            if (this._inBlockContext) {
-              this._simpleKeyAllowed = true;
-            }
-            afterLineBreak = true;
-          }
-        } else {
-          {
-            break L;
-          }
-        }
-      }
-    }
-  }
-  _scanDirective() {
-    let start = this._scanner.state;
-    this._scanner.readChar();
-    let token = null;
-    let name = this._scanDirectiveName();
-    if (__dartEquals(name, "YAML")) {
-      {
-        token = this._scanVersionDirectiveValue(start);
-      }
-    } else {
-      if (__dartEquals(name, "TAG")) {
-        {
-          token = this._scanTagDirectiveValue(start);
-        }
-      } else {
-        {
-          warn("Warning: unknown directive.", this._scanner.spanFrom(start));
-          while (!(this._isBreakOrEnd)) {
-            {
-              this._scanner.readCodePoint();
-            }
-          }
-          return null;
-        }
-      }
-    }
-    this._skipBlanks();
-    this._skipComment();
-    if (!(this._isBreakOrEnd)) {
-      {
-        (() => { throw new YamlException("Expected comment or line break after directive.", this._scanner.spanFrom(start)); })();
-      }
-    }
-    this._skipLine();
-    return token;
-  }
-  _scanDirectiveName() {
-    let start = this._scanner.position;
-    while (this._isNonSpace) {
-      {
-        this._scanner.readCodePoint();
-      }
-    }
-    let name = this._scanner.substring(start);
-    if (name.length === 0) {
-      {
-        (() => { throw new YamlException("Expected directive name.", this._scanner.emptySpan); })();
-      }
-    } else {
-      if (!(this._isBlankOrEnd)) {
-        {
-          (() => { throw new YamlException("Unexpected character in directive name.", this._scanner.emptySpan); })();
-        }
-      }
-    }
-    return name;
-  }
-  _scanVersionDirectiveValue(start) {
-    this._skipBlanks();
-    let major = this._scanVersionDirectiveNumber();
-    this._scanner.expect(".");
-    let minor = this._scanVersionDirectiveNumber();
-    return new VersionDirectiveToken(this._scanner.spanFrom(start), major, minor);
-  }
-  _scanVersionDirectiveNumber() {
-    let start = this._scanner.position;
-    while (this._isDigit) {
-      {
-        this._scanner.readChar();
-      }
-    }
-    let number = this._scanner.substring(start);
-    if (number.length === 0) {
-      {
-        (() => { throw new YamlException("Expected version number.", this._scanner.emptySpan); })();
-      }
-    }
-    return __dartIntParse(number, null);
-  }
-  _scanTagDirectiveValue(start) {
-    this._skipBlanks();
-    let handle = this._scanTagHandle({ directive: true });
-    if (!(this._isBlank)) {
-      {
-        (() => { throw new YamlException("Expected whitespace.", this._scanner.emptySpan); })();
-      }
-    }
-    this._skipBlanks();
-    let prefix = this._scanTagUri();
-    if (!(this._isBlankOrEnd)) {
-      {
-        (() => { throw new YamlException("Expected whitespace.", this._scanner.emptySpan); })();
-      }
-    }
-    return new TagDirectiveToken(this._scanner.spanFrom(start), handle, prefix);
-  }
-  _scanAnchor({ anchor = true } = {}) {
-    let start = this._scanner.state;
-    this._scanner.readCodePoint();
-    let startPosition = this._scanner.position;
-    while (this._isAnchorChar) {
-      {
-        this._scanner.readCodePoint();
-      }
-    }
-    let name = this._scanner.substring(startPosition);
-    let next = this._scanner.peekChar();
-    if ((name.length === 0 || ((((((((!(this._isBlankOrEnd) && !(__dartEquals(next, 63))) && !(__dartEquals(next, 58))) && !(__dartEquals(next, 44))) && !(__dartEquals(next, 93))) && !(__dartEquals(next, 125))) && !(__dartEquals(next, 37))) && !(__dartEquals(next, 64))) && !(__dartEquals(next, 96))))) {
-      {
-        (() => { throw new YamlException("Expected alphanumeric character.", this._scanner.emptySpan); })();
-      }
-    }
-    if (anchor) {
-      {
-        return new AnchorToken(this._scanner.spanFrom(start), name);
-      }
-    } else {
-      {
-        return new AliasToken(this._scanner.spanFrom(start), name);
-      }
-    }
-  }
-  _scanTag() {
-    let handle = null;
-    let suffix = null;
-    let start = this._scanner.state;
-    if (__dartEquals(this._scanner.peekChar(1), 60)) {
-      {
-        this._scanner.readChar();
-        this._scanner.readChar();
-        handle = "";
-        suffix = this._scanTagUri();
-        this._scanner.expect(">");
-      }
-    } else {
-      {
-        handle = this._scanTagHandle();
-        if ((((handle.length > 1) && handle.startsWith("!")) && handle.endsWith("!"))) {
-          {
-            suffix = this._scanTagUri({ flowSeparators: false });
-          }
-        } else {
-          {
-            suffix = this._scanTagUri({ head: handle, flowSeparators: false });
-            if (suffix.length === 0) {
-              {
-                handle = null;
-                suffix = "!";
-              }
-            } else {
-              {
-                handle = "!";
-              }
-            }
-          }
-        }
-      }
-    }
-    return new TagToken(this._scanner.spanFrom(start), handle, suffix);
-  }
-  _scanTagHandle({ directive = false } = {}) {
-    this._scanner.expect("!");
-    let buffer = __dartStringBuffer("!");
-    let start = this._scanner.position;
-    while (this._isTagChar) {
-      {
-        this._scanner.readChar();
-      }
-    }
-    buffer.write(this._scanner.substring(start));
-    if (__dartEquals(this._scanner.peekChar(), 33)) {
-      {
-        buffer.writeCharCode(this._scanner.readCodePoint());
-      }
-    } else {
-      {
-        if ((directive && !(__dartEquals(__dartStr(buffer), "!")))) {
-          this._scanner.expect("!");
-        }
-      }
-    }
-    return __dartStr(buffer);
-  }
-  _scanTagUri({ head = null, flowSeparators = true } = {}) {
-    let length = ((head === null) ? 0 : head.length);
-    let buffer = __dartStringBuffer("");
-    if ((length > 1)) {
-      buffer.write(__dartNullCheck(head).substring(1));
-    }
-    let start = this._scanner.position;
-    let char = this._scanner.peekChar();
-    while ((this._isTagChar || (flowSeparators && ((__dartEquals(char, 44) || __dartEquals(char, 91)) || __dartEquals(char, 93))))) {
-      {
-        this._scanner.readChar();
-        char = this._scanner.peekChar();
-      }
-    }
-    return decodeURI(this._scanner.substring(start));
-  }
-  _scanBlockScalar({ literal = false } = {}) {
-    let start = this._scanner.state;
-    this._scanner.readCodePoint();
-    let chomping = _Chomping.clip;
-    let increment = 0;
-    let char = this._scanner.peekChar();
-    if ((__dartEquals(char, 43) || __dartEquals(char, 45))) {
-      {
-        chomping = (__dartEquals(char, 43) ? _Chomping.keep : _Chomping.strip);
-        this._scanner.readCodePoint();
-        if (this._isDigit) {
-          {
-            if (__dartEquals(this._scanner.peekChar(), 48)) {
-              {
-                (() => { throw new YamlException("0 may not be used as an indentation indicator.", this._scanner.spanFrom(start)); })();
-              }
-            }
-            increment = (this._scanner.readCodePoint() - 48);
-          }
-        }
-      }
-    } else {
-      if (this._isDigit) {
-        {
-          if (__dartEquals(this._scanner.peekChar(), 48)) {
-            {
-              (() => { throw new YamlException("0 may not be used as an indentation indicator.", this._scanner.spanFrom(start)); })();
-            }
-          }
-          increment = (this._scanner.readCodePoint() - 48);
-          char = this._scanner.peekChar();
-          if ((__dartEquals(char, 43) || __dartEquals(char, 45))) {
-            {
-              chomping = (__dartEquals(char, 43) ? _Chomping.keep : _Chomping.strip);
-              this._scanner.readCodePoint();
-            }
-          }
-        }
-      }
-    }
-    this._skipBlanks();
-    this._skipComment();
-    if (!(this._isBreakOrEnd)) {
-      {
-        (() => { throw new YamlException("Expected comment or line break.", this._scanner.emptySpan); })();
-      }
-    }
-    this._skipLine();
-    let indent = 0;
-    if (!(__dartEquals(increment, 0))) {
-      {
-        indent = ((this._indent >= 0) ? (this._indent + increment) : increment);
-      }
-    }
-    let pair = this._scanBlockScalarBreaks(indent);
-    indent = pair.indent;
-    let trailingBreaks = pair.trailingBreaks;
-    let buffer = __dartStringBuffer("");
-    let leadingBreak = "";
-    let leadingBlank = false;
-    let trailingBlank = false;
-    let end = this._scanner.state;
-    L:
-    while ((__dartEquals(this._scanner.column, indent) && !(this._scanner.isDone))) {
-      {
-        if (this._isDocumentIndicator) {
-          break L;
-        }
-        trailingBlank = this._isBlank;
-        if ((((!(literal) && leadingBreak.length !== 0) && !(leadingBlank)) && !(trailingBlank))) {
-          {
-            if (trailingBreaks.length === 0) {
-              buffer.writeCharCode(32);
-            }
-          }
-        } else {
-          {
-            buffer.write(leadingBreak);
-          }
-        }
-        leadingBreak = "";
-        buffer.write(trailingBreaks);
-        leadingBlank = this._isBlank;
-        let startPosition = this._scanner.position;
-        while (!(this._isBreakOrEnd)) {
-          {
-            this._scanner.readCodePoint();
-          }
-        }
-        buffer.write(this._scanner.substring(startPosition));
-        end = this._scanner.state;
-        if (!(this._scanner.isDone)) {
-          leadingBreak = this._readLine();
-        }
-        let pair_1 = this._scanBlockScalarBreaks(indent);
-        indent = pair_1.indent;
-        trailingBreaks = pair_1.trailingBreaks;
-      }
-    }
-    if (!(__dartEquals(chomping, _Chomping.strip))) {
-      buffer.write(leadingBreak);
-    }
-    if (__dartEquals(chomping, _Chomping.keep)) {
-      buffer.write(trailingBreaks);
-    }
-    return new ScalarToken(this._scanner.spanFrom(start, end), __dartStr(buffer), (literal ? __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"LITERAL\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "LITERAL" }))) : __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"FOLDED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "FOLDED" })))));
-  }
-  _scanBlockScalarBreaks(indent) {
-    let maxIndent = 0;
-    let breaks = __dartStringBuffer("");
-    L:
-    while (true) {
-      {
-        while (((__dartEquals(indent, 0) || (this._scanner.column < indent)) && __dartEquals(this._scanner.peekChar(), 32))) {
-          {
-            this._scanner.readChar();
-          }
-        }
-        if ((this._scanner.column > maxIndent)) {
-          maxIndent = this._scanner.column;
-        }
-        if (!(this._isBreak)) {
-          break L;
-        }
-        breaks.write(this._readLine());
-      }
-    }
-    if (__dartEquals(indent, 0)) {
-      {
-        indent = maxIndent;
-        if ((indent < (this._indent + 1))) {
-          indent = (this._indent + 1);
-        }
-      }
-    }
-    return __dartRecord([], { indent: indent, trailingBreaks: __dartStr(breaks) });
-  }
-  _scanFlowScalar({ singleQuote = false } = {}) {
-    let start = this._scanner.state;
-    let buffer = __dartStringBuffer("");
-    this._scanner.readChar();
-    L:
-    while (true) {
-      {
-        if (this._isDocumentIndicator) {
-          {
-            this._scanner.error("Unexpected document indicator.");
-          }
-        }
-        if (this._scanner.isDone) {
-          {
-            (() => { throw new YamlException("Unexpected end of file.", this._scanner.emptySpan); })();
-          }
-        }
-        let leadingBlanks = false;
-        L_1:
-        while (!(this._isBlankOrEnd)) {
-          {
-            let char = this._scanner.peekChar();
-            if (((singleQuote && __dartEquals(char, 39)) && __dartEquals(this._scanner.peekChar(1), 39))) {
-              {
-                this._scanner.readChar();
-                this._scanner.readChar();
-                buffer.writeCharCode(39);
-              }
-            } else {
-              if (__dartEquals(char, (singleQuote ? 39 : 34))) {
-                {
-                  break L_1;
-                }
-              } else {
-                if (((!(singleQuote) && __dartEquals(char, 92)) && this._isBreakAt(1))) {
-                  {
-                    this._scanner.readChar();
-                    this._skipLine();
-                    leadingBlanks = true;
-                    break L_1;
-                  }
-                } else {
-                  if ((!(singleQuote) && __dartEquals(char, 92))) {
-                    {
-                      let escapeStart = this._scanner.state;
-                      let codeLength = null;
-                      L_2:
-                      switch (this._scanner.peekChar(1)) {
-                        case 48:
-                          {
-                            buffer.writeCharCode(0);
-                            break L_2;
-                          }
-                        case 97:
-                          {
-                            buffer.writeCharCode(7);
-                            break L_2;
-                          }
-                        case 98:
-                          {
-                            buffer.writeCharCode(8);
-                            break L_2;
-                          }
-                        case 116:
-                        case 9:
-                          {
-                            buffer.writeCharCode(9);
-                            break L_2;
-                          }
-                        case 110:
-                          {
-                            buffer.writeCharCode(10);
-                            break L_2;
-                          }
-                        case 118:
-                          {
-                            buffer.writeCharCode(11);
-                            break L_2;
-                          }
-                        case 102:
-                          {
-                            buffer.writeCharCode(12);
-                            break L_2;
-                          }
-                        case 114:
-                          {
-                            buffer.writeCharCode(13);
-                            break L_2;
-                          }
-                        case 101:
-                          {
-                            buffer.writeCharCode(27);
-                            break L_2;
-                          }
-                        case 32:
-                        case 34:
-                        case 47:
-                        case 92:
-                          {
-                            buffer.writeCharCode(__dartNullCheck(this._scanner.peekChar(1)));
-                            break L_2;
-                          }
-                        case 78:
-                          {
-                            buffer.writeCharCode(133);
-                            break L_2;
-                          }
-                        case 95:
-                          {
-                            buffer.writeCharCode(160);
-                            break L_2;
-                          }
-                        case 76:
-                          {
-                            buffer.writeCharCode(8232);
-                            break L_2;
-                          }
-                        case 80:
-                          {
-                            buffer.writeCharCode(8233);
-                            break L_2;
-                          }
-                        case 120:
-                          {
-                            codeLength = 2;
-                            break L_2;
-                          }
-                        case 117:
-                          {
-                            codeLength = 4;
-                            break L_2;
-                          }
-                        case 85:
-                          {
-                            codeLength = 8;
-                            break L_2;
-                          }
-                        default:
-                          {
-                            (() => { throw new YamlException("Unknown escape character.", this._scanner.spanFrom(escapeStart)); })();
-                          }
-                      }
-                      this._scanner.readChar();
-                      this._scanner.readChar();
-                      if (!((codeLength === null))) {
-                        {
-                          let value = 0;
-                          for (let i = 0; (i < codeLength); i = (i + 1)) {
-                            {
-                              if (!(this._isHex)) {
-                                {
-                                  this._scanner.readChar();
-                                  (() => { throw new YamlException("Expected " + __dartStr(codeLength) + "-digit hexidecimal number.", this._scanner.spanFrom(escapeStart)); })();
-                                }
-                              }
-                              value = ((value << 4) + this._asHex(this._scanner.readChar()));
-                            }
-                          }
-                          if ((((value >= 55296) && (value <= 57343)) || (value > 1114111))) {
-                            {
-                              (() => { throw new YamlException("Invalid Unicode character escape code.", this._scanner.spanFrom(escapeStart)); })();
-                            }
-                          }
-                          buffer.writeCharCode(value);
-                        }
-                      }
-                    }
-                  } else {
-                    {
-                      buffer.writeCharCode(this._scanner.readCodePoint());
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        if (__dartEquals(this._scanner.peekChar(), (singleQuote ? 39 : 34))) {
-          {
-            break L;
-          }
-        }
-        let whitespace = __dartStringBuffer("");
-        let leadingBreak = "";
-        let trailingBreaks = __dartStringBuffer("");
-        while ((this._isBlank || this._isBreak)) {
-          {
-            if (this._isBlank) {
-              {
-                if (!(leadingBlanks)) {
-                  {
-                    whitespace.writeCharCode(this._scanner.readChar());
-                  }
-                } else {
-                  {
-                    this._scanner.readChar();
-                  }
-                }
-              }
-            } else {
-              {
-                if (!(leadingBlanks)) {
-                  {
-                    whitespace.clear();
-                    leadingBreak = this._readLine();
-                    leadingBlanks = true;
-                  }
-                } else {
-                  {
-                    trailingBreaks.write(this._readLine());
-                  }
-                }
-              }
-            }
-          }
-        }
-        if (leadingBlanks) {
-          {
-            if ((leadingBreak.length !== 0 && trailingBreaks.isEmpty)) {
-              {
-                buffer.writeCharCode(32);
-              }
-            } else {
-              {
-                buffer.write(trailingBreaks);
-              }
-            }
-          }
-        } else {
-          {
-            buffer.write(whitespace);
-            whitespace.clear();
-          }
-        }
-      }
-    }
-    this._scanner.readChar();
-    return new ScalarToken(this._scanner.spanFrom(start), __dartStr(buffer), (singleQuote ? __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"SINGLE_QUOTED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "SINGLE_QUOTED" }))) : __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"DOUBLE_QUOTED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "DOUBLE_QUOTED" })))));
-  }
-  _scanPlainScalar() {
-    let start = this._scanner.state;
-    let end = this._scanner.state;
-    let buffer = __dartStringBuffer("");
-    let leadingBreak = "";
-    let trailingBreaks = "";
-    let whitespace = __dartStringBuffer("");
-    let indent = (this._indent + 1);
-    L:
-    while (true) {
-      {
-        if (this._isDocumentIndicator) {
-          break L;
-        }
-        if (__dartEquals(this._scanner.peekChar(), 35)) {
-          break L;
-        }
-        if (this._isPlainChar) {
-          {
-            if (leadingBreak.length !== 0) {
-              {
-                if (trailingBreaks.length === 0) {
-                  {
-                    buffer.writeCharCode(32);
-                  }
-                } else {
-                  {
-                    buffer.write(trailingBreaks);
-                  }
-                }
-                leadingBreak = "";
-                trailingBreaks = "";
-              }
-            } else {
-              {
-                buffer.write(whitespace);
-                whitespace.clear();
-              }
-            }
-          }
-        }
-        let startPosition = this._scanner.position;
-        while (this._isPlainChar) {
-          {
-            this._scanner.readCodePoint();
-          }
-        }
-        buffer.write(this._scanner.substring(startPosition));
-        end = this._scanner.state;
-        if ((!(this._isBlank) && !(this._isBreak))) {
-          break L;
-        }
-        while ((this._isBlank || this._isBreak)) {
-          {
-            if (this._isBlank) {
-              {
-                if (((leadingBreak.length !== 0 && (this._scanner.column < indent)) && __dartEquals(this._scanner.peekChar(), 9))) {
-                  {
-                    this._scanner.error("Expected a space but found a tab.", { length: 1 });
-                  }
-                }
-                if (leadingBreak.length === 0) {
-                  {
-                    whitespace.writeCharCode(this._scanner.readChar());
-                  }
-                } else {
-                  {
-                    this._scanner.readChar();
-                  }
-                }
-              }
-            } else {
-              {
-                if (leadingBreak.length === 0) {
-                  {
-                    leadingBreak = this._readLine();
-                    whitespace.clear();
-                  }
-                } else {
-                  {
-                    trailingBreaks = this._readLine();
-                  }
-                }
-              }
-            }
-          }
-        }
-        if ((this._inBlockContext && (this._scanner.column < indent))) {
-          break L;
-        }
-      }
-    }
-    if (leadingBreak.length !== 0) {
-      this._simpleKeyAllowed = true;
-    }
-    return new ScalarToken(this._scanner.spanFrom(start, end), __dartStr(buffer), __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"PLAIN\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))));
-  }
-  _skipLine() {
-    let char = this._scanner.peekChar();
-    if ((!(__dartEquals(char, 13)) && !(__dartEquals(char, 10)))) {
-      return;
-    }
-    this._scanner.readChar();
-    if ((__dartEquals(char, 13) && __dartEquals(this._scanner.peekChar(), 10))) {
-      this._scanner.readChar();
-    }
-  }
-  _readLine() {
-    let char = this._scanner.peekChar();
-    if ((!(__dartEquals(char, 13)) && !(__dartEquals(char, 10)))) {
-      {
-        (() => { throw new YamlException("Expected newline.", this._scanner.emptySpan); })();
-      }
-    }
-    this._scanner.readChar();
-    if ((__dartEquals(char, 13) && __dartEquals(this._scanner.peekChar(), 10))) {
-      this._scanner.readChar();
-    }
-    return "\n";
-  }
-  _isBlankAt(offset) {
-    let char = this._scanner.peekChar(offset);
-    return (__dartEquals(char, 32) || __dartEquals(char, 9));
-  }
-  _isBreakAt(offset) {
-    let char = this._scanner.peekChar(offset);
-    return (__dartEquals(char, 13) || __dartEquals(char, 10));
-  }
-  _isBlankOrEndAt(offset) {
-    let char = this._scanner.peekChar(offset);
-    return (((((char === null) || __dartEquals(char, 32)) || __dartEquals(char, 9)) || __dartEquals(char, 13)) || __dartEquals(char, 10));
-  }
-  _isPlainCharAt(offset) {
-    L:
-    switch (this._scanner.peekChar(offset)) {
-      case 58:
-        {
-          return this._isPlainSafeAt((offset + 1));
-        }
-      case 35:
-        {
-          let previous = this._scanner.peekChar((offset - 1));
-          return (!(__dartEquals(previous, 32)) && !(__dartEquals(previous, 9)));
-        }
-      default:
-        {
-          return this._isPlainSafeAt(offset);
-        }
-    }
-  }
-  _isPlainSafeAt(offset) {
-    let char = this._scanner.peekChar(offset);
-    return (() => {
-      let v = null;
-      const _0_0 = char;
-      const _0_1 = null;
-      const _0_3 = 44;
-      const _0_5 = 91;
-      const _0_7 = 93;
-      const _0_9 = 123;
-      const _0_11 = 125;
-      const _0_13 = 32;
-      const _0_15 = 9;
-      const _0_17 = 10;
-      const _0_19 = 13;
-      const _0_21 = 65279;
-      const _0_23 = 133;
-      L:
-      {
-        {
-          if ((_0_0 === null)) {
-            {
-              v = false;
-              break L;
-            }
-          }
-        }
-        {
-          if (((((__dartEquals(44, _0_0) || __dartEquals(91, _0_0)) || __dartEquals(93, _0_0)) || __dartEquals(123, _0_0)) || __dartEquals(125, _0_0))) {
-            {
-              v = this._inBlockContext;
-              break L;
-            }
-          }
-        }
-        {
-          if (((((__dartEquals(32, _0_0) || __dartEquals(9, _0_0)) || __dartEquals(10, _0_0)) || __dartEquals(13, _0_0)) || __dartEquals(65279, _0_0))) {
-            {
-              v = false;
-              break L;
-            }
-          }
-        }
-        {
-          if (__dartEquals(133, _0_0)) {
-            {
-              v = true;
-              break L;
-            }
-          }
-        }
-        {
-          if (true) {
-            {
-              v = this._isStandardCharacterAt(offset);
-              break L;
-            }
-          }
-        }
-      }
+  _grow(length) {
+    this._buffer = (() => { let v = this._createBiggerBuffer(null); return (() => {
+      __dartListSetRange(v, 0, length, this._buffer, 0);
       return v;
-    })();
+    })(); })();
   }
-  _isStandardCharacterAt(offset) {
-    let first = this._scanner.peekChar(offset);
-    if ((first === null)) {
-      return false;
+  setRange(start, end, iterable, skipCount = 0) {
+    if ((end > this._length)) {
+      (() => { throw __dartCoreError("RangeError", end); })();
     }
-    if (isHighSurrogate_1(first)) {
+    this._setRange(start, end, iterable, skipCount);
+  }
+  _setRange(start, end, source, skipCount) {
+    if (source instanceof TypedDataBuffer) {
       {
-        let next = this._scanner.peekChar((offset + 1));
-        return (!((next === null)) && isLowSurrogate_1(next));
-      }
-    }
-    return this._isStandardCharacter(first);
-  }
-  _isStandardCharacter(char) {
-    return ((((char >= 32) && (char <= 126)) || ((char >= 160) && (char <= 55295))) || ((char >= 57344) && (char <= 65533)));
-  }
-  _asHex(char) {
-    if ((char <= 57)) {
-      return (char - 48);
-    }
-    if ((char <= 70)) {
-      return ((10 + char) - 65);
-    }
-    return ((10 + char) - 97);
-  }
-  _skipBlanks() {
-    while (this._isBlank) {
-      {
-        this._scanner.readChar();
-      }
-    }
-  }
-  _skipComment() {
-    if (!(__dartEquals(this._scanner.peekChar(), 35))) {
-      return;
-    }
-    while (!(this._isBreakOrEnd)) {
-      {
-        this._scanner.readChar();
-      }
-    }
-  }
-  _reportError(exception) {
-    if (!(this._recover)) {
-      {
-        (() => { throw exception; })();
-      }
-    }
-    ((this._errorListener)?.onError(exception) ?? null);
-  }
-}
-
-class _SimpleKey {
-  constructor(tokenNumber, line, column, location, { required } = {}) {
-    this.tokenNumber = tokenNumber;
-    this.line = line;
-    this.column = column;
-    this.location = location;
-    this.required = required;
-  }
-}
-
-class _Chomping {
-  constructor($index, $name) {
-    Object.defineProperty(this, "index", { value: $index, enumerable: true });
-    Object.defineProperty(this, "__dartEnumName", {
-      value: $name,
-      enumerable: false,
-    });
-    Object.defineProperty(this, "name", { value: $name, enumerable: true });
-    Object.freeze(this);
-  }
-  toString() {
-    return "_Chomping." + this.__dartEnumName;
-  }
-}
-Object.defineProperties(_Chomping, {
-  strip: { value: new _Chomping(0, "strip"), enumerable: true },
-  clip: { value: new _Chomping(1, "clip"), enumerable: true },
-  keep: { value: new _Chomping(2, "keep"), enumerable: true }
-});
-Object.defineProperty(_Chomping, "values", { value: Object.freeze([_Chomping.strip, _Chomping.clip, _Chomping.keep]), enumerable: true });
-
-class YamlDocument {
-  constructor() {
-    throw new TypeError("Class YamlDocument has no unnamed constructor");
-  }
-  static internal(contents, span, versionDirective, tagDirectives, { startImplicit = false, endImplicit = false } = {}) {
-    return $YamlDocument_internal(YamlDocument, contents, span, versionDirective, tagDirectives, { startImplicit: startImplicit, endImplicit: endImplicit });
-  }
-  toString() {
-    return __dartObjectToString(this.contents);
-  }
-}
-
-function $YamlDocument_internal($newTarget, contents, span, versionDirective, tagDirectives, { startImplicit = false, endImplicit = false } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  $self.contents = contents;
-  $self.span = span;
-  $self.versionDirective = versionDirective;
-  $self.startImplicit = startImplicit;
-  $self.endImplicit = endImplicit;
-  $self.tagDirectives = __dartUnmodifiableListView(tagDirectives);
-  return $self;
-}
-
-class VersionDirective {
-  constructor(major, minor) {
-    this.major = major;
-    this.minor = minor;
-  }
-  toString() {
-    return "%YAML " + __dartStr(this.major) + "." + __dartStr(this.minor);
-  }
-}
-
-class TagDirective {
-  constructor(handle, prefix) {
-    this.handle = handle;
-    this.prefix = prefix;
-  }
-  toString() {
-    return "%TAG " + __dartStr(this.handle) + " " + __dartStr(this.prefix);
-  }
-}
-
-class Parser {
-  constructor(source, { sourceUrl = null, recover = false, errorListener = null } = {}) {
-    this._states = new Array(0).fill(null);
-    this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"STREAM_START\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "STREAM_START" })));
-    this._tagDirectives = new Map([]);
-    this._scanner = new Scanner(source, { sourceUrl: sourceUrl, recover: recover, errorListener: errorListener });
-  }
-  get isDone() {
-    return __dartEquals(this._state, __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "END" }))));
-  }
-  parse() {
-    try {
-      {
-        if (this.isDone) {
-          (() => { throw __dartCoreError("StateError", "No more events."); })();
-        }
-        let event = this._stateMachine();
-        return event;
-      }
-    } catch ($error) {
-      if ($error instanceof StringScannerException) {
-        const error = $error;
-        {
-          (() => { throw new YamlException(error.message, error.span); })();
-        }
-      } else {
-        throw $error;
-      }
-    }
-  }
-  _stateMachine() {
-    L:
-    switch (this._state) {
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"STREAM_START\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "STREAM_START" }))):
-        {
-          return this._parseStreamStart();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_START\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" }))):
-        {
-          return this._parseDocumentStart();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_CONTENT\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_CONTENT" }))):
-        {
-          return this._parseDocumentContent();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" }))):
-        {
-          return this._parseDocumentEnd();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_NODE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE" }))):
-        {
-          return this._parseNode({ block: true });
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_NODE_OR_INDENTLESS_SEQUENCE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE_OR_INDENTLESS_SEQUENCE" }))):
-        {
-          return this._parseNode({ block: true, indentlessSequence: true });
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_NODE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_NODE" }))):
-        {
-          return this._parseNode();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_SEQUENCE_FIRST_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_FIRST_ENTRY" }))):
-        {
-          this._scanner.scan();
-          return this._parseBlockSequenceEntry();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" }))):
-        {
-          return this._parseBlockSequenceEntry();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"INDENTLESS_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" }))):
-        {
-          return this._parseIndentlessSequenceEntry();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_FIRST_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_FIRST_KEY" }))):
-        {
-          this._scanner.scan();
-          return this._parseBlockMappingKey();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" }))):
-        {
-          return this._parseBlockMappingKey();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" }))):
-        {
-          return this._parseBlockMappingValue();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_FIRST_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_FIRST_ENTRY" }))):
-        {
-          return this._parseFlowSequenceEntry({ first: true });
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" }))):
-        {
-          return this._parseFlowSequenceEntry();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY" }))):
-        {
-          return this._parseFlowSequenceEntryMappingKey();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" }))):
-        {
-          return this._parseFlowSequenceEntryMappingValue();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" }))):
-        {
-          return this._parseFlowSequenceEntryMappingEnd();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_FIRST_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_FIRST_KEY" }))):
-        {
-          return this._parseFlowMappingKey({ first: true });
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" }))):
-        {
-          return this._parseFlowMappingKey();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" }))):
-        {
-          return this._parseFlowMappingValue();
-        }
-      case __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_EMPTY_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_EMPTY_VALUE" }))):
-        {
-          return this._parseFlowMappingValue({ empty: true });
-        }
-      default:
-        {
-          (() => { throw __dartCoreError("StateError", "Unreachable"); })();
-        }
-    }
-  }
-  _parseStreamStart() {
-    let token = this._scanner.scan();
-    this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_START\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" })));
-    return new Event(EventType.streamStart, token.span);
-  }
-  _parseDocumentStart() {
-    let token = __dartNullCheck(this._scanner.peek());
-    while (__dartEquals(token.type, TokenType.documentEnd)) {
-      {
-        token = __dartNullCheck(this._scanner.advance());
-      }
-    }
-    if ((((!(__dartEquals(token.type, TokenType.versionDirective)) && !(__dartEquals(token.type, TokenType.tagDirective))) && !(__dartEquals(token.type, TokenType.documentStart))) && !(__dartEquals(token.type, TokenType.streamEnd)))) {
-      {
-        this._processDirectives();
-        (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" })))), null);
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_NODE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE" })));
-        return new DocumentStartEvent(token.span.start.pointSpan());
-      }
-    }
-    if (__dartEquals(token.type, TokenType.streamEnd)) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "END" })));
-        this._scanner.scan();
-        return new Event(EventType.streamEnd, token.span);
-      }
-    }
-    let start = token.span;
-    let versionDirective = null;
-    let tagDirectives = null;
-    {
-      const _0_0 = this._processDirectives();
-      versionDirective = _0_0.$1;
-      tagDirectives = _0_0.$2;
-    }
-    token = __dartNullCheck(this._scanner.peek());
-    if (!(__dartEquals(token.type, TokenType.documentStart))) {
-      {
-        (() => { throw new YamlException("Expected document start.", token.span); })();
-      }
-    }
-    (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" })))), null);
-    this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_CONTENT\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_CONTENT" })));
-    this._scanner.scan();
-    return new DocumentStartEvent(start.expand(token.span), { versionDirective: versionDirective, tagDirectives: tagDirectives, isImplicit: false });
-  }
-  _parseDocumentContent() {
-    let token = __dartNullCheck(this._scanner.peek());
-    L:
-    switch (token.type) {
-      case TokenType.versionDirective:
-      case TokenType.tagDirective:
-      case TokenType.documentStart:
-      case TokenType.documentEnd:
-      case TokenType.streamEnd:
-        {
-          this._state = this._states.pop();
-          return this._processEmptyScalar(token.span.start);
-        }
-      default:
-        {
-          return this._parseNode({ block: true });
-        }
-    }
-  }
-  _parseDocumentEnd() {
-    (this._tagDirectives.clear(), null);
-    this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_START\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" })));
-    let token = __dartNullCheck(this._scanner.peek());
-    if (__dartEquals(token.type, TokenType.documentEnd)) {
-      {
-        this._scanner.scan();
-        return new DocumentEndEvent(token.span, { isImplicit: false });
+        __dartListSetRange(this._buffer, start, end, source._buffer, skipCount);
       }
     } else {
       {
-        return new DocumentEndEvent(token.span.start.pointSpan());
+        __dartListSetRange(this._buffer, start, end, source, skipCount);
       }
     }
   }
-  _parseNode({ block = false, indentlessSequence = false } = {}) {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (token instanceof AliasToken) {
-      {
-        this._scanner.scan();
-        this._state = this._states.pop();
-        return new AliasEvent(token.span, token.name);
-      }
-    }
-    let anchor = null;
-    let tagToken = null;
-    let span = token.span.start.pointSpan();
-    const parseAnchor = (token) => {
-      anchor = token.name;
-      span = span.expand(token.span);
-      return __dartNullCheck(this._scanner.advance());
-    };
-    const parseTag = (token) => {
-      tagToken = token;
-      span = span.expand(token.span);
-      return __dartNullCheck(this._scanner.advance());
-    };
-    if (token instanceof AnchorToken) {
-      {
-        token = parseAnchor(token);
-        if (token instanceof TagToken) {
-          token = parseTag(token);
-        }
-      }
-    } else {
-      if (token instanceof TagToken) {
-        {
-          token = parseTag(token);
-          if (token instanceof AnchorToken) {
-            token = parseAnchor(token);
-          }
-        }
-      }
-    }
-    let tag = null;
-    if (!((tagToken === null))) {
-      {
-        if ((__dartNullCheck(tagToken).handle === null)) {
-          {
-            tag = __dartNullCheck(tagToken).suffix;
-          }
-        } else {
-          {
-            let tagDirective = __dartMapGet(this._tagDirectives, __dartNullCheck(tagToken).handle);
-            if ((tagDirective === null)) {
-              {
-                (() => { throw new YamlException("Undefined tag handle.", __dartNullCheck(tagToken).span); })();
-              }
-            }
-            tag = (tagDirective.prefix + ((tagToken)?.suffix ?? ""));
-          }
-        }
-      }
-    }
-    if ((indentlessSequence && __dartEquals(token.type, TokenType.blockEntry))) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"INDENTLESS_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" })));
-        return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"BLOCK\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), { anchor: anchor, tag: tag });
-      }
-    }
-    if (token instanceof ScalarToken) {
-      {
-        if (((tag === null) && !(__dartEquals(token.style, __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"PLAIN\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))))))) {
-          tag = "!";
-        }
-        this._state = this._states.pop();
-        this._scanner.scan();
-        return new ScalarEvent(span.expand(token.span), token.value, token.style, { anchor: anchor, tag: tag });
-      }
-    }
-    if (__dartEquals(token.type, TokenType.flowSequenceStart)) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_FIRST_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_FIRST_ENTRY" })));
-        return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"FLOW\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))), { anchor: anchor, tag: tag });
-      }
-    }
-    if (__dartEquals(token.type, TokenType.flowMappingStart)) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_FIRST_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_FIRST_KEY" })));
-        return new MappingStartEvent(span.expand(token.span), __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"FLOW\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))), { anchor: anchor, tag: tag });
-      }
-    }
-    if ((block && __dartEquals(token.type, TokenType.blockSequenceStart))) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_SEQUENCE_FIRST_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_FIRST_ENTRY" })));
-        return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"BLOCK\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), { anchor: anchor, tag: tag });
-      }
-    }
-    if ((block && __dartEquals(token.type, TokenType.blockMappingStart))) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_FIRST_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_FIRST_KEY" })));
-        return new MappingStartEvent(span.expand(token.span), __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"BLOCK\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), { anchor: anchor, tag: tag });
-      }
-    }
-    if ((!((anchor === null)) || !((tag === null)))) {
-      {
-        this._state = this._states.pop();
-        return new ScalarEvent(span, "", __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"PLAIN\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))), { anchor: anchor, tag: tag });
-      }
-    }
-    (() => { throw new YamlException("Expected node content.", span); })();
+  get elementSizeInBytes() {
+    return (this._buffer instanceof DataView ? 1 : this._buffer.BYTES_PER_ELEMENT);
   }
-  _parseBlockSequenceEntry() {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (__dartEquals(token.type, TokenType.blockEntry)) {
-      {
-        let start = token.span.start;
-        token = __dartNullCheck(this._scanner.advance());
-        if ((__dartEquals(token.type, TokenType.blockEntry) || __dartEquals(token.type, TokenType.blockEnd))) {
-          {
-            this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" })));
-            return this._processEmptyScalar(start);
-          }
-        } else {
-          {
-            (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" })))), null);
-            return this._parseNode({ block: true });
-          }
-        }
-      }
-    }
-    if (__dartEquals(token.type, TokenType.blockEnd)) {
-      {
-        this._scanner.scan();
-        this._state = this._states.pop();
-        return new Event(EventType.sequenceEnd, token.span);
-      }
-    }
-    (() => { throw new YamlException("While parsing a block collection, expected '-'.", token.span.start.pointSpan()); })();
+  get lengthInBytes() {
+    return (this._length * (this._buffer instanceof DataView ? 1 : this._buffer.BYTES_PER_ELEMENT));
   }
-  _parseIndentlessSequenceEntry() {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (!(__dartEquals(token.type, TokenType.blockEntry))) {
-      {
-        this._state = this._states.pop();
-        return new Event(EventType.sequenceEnd, token.span.start.pointSpan());
-      }
-    }
-    let start = token.span.start;
-    token = __dartNullCheck(this._scanner.advance());
-    if ((((__dartEquals(token.type, TokenType.blockEntry) || __dartEquals(token.type, TokenType.key)) || __dartEquals(token.type, TokenType.value)) || __dartEquals(token.type, TokenType.blockEnd))) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"INDENTLESS_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" })));
-        return this._processEmptyScalar(start);
-      }
-    } else {
-      {
-        (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"INDENTLESS_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" })))), null);
-        return this._parseNode({ block: true });
-      }
-    }
+  get offsetInBytes() {
+    return this._buffer.byteOffset;
   }
-  _parseBlockMappingKey() {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (__dartEquals(token.type, TokenType.key)) {
-      {
-        let start = token.span.start;
-        token = __dartNullCheck(this._scanner.advance());
-        if (((__dartEquals(token.type, TokenType.key) || __dartEquals(token.type, TokenType.value)) || __dartEquals(token.type, TokenType.blockEnd))) {
-          {
-            this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" })));
-            return this._processEmptyScalar(start);
-          }
-        } else {
-          {
-            (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" })))), null);
-            return this._parseNode({ block: true, indentlessSequence: true });
-          }
-        }
-      }
-    }
-    if (__dartEquals(token.type, TokenType.value)) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" })));
-        return this._processEmptyScalar(token.span.start);
-      }
-    }
-    if (__dartEquals(token.type, TokenType.blockEnd)) {
-      {
-        this._scanner.scan();
-        this._state = this._states.pop();
-        return new Event(EventType.mappingEnd, token.span);
-      }
-    }
-    (() => { throw new YamlException("Expected a key while parsing a block mapping.", token.span.start.pointSpan()); })();
+  get buffer() {
+    return this._buffer.buffer;
   }
-  _parseBlockMappingValue() {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (!(__dartEquals(token.type, TokenType.value))) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" })));
-        return this._processEmptyScalar(token.span.start);
-      }
-    }
-    let start = token.span.start;
-    token = __dartNullCheck(this._scanner.advance());
-    if (((__dartEquals(token.type, TokenType.key) || __dartEquals(token.type, TokenType.value)) || __dartEquals(token.type, TokenType.blockEnd))) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" })));
-        return this._processEmptyScalar(start);
-      }
-    } else {
-      {
-        (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" })))), null);
-        return this._parseNode({ block: true, indentlessSequence: true });
-      }
-    }
+  get _defaultValue() {
+    throw new TypeError("Abstract member TypedDataBuffer._defaultValue");
   }
-  _parseFlowSequenceEntry({ first = false } = {}) {
-    if (first) {
-      this._scanner.scan();
-    }
-    let token = __dartNullCheck(this._scanner.peek());
-    if (!(__dartEquals(token.type, TokenType.flowSequenceEnd))) {
-      {
-        if (!(first)) {
-          {
-            if (!(__dartEquals(token.type, TokenType.flowEntry))) {
-              {
-                (() => { throw new YamlException("While parsing a flow sequence, expected ',' or ']'.", token.span.start.pointSpan()); })();
-              }
-            }
-            token = __dartNullCheck(this._scanner.advance());
-          }
-        }
-        if (__dartEquals(token.type, TokenType.key)) {
-          {
-            this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY" })));
-            this._scanner.scan();
-            return new MappingStartEvent(token.span, __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"FLOW\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))));
-          }
-        } else {
-          if (!(__dartEquals(token.type, TokenType.flowSequenceEnd))) {
-            {
-              (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" })))), null);
-              return this._parseNode();
-            }
-          }
-        }
-      }
-    }
-    this._scanner.scan();
-    this._state = this._states.pop();
-    return new Event(EventType.sequenceEnd, token.span);
+  set _defaultValue(value) {
+    Object.defineProperty(this, "_defaultValue", { value, writable: true, configurable: true, enumerable: true });
   }
-  _parseFlowSequenceEntryMappingKey() {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (((__dartEquals(token.type, TokenType.value) || __dartEquals(token.type, TokenType.flowEntry)) || __dartEquals(token.type, TokenType.flowSequenceEnd))) {
-      {
-        let start = token.span.start;
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" })));
-        return this._processEmptyScalar(start);
-      }
-    } else {
-      {
-        (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" })))), null);
-        return this._parseNode();
-      }
-    }
-  }
-  _parseFlowSequenceEntryMappingValue() {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (__dartEquals(token.type, TokenType.value)) {
-      {
-        token = __dartNullCheck(this._scanner.advance());
-        if ((!(__dartEquals(token.type, TokenType.flowEntry)) && !(__dartEquals(token.type, TokenType.flowSequenceEnd)))) {
-          {
-            (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" })))), null);
-            return this._parseNode();
-          }
-        }
-      }
-    }
-    this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" })));
-    return this._processEmptyScalar(token.span.start);
-  }
-  _parseFlowSequenceEntryMappingEnd() {
-    this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" })));
-    return new Event(EventType.mappingEnd, __dartNullCheck(this._scanner.peek()).span.start.pointSpan());
-  }
-  _parseFlowMappingKey({ first = false } = {}) {
-    if (first) {
-      this._scanner.scan();
-    }
-    let token = __dartNullCheck(this._scanner.peek());
-    if (!(__dartEquals(token.type, TokenType.flowMappingEnd))) {
-      {
-        if (!(first)) {
-          {
-            if (!(__dartEquals(token.type, TokenType.flowEntry))) {
-              {
-                (() => { throw new YamlException("While parsing a flow mapping, expected ',' or '}'.", token.span.start.pointSpan()); })();
-              }
-            }
-            token = __dartNullCheck(this._scanner.advance());
-          }
-        }
-        if (__dartEquals(token.type, TokenType.key)) {
-          {
-            token = __dartNullCheck(this._scanner.advance());
-            if (((!(__dartEquals(token.type, TokenType.value)) && !(__dartEquals(token.type, TokenType.flowEntry))) && !(__dartEquals(token.type, TokenType.flowMappingEnd)))) {
-              {
-                (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" })))), null);
-                return this._parseNode();
-              }
-            } else {
-              {
-                this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" })));
-                return this._processEmptyScalar(token.span.start);
-              }
-            }
-          }
-        } else {
-          if (!(__dartEquals(token.type, TokenType.flowMappingEnd))) {
-            {
-              (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_EMPTY_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_EMPTY_VALUE" })))), null);
-              return this._parseNode();
-            }
-          }
-        }
-      }
-    }
-    this._scanner.scan();
-    this._state = this._states.pop();
-    return new Event(EventType.mappingEnd, token.span);
-  }
-  _parseFlowMappingValue({ empty = false } = {}) {
-    let token = __dartNullCheck(this._scanner.peek());
-    if (empty) {
-      {
-        this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" })));
-        return this._processEmptyScalar(token.span.start);
-      }
-    }
-    if (__dartEquals(token.type, TokenType.value)) {
-      {
-        token = __dartNullCheck(this._scanner.advance());
-        if ((!(__dartEquals(token.type, TokenType.flowEntry)) && !(__dartEquals(token.type, TokenType.flowMappingEnd)))) {
-          {
-            (this._states.push(__dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" })))), null);
-            return this._parseNode();
-          }
-        }
-      }
-    }
-    this._state = __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" })));
-    return this._processEmptyScalar(token.span.start);
-  }
-  _processEmptyScalar(location) {
-    return new ScalarEvent(__dartAs(location.pointSpan(), value => value instanceof FileSpan, "FileSpan"), "", __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"PLAIN\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))));
-  }
-  _processDirectives() {
-    let token = __dartNullCheck(this._scanner.peek());
-    let versionDirective = null;
-    let tagDirectives = new Array(0).fill(null);
-    while ((__dartEquals(token.type, TokenType.versionDirective) || __dartEquals(token.type, TokenType.tagDirective))) {
-      {
-        if (token instanceof VersionDirectiveToken) {
-          {
-            if (!((versionDirective === null))) {
-              {
-                (() => { throw new YamlException("Duplicate %YAML directive.", token.span); })();
-              }
-            }
-            if ((!(__dartEquals(token.major, 1)) || __dartEquals(token.minor, 0))) {
-              {
-                (() => { throw new YamlException("Incompatible YAML document. This parser only supports YAML 1.1 and 1.2.", token.span); })();
-              }
-            } else {
-              if ((token.minor > 2)) {
-                {
-                  warn("Warning: this parser only supports YAML 1.1 and 1.2.", token.span);
-                }
-              }
-            }
-            versionDirective = new VersionDirective(token.major, token.minor);
-          }
-        } else {
-          if (token instanceof TagDirectiveToken) {
-            {
-              let tagDirective = new TagDirective(token.handle, token.prefix);
-              this._appendTagDirective(tagDirective, token.span);
-              (tagDirectives.push(tagDirective), null);
-            }
-          }
-        }
-        token = __dartNullCheck(this._scanner.advance());
-      }
-    }
-    this._appendTagDirective(new TagDirective("!", "!"), token.span.start.pointSpan(), { allowDuplicates: true });
-    this._appendTagDirective(new TagDirective("!!", "tag:yaml.org,2002:"), token.span.start.pointSpan(), { allowDuplicates: true });
-    return __dartRecord([versionDirective, tagDirectives], {});
-  }
-  _appendTagDirective(newDirective, span, { allowDuplicates = false } = {}) {
-    if (__dartMapContainsKey(this._tagDirectives, newDirective.handle)) {
-      {
-        if (allowDuplicates) {
-          return;
-        }
-        (() => { throw new YamlException("Duplicate %TAG directive.", span); })();
-      }
-    }
-    __dartMapSet(this._tagDirectives, newDirective.handle, newDirective);
+  _createBuffer(size) {
+    throw new TypeError("Abstract member TypedDataBuffer._createBuffer");
   }
 }
 
-class _State {
-  constructor(name) {
-    this.name = name;
+class _IntBuffer extends TypedDataBuffer {
+  constructor(buffer) {
+    super(buffer);
   }
-  toString() {
-    return this.name;
-  }
-}
-
-class Event {
-  constructor(type, span) {
-    this.type = type;
-    this.span = span;
-    Object.defineProperty(this, $Event_interface, { value: true });
-  }
-  toString() {
-    return __dartStr(this.type);
-  }
-}
-Object.defineProperty(Event, Symbol.hasInstance, { value(value) { return value != null && value[$Event_interface] === true; } });
-
-class DocumentStartEvent {
-  constructor(span, { versionDirective = null, tagDirectives = null, isImplicit = true } = {}) {
-    this.span = span;
-    this.versionDirective = versionDirective;
-    this.isImplicit = isImplicit;
-    this.tagDirectives = (tagDirectives ?? new Array(0).fill(null));
-    Object.defineProperty(this, $Event_interface, { value: true });
-  }
-  get type() {
-    return EventType.documentStart;
-  }
-  toString() {
-    return "DOCUMENT_START";
+  get _defaultValue() {
+    return 0;
   }
 }
 
-class DocumentEndEvent {
-  constructor(span, { isImplicit = true } = {}) {
-    this.span = span;
-    this.isImplicit = isImplicit;
-    Object.defineProperty(this, $Event_interface, { value: true });
+class _FloatBuffer extends TypedDataBuffer {
+  constructor(buffer) {
+    super(buffer);
   }
-  get type() {
-    return EventType.documentEnd;
-  }
-  toString() {
-    return "DOCUMENT_END";
+  get _defaultValue() {
+    return 0.0;
   }
 }
 
-class AliasEvent {
-  constructor(span, name) {
-    this.span = span;
-    this.name = name;
-    Object.defineProperty(this, $Event_interface, { value: true });
+class Uint8Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint8Array(initialLength));
   }
-  get type() {
-    return EventType.alias;
-  }
-  toString() {
-    return "ALIAS " + __dartStr(this.name);
+  _createBuffer(size) {
+    return new Uint8Array(size);
   }
 }
 
-class _ValueEvent {
+class Int8Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Int8Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Int8Array(size);
+  }
+}
+
+class Uint8ClampedBuffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint8ClampedArray(initialLength));
+  }
+  _createBuffer(size) {
+    return new Uint8ClampedArray(size);
+  }
+}
+
+class Uint16Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint16Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Uint16Array(size);
+  }
+}
+
+class Int16Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Int16Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Int16Array(size);
+  }
+}
+
+class Uint32Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Uint32Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Uint32Array(size);
+  }
+}
+
+class Int32Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new Int32Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Int32Array(size);
+  }
+}
+
+class Uint64Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new BigUint64Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new BigUint64Array(size);
+  }
+}
+
+class Int64Buffer extends _IntBuffer {
+  constructor(initialLength = 0) {
+    super(new BigInt64Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new BigInt64Array(size);
+  }
+}
+
+class Float32Buffer extends _FloatBuffer {
+  constructor(initialLength = 0) {
+    super(new Float32Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Float32Array(size);
+  }
+}
+
+class Float64Buffer extends _FloatBuffer {
+  constructor(initialLength = 0) {
+    super(new Float64Array(initialLength));
+  }
+  _createBuffer(size) {
+    return new Float64Array(size);
+  }
+}
+
+class Int32x4Buffer extends TypedDataBuffer {
+  constructor(initialLength = 0) {
+    super(new Array(initialLength).fill(null));
+  }
+  get _defaultValue() {
+    return Int32x4Buffer._zero;
+  }
+  _createBuffer(size) {
+    return new Array(size).fill(null);
+  }
+}
+
+class Float32x4Buffer extends TypedDataBuffer {
+  constructor(initialLength = 0) {
+    super(new Array(initialLength).fill(null));
+  }
+  get _defaultValue() {
+    return Object.freeze({ __dartType: "Float32x4", x: 0, y: 0, z: 0, w: 0 });
+  }
+  _createBuffer(size) {
+    return new Array(size).fill(null);
+  }
+}
+
+class __TypedQueue_Object_ListMixin {
   constructor() {
-    Object.defineProperty(this, $Event_interface, { value: true });
   }
-  get anchor() {
-    throw new TypeError("Abstract member _ValueEvent.anchor");
-  }
-  set anchor(value) {
-    Object.defineProperty(this, "anchor", { value, writable: true, configurable: true, enumerable: true });
-  }
-  get tag() {
-    throw new TypeError("Abstract member _ValueEvent.tag");
-  }
-  set tag(value) {
-    Object.defineProperty(this, "tag", { value, writable: true, configurable: true, enumerable: true });
-  }
-  toString() {
-    let buffer = __dartStringBuffer(__dartStr(this.type));
-    if (!((this.anchor === null))) {
-      buffer.write(" &" + __dartStr(this.anchor));
+  toList({ growable = true } = {}) {
+    if (this.length === 0) {
+      return (growable ? [] : __dartFixedList([]));
     }
-    if (!((this.tag === null))) {
-      buffer.write(" " + __dartStr(this.tag));
-    }
-    return __dartStr(buffer);
-  }
-}
-
-class ScalarEvent extends _ValueEvent {
-  constructor(span, value, style_1, { anchor = null, tag = null } = {}) {
-    super();
-    this.span = span;
-    this.value = value;
-    this.style = style_1;
-    this.anchor = anchor;
-    this.tag = tag;
-  }
-  get type() {
-    return EventType.scalar;
-  }
-  toString() {
-    return __dartStr(super.toString()) + " \"" + __dartStr(this.value) + "\"";
-  }
-}
-
-class SequenceStartEvent extends _ValueEvent {
-  constructor(span, style_1, { anchor = null, tag = null } = {}) {
-    super();
-    this.span = span;
-    this.style = style_1;
-    this.anchor = anchor;
-    this.tag = tag;
-  }
-  get type() {
-    return EventType.sequenceStart;
-  }
-}
-
-class MappingStartEvent extends _ValueEvent {
-  constructor(span, style_1, { anchor = null, tag = null } = {}) {
-    super();
-    this.span = span;
-    this.style = style_1;
-    this.anchor = anchor;
-    this.tag = tag;
-  }
-  get type() {
-    return EventType.mappingStart;
-  }
-}
-
-class EventType {
-  constructor($index, $name) {
-    Object.defineProperty(this, "index", { value: $index, enumerable: true });
-    Object.defineProperty(this, "__dartEnumName", {
-      value: $name,
-      enumerable: false,
-    });
-    Object.defineProperty(this, "name", { value: $name, enumerable: true });
-    Object.freeze(this);
-  }
-  toString() {
-    return "EventType." + this.__dartEnumName;
-  }
-}
-Object.defineProperties(EventType, {
-  streamStart: { value: new EventType(0, "streamStart"), enumerable: true },
-  streamEnd: { value: new EventType(1, "streamEnd"), enumerable: true },
-  documentStart: { value: new EventType(2, "documentStart"), enumerable: true },
-  documentEnd: { value: new EventType(3, "documentEnd"), enumerable: true },
-  alias: { value: new EventType(4, "alias"), enumerable: true },
-  scalar: { value: new EventType(5, "scalar"), enumerable: true },
-  sequenceStart: { value: new EventType(6, "sequenceStart"), enumerable: true },
-  sequenceEnd: { value: new EventType(7, "sequenceEnd"), enumerable: true },
-  mappingStart: { value: new EventType(8, "mappingStart"), enumerable: true },
-  mappingEnd: { value: new EventType(9, "mappingEnd"), enumerable: true }
-});
-Object.defineProperty(EventType, "values", { value: Object.freeze([EventType.streamStart, EventType.streamEnd, EventType.documentStart, EventType.documentEnd, EventType.alias, EventType.scalar, EventType.sequenceStart, EventType.sequenceEnd, EventType.mappingStart, EventType.mappingEnd]), enumerable: true });
-
-class NullSpan extends SourceSpanMixin {
-  constructor(sourceUrl) {
-    super();
-    this.text = "";
-    this.start = new SourceLocation(0, { sourceUrl: sourceUrl });
-  }
-  get end() {
-    return this.start;
-  }
-}
-
-class _YamlMapWrapper_MapBase_UnmodifiableMapMixin {
-  constructor() {
-    Object.defineProperty(this, $UnmodifiableMapMixin_interface, { value: true });
-  }
-  "[]="(key, value) {
-    return UnmodifiableMapMixin._throw();
-  }
-  putIfAbsent(key, ifAbsent) {
-    return UnmodifiableMapMixin._throw();
-  }
-  addAll(other) {
-    return UnmodifiableMapMixin._throw();
-  }
-  remove(key) {
-    return UnmodifiableMapMixin._throw();
-  }
-  clear() {
-    return UnmodifiableMapMixin._throw();
-  }
-  set first(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-  set last(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-}
-
-class YamlNode {
-  constructor() {
-    if (new.target === YamlNode) {
-      throw new TypeError("Class YamlNode has no unnamed constructor");
-    }
-  }
-  static _(_span) {
-    return $YamlNode__(YamlNode, _span);
-  }
-  get span() {
-    return this._span;
-  }
-  get value() {
-    throw new TypeError("Abstract member YamlNode.value");
-  }
-  set value(value) {
-    Object.defineProperty(this, "value", { value, writable: true, configurable: true, enumerable: true });
-  }
-}
-
-function $YamlNode__($newTarget, _span) {
-  const $self = Object.create($newTarget.prototype);
-  $self._span = _span;
-  return $self;
-}
-
-class _YamlMap_YamlNode_MapMixin extends YamlNode {
-  constructor() {
-    if (new.target === _YamlMap_YamlNode_MapMixin) {
-      throw new TypeError("Class _YamlMap&YamlNode&MapMixin has no unnamed constructor");
-    }
-  }
-  static _(_span) {
-    return $_YamlMap_YamlNode_MapMixin__(_YamlMap_YamlNode_MapMixin, _span);
-  }
-  get keys() {
-    throw new TypeError("Abstract member _YamlMap&YamlNode&MapMixin.keys");
-  }
-  set keys(value) {
-    Object.defineProperty(this, "keys", { value, writable: true, configurable: true, enumerable: true });
-  }
-  "[]"(key) {
-    throw new TypeError("Abstract member _YamlMap&YamlNode&MapMixin.[]");
-  }
-  "[]="(key, value) {
-    throw new TypeError("Abstract member _YamlMap&YamlNode&MapMixin.[]=");
-  }
-  remove(key) {
-    throw new TypeError("Abstract member _YamlMap&YamlNode&MapMixin.remove");
-  }
-  clear() {
-    throw new TypeError("Abstract member _YamlMap&YamlNode&MapMixin.clear");
-  }
-  cast() {
-    return __dartMapFromEntries(Array.from(this, ([key, value]) => [__dartAs(key, (key) => true, "TypeParameterType(_YamlMap&YamlNode&MapMixin.cast.RK%)"), __dartAs(value, (value) => true, "TypeParameterType(_YamlMap&YamlNode&MapMixin.cast.RV%)")]));
-  }
-  forEach(action) {
-    {
-      let _sync_for_iterator = __dartIterator(this.keys);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let key = _sync_for_iterator.current;
-          {
-            (action)(key, (this["[]"](key) ?? v));
-          }
-        }
-      }
-    }
-  }
-  addAll(other) {
-    __dartMapForEach(other, (key, value) => {
-      this["[]="](key, value);
-});
-  }
-  containsValue(value) {
-    {
-      let _sync_for_iterator = __dartIterator(this.keys);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let key = _sync_for_iterator.current;
-          {
-            if (__dartEquals(this["[]"](key), value)) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-    return false;
-  }
-  putIfAbsent(key, ifAbsent) {
-    if (this.containsKey(key)) {
+    let first = __dartIndexGet(this, 0);
+    let result = (growable ? new Array(this.length).fill(first) : __dartFixedList(new Array(this.length).fill(first)));
+    for (let i = 1; (i < this.length); i = (i + 1)) {
       {
-        return (this["[]"](key) ?? v);
-      }
-    }
-    return (() => { let v_1 = key; return (() => { let v_2 = (ifAbsent)(); return (() => { let v_3 = this["[]="](v_1, v_2); return v_2; })(); })(); })();
-  }
-  update(key, update, { ifAbsent = null } = {}) {
-    if (this.containsKey(key)) {
-      {
-        return (() => { let v = key; return (() => { let v_1 = (update)((this["[]"](key) ?? v_2)); return (() => { let v_3 = this["[]="](v, v_1); return v_1; })(); })(); })();
-      }
-    }
-    if (!((ifAbsent === null))) {
-      {
-        return (() => { let v_4 = key; return (() => { let v_5 = (ifAbsent)(); return (() => { let v_6 = this["[]="](v_4, v_5); return v_5; })(); })(); })();
-      }
-    }
-    (() => { throw __dartCoreError("ArgumentError", key); })();
-  }
-  updateAll(update) {
-    {
-      let _sync_for_iterator = __dartIterator(this.keys);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let key = _sync_for_iterator.current;
-          {
-            this["[]="](key, (update)(key, (this["[]"](key) ?? v)));
-          }
-        }
-      }
-    }
-  }
-  get entries() {
-    return Array.from(this.keys, (key) => { return Object.freeze({ key: key, value: (this["[]"](key) ?? v) }); });
-  }
-  map(transform) {
-    let result = new Map([]);
-    {
-      let _sync_for_iterator = __dartIterator(this.keys);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let key = _sync_for_iterator.current;
-          {
-            let entry = (transform)(key, (this["[]"](key) ?? v));
-            __dartMapSet(result, entry.key, entry.value);
-          }
-        }
+        __dartIndexSet(result, i, __dartIndexGet(this, i));
       }
     }
     return result;
   }
-  addEntries(newEntries) {
-    {
-      let _sync_for_iterator = __dartIterator(newEntries);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let entry = _sync_for_iterator.current;
+  cast() {
+    return Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(__TypedQueue&Object&ListMixin.cast.R%)"));
+  }
+  removeLast() {
+    if (__dartEquals(this.length, 0)) {
+      {
+        (() => { throw __dartCoreError("StateError", "No element"); })();
+      }
+    }
+    let result = __dartIndexGet(this, (this.length - 1));
+    this.length = (this.length - 1);
+    return result;
+  }
+  add(element) {
+    __dartIndexSet(this, (() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })(), element);
+  }
+  removeRange(start, end) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    if ((end > start)) {
+      {
+        this._closeGap(start, end);
+      }
+    }
+  }
+  setRange(start, end, iterable, skipCount = 0) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    let length = (end - start);
+    if (__dartEquals(length, 0)) {
+      return;
+    }
+    __dartCheckNotNegative(skipCount, "skipCount", null);
+    let otherList = null;
+    let otherStart = null;
+    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
+      {
+        otherList = iterable;
+        otherStart = skipCount;
+      }
+    } else {
+      {
+        otherList = __dartFixedList(Array.from(Array.from(iterable).slice(skipCount)));
+        otherStart = 0;
+      }
+    }
+    if (((otherStart + length) > otherList.length)) {
+      {
+        (() => { throw __dartCoreError("StateError", "Too few elements"); })();
+      }
+    }
+    if ((otherStart < start)) {
+      {
+        for (let i = (length - 1); (i >= 0); i = (i - 1)) {
           {
-            this["[]="](entry.key, entry.value);
+            __dartIndexSet(this, (start + i), __dartIndexGet(otherList, (otherStart + i)));
+          }
+        }
+      }
+    } else {
+      {
+        for (let i_1 = 0; (i_1 < length); i_1 = (i_1 + 1)) {
+          {
+            __dartIndexSet(this, (start + i_1), __dartIndexGet(otherList, (otherStart + i_1)));
           }
         }
       }
     }
   }
-  removeWhere(test) {
-    let keysToRemove = new Array(0).fill(null);
-    {
-      let _sync_for_iterator = __dartIterator(this.keys);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let key = _sync_for_iterator.current;
-          {
-            if ((test)(key, (this["[]"](key) ?? v))) {
-              (keysToRemove.push(key), null);
-            }
-          }
-        }
-      }
-    }
-    {
-      let _sync_for_iterator_1 = __dartIterator(keysToRemove);
-      for (; _sync_for_iterator_1.moveNext(); ) {
-        {
-          let key_1 = _sync_for_iterator_1.current;
-          {
-            this.remove(key_1);
-          }
-        }
+  fillRange(start, end, fill = null) {
+    let value = (fill ?? (v ?? __dartAs(v_1, value => true, "E")));
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    for (let i = start; (i < end); i = (i + 1)) {
+      {
+        __dartIndexSet(this, i, value);
       }
     }
   }
-  containsKey(key) {
-    return __dartIterableContains(this.keys, key);
-  }
-  get length() {
-    return __dartIterableLength(this.keys);
-  }
-  get isEmpty() {
-    return __dartIterableIsEmpty(this.keys);
-  }
-  get isNotEmpty() {
-    return !__dartIterableIsEmpty(this.keys);
-  }
-  get values() {
-    return __dartMapBaseValues(this);
-  }
-  toString() {
-    return ("{" + Array.from(this, ([key, value]) => __dartStr(key) + ": " + __dartStr(value)).join(", ") + "}");
-  }
-}
-
-function $_YamlMap_YamlNode_MapMixin__($newTarget, _span) {
-  const $self = $YamlNode__($newTarget, _span);
-  return $self;
-}
-
-class _YamlMap_YamlNode_MapMixin_UnmodifiableMapMixin extends _YamlMap_YamlNode_MapMixin {
-  constructor() {
-    if (new.target === _YamlMap_YamlNode_MapMixin_UnmodifiableMapMixin) {
-      throw new TypeError("Class _YamlMap&YamlNode&MapMixin&UnmodifiableMapMixin has no unnamed constructor");
-    }
-  }
-  static _(_span) {
-    return $_YamlMap_YamlNode_MapMixin_UnmodifiableMapMixin__(_YamlMap_YamlNode_MapMixin_UnmodifiableMapMixin, _span);
-  }
-  "[]="(key, value) {
-    return UnmodifiableMapMixin._throw();
-  }
-  putIfAbsent(key, ifAbsent) {
-    return UnmodifiableMapMixin._throw();
-  }
-  addAll(other) {
-    return UnmodifiableMapMixin._throw();
-  }
-  remove(key) {
-    return UnmodifiableMapMixin._throw();
-  }
-  clear() {
-    return UnmodifiableMapMixin._throw();
-  }
-  set first(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-  set last(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-}
-
-function $_YamlMap_YamlNode_MapMixin_UnmodifiableMapMixin__($newTarget, _span) {
-  const $self = $_YamlMap_YamlNode_MapMixin__($newTarget, _span);
-  Object.defineProperty($self, $UnmodifiableMapMixin_interface, { value: true });
-  return $self;
-}
-
-class YamlMap extends _YamlMap_YamlNode_MapMixin_UnmodifiableMapMixin {
-  static internal(nodes, span, style_1) {
-    return $YamlMap_internal(YamlMap, nodes, span, style_1);
-  }
-  get value() {
-    return this;
-  }
-  get keys() {
-    return Array.from(Array.from(this.nodes.keys()), function(node) { return __dartAs(node, value => value instanceof YamlNode, "YamlNode").value; });
-  }
-  constructor({ sourceUrl = null } = {}) {
-    return new YamlMapWrapper(__dartConst("[\"map\",\"DynamicType(dynamic)\",\"DynamicType(dynamic)\"]", () => __dartConstMap([])), sourceUrl);
-  }
-  static wrap(dartMap, { sourceUrl = null, style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-    return new YamlMapWrapper(dartMap, sourceUrl, { style: style_1 });
-  }
-  "[]"(key) {
-    return ((__dartMapGet(this.nodes, key))?.value ?? null);
-  }
-}
-Object.defineProperty(YamlMap, Symbol.hasInstance, { value(value) { return value != null && value[$YamlMap_interface] === true; } });
-
-function $YamlMap_internal($newTarget, nodes, span, style_1) {
-  const $self = $_YamlMap_YamlNode_MapMixin_UnmodifiableMapMixin__($newTarget, span);
-  Object.defineProperty($self, $YamlMap_interface, { value: true });
-  $self.style = style_1;
-  $self.nodes = __dartUnmodifiableMapView(nodes);
-  return $self;
-}
-
-class YamlMapWrapper extends _YamlMapWrapper_MapBase_UnmodifiableMapMixin {
-  constructor(dartMap, sourceUrl, { style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-    return $YamlMapWrapper__(new.target, dartMap, new NullSpan(sourceUrl), { style: style_1 });
-  }
-  static _(dartMap, span, { style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-    return $YamlMapWrapper__(YamlMapWrapper, dartMap, span, { style: style_1 });
-  }
-  get value() {
-    return this;
-  }
-  get keys() {
-    return Array.from(this._dartMap.keys());
-  }
-  "[]"(key) {
-    let value = __dartMapGet(this._dartMap, key);
-    if (value instanceof Map) {
-      return YamlMapWrapper._(value, this.span);
-    }
-    if ((Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView)))) {
-      return YamlListWrapper._(value, this.span);
-    }
-    return value;
-  }
-  get hashCode() {
-    return __dartHashValue(this._dartMap);
-  }
-  "=="(other) {
-    return (other instanceof YamlMapWrapper && __dartEquals(other._dartMap, this._dartMap));
-  }
-}
-
-function $YamlMapWrapper__($newTarget, dartMap, span, { style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-  const $self = Reflect.construct(_YamlMapWrapper_MapBase_UnmodifiableMapMixin, [], $newTarget);
-  Object.defineProperty($self, $YamlMap_interface, { value: true });
-  $self.span = span;
-  $self.style = style_1;
-  $self._dartMap = dartMap;
-  $self.nodes = new _YamlMapNodes(dartMap, span);
-  (() => { const value = $self.style; if (value == null) throw __dartCoreError("ArgumentError", "style" == null ? "Must not be null" : String("style") + " must not be null"); return value; })();
-  return $self;
-}
-
-class __YamlMapNodes_MapBase_UnmodifiableMapMixin {
-  constructor() {
-    Object.defineProperty(this, $UnmodifiableMapMixin_interface, { value: true });
-  }
-  "[]="(key, value) {
-    return UnmodifiableMapMixin._throw();
-  }
-  putIfAbsent(key, ifAbsent) {
-    return UnmodifiableMapMixin._throw();
-  }
-  addAll(other) {
-    return UnmodifiableMapMixin._throw();
-  }
-  remove(key) {
-    return UnmodifiableMapMixin._throw();
-  }
-  clear() {
-    return UnmodifiableMapMixin._throw();
-  }
-  set first(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-  set last(_) {
-    return UnmodifiableMapMixin._throw();
-  }
-}
-
-class _YamlMapNodes extends __YamlMapNodes_MapBase_UnmodifiableMapMixin {
-  constructor(_dartMap, _span) {
-    super();
-    this._dartMap = _dartMap;
-    this._span = _span;
-  }
-  get keys() {
-    return Array.from(Array.from(this._dartMap.keys()), (key) => { return YamlScalar.internalWithSpan(key, this._span); });
-  }
-  "[]"(key) {
-    if (key instanceof YamlScalar) {
-      key = key.value;
-    }
-    if (!(__dartMapContainsKey(this._dartMap, key))) {
-      return null;
-    }
-    return _nodeForValue(__dartMapGet(this._dartMap, key), this._span);
-  }
-  get hashCode() {
-    return __dartHashValue(this._dartMap);
-  }
-  "=="(other) {
-    return (other instanceof _YamlMapNodes && __dartEquals(other._dartMap, this._dartMap));
-  }
-}
-
-class _YamlList_YamlNode_ListMixin extends YamlNode {
-  constructor() {
-    if (new.target === _YamlList_YamlNode_ListMixin) {
-      throw new TypeError("Class _YamlList&YamlNode&ListMixin has no unnamed constructor");
-    }
-  }
-  static _(_span) {
-    return $_YamlList_YamlNode_ListMixin__(_YamlList_YamlNode_ListMixin, _span);
+  sublist(start, end = null) {
+    let listLength = this.length;
+    ((end === null) ? end = listLength : null);
+    __dartCheckValidRange(start, end, listLength, null, null, null);
+    return Array.from(this.slice(start, end));
   }
   get first() {
     if (__dartEquals(this.length, 0)) {
@@ -13324,19 +11128,6 @@ class _YamlList_YamlNode_ListMixin extends YamlNode {
   takeWhile(test) {
     return __dartIterableTakeWhile(this, test);
   }
-  toList({ growable = true } = {}) {
-    if (this.length === 0) {
-      return (growable ? [] : __dartFixedList([]));
-    }
-    let first = __dartIndexGet(this, 0);
-    let result = (growable ? new Array(this.length).fill(first) : __dartFixedList(new Array(this.length).fill(first)));
-    for (let i = 1; (i < this.length); i = (i + 1)) {
-      {
-        __dartIndexSet(result, i, __dartIndexGet(this, i));
-      }
-    }
-    return result;
-  }
   toSet() {
     let result = new Set();
     for (let i = 0; (i < this.length); i = (i + 1)) {
@@ -13345,9 +11136,6 @@ class _YamlList_YamlNode_ListMixin extends YamlNode {
       }
     }
     return result;
-  }
-  add(element) {
-    __dartIndexSet(this, (() => { let v = this.length; return (() => { let v_1 = this.length = (v + 1); return v; })(); })(), element);
   }
   addAll(iterable) {
     let i = this.length;
@@ -13421,19 +11209,6 @@ class _YamlList_YamlNode_ListMixin extends YamlNode {
   clear() {
     this.length = 0;
   }
-  cast() {
-    return Array.from(this, (value) => __dartAs(value, (value) => true, "TypeParameterType(_YamlList&YamlNode&ListMixin.cast.R%)"));
-  }
-  removeLast() {
-    if (__dartEquals(this.length, 0)) {
-      {
-        (() => { throw __dartCoreError("StateError", "No element"); })();
-      }
-    }
-    let result = __dartIndexGet(this, (this.length - 1));
-    this.length = (this.length - 1);
-    return result;
-  }
   sort(compare = null) {
     __dartListSort(this, (compare ?? ((left, right) => __dartCompare(left, right))));
   }
@@ -13460,75 +11235,9 @@ class _YamlList_YamlNode_ListMixin extends YamlNode {
       return v;
     })();
   }
-  sublist(start, end = null) {
-    let listLength = this.length;
-    ((end === null) ? end = listLength : null);
-    __dartCheckValidRange(start, end, listLength, null, null, null);
-    return Array.from(this.slice(start, end));
-  }
   getRange(start, end) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
     return Array.from(this).slice(start, end ?? undefined);
-  }
-  removeRange(start, end) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    if ((end > start)) {
-      {
-        this._closeGap(start, end);
-      }
-    }
-  }
-  fillRange(start, end, fill = null) {
-    let value = (fill ?? v);
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    for (let i = start; (i < end); i = (i + 1)) {
-      {
-        __dartIndexSet(this, i, value);
-      }
-    }
-  }
-  setRange(start, end, iterable, skipCount = 0) {
-    __dartCheckValidRange(start, end, this.length, null, null, null);
-    let length = (end - start);
-    if (__dartEquals(length, 0)) {
-      return;
-    }
-    __dartCheckNotNegative(skipCount, "skipCount", null);
-    let otherList = null;
-    let otherStart = null;
-    if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      {
-        otherList = iterable;
-        otherStart = skipCount;
-      }
-    } else {
-      {
-        otherList = __dartFixedList(Array.from(Array.from(iterable).slice(skipCount)));
-        otherStart = 0;
-      }
-    }
-    if (((otherStart + length) > otherList.length)) {
-      {
-        (() => { throw __dartCoreError("StateError", "Too few elements"); })();
-      }
-    }
-    if ((otherStart < start)) {
-      {
-        for (let i = (length - 1); (i >= 0); i = (i - 1)) {
-          {
-            __dartIndexSet(this, (start + i), __dartIndexGet(otherList, (otherStart + i)));
-          }
-        }
-      }
-    } else {
-      {
-        for (let i_1 = 0; (i_1 < length); i_1 = (i_1 + 1)) {
-          {
-            __dartIndexSet(this, (start + i_1), __dartIndexGet(otherList, (otherStart + i_1)));
-          }
-        }
-      }
-    }
   }
   replaceRange(start, end, newContents) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
@@ -13737,714 +11446,947 @@ class _YamlList_YamlNode_ListMixin extends YamlNode {
   }
 }
 
-function $_YamlList_YamlNode_ListMixin__($newTarget, _span) {
-  const $self = $YamlNode__($newTarget, _span);
-  return $self;
-}
-
-class YamlList extends _YamlList_YamlNode_ListMixin {
-  static internal(nodes, span, style_1) {
-    return $YamlList_internal(YamlList, nodes, span, style_1);
-  }
-  get value() {
-    return this;
-  }
-  get length() {
-    return this.nodes.length;
-  }
-  set length(index) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable List"); })();
-  }
-  constructor({ sourceUrl = null } = {}) {
-    return new YamlListWrapper(__dartConst("[\"list\",\"DynamicType(dynamic)\"]", () => Object.freeze([])), sourceUrl);
-  }
-  static wrap(dartList, { sourceUrl = null, style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-    return new YamlListWrapper(dartList, sourceUrl, { style: style_1 });
-  }
-  "[]"(index) {
-    return __dartIndexGet(this.nodes, index).value;
-  }
-  "[]="(index, value) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable List"); })();
-  }
-}
-Object.defineProperty(YamlList, Symbol.hasInstance, { value(value) { return value != null && value[$YamlList_interface] === true; } });
-
-function $YamlList_internal($newTarget, nodes, span, style_1) {
-  const $self = $_YamlList_YamlNode_ListMixin__($newTarget, span);
-  Object.defineProperty($self, $YamlList_interface, { value: true });
-  $self.style = style_1;
-  $self.nodes = __dartUnmodifiableListView(nodes);
-  return $self;
-}
-
-class YamlListWrapper {
-  constructor(dartList, sourceUrl, { style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-    return $YamlListWrapper__(new.target, dartList, new NullSpan(sourceUrl), { style: style_1 });
-  }
-  static _(dartList, span, { style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-    return $YamlListWrapper__(YamlListWrapper, dartList, span, { style: style_1 });
-  }
-  get value() {
-    return this;
+class _TypedQueue extends __TypedQueue_Object_ListMixin {
+  constructor(_table) {
+    super();
+    Object.defineProperty(this, "_table", {
+      value: _table,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+    Object.defineProperty(this, "_head", {
+      value: 0,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+    Object.defineProperty(this, "_tail", {
+      value: 0,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
   }
   get length() {
-    return this._dartList.length;
+    return ((this._tail - this._head) & (this._table.length - 1));
   }
-  set length(index) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable List."); })();
+  toList({ growable = true } = {}) {
+    let list = (growable ? this._createBuffer(this.length) : this._createList(this.length));
+    this._writeToList(list);
+    return list;
   }
-  "[]"(index) {
-    let value = __dartIndexGet(this._dartList, index);
-    if (value instanceof Map) {
-      return YamlMapWrapper._(value, this.span);
+  cast() {
+    if (this instanceof QueueList) {
+      return __dartAs(this, value => value instanceof QueueList, "QueueList<_TypedQueue.cast.T%>");
     }
-    if ((Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView)))) {
-      return YamlListWrapper._(value, this.span);
+    (() => { throw __dartCoreError("UnsupportedError", __dartStr(this) + " cannot be cast to the desired type."); })();
+  }
+  retype() {
+    return this.cast();
+  }
+  addLast(value) {
+    __dartIndexSet(this._table, this._tail, value);
+    this._tail = ((this._tail + 1) & (this._table.length - 1));
+    if (__dartEquals(this._head, this._tail)) {
+      this._growAtCapacity();
     }
-    return value;
   }
-  "[]="(index, value) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable List."); })();
-  }
-  get hashCode() {
-    return __dartHashValue(this._dartList);
-  }
-  "=="(other) {
-    return (other instanceof YamlListWrapper && __dartEquals(other._dartList, this._dartList));
-  }
-}
-
-function $YamlListWrapper__($newTarget, dartList, span, { style: style_1 = __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
-  const $self = Object.create($newTarget.prototype);
-  Object.defineProperty($self, $YamlList_interface, { value: true });
-  $self.span = span;
-  $self.style = style_1;
-  $self._dartList = dartList;
-  $self.nodes = new _YamlListNodes(dartList, span);
-  (() => { const value = $self.style; if (value == null) throw __dartCoreError("ArgumentError", "style" == null ? "Must not be null" : String("style") + " must not be null"); return value; })();
-  return $self;
-}
-
-class _YamlListNodes {
-  constructor(_dartList, _span) {
-    this._dartList = _dartList;
-    this._span = _span;
-  }
-  get length() {
-    return this._dartList.length;
-  }
-  set length(index) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable List."); })();
-  }
-  "[]"(index) {
-    return _nodeForValue(__dartIndexGet(this._dartList, index), this._span);
-  }
-  "[]="(index, value) {
-    (() => { throw __dartCoreError("UnsupportedError", "Cannot modify an unmodifiable List."); })();
-  }
-  get hashCode() {
-    return __dartHashValue(this._dartList);
-  }
-  "=="(other) {
-    return (other instanceof _YamlListNodes && __dartEquals(other._dartList, this._dartList));
-  }
-}
-
-class YamlScalar extends YamlNode {
-  constructor() {
-    throw new TypeError("Class YamlScalar has no unnamed constructor");
-  }
-  static wrap(value, { sourceUrl = null, style: style_1 = __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "ANY" }))) } = {}) {
-    return $YamlScalar_wrap(YamlScalar, value, { sourceUrl: sourceUrl, style: style_1 });
-  }
-  static internal(value, scalar) {
-    return $YamlScalar_internal(YamlScalar, value, scalar);
-  }
-  static internalWithSpan(value, span) {
-    return $YamlScalar_internalWithSpan(YamlScalar, value, span);
-  }
-  toString() {
-    return __dartObjectToString(this.value);
-  }
-}
-
-function $YamlScalar_wrap($newTarget, value, { sourceUrl = null, style: style_1 = __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "ANY" }))) } = {}) {
-  const $self = $YamlNode__($newTarget, new NullSpan(sourceUrl));
-  $self.value = value;
-  $self.style = style_1;
-  (() => { const value = $self.style; if (value == null) throw __dartCoreError("ArgumentError", "style" == null ? "Must not be null" : String("style") + " must not be null"); return value; })();
-  return $self;
-}
-
-function $YamlScalar_internal($newTarget, value, scalar) {
-  const $self = $YamlNode__($newTarget, scalar.span);
-  $self.value = value;
-  $self.style = scalar.style;
-  return $self;
-}
-
-function $YamlScalar_internalWithSpan($newTarget, value, span) {
-  const $self = $YamlNode__($newTarget, span);
-  $self.value = value;
-  $self.style = __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "ANY" })));
-  return $self;
-}
-
-class _DeepEquals {
-  constructor() {
-    this._parents1 = new Array(0).fill(null);
-    this._parents2 = new Array(0).fill(null);
-  }
-  equals(obj1, obj2) {
-    if (obj1 instanceof YamlScalar) {
-      obj1 = obj1.value;
+  addFirst(value) {
+    this._head = ((this._head - 1) & (this._table.length - 1));
+    __dartIndexSet(this._table, this._head, value);
+    if (__dartEquals(this._head, this._tail)) {
+      this._growAtCapacity();
     }
-    if (obj2 instanceof YamlScalar) {
-      obj2 = obj2.value;
+  }
+  removeFirst() {
+    if (__dartEquals(this._head, this._tail)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
     }
-    for (let i = 0; (i < this._parents1.length); i = (i + 1)) {
+    let result = __dartIndexGet(this._table, this._head);
+    this._head = ((this._head + 1) & (this._table.length - 1));
+    return result;
+  }
+  removeLast() {
+    if (__dartEquals(this._head, this._tail)) {
+      (() => { throw __dartCoreError("StateError", "No element"); })();
+    }
+    this._tail = ((this._tail - 1) & (this._table.length - 1));
+    return __dartIndexGet(this._table, this._tail);
+  }
+  add(value) {
+    return this.addLast(value);
+  }
+  set length(value) {
+    __dartCheckNotNegative(value, "length", null);
+    let delta = (value - this.length);
+    if ((delta >= 0)) {
       {
-        let loop1 = Object.is(obj1, __dartIndexGet(this._parents1, i));
-        let loop2 = Object.is(obj2, __dartIndexGet(this._parents2, i));
-        if ((loop1 && loop2)) {
-          return true;
+        let needsToGrow = (this._table.length <= value);
+        if (needsToGrow) {
+          this._growTo(value);
         }
-        if ((loop1 || loop2)) {
-          return false;
+        this._tail = ((this._tail + delta) & (this._table.length - 1));
+        if (!(needsToGrow)) {
+          this.fillRange((value - delta), value, this._defaultValue);
         }
       }
-    }
-    (this._parents1.push(obj1), null);
-    (this._parents2.push(obj2), null);
-    try {
+    } else {
       {
-        if (((Array.isArray(obj1) || (ArrayBuffer.isView(obj1) && !(obj1 instanceof DataView))) && (Array.isArray(obj2) || (ArrayBuffer.isView(obj2) && !(obj2 instanceof DataView))))) {
+        this.removeRange(value, this.length);
+      }
+    }
+  }
+  "[]"(index) {
+    __dartCheckValidIndex(index, this, null, this.length, null);
+    return __dartIndexGet(this._table, ((this._head + index) & (this._table.length - 1)));
+  }
+  "[]="(index, value) {
+    __dartCheckValidIndex(index, this, null, null, null);
+    __dartIndexSet(this._table, ((this._head + index) & (this._table.length - 1)), value);
+  }
+  removeRange(start, end) {
+    let length = this.length;
+    __dartCheckValidRange(start, end, length, null, null, null);
+    if (__dartEquals(start, 0)) {
+      {
+        this._head = ((this._head + end) & (this._table.length - 1));
+        return;
+      }
+    }
+    let elementsAfter = (length - end);
+    if (__dartEquals(elementsAfter, 0)) {
+      {
+        this._tail = ((this._head + start) & (this._table.length - 1));
+        return;
+      }
+    }
+    let removedElements = (end - start);
+    if ((start < elementsAfter)) {
+      {
+        this.setRange(removedElements, end, this);
+        this._head = ((this._head + removedElements) & (this._table.length - 1));
+      }
+    } else {
+      {
+        this.setRange(start, (length - removedElements), this, end);
+        this._tail = ((this._tail - removedElements) & (this._table.length - 1));
+      }
+    }
+  }
+  setRange(start, end, iterable, skipCount = 0) {
+    __dartCheckValidRange(start, end, this.length, null, null, null);
+    if (__dartEquals(start, end)) {
+      return;
+    }
+    let targetStart = ((this._head + start) & (this._table.length - 1));
+    let targetEnd = ((this._head + end) & (this._table.length - 1));
+    let targetIsContiguous = (targetStart < targetEnd);
+    if (Object.is(iterable, this)) {
+      {
+        let sourceStart = ((this._head + skipCount) & (this._table.length - 1));
+        let sourceEnd = ((sourceStart + (end - start)) & (this._table.length - 1));
+        if (__dartEquals(sourceStart, targetStart)) {
+          return;
+        }
+        let sourceIsContiguous = (sourceStart < sourceEnd);
+        if ((targetIsContiguous && sourceIsContiguous)) {
           {
-            return this._listEquals(obj1, obj2);
+            __dartListSetRange(this._table, targetStart, targetEnd, this._table, sourceStart);
           }
         } else {
-          if ((obj1 instanceof Map && obj2 instanceof Map)) {
+          if ((!(targetIsContiguous) && !(sourceIsContiguous))) {
             {
-              return this._mapEquals(obj1, obj2);
+              if ((sourceStart > targetStart)) {
+                {
+                  let startGap = (sourceStart - targetStart);
+                  let firstEnd = (this._table.length - startGap);
+                  __dartListSetRange(this._table, targetStart, firstEnd, this._table, sourceStart);
+                  __dartListSetRange(this._table, firstEnd, this._table.length, this._table, 0);
+                  __dartListSetRange(this._table, 0, targetEnd, this._table, startGap);
+                }
+              } else {
+                if ((sourceEnd < targetEnd)) {
+                  {
+                    let firstStart = (targetEnd - sourceEnd);
+                    __dartListSetRange(this._table, firstStart, targetEnd, this._table, 0);
+                    __dartListSetRange(this._table, 0, firstStart, this._table, (this._table.length - firstStart));
+                    __dartListSetRange(this._table, targetStart, this._table.length, this._table, sourceStart);
+                  }
+                }
+              }
             }
           } else {
-            if ((typeof obj1 === "number" && typeof obj2 === "number")) {
+            if ((sourceStart < targetEnd)) {
               {
-                return this._numEquals(obj1, obj2);
+                if (sourceIsContiguous) {
+                  {
+                    __dartListSetRange(this._table, targetStart, this._table.length, this._table, sourceStart);
+                    __dartListSetRange(this._table, 0, targetEnd, this._table, (sourceStart + (this._table.length - targetStart)));
+                  }
+                } else {
+                  {
+                    let firstEnd_1 = (this._table.length - sourceStart);
+                    __dartListSetRange(this._table, targetStart, firstEnd_1, this._table, sourceStart);
+                    __dartListSetRange(this._table, firstEnd_1, targetEnd, this._table, 0);
+                  }
+                }
               }
             } else {
               {
-                return __dartEquals(obj1, obj2);
+                if (sourceIsContiguous) {
+                  {
+                    __dartListSetRange(this._table, 0, targetEnd, this._table, (sourceStart + (this._table.length - targetStart)));
+                    __dartListSetRange(this._table, targetStart, this._table.length, this._table, sourceStart);
+                  }
+                } else {
+                  {
+                    let firstStart_1 = (targetEnd - sourceEnd);
+                    __dartListSetRange(this._table, firstStart_1, targetEnd, this._table, 0);
+                    __dartListSetRange(this._table, targetStart, firstStart_1, this._table, sourceStart);
+                  }
+                }
               }
             }
           }
         }
       }
-    } finally {
-      {
-        this._parents1.pop();
-        this._parents2.pop();
-      }
-    }
-  }
-  _listEquals(list1, list2) {
-    if (!(__dartEquals(list1.length, list2.length))) {
-      return false;
-    }
-    for (let i = 0; (i < list1.length); i = (i + 1)) {
-      {
-        if (!(this.equals(__dartIndexGet(list1, i), __dartIndexGet(list2, i)))) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-  _mapEquals(map1, map2) {
-    if (!(__dartEquals(map1.size, map2.size))) {
-      return false;
-    }
-    {
-      let _sync_for_iterator = __dartIterator(Array.from(map1.keys()));
-      for (; _sync_for_iterator.moveNext(); ) {
+    } else {
+      if (targetIsContiguous) {
         {
-          let key = _sync_for_iterator.current;
+          __dartListSetRange(this._table, targetStart, targetEnd, iterable, skipCount);
+        }
+      } else {
+        if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
           {
-            if (!(__dartMapContainsKey(map2, key))) {
-              return false;
-            }
-            if (!(this.equals(__dartMapGet(map1, key), __dartMapGet(map2, key)))) {
-              return false;
-            }
+            __dartListSetRange(this._table, targetStart, this._table.length, iterable, skipCount);
+            __dartListSetRange(this._table, 0, targetEnd, iterable, (skipCount + (this._table.length - targetStart)));
+          }
+        } else {
+          {
+            super.setRange(start, end, iterable, skipCount);
           }
         }
       }
     }
-    return true;
   }
-  _numEquals(n1, n2) {
-    if ((Number.isNaN(Number(n1)) && Number.isNaN(Number(n2)))) {
-      return true;
+  fillRange(start, end, value = null) {
+    let startInTable = ((this._head + start) & (this._table.length - 1));
+    let endInTable = ((this._head + end) & (this._table.length - 1));
+    if ((startInTable <= endInTable)) {
+      {
+        (this._table.fill(value, startInTable, endInTable), null);
+      }
+    } else {
+      {
+        (this._table.fill(value, startInTable, this._table.length), null);
+        (this._table.fill(value, 0, endInTable), null);
+      }
     }
-    return __dartEquals(n1, n2);
+  }
+  sublist(start, end = null) {
+    let length = this.length;
+    let nonNullEnd = __dartCheckValidRange(start, end, length, null, null, null);
+    let list = this._createList((nonNullEnd - start));
+    this._writeToList(list, start, nonNullEnd);
+    return list;
+  }
+  _writeToList(target, start = null, end = null) {
+    ((start === null) ? start = 0 : null);
+    ((end === null) ? end = this.length : null);
+    let elementsToWrite = (end - start);
+    let startInTable = ((this._head + start) & (this._table.length - 1));
+    let endInTable = ((this._head + end) & (this._table.length - 1));
+    if ((startInTable <= endInTable)) {
+      {
+        __dartListSetRange(target, 0, elementsToWrite, this._table, startInTable);
+      }
+    } else {
+      {
+        let firstPartSize = (this._table.length - startInTable);
+        __dartListSetRange(target, 0, firstPartSize, this._table, startInTable);
+        __dartListSetRange(target, firstPartSize, (firstPartSize + endInTable), this._table, 0);
+      }
+    }
+    return elementsToWrite;
+  }
+  _growAtCapacity() {
+    let newTable = this._createList((this._table.length * 2));
+    let partitionPoint = (this._table.length - this._head);
+    __dartListSetRange(newTable, 0, partitionPoint, this._table, this._head);
+    if (!(__dartEquals(partitionPoint, this._table.length))) {
+      {
+        __dartListSetRange(newTable, partitionPoint, this._table.length, this._table, 0);
+      }
+    }
+    this._head = 0;
+    this._tail = this._table.length;
+    this._table = newTable;
+  }
+  _growTo(newElementCount) {
+    newElementCount = (newElementCount + __dartShr(newElementCount, 1));
+    let newTable = this._createList(_nextPowerOf2(newElementCount));
+    this._tail = this._writeToList(newTable);
+    this._table = newTable;
+    this._head = 0;
+  }
+  _createList(size) {
+    throw new TypeError("Abstract member _TypedQueue._createList");
+  }
+  _createBuffer(size) {
+    throw new TypeError("Abstract member _TypedQueue._createBuffer");
+  }
+  get _defaultValue() {
+    throw new TypeError("Abstract member _TypedQueue._defaultValue");
+  }
+  set _defaultValue(value) {
+    Object.defineProperty(this, "_defaultValue", { value, writable: true, configurable: true, enumerable: true });
   }
 }
 
-class Loader {
-  static _(_parser, _span) {
-    return $Loader__(Loader, _parser, _span);
+class _IntQueue extends _TypedQueue {
+  constructor(queue) {
+    super(queue);
   }
-  get span() {
-    return this._span;
+  get _defaultValue() {
+    return 0;
   }
-  constructor(source, { sourceUrl = null, recover = false, errorListener = null } = {}) {
-    let parser = new Parser(source, { sourceUrl: sourceUrl, recover: recover, errorListener: errorListener });
-    let event = parser.parse();
-    return Loader._(parser, event.span);
+}
+
+class _FloatQueue extends _TypedQueue {
+  constructor(queue) {
+    super(queue);
   }
-  load() {
-    if (this._parser.isDone) {
-      return null;
-    }
-    let event = this._parser.parse();
-    if (__dartEquals(event.type, EventType.streamEnd)) {
-      {
-        this._span = this._span.expand(event.span);
-        return null;
-      }
-    }
-    let document = this._loadDocument(__dartAs(event, value => value instanceof DocumentStartEvent, "DocumentStartEvent"));
-    this._span = this._span.expand(__dartAs(document.span, value => value instanceof FileSpan, "FileSpan"));
-    (this._aliases.clear(), null);
-    return document;
+  get _defaultValue() {
+    return 0.0;
   }
-  _loadDocument(firstEvent) {
-    let contents = this._loadNode(this._parser.parse());
-    let lastEvent = __dartAs(this._parser.parse(), value => value instanceof DocumentEndEvent, "DocumentEndEvent");
-    return YamlDocument.internal(contents, firstEvent.span.expand(lastEvent.span), firstEvent.versionDirective, firstEvent.tagDirectives, { startImplicit: firstEvent.isImplicit, endImplicit: lastEvent.isImplicit });
+}
+
+class Uint8Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint8Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
   }
-  _loadNode(firstEvent) {
-    return (() => {
-      let v = null;
-      const _0_0 = firstEvent.type;
-      const _0_1 = EventType.alias;
-      const _0_3 = EventType.scalar;
-      const _0_5 = EventType.sequenceStart;
-      const _0_7 = EventType.mappingStart;
-      L:
-      {
-        {
-          if (__dartEquals(EventType.alias, _0_0)) {
-            {
-              v = this._loadAlias(__dartAs(firstEvent, value => value instanceof AliasEvent, "AliasEvent"));
-              break L;
-            }
-          }
-        }
-        {
-          if (__dartEquals(EventType.scalar, _0_0)) {
-            {
-              v = this._loadScalar(__dartAs(firstEvent, value => value instanceof ScalarEvent, "ScalarEvent"));
-              break L;
-            }
-          }
-        }
-        {
-          if (__dartEquals(EventType.sequenceStart, _0_0)) {
-            {
-              v = this._loadSequence(__dartAs(firstEvent, value => value instanceof SequenceStartEvent, "SequenceStartEvent"));
-              break L;
-            }
-          }
-        }
-        {
-          if (__dartEquals(EventType.mappingStart, _0_0)) {
-            {
-              v = this._loadMapping(__dartAs(firstEvent, value => value instanceof MappingStartEvent, "MappingStartEvent"));
-              break L;
-            }
-          }
-        }
-        {
-          if (true) {
-            {
-              v = (() => { throw __dartCoreError("StateError", "Unreachable"); })();
-              break L;
-            }
-          }
-        }
-      }
+  static fromList(elements) {
+    return (() => { let v = new Uint8Queue(elements.length); return (() => {
+      v.addAll(elements);
       return v;
-    })();
+    })(); })();
   }
-  _registerAnchor(anchor, node) {
-    if ((anchor === null)) {
-      return;
+  _createList(size) {
+    return new Uint8Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint8Buffer(size);
+  }
+}
+
+class Int8Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Int8Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int8Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Int8Array(size);
+  }
+  _createBuffer(size) {
+    return new Int8Buffer(size);
+  }
+}
+
+class Uint8ClampedQueue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint8ClampedArray(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint8ClampedQueue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Uint8ClampedArray(size);
+  }
+  _createBuffer(size) {
+    return new Uint8ClampedBuffer(size);
+  }
+}
+
+class Uint16Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint16Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint16Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Uint16Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint16Buffer(size);
+  }
+}
+
+class Int16Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Int16Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int16Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Int16Array(size);
+  }
+  _createBuffer(size) {
+    return new Int16Buffer(size);
+  }
+}
+
+class Uint32Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Uint32Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint32Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Uint32Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint32Buffer(size);
+  }
+}
+
+class Int32Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new Int32Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int32Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Int32Array(size);
+  }
+  _createBuffer(size) {
+    return new Int32Buffer(size);
+  }
+}
+
+class Uint64Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new BigUint64Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Uint64Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new BigUint64Array(size);
+  }
+  _createBuffer(size) {
+    return new Uint64Buffer(size);
+  }
+}
+
+class Int64Queue extends _IntQueue {
+  constructor(initialCapacity = null) {
+    super(new BigInt64Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int64Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new BigInt64Array(size);
+  }
+  _createBuffer(size) {
+    return new Int64Buffer(size);
+  }
+}
+
+class Float32Queue extends _FloatQueue {
+  constructor(initialCapacity = null) {
+    super(new Float32Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Float32Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Float32Array(size);
+  }
+  _createBuffer(size) {
+    return new Float32Buffer(size);
+  }
+}
+
+class Float64Queue extends _FloatQueue {
+  constructor(initialCapacity = null) {
+    super(new Float64Array(_chooseRealInitialCapacity(initialCapacity)));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Float64Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Float64Array(size);
+  }
+  _createBuffer(size) {
+    return new Float64Buffer(size);
+  }
+}
+
+class Int32x4Queue extends _TypedQueue {
+  constructor(initialCapacity = null) {
+    super(new Array(_chooseRealInitialCapacity(initialCapacity)).fill(null));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Int32x4Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Array(size).fill(null);
+  }
+  _createBuffer(size) {
+    return new Int32x4Buffer(size);
+  }
+  get _defaultValue() {
+    return Int32x4Queue._zero;
+  }
+}
+
+class Float32x4Queue extends _TypedQueue {
+  constructor(initialCapacity = null) {
+    super(new Array(_chooseRealInitialCapacity(initialCapacity)).fill(null));
+    Object.defineProperty(this, $QueueList_interface, { value: true });
+  }
+  static fromList(elements) {
+    return (() => { let v = new Float32x4Queue(elements.length); return (() => {
+      v.addAll(elements);
+      return v;
+    })(); })();
+  }
+  _createList(size) {
+    return new Array(size).fill(null);
+  }
+  _createBuffer(size) {
+    return new Float32x4Buffer(size);
+  }
+  get _defaultValue() {
+    return Object.freeze({ __dartType: "Float32x4", x: 0, y: 0, z: 0, w: 0 });
+  }
+}
+
+class ChunkedCodingDecoder {
+  constructor() {
+    throw new TypeError("Class ChunkedCodingDecoder has no unnamed constructor");
+  }
+  static _() {
+    return $ChunkedCodingDecoder__(ChunkedCodingDecoder);
+  }
+  convert(input) {
+    const sink = new _Sink(__dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null }));
+    const output = sink._decode(input, 0, input.length);
+    if (__dartEquals(sink._state, _State.end)) {
+      return output;
     }
-    __dartMapSet(this._aliases, anchor, node);
+    (() => { throw __dartCoreError("FormatException", "Input ended unexpectedly."); })();
   }
-  _loadAlias(event) {
-    let alias = __dartMapGet(this._aliases, event.name);
-    if (!((alias === null))) {
-      return alias;
+  startChunkedConversion(sink) {
+    return new _Sink(sink);
+  }
+  bind(stream) { return __dartConverterBind(this, stream); }
+  fuse(next) { return __dartConverterFuse(this, next); }
+}
+
+function $ChunkedCodingDecoder__($newTarget) {
+  const $self = Object.create($newTarget.prototype);
+  return $self;
+}
+
+class _Sink {
+  constructor(_sink) {
+    this._state = _State.boundary;
+    const $_size = __dartLazyField("_Sink._size", null, true);
+    Object.defineProperty(this, "_size", {
+      get() { return $_size.get(); },
+      set(value) { $_size.set(value); },
+      enumerable: true,
+    });
+    this._sink = _sink;
+  }
+  add(chunk) {
+    return this.addSlice(chunk, 0, chunk.length, false);
+  }
+  addSlice(chunk, start, end, isLast) {
+    __dartCheckValidRange(start, end, chunk.length, null, null, null);
+    const output = this._decode(chunk, start, end);
+    if (output.length !== 0) {
+      this._sink.add(output);
     }
-    (() => { throw new YamlException("Undefined alias.", event.span); })();
+    if (isLast) {
+      this._close(chunk, end);
+    }
   }
-  _loadScalar(scalar) {
-    let node = null;
-    if (__dartEquals(scalar.tag, "!")) {
+  close() {
+    return this._close();
+  }
+  _close(chunk = null, index = null) {
+    if (!(__dartEquals(this._state, _State.end))) {
       {
-        node = YamlScalar.internal(scalar.value, scalar);
+        (() => { throw __dartCoreError("FormatException", "Input ended unexpectedly."); })();
+      }
+    }
+    this._sink.close();
+  }
+  _decode(bytes, start, end) {
+    function assertCurrentChar(char, name) {
+      if (!(__dartEquals(__dartIndexGet(bytes, start), char))) {
+        {
+          (() => { throw __dartCoreError("FormatException", "Expected " + __dartStr(name) + "."); })();
+        }
+      }
+    }
+    const buffer = new Uint8Buffer();
+    while (!(__dartEquals(start, end))) {
+      {
+        L:
+        switch (this._state) {
+          case _State.boundary:
+            {
+              this._size = this._digitForByte(bytes, start);
+              this._state = _State.size;
+              start = (start + 1);
+              break L;
+            }
+          case _State.size:
+            {
+              if (__dartEquals(__dartIndexGet(bytes, start), 13)) {
+                {
+                  this._state = _State.sizeBeforeLF;
+                }
+              } else {
+                {
+                  this._size = ((this._size << 4) + this._digitForByte(bytes, start));
+                }
+              }
+              start = (start + 1);
+              break L;
+            }
+          case _State.sizeBeforeLF:
+            {
+              assertCurrentChar(10, "LF");
+              this._state = (__dartEquals(this._size, 0) ? _State.endBeforeCR : _State.body);
+              start = (start + 1);
+              break L;
+            }
+          case _State.body:
+            {
+              const chunkEnd = Math.min(end, (start + this._size));
+              buffer.addAll(bytes, start, chunkEnd);
+              this._size = (this._size - (chunkEnd - start));
+              start = chunkEnd;
+              if (__dartEquals(this._size, 0)) {
+                this._state = _State.bodyBeforeCR;
+              }
+              break L;
+            }
+          case _State.bodyBeforeCR:
+            {
+              assertCurrentChar(13, "CR");
+              this._state = _State.bodyBeforeLF;
+              start = (start + 1);
+              break L;
+            }
+          case _State.bodyBeforeLF:
+            {
+              assertCurrentChar(10, "LF");
+              this._state = _State.boundary;
+              start = (start + 1);
+              break L;
+            }
+          case _State.endBeforeCR:
+            {
+              assertCurrentChar(13, "CR");
+              this._state = _State.endBeforeLF;
+              start = (start + 1);
+              break L;
+            }
+          case _State.endBeforeLF:
+            {
+              assertCurrentChar(10, "LF");
+              this._state = _State.end;
+              start = (start + 1);
+              break L;
+            }
+          case _State.end:
+            {
+              (() => { throw __dartCoreError("FormatException", "Expected no more data."); })();
+            }
+        }
+      }
+    }
+    return new Uint8Array(buffer.buffer, 0, buffer.length);
+  }
+  _digitForByte(bytes, index) {
+    const byte = __dartIndexGet(bytes, index);
+    const digit = (48 ^ byte);
+    if ((digit <= 9)) {
+      {
+        if ((digit >= 0)) {
+          return digit;
+        }
       }
     } else {
-      if (!((scalar.tag === null))) {
+      {
+        const letter = (32 | byte);
+        if (((97 <= letter) && (letter <= 102))) {
+          return ((letter - 97) + 10);
+        }
+      }
+    }
+    (() => { throw __dartCoreError("FormatException", "Invalid hexadecimal byte 0x" + __dartStr(__dartIntToRadixString(byte, 16).toUpperCase()) + "."); })();
+  }
+  addByte(byte) { return this.add([byte]); }
+}
+
+class _State {
+  constructor($index, $name, name) {
+    Object.defineProperty(this, "index", { value: $index, enumerable: true });
+    Object.defineProperty(this, "__dartEnumName", {
+      value: $name,
+      enumerable: false,
+    });
+    Object.defineProperty(this, "name", { value: name, enumerable: true });
+    Object.freeze(this);
+  }
+  toString() {
+    return this.name;
+  }
+}
+Object.defineProperties(_State, {
+  boundary: { value: new _State(0, "boundary", "boundary"), enumerable: true },
+  size: { value: new _State(1, "size", "size"), enumerable: true },
+  sizeBeforeLF: { value: new _State(2, "sizeBeforeLF", "size before LF"), enumerable: true },
+  body: { value: new _State(3, "body", "body"), enumerable: true },
+  bodyBeforeCR: { value: new _State(4, "bodyBeforeCR", "body before CR"), enumerable: true },
+  bodyBeforeLF: { value: new _State(5, "bodyBeforeLF", "body before LF"), enumerable: true },
+  endBeforeCR: { value: new _State(6, "endBeforeCR", "end before CR"), enumerable: true },
+  endBeforeLF: { value: new _State(7, "endBeforeLF", "end before LF"), enumerable: true },
+  end: { value: new _State(8, "end", "end"), enumerable: true }
+});
+Object.defineProperty(_State, "values", { value: Object.freeze([_State.boundary, _State.size, _State.sizeBeforeLF, _State.body, _State.bodyBeforeCR, _State.bodyBeforeLF, _State.endBeforeCR, _State.endBeforeLF, _State.end]), enumerable: true });
+
+class ChunkedCodingEncoder {
+  constructor() {
+    throw new TypeError("Class ChunkedCodingEncoder has no unnamed constructor");
+  }
+  static _() {
+    return $ChunkedCodingEncoder__(ChunkedCodingEncoder);
+  }
+  convert(input) {
+    return _convert(input, 0, input.length, { isLast: true });
+  }
+  startChunkedConversion(sink) {
+    return new _Sink_1(sink);
+  }
+  bind(stream) { return __dartConverterBind(this, stream); }
+  fuse(next) { return __dartConverterFuse(this, next); }
+}
+
+function $ChunkedCodingEncoder__($newTarget) {
+  const $self = Object.create($newTarget.prototype);
+  return $self;
+}
+
+class _Sink_1 {
+  constructor(_sink) {
+    this._sink = _sink;
+  }
+  add(chunk) {
+    this._sink.add(_convert(chunk, 0, chunk.length));
+  }
+  addSlice(chunk, start, end, isLast) {
+    __dartCheckValidRange(start, end, chunk.length, null, null, null);
+    this._sink.add(_convert(chunk, start, end, { isLast: isLast }));
+    if (isLast) {
+      this._sink.close();
+    }
+  }
+  close() {
+    this._sink.add(_doneChunk);
+    this._sink.close();
+  }
+  addByte(byte) { return this.add([byte]); }
+}
+
+class ChunkedCodingCodec {
+  constructor() {
+    throw new TypeError("Class ChunkedCodingCodec has no unnamed constructor");
+  }
+  static _() {
+    return $ChunkedCodingCodec__(ChunkedCodingCodec);
+  }
+  get encoder() {
+    return __dartConst("[\"instance\",\"class:ChunkedCodingEncoder\"]", () => Object.freeze(Object.create(ChunkedCodingEncoder.prototype)));
+  }
+  get decoder() {
+    return __dartConst("[\"instance\",\"class:ChunkedCodingDecoder\"]", () => Object.freeze(Object.create(ChunkedCodingDecoder.prototype)));
+  }
+  encode(input) { return this.encoder.convert(input); }
+  decode(encoded) { return this.decoder.convert(encoded); }
+  fuse(other) { return __dartConverterFuse(this, other); }
+}
+
+function $ChunkedCodingCodec__($newTarget) {
+  const $self = Object.create($newTarget.prototype);
+  return $self;
+}
+
+class MediaType {
+  constructor(type, subtype, parameters = null) {
+    this.type = type.toLowerCase();
+    this.subtype = subtype.toLowerCase();
+    this.parameters = __dartUnmodifiableMapView(((parameters === null) ? new Map([]) : CaseInsensitiveMap.from(parameters)));
+  }
+  get mimeType() {
+    return __dartStr(this.type) + "/" + __dartStr(this.subtype);
+  }
+  static parse(mediaType) {
+    return wrapFormatException("media type", mediaType, function() {
+      const scanner = new StringScanner(mediaType);
+      scanner.scan(whitespace);
+      scanner.expect(token);
+      const type = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]);
+      scanner.expect("/");
+      scanner.expect(token);
+      const subtype = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]);
+      scanner.scan(whitespace);
+      const parameters = new Map([]);
+      while (scanner.scan(";")) {
         {
-          node = this._parseByTag(scalar);
+          scanner.scan(whitespace);
+          scanner.expect(token);
+          const attribute = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]);
+          scanner.expect("=");
+          let value = null;
+          if (scanner.scan(token)) {
+            {
+              value = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]);
+            }
+          } else {
+            {
+              value = expectQuotedString(scanner);
+            }
+          }
+          scanner.scan(whitespace);
+          __dartMapSet(parameters, attribute, value);
+        }
+      }
+      scanner.expectDone();
+      return new MediaType(type, subtype, parameters);
+});
+  }
+  change({ type = null, subtype = null, mimeType = null, parameters = null, clearParameters = false } = {}) {
+    if (!((mimeType === null))) {
+      {
+        if (!((type === null))) {
+          {
+            (() => { throw __dartCoreError("ArgumentError", "You may not pass both [type] and [mimeType]."); })();
+          }
+        } else {
+          if (!((subtype === null))) {
+            {
+              (() => { throw __dartCoreError("ArgumentError", "You may not pass both [subtype] and [mimeType]."); })();
+            }
+          }
+        }
+        const segments = mimeType.split("/");
+        if (!(__dartEquals(segments.length, 2))) {
+          {
+            (() => { throw __dartCoreError("FormatException", "Invalid mime type \"" + __dartStr(mimeType) + "\"."); })();
+          }
+        }
+        type = __dartIndexGet(segments, 0);
+        subtype = __dartIndexGet(segments, 1);
+      }
+    }
+    ((type === null) ? type = this.type : null);
+    ((subtype === null) ? subtype = this.subtype : null);
+    ((parameters === null) ? parameters = new Map([]) : null);
+    if (!(clearParameters)) {
+      {
+        const newParameters = parameters;
+        parameters = __dartMapFromEntries(this.parameters);
+        __dartMapAddAll(parameters, newParameters);
+      }
+    }
+    return new MediaType(type, subtype, parameters);
+  }
+  toString() {
+    const buffer = (() => { let v = __dartStringBuffer(""); return (() => {
+      v.write(this.type);
+      v.write("/");
+      v.write(this.subtype);
+      return v;
+    })(); })();
+    __dartMapForEach(this.parameters, function(attribute, value) {
+      buffer.write("; " + __dartStr(attribute) + "=");
+      if (nonToken.hasMatch(value)) {
+        {
+          (() => { let v = buffer; return (() => {
+            v.write("\"");
+            v.write(__dartStringReplaceAllMapped(value, _escapedChar, function(match) { return "\\" + __dartStr(match[0]); }));
+            v.write("\"");
+            return v;
+          })(); })();
         }
       } else {
         {
-          node = this._parseScalar(scalar);
+          buffer.write(value);
         }
       }
-    }
-    this._registerAnchor(scalar.anchor, node);
-    return node;
+});
+    return __dartStr(buffer);
   }
-  _loadSequence(firstEvent) {
-    if (((!(__dartEquals(firstEvent.tag, "!")) && !((firstEvent.tag === null))) && !(__dartEquals(firstEvent.tag, "tag:yaml.org,2002:seq")))) {
-      {
-        (() => { throw new YamlException("Invalid tag for sequence.", firstEvent.span); })();
-      }
-    }
-    let children = new Array(0).fill(null);
-    let node = YamlList.internal(children, firstEvent.span, firstEvent.style);
-    this._registerAnchor(firstEvent.anchor, node);
-    let event = this._parser.parse();
-    while (!(__dartEquals(event.type, EventType.sequenceEnd))) {
-      {
-        (children.push(this._loadNode(event)), null);
-        event = this._parser.parse();
-      }
-    }
-    setSpan(node, firstEvent.span.expand(event.span));
-    return node;
-  }
-  _loadMapping(firstEvent) {
-    if (((!(__dartEquals(firstEvent.tag, "!")) && !((firstEvent.tag === null))) && !(__dartEquals(firstEvent.tag, "tag:yaml.org,2002:map")))) {
-      {
-        (() => { throw new YamlException("Invalid tag for mapping.", firstEvent.span); })();
-      }
-    }
-    let children = deepEqualsMap();
-    let node = YamlMap.internal(children, firstEvent.span, firstEvent.style);
-    this._registerAnchor(firstEvent.anchor, node);
-    let event = this._parser.parse();
-    while (!(__dartEquals(event.type, EventType.mappingEnd))) {
-      {
-        let key = this._loadNode(event);
-        let value = this._loadNode(this._parser.parse());
-        if (__dartMapContainsKey(children, key)) {
-          {
-            (() => { throw new YamlException("Duplicate mapping key.", key.span); })();
-          }
-        }
-        __dartMapSet(children, key, value);
-        event = this._parser.parse();
-      }
-    }
-    setSpan(node, firstEvent.span.expand(event.span));
-    return node;
-  }
-  _parseByTag(scalar) {
-    L:
-    switch (scalar.tag) {
-      case "tag:yaml.org,2002:null":
-        {
-          let result = this._parseNull(scalar);
-          if (!((result === null))) {
-            return result;
-          }
-          (() => { throw new YamlException("Invalid null scalar.", scalar.span); })();
-        }
-      case "tag:yaml.org,2002:bool":
-        {
-          let result_1 = this._parseBool(scalar);
-          if (!((result_1 === null))) {
-            return result_1;
-          }
-          (() => { throw new YamlException("Invalid bool scalar.", scalar.span); })();
-        }
-      case "tag:yaml.org,2002:int":
-        {
-          let result_2 = this._parseNumber(scalar, { allowFloat: false });
-          if (!((result_2 === null))) {
-            return result_2;
-          }
-          (() => { throw new YamlException("Invalid int scalar.", scalar.span); })();
-        }
-      case "tag:yaml.org,2002:float":
-        {
-          let result_3 = this._parseNumber(scalar, { allowInt: false });
-          if (!((result_3 === null))) {
-            return result_3;
-          }
-          (() => { throw new YamlException("Invalid float scalar.", scalar.span); })();
-        }
-      case "tag:yaml.org,2002:str":
-        {
-          return YamlScalar.internal(scalar.value, scalar);
-        }
-      default:
-        {
-          (() => { throw new YamlException("Undefined tag: " + __dartStr(scalar.tag) + ".", scalar.span); })();
-        }
-    }
-  }
-  _parseScalar(scalar) {
-    return (this._tryParseScalar(scalar) ?? YamlScalar.internal(scalar.value, scalar));
-  }
-  _tryParseScalar(scalar) {
-    let length = scalar.value.length;
-    if (__dartEquals(length, 0)) {
-      return YamlScalar.internal(null, scalar);
-    }
-    let firstChar = scalar.value.charCodeAt(0);
-    return (() => {
-      let v = null;
-      const _0_0 = firstChar;
-      const _0_1 = 46;
-      const _0_3 = 43;
-      const _0_5 = 45;
-      const _0_7 = 110;
-      const _0_9 = 78;
-      const _0_11 = 116;
-      const _0_13 = 84;
-      const _0_15 = 102;
-      const _0_17 = 70;
-      const _0_19 = 126;
-      L:
-      {
-        {
-          if (((__dartEquals(46, _0_0) || __dartEquals(43, _0_0)) || __dartEquals(45, _0_0))) {
-            {
-              v = this._parseNumber(scalar);
-              break L;
-            }
-          }
-        }
-        {
-          if ((__dartEquals(110, _0_0) || __dartEquals(78, _0_0))) {
-            {
-              v = (__dartEquals(length, 4) ? this._parseNull(scalar) : null);
-              break L;
-            }
-          }
-        }
-        {
-          if ((__dartEquals(116, _0_0) || __dartEquals(84, _0_0))) {
-            {
-              v = (__dartEquals(length, 4) ? this._parseBool(scalar) : null);
-              break L;
-            }
-          }
-        }
-        {
-          if ((__dartEquals(102, _0_0) || __dartEquals(70, _0_0))) {
-            {
-              v = (__dartEquals(length, 5) ? this._parseBool(scalar) : null);
-              break L;
-            }
-          }
-        }
-        {
-          if (__dartEquals(126, _0_0)) {
-            {
-              v = (__dartEquals(length, 1) ? YamlScalar.internal(null, scalar) : null);
-              break L;
-            }
-          }
-        }
-        {
-          if (true) {
-            {
-              v = (((firstChar >= 48) && (firstChar <= 57)) ? this._parseNumber(scalar) : null);
-              break L;
-            }
-          }
-        }
-      }
-      return v;
-    })();
-  }
-  _parseNull(scalar) {
-    return (() => {
-      let v = null;
-      const _0_0 = scalar.value;
-      const _0_1 = "";
-      const _0_3 = "null";
-      const _0_5 = "Null";
-      const _0_7 = "NULL";
-      const _0_9 = "~";
-      L:
-      {
-        {
-          if (((((__dartEquals("", _0_0) || __dartEquals("null", _0_0)) || __dartEquals("Null", _0_0)) || __dartEquals("NULL", _0_0)) || __dartEquals("~", _0_0))) {
-            {
-              v = YamlScalar.internal(null, scalar);
-              break L;
-            }
-          }
-        }
-        {
-          if (true) {
-            {
-              v = null;
-              break L;
-            }
-          }
-        }
-      }
-      return v;
-    })();
-  }
-  _parseBool(scalar) {
-    return (() => {
-      let v = null;
-      const _0_0 = scalar.value;
-      const _0_1 = "true";
-      const _0_3 = "True";
-      const _0_5 = "TRUE";
-      const _0_7 = "false";
-      const _0_9 = "False";
-      const _0_11 = "FALSE";
-      L:
-      {
-        {
-          if (((__dartEquals("true", _0_0) || __dartEquals("True", _0_0)) || __dartEquals("TRUE", _0_0))) {
-            {
-              v = YamlScalar.internal(true, scalar);
-              break L;
-            }
-          }
-        }
-        {
-          if (((__dartEquals("false", _0_0) || __dartEquals("False", _0_0)) || __dartEquals("FALSE", _0_0))) {
-            {
-              v = YamlScalar.internal(false, scalar);
-              break L;
-            }
-          }
-        }
-        {
-          if (true) {
-            {
-              v = null;
-              break L;
-            }
-          }
-        }
-      }
-      return v;
-    })();
-  }
-  _parseNumber(scalar, { allowInt = true, allowFloat = true } = {}) {
-    let value = this._parseNumberValue(scalar.value, { allowInt: allowInt, allowFloat: allowFloat });
-    return ((value === null) ? null : YamlScalar.internal(value, scalar));
-  }
-  _parseNumberValue(contents, { allowInt = true, allowFloat = true } = {}) {
-    let firstChar = contents.charCodeAt(0);
-    let length = contents.length;
-    if ((allowInt && __dartEquals(length, 1))) {
-      {
-        let value = (firstChar - 48);
-        return (((value >= 0) && (value <= 9)) ? value : null);
-      }
-    }
-    let secondChar = contents.charCodeAt(1);
-    if ((allowInt && __dartEquals(firstChar, 48))) {
-      {
-        if (__dartEquals(secondChar, 120)) {
-          return __dartIntTryParse(contents, null);
-        }
-        if (__dartEquals(secondChar, 111)) {
-          {
-            let afterRadix = contents.substring(2);
-            return __dartIntTryParse(afterRadix, 8);
-          }
-        }
-      }
-    }
-    if ((((firstChar >= 48) && (firstChar <= 57)) || (((__dartEquals(firstChar, 43) || __dartEquals(firstChar, 45)) && (secondChar >= 48)) && (secondChar <= 57)))) {
-      {
-        let result = null;
-        if (allowInt) {
-          {
-            result = __dartIntTryParse(contents, 10);
-          }
-        }
-        if (allowFloat) {
-          ((result === null) ? result = __dartDoubleTryParse(contents) : null);
-        }
-        return result;
-      }
-    }
-    if (!(allowFloat)) {
-      return null;
-    }
-    if ((((__dartEquals(firstChar, 46) && (secondChar >= 48)) && (secondChar <= 57)) || ((__dartEquals(firstChar, 45) || __dartEquals(firstChar, 43)) && __dartEquals(secondChar, 46)))) {
-      {
-        if (__dartEquals(length, 5)) {
-          {
-            L:
-            switch (contents) {
-              case "+.inf":
-              case "+.Inf":
-              case "+.INF":
-                {
-                  return Infinity;
-                }
-              case "-.inf":
-              case "-.Inf":
-              case "-.INF":
-                {
-                  return (-Infinity);
-                }
-            }
-          }
-        }
-        return __dartDoubleTryParse(contents);
-      }
-    }
-    if ((__dartEquals(length, 4) && __dartEquals(firstChar, 46))) {
-      {
-        L_1:
-        switch (contents) {
-          case ".inf":
-          case ".Inf":
-          case ".INF":
-            {
-              return Infinity;
-            }
-          case ".nan":
-          case ".NaN":
-          case ".NAN":
-            {
-              return Number.NaN;
-            }
-        }
-      }
-    }
-    return null;
-  }
-}
-
-function $Loader__($newTarget, _parser, _span) {
-  const $self = Object.create($newTarget.prototype);
-  $self._aliases = new Map([]);
-  $self._parser = _parser;
-  $self._span = _span;
-  return $self;
 }
 
 
@@ -14506,203 +12448,21 @@ Object.defineProperty(_PathRelation, "inconclusive", { value: __dartConst("[\"in
 
 Object.defineProperty(Highlighter, "_spacesPerTab", { value: 4, enumerable: true });
 
-Object.defineProperty(ScalarStyle, "ANY", { value: __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "ANY" }))), enumerable: true });
-
-Object.defineProperty(ScalarStyle, "PLAIN", { value: __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"PLAIN\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))), enumerable: true });
-
-Object.defineProperty(ScalarStyle, "LITERAL", { value: __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"LITERAL\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "LITERAL" }))), enumerable: true });
-
-Object.defineProperty(ScalarStyle, "FOLDED", { value: __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"FOLDED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "FOLDED" }))), enumerable: true });
-
-Object.defineProperty(ScalarStyle, "SINGLE_QUOTED", { value: __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"SINGLE_QUOTED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "SINGLE_QUOTED" }))), enumerable: true });
-
-Object.defineProperty(ScalarStyle, "DOUBLE_QUOTED", { value: __dartConst("[\"instance\",\"class:ScalarStyle\",[\"field\",\"field:ScalarStyle.name\",[\"string\",\"DOUBLE_QUOTED\"]]]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "DOUBLE_QUOTED" }))), enumerable: true });
-
-Object.defineProperty(CollectionStyle, "ANY", { value: __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))), enumerable: true });
-
-Object.defineProperty(CollectionStyle, "BLOCK", { value: __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"BLOCK\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), enumerable: true });
-
-Object.defineProperty(CollectionStyle, "FLOW", { value: __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"FLOW\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))), enumerable: true });
-
-Object.defineProperty(Scanner, "TAB", { value: 9, enumerable: true });
-
-Object.defineProperty(Scanner, "LF", { value: 10, enumerable: true });
-
-Object.defineProperty(Scanner, "CR", { value: 13, enumerable: true });
-
-Object.defineProperty(Scanner, "SP", { value: 32, enumerable: true });
-
-Object.defineProperty(Scanner, "DOLLAR", { value: 36, enumerable: true });
-
-Object.defineProperty(Scanner, "LEFT_PAREN", { value: 40, enumerable: true });
-
-Object.defineProperty(Scanner, "RIGHT_PAREN", { value: 41, enumerable: true });
-
-Object.defineProperty(Scanner, "PLUS", { value: 43, enumerable: true });
-
-Object.defineProperty(Scanner, "COMMA", { value: 44, enumerable: true });
-
-Object.defineProperty(Scanner, "HYPHEN", { value: 45, enumerable: true });
-
-Object.defineProperty(Scanner, "PERIOD", { value: 46, enumerable: true });
-
-Object.defineProperty(Scanner, "QUESTION", { value: 63, enumerable: true });
-
-Object.defineProperty(Scanner, "COLON", { value: 58, enumerable: true });
-
-Object.defineProperty(Scanner, "SEMICOLON", { value: 59, enumerable: true });
-
-Object.defineProperty(Scanner, "EQUALS", { value: 61, enumerable: true });
-
-Object.defineProperty(Scanner, "LEFT_SQUARE", { value: 91, enumerable: true });
-
-Object.defineProperty(Scanner, "RIGHT_SQUARE", { value: 93, enumerable: true });
-
-Object.defineProperty(Scanner, "LEFT_CURLY", { value: 123, enumerable: true });
-
-Object.defineProperty(Scanner, "RIGHT_CURLY", { value: 125, enumerable: true });
-
-Object.defineProperty(Scanner, "HASH", { value: 35, enumerable: true });
-
-Object.defineProperty(Scanner, "AMPERSAND", { value: 38, enumerable: true });
-
-Object.defineProperty(Scanner, "ASTERISK", { value: 42, enumerable: true });
-
-Object.defineProperty(Scanner, "EXCLAMATION", { value: 33, enumerable: true });
-
-Object.defineProperty(Scanner, "VERTICAL_BAR", { value: 124, enumerable: true });
-
-Object.defineProperty(Scanner, "LEFT_ANGLE", { value: 60, enumerable: true });
-
-Object.defineProperty(Scanner, "RIGHT_ANGLE", { value: 62, enumerable: true });
-
-Object.defineProperty(Scanner, "SINGLE_QUOTE", { value: 39, enumerable: true });
-
-Object.defineProperty(Scanner, "DOUBLE_QUOTE", { value: 34, enumerable: true });
-
-Object.defineProperty(Scanner, "PERCENT", { value: 37, enumerable: true });
-
-Object.defineProperty(Scanner, "AT", { value: 64, enumerable: true });
-
-Object.defineProperty(Scanner, "GRAVE_ACCENT", { value: 96, enumerable: true });
-
-Object.defineProperty(Scanner, "TILDE", { value: 126, enumerable: true });
-
-Object.defineProperty(Scanner, "NULL", { value: 0, enumerable: true });
-
-Object.defineProperty(Scanner, "BELL", { value: 7, enumerable: true });
-
-Object.defineProperty(Scanner, "BACKSPACE", { value: 8, enumerable: true });
-
-Object.defineProperty(Scanner, "VERTICAL_TAB", { value: 11, enumerable: true });
-
-Object.defineProperty(Scanner, "FORM_FEED", { value: 12, enumerable: true });
-
-Object.defineProperty(Scanner, "ESCAPE", { value: 27, enumerable: true });
-
-Object.defineProperty(Scanner, "SLASH", { value: 47, enumerable: true });
-
-Object.defineProperty(Scanner, "BACKSLASH", { value: 92, enumerable: true });
-
-Object.defineProperty(Scanner, "UNDERSCORE", { value: 95, enumerable: true });
-
-Object.defineProperty(Scanner, "NEL", { value: 133, enumerable: true });
-
-Object.defineProperty(Scanner, "NBSP", { value: 160, enumerable: true });
-
-Object.defineProperty(Scanner, "LINE_SEPARATOR", { value: 8232, enumerable: true });
-
-Object.defineProperty(Scanner, "PARAGRAPH_SEPARATOR", { value: 8233, enumerable: true });
-
-Object.defineProperty(Scanner, "BOM", { value: 65279, enumerable: true });
-
-Object.defineProperty(Scanner, "NUMBER_0", { value: 48, enumerable: true });
-
-Object.defineProperty(Scanner, "NUMBER_9", { value: 57, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_A", { value: 97, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_B", { value: 98, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_E", { value: 101, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_F", { value: 102, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_N", { value: 110, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_R", { value: 114, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_T", { value: 116, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_U", { value: 117, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_V", { value: 118, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_X", { value: 120, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_Z", { value: 122, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_A", { value: 65, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_F", { value: 70, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_L", { value: 76, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_N", { value: 78, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_P", { value: 80, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_U", { value: 85, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_X", { value: 88, enumerable: true });
-
-Object.defineProperty(Scanner, "LETTER_CAP_Z", { value: 90, enumerable: true });
-
-Object.defineProperty(_State, "STREAM_START", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"STREAM_START\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "STREAM_START" }))), enumerable: true });
-
-Object.defineProperty(_State, "DOCUMENT_START", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_START\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" }))), enumerable: true });
-
-Object.defineProperty(_State, "DOCUMENT_CONTENT", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_CONTENT\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_CONTENT" }))), enumerable: true });
-
-Object.defineProperty(_State, "DOCUMENT_END", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"DOCUMENT_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" }))), enumerable: true });
-
-Object.defineProperty(_State, "BLOCK_NODE", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_NODE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE" }))), enumerable: true });
-
-Object.defineProperty(_State, "BLOCK_NODE_OR_INDENTLESS_SEQUENCE", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_NODE_OR_INDENTLESS_SEQUENCE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE_OR_INDENTLESS_SEQUENCE" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_NODE", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_NODE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_NODE" }))), enumerable: true });
-
-Object.defineProperty(_State, "BLOCK_SEQUENCE_FIRST_ENTRY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_SEQUENCE_FIRST_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_FIRST_ENTRY" }))), enumerable: true });
-
-Object.defineProperty(_State, "BLOCK_SEQUENCE_ENTRY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" }))), enumerable: true });
-
-Object.defineProperty(_State, "INDENTLESS_SEQUENCE_ENTRY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"INDENTLESS_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" }))), enumerable: true });
-
-Object.defineProperty(_State, "BLOCK_MAPPING_FIRST_KEY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_FIRST_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_FIRST_KEY" }))), enumerable: true });
-
-Object.defineProperty(_State, "BLOCK_MAPPING_KEY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" }))), enumerable: true });
-
-Object.defineProperty(_State, "BLOCK_MAPPING_VALUE", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"BLOCK_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_SEQUENCE_FIRST_ENTRY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_FIRST_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_FIRST_ENTRY" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY_MAPPING_KEY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY_MAPPING_END", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_SEQUENCE_ENTRY_MAPPING_END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_MAPPING_FIRST_KEY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_FIRST_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_FIRST_KEY" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_MAPPING_KEY", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_KEY\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_MAPPING_VALUE", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" }))), enumerable: true });
-
-Object.defineProperty(_State, "FLOW_MAPPING_EMPTY_VALUE", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"FLOW_MAPPING_EMPTY_VALUE\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_EMPTY_VALUE" }))), enumerable: true });
-
-Object.defineProperty(_State, "END", { value: __dartConst("[\"instance\",\"class:_State\",[\"field\",\"field:_State.name\",[\"string\",\"END\"]]]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "END" }))), enumerable: true });
+Object.defineProperty(TypedDataBuffer, "_initialLength", { value: 8, enumerable: true });
+
+const $Int32x4Buffer__zero = __dartLazyField("Int32x4Buffer._zero", () => Object.freeze({ __dartType: "Int32x4", x: 0, y: 0, z: 0, w: 0 }), false);
+Object.defineProperty(Int32x4Buffer, "_zero", {
+  get() { return $Int32x4Buffer__zero.get(); },
+  set(value) { $Int32x4Buffer__zero.set(value); },
+  enumerable: true,
+});
+
+const $Int32x4Queue__zero = __dartLazyField("Int32x4Queue._zero", () => Object.freeze({ __dartType: "Int32x4", x: 0, y: 0, z: 0, w: 0 }), false);
+Object.defineProperty(Int32x4Queue, "_zero", {
+  get() { return $Int32x4Queue__zero.get(); },
+  set(value) { $Int32x4Queue__zero.set(value); },
+  enumerable: true,
+});
 function defaultCompare(value1, value2) {
   return __dartCompare(__dartAs(value1, value => value != null && (typeof value === "number" || typeof value === "string" || typeof value === "bigint" || typeof value.compareTo === "function"), "Comparable<Object?>"), value2);
 }
@@ -18066,180 +15826,314 @@ const _newlineRegExp = __dartRegExp("\\n|\\r\\n|\\r(?!\\n)", { caseSensitive: tr
 
 const _newlineRegExp_1 = __dartRegExp("\\r\\n?|\\n", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 
-const $plus = 43;
+const token = __dartRegExp("[^()<>@,;:\"\\\\/[\\]?={} \\t\\x00-\\x1F\\x7F]+", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 
-const $minus = 45;
+const _lws = __dartRegExp("(?:\\r\\n)?[ \\t]+", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 
-const $dot = 46;
+const _quotedString = __dartRegExp("\"(?:[^\"\\x00-\\x1F\\x7F\\\\]|\\\\.)*\"", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+const _quotedPair = __dartRegExp("\\\\(.)", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+const nonToken = __dartRegExp("[()<>@,;:\"\\\\/\\[\\]?={} \\t\\x00-\\x1F\\x7F]", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+const whitespace = __dartRegExp("(?:" + __dartStr(_lws.pattern) + ")*", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+function parseList(scanner, parseElement) {
+  const result = new Array(0).fill(null);
+  while (scanner.scan(",")) {
+    {
+      scanner.scan(whitespace);
+    }
+  }
+  (result.push((parseElement)()), null);
+  scanner.scan(whitespace);
+  while (scanner.scan(",")) {
+    L:
+    {
+      scanner.scan(whitespace);
+      if ((scanner.matches(",") || scanner.isDone)) {
+        break L;
+      }
+      (result.push((parseElement)()), null);
+      scanner.scan(whitespace);
+    }
+  }
+  return result;
+}
+
+function expectQuotedString(scanner, { name = "quoted string" } = {}) {
+  scanner.expect(_quotedString, { name: name });
+  const string = __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]);
+  return __dartStringReplaceAllMapped(string.substring(1, (string.length - 1)), _quotedPair, function(match) { return __dartNullCheck(match[1]); });
+}
+
+function wrapFormatException(name, value, body) {
+  try {
+    {
+      return (body)();
+    }
+  } catch ($error) {
+    if ($error instanceof SourceSpanFormatException) {
+      const error = $error;
+      {
+        (() => { throw new SourceSpanFormatException("Invalid " + __dartStr(name) + ": " + __dartStr(error.message), error.span, error.source); })();
+      }
+    } else if (__dartIsCoreError($error, "FormatException")) {
+      const error_1 = $error;
+      {
+        (() => { throw __dartCoreError("FormatException", "Invalid " + __dartStr(name) + " \"" + __dartStr(value) + "\": " + __dartStr(error_1.message)); })();
+      }
+    } else {
+      throw $error;
+    }
+  }
+}
+
+const $lf_2 = 10;
+
+const $cr_2 = 13;
 
 const $0 = 48;
 
-const $9 = 57;
+const $1 = 49;
 
-const $F = 70;
+const $3 = 51;
 
-const $N = 78;
+const $4 = 52;
 
-const $T = 84;
+const $7 = 55;
+
+const $A = 65;
+
+const $q = 113;
+
+const $a = 97;
 
 const $f_1 = 102;
 
-const $n = 110;
+const _defaultInitialCapacity = 16;
 
-const $o = 111;
-
-const $t = 116;
-
-const $x_1 = 120;
-
-const $tilde = 126;
-
-let yamlWarningCallback = function(message, span = null) {
-  if (!((span === null))) {
-    message = span.message(message);
-  }
-  __dartPrint(message);
-};
-
-function warn(message, span = null) {
-  return (yamlWarningCallback)(message, span);
-}
-
-function isHighSurrogate_1(codeUnit) {
-  return __dartEquals((codeUnit >>> 10), 54);
-}
-
-function isLowSurrogate_1(codeUnit) {
-  return __dartEquals((codeUnit >>> 10), 55);
-}
-
-function _nodeForValue(value, span) {
-  if (value instanceof Map) {
-    return YamlMapWrapper._(value, span);
-  }
-  if ((Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView)))) {
-    return YamlListWrapper._(value, span);
-  }
-  return YamlScalar.internalWithSpan(value, span);
-}
-
-function setSpan(node, span) {
-  node._span = span;
-}
-
-function deepEqualsMap() {
-  return __dartCustomHashMap(deepEquals, deepHashCode, null);
-}
-
-function deepEquals(obj1, obj2) {
-  return new _DeepEquals().equals(obj1, obj2);
-}
-
-function deepHashCode(obj) {
-  let parents = new Array(0).fill(null);
-  function deepHashCodeInner(value) {
-    if (Array.from(parents).some(function(parent) { return Object.is(parent, value); })) {
-      return (-1);
+function _chooseRealInitialCapacity(initialCapacity) {
+  if (((initialCapacity === null) || (initialCapacity < 16))) {
+    {
+      return 16;
     }
-    (parents.push(value), null);
-    try {
+  } else {
+    if (!(_isPowerOf2(initialCapacity))) {
       {
-        if (value instanceof Map) {
-          {
-            let equality = __dartConst("[\"instance\",\"class:UnorderedIterableEquality\",[\"typeArgument\",\"InterfaceType(Object?)\"],[\"field\",\"field:_UnorderedEquality._elementEquality\",[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]]]", () => Object.freeze(Object.assign(Object.create(UnorderedIterableEquality.prototype), { _elementEquality: __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype))) })));
-            return (equality.hash(Array.from(Array.from(value.keys()), deepHashCodeInner)) ^ equality.hash(Array.from(Array.from(value.values()), deepHashCodeInner)));
-          }
-        } else {
-          if (value != null && typeof value !== "string" && !(value instanceof Map) && typeof value[Symbol.iterator] === "function") {
-            {
-              return __dartConst("[\"instance\",\"class:IterableEquality\",[\"typeArgument\",\"InterfaceType(Object?)\"],[\"field\",\"field:IterableEquality._elementEquality\",[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]]]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality: __dartConst("[\"instance\",\"class:DefaultEquality\",[\"typeArgument\",\"NeverType(Never)\"]]", () => Object.freeze(Object.create(DefaultEquality.prototype))) }))).hash(Array.from(value, deepHashCode));
-            }
-          } else {
-            if (value instanceof YamlScalar) {
-              {
-                return __dartHashValue(__dartAs(value.value, value => (value === null || value != null), "Object?"));
-              }
-            } else {
-              {
-                return __dartHashValue(value);
-              }
-            }
-          }
-        }
+        return _nextPowerOf2(initialCapacity);
       }
-    } finally {
+    } else {
       {
-        parents.pop();
+        return initialCapacity;
       }
     }
   }
-  return deepHashCodeInner(obj);
 }
 
-function loadYaml(yaml, { sourceUrl = null, recover = false, errorListener = null } = {}) {
-  return loadYamlNode(yaml, { sourceUrl: sourceUrl, recover: recover, errorListener: errorListener }).value;
+function _isPowerOf2(number) {
+  return __dartEquals((number & (number - 1)), 0);
 }
 
-function loadYamlNode(yaml, { sourceUrl = null, recover = false, errorListener = null } = {}) {
-  return loadYamlDocument(yaml, { sourceUrl: sourceUrl, recover: recover, errorListener: errorListener }).contents;
-}
-
-function loadYamlDocument(yaml, { sourceUrl = null, recover = false, errorListener = null } = {}) {
-  let loader = new Loader(yaml, { sourceUrl: sourceUrl, recover: recover, errorListener: errorListener });
-  let document = loader.load();
-  if ((document === null)) {
+function _nextPowerOf2(number) {
+  number = ((number << 1) - 1);
+  for (; ; ) {
     {
-      return YamlDocument.internal(YamlScalar.internalWithSpan(null, loader.span), loader.span, null, __dartConst("[\"list\",\"InterfaceType(TagDirective)\"]", () => Object.freeze([])));
+      let nextNumber = (number & (number - 1));
+      if (__dartEquals(nextNumber, 0)) {
+        return number;
+      }
+      number = nextNumber;
     }
   }
-  let nextDocument = loader.load();
-  if (!((nextDocument === null))) {
-    {
-      (() => { throw new YamlException("Only expected one document.", nextDocument.span); })();
-    }
-  }
-  return document;
 }
 
-function loadYamlStream(yaml, { sourceUrl = null } = {}) {
-  let loader = new Loader(yaml, { sourceUrl: sourceUrl });
-  let documents = new Array(0).fill(null);
-  let document = loader.load();
-  while (!((document === null))) {
+const chunkedCodingDecoder = __dartConst("[\"instance\",\"class:ChunkedCodingDecoder\"]", () => Object.freeze(Object.create(ChunkedCodingDecoder.prototype)));
+
+const chunkedCodingEncoder = __dartConst("[\"instance\",\"class:ChunkedCodingEncoder\"]", () => Object.freeze(Object.create(ChunkedCodingEncoder.prototype)));
+
+const _doneChunk = Uint8Array.from([48, 13, 10, 13, 10]);
+
+function _convert(bytes, start, end, { isLast = false } = {}) {
+  if (__dartEquals(end, start)) {
+    return (isLast ? _doneChunk : __dartConst("[\"list\",\"InterfaceType(int)\"]", () => Object.freeze([])));
+  }
+  const size = (end - start);
+  const sizeInHex = __dartIntToRadixString(size, 16);
+  const footerSize = (isLast ? _doneChunk.length : 0);
+  const list = new Uint8Array((((sizeInHex.length + 4) + size) + footerSize));
+  __dartListSetRange(list, 0, sizeInHex.length, Array.from({ length: sizeInHex.length }, (_, index) => sizeInHex.charCodeAt(index)), 0);
+  let cursor = sizeInHex.length;
+  __dartIndexSet(list, (() => { let v = cursor; return (() => { let v_1 = cursor = (v + 1); return v; })(); })(), 13);
+  __dartIndexSet(list, (() => { let v_2 = cursor; return (() => { let v_3 = cursor = (v_2 + 1); return v_2; })(); })(), 10);
+  __dartListSetRange(list, cursor, ((cursor + end) - start), bytes, start);
+  cursor = (cursor + (end - start));
+  __dartIndexSet(list, (() => { let v_4 = cursor; return (() => { let v_5 = cursor = (v_4 + 1); return v_4; })(); })(), 13);
+  __dartIndexSet(list, (() => { let v_6 = cursor; return (() => { let v_7 = cursor = (v_6 + 1); return v_6; })(); })(), 10);
+  if (isLast) {
     {
-      (documents.push(document), null);
-      document = loader.load();
+      __dartListSetRange(list, (list.length - footerSize), list.length, _doneChunk, 0);
     }
   }
-  return YamlList.internal(Array.from(Array.from(documents, function(document) { return document.contents; })), loader.span, __dartConst("[\"instance\",\"class:CollectionStyle\",[\"field\",\"field:CollectionStyle.name\",[\"string\",\"ANY\"]]]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))));
+  return list;
 }
 
-function loadYamlDocuments(yaml, { sourceUrl = null } = {}) {
-  let loader = new Loader(yaml, { sourceUrl: sourceUrl });
-  let documents = new Array(0).fill(null);
-  let document = loader.load();
-  while (!((document === null))) {
+const chunkedCoding = __dartConst("[\"instance\",\"class:ChunkedCodingCodec\"]", () => Object.freeze(Object.create(ChunkedCodingCodec.prototype)));
+
+const _weekdays = __dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"Mon\"],[\"string\",\"Tue\"],[\"string\",\"Wed\"],[\"string\",\"Thu\"],[\"string\",\"Fri\"],[\"string\",\"Sat\"],[\"string\",\"Sun\"]]", () => Object.freeze(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]));
+
+const _months = __dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"Jan\"],[\"string\",\"Feb\"],[\"string\",\"Mar\"],[\"string\",\"Apr\"],[\"string\",\"May\"],[\"string\",\"Jun\"],[\"string\",\"Jul\"],[\"string\",\"Aug\"],[\"string\",\"Sep\"],[\"string\",\"Oct\"],[\"string\",\"Nov\"],[\"string\",\"Dec\"]]", () => Object.freeze(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]));
+
+const _shortWeekdayRegExp = __dartRegExp("Mon|Tue|Wed|Thu|Fri|Sat|Sun", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+const _longWeekdayRegExp = __dartRegExp("Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+const _monthRegExp = __dartRegExp("Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+const _digitRegExp = __dartRegExp("\\d+", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
+
+function formatHttpDate(date) {
+  date = date.toUtc();
+  const buffer = (() => { let v = __dartStringBuffer(""); return (() => {
+    v.write(__dartIndexGet(__dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"Mon\"],[\"string\",\"Tue\"],[\"string\",\"Wed\"],[\"string\",\"Thu\"],[\"string\",\"Fri\"],[\"string\",\"Sat\"],[\"string\",\"Sun\"]]", () => Object.freeze(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])), (date.weekday - 1)));
+    v.write(", ");
+    v.write(((date.day <= 9) ? "0" : ""));
+    v.write(__dartStr(date.day));
+    v.write(" ");
+    v.write(__dartIndexGet(__dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"Jan\"],[\"string\",\"Feb\"],[\"string\",\"Mar\"],[\"string\",\"Apr\"],[\"string\",\"May\"],[\"string\",\"Jun\"],[\"string\",\"Jul\"],[\"string\",\"Aug\"],[\"string\",\"Sep\"],[\"string\",\"Oct\"],[\"string\",\"Nov\"],[\"string\",\"Dec\"]]", () => Object.freeze(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])), (date.month - 1)));
+    v.write(" ");
+    v.write(__dartStr(date.year));
+    v.write(((date.hour <= 9) ? " 0" : " "));
+    v.write(__dartStr(date.hour));
+    v.write(((date.minute <= 9) ? ":0" : ":"));
+    v.write(__dartStr(date.minute));
+    v.write(((date.second <= 9) ? ":0" : ":"));
+    v.write(__dartStr(date.second));
+    v.write(" GMT");
+    return v;
+  })(); })();
+  return __dartStr(buffer);
+}
+
+function parseHttpDate(date) {
+  return wrapFormatException("HTTP date", date, function() {
+    const scanner = new StringScanner(date);
+    if (scanner.scan(_longWeekdayRegExp)) {
+      {
+        scanner.expect(", ");
+        const day = _parseInt(scanner, 2);
+        scanner.expect("-");
+        const month = _parseMonth(scanner);
+        scanner.expect("-");
+        const year = (1900 + _parseInt(scanner, 2));
+        scanner.expect(" ");
+        const time = _parseTime(scanner);
+        scanner.expect(" GMT");
+        scanner.expectDone();
+        return _makeDateTime(year, month, day, time);
+      }
+    }
+    scanner.expect(_shortWeekdayRegExp);
+    if (scanner.scan(", ")) {
+      {
+        const day_1 = _parseInt(scanner, 2);
+        scanner.expect(" ");
+        const month_1 = _parseMonth(scanner);
+        scanner.expect(" ");
+        const year_1 = _parseInt(scanner, 4);
+        scanner.expect(" ");
+        const time_1 = _parseTime(scanner);
+        scanner.expect(" GMT");
+        scanner.expectDone();
+        return _makeDateTime(year_1, month_1, day_1, time_1);
+      }
+    }
+    scanner.expect(" ");
+    const month_2 = _parseMonth(scanner);
+    scanner.expect(" ");
+    const day_2 = (scanner.scan(" ") ? _parseInt(scanner, 1) : _parseInt(scanner, 2));
+    scanner.expect(" ");
+    const time_2 = _parseTime(scanner);
+    scanner.expect(" ");
+    const year_2 = _parseInt(scanner, 4);
+    scanner.expectDone();
+    return _makeDateTime(year_2, month_2, day_2, time_2);
+});
+}
+
+function _parseMonth(scanner) {
+  scanner.expect(_monthRegExp);
+  return (__dartListIndexOf(__dartConst("[\"list\",\"InterfaceType(String)\",[\"string\",\"Jan\"],[\"string\",\"Feb\"],[\"string\",\"Mar\"],[\"string\",\"Apr\"],[\"string\",\"May\"],[\"string\",\"Jun\"],[\"string\",\"Jul\"],[\"string\",\"Aug\"],[\"string\",\"Sep\"],[\"string\",\"Oct\"],[\"string\",\"Nov\"],[\"string\",\"Dec\"]]", () => Object.freeze(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])), __dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]), 0) + 1);
+}
+
+function _parseInt(scanner, digits) {
+  scanner.expect(_digitRegExp);
+  if (!(__dartEquals(__dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]).length, digits))) {
     {
-      (documents.push(document), null);
-      document = loader.load();
+      scanner.error("expected a " + __dartStr(digits) + "-digit number.");
     }
   }
-  return documents;
+  return __dartIntParse(__dartNullCheck(__dartNullCheck(scanner.lastMatch)[0]), null);
 }
+
+function _parseTime(scanner) {
+  const hours = _parseInt(scanner, 2);
+  if ((hours >= 24)) {
+    scanner.error("hours may not be greater than 24.");
+  }
+  scanner.expect(":");
+  const minutes = _parseInt(scanner, 2);
+  if ((minutes >= 60)) {
+    scanner.error("minutes may not be greater than 60.");
+  }
+  scanner.expect(":");
+  const seconds = _parseInt(scanner, 2);
+  if ((seconds >= 60)) {
+    scanner.error("seconds may not be greater than 60.");
+  }
+  return __dartDateTimeFromParts(false, 1, 1, 1, hours, minutes, seconds, 0, 0);
+}
+
+function _makeDateTime(year, month, day, time) {
+  const dateTime = __dartDateTimeFromParts(true, year, month, day, time.hour, time.minute, time.second, 0, 0);
+  if (!(__dartEquals(dateTime.month, month))) {
+    {
+      (() => { throw __dartCoreError("FormatException", "invalid day '" + __dartStr(day) + "' for month '" + __dartStr(month) + "'."); })();
+    }
+  }
+  return dateTime;
+}
+
+const _escapedChar = __dartRegExp("[\"\\x00-\\x1F\\x7F]", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 
 export function main() {
-  const source = "name: dart2esm\nversion: 0.1.0\nflags:\n  - web\n  - esm\nnested:\n  count: 2\n  ok: true\nflow: {a: 1, b: [x, y]}\n";
-  const loaded = __dartAs(loadYaml("name: dart2esm\nversion: 0.1.0\nflags:\n  - web\n  - esm\nnested:\n  count: 2\n  ok: true\nflow: {a: 1, b: [x, y]}\n"), value => value instanceof YamlMap, "YamlMap");
-  const document = loadYamlDocument("name: dart2esm\nversion: 0.1.0\nflags:\n  - web\n  - esm\nnested:\n  count: 2\n  ok: true\nflow: {a: 1, b: [x, y]}\n", { sourceUrl: __dartUriParse("memory:pubspec.yaml", false) });
-  const root = __dartAs(document.contents, value => value instanceof YamlMap, "YamlMap");
-  const flags = __dartAs(root["[]"]("flags"), value => value instanceof YamlList, "YamlList");
-  const nested = __dartAs(__dartNullCheck(__dartMapGet(root.nodes, "nested")), value => value instanceof YamlMap, "YamlMap");
-  const flow = __dartAs(__dartNullCheck(__dartMapGet(root.nodes, "flow")), value => value instanceof YamlMap, "YamlMap");
-  const stream = loadYamlStream("---\na: 1\n---\n- b\n");
-  const wrapped = YamlMap.wrap(new Map([["outer", [1, new Map([["inner", "value"]])]]]), { sourceUrl: "memory:wrapped.yaml" });
-  const wrappedList = __dartAs(wrapped["[]"]("outer"), value => value instanceof YamlList, "YamlList");
-  const wrappedMap = __dartAs(__dartIndexGet(wrappedList.nodes, 1), value => value instanceof YamlMap, "YamlMap");
-  __dartPrint("yaml " + __dartStr(loaded["[]"]("name")) + " " + __dartStr(root["[]"]("version")) + " " + __dartStr(flags.join("|")) + " " + __dartStr(__dartIterableFirst(flags.nodes).value) + " " + __dartStr(nested["[]"]("count")) + " " + __dartStr(nested["[]"]("ok")) + " " + __dartStr(flow.style) + " " + __dartStr(__dartCall(flow["[]"]("b"), "join", [","], null)) + " " + __dartStr(document.span.sourceUrl) + " " + __dartStr(root.span.start.line) + ":" + __dartStr(root.span.end.line) + " " + __dartStr(stream.length) + " " + __dartStr(__dartCall(stream["[]"](0), "[]", ["a"], null)) + " " + __dartStr(__dartAs(stream["[]"](1), value => value instanceof YamlList, "YamlList")["[]"](0)) + " " + __dartStr(wrappedList.length) + " " + __dartStr(wrappedMap["[]"]("inner")) + " " + __dartStr(wrapped.style));
+  const media = MediaType.parse("Text/HTML; Charset=UTF-8; boundary=abc");
+  const changed = media.change({ mimeType: "application/json", parameters: new Map([["charset", "utf-8"]]), clearParameters: true });
+  __dartPrint("media " + __dartStr(media.mimeType) + " " + __dartStr(__dartMapGet(media.parameters, "charset")) + " " + __dartStr(__dartMapGet(media.parameters, "BOUNDARY")) + " " + __dartStr(changed));
+  const date = parseHttpDate("Sun, 06 Nov 1994 08:49:37 GMT");
+  __dartPrint("date " + __dartStr(date.toIso8601String()) + " " + __dartStr(formatHttpDate(date)));
+  const challenges = AuthenticationChallenge.parseHeader("Digest realm=\"api\", nonce=\"abc\", Basic realm=\"simple\"");
+  __dartPrint("auth " + __dartStr(challenges.length) + " " + __dartStr(__dartIndexGet(challenges, 0).scheme) + " " + __dartStr(__dartMapGet(__dartIndexGet(challenges, 0).parameters, "realm")) + " " + __dartStr(__dartIndexGet(challenges, challenges.length - 1).scheme) + " " + __dartStr(__dartMapGet(__dartIndexGet(challenges, challenges.length - 1).parameters, "REALM")));
+  const headers = CaseInsensitiveMap.from(new Map([["Content-Type", media.mimeType], ["X-Trace", "1"]]));
+  headers["[]="]("content-type", changed.mimeType);
+  __dartPrint("headers " + __dartStr(headers["[]"]("CONTENT-TYPE")) + " " + __dartStr(headers.containsKey("x-trace")) + " " + __dartStr(__dartIterableJoin(headers.keys, "|")));
+  const encoded = __dartConst("[\"instance\",\"class:ChunkedCodingCodec\"]", () => Object.freeze(Object.create(ChunkedCodingCodec.prototype))).encoder.convert([65, 66, 67, 68]);
+  const decoded = __dartConst("[\"instance\",\"class:ChunkedCodingCodec\"]", () => Object.freeze(Object.create(ChunkedCodingCodec.prototype))).decoder.convert(encoded);
+  __dartPrint("chunked " + __dartStr(__dartIterableJoin(encoded, ",")) + " " + __dartStr(String.fromCodePoint(...Array.from(decoded))));
+  try {
+    {
+      MediaType.parse("not valid");
+    }
+  } catch ($error) {
+    if (__dartIsCoreError($error, "FormatException")) {
+      const error = $error;
+      {
+        __dartPrint("media-error " + __dartStr(error.offset) + " " + __dartStr(error.source));
+      }
+    } else {
+      throw $error;
+    }
+  }
 }
 
 main();

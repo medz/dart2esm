@@ -753,23 +753,47 @@ final class _EsmEmitter {
     final className = _className(klass);
     writeln('${export ? 'export ' : ''}class $className {');
     _indent++;
+    final constructorParameterNames = <String>{};
+    final enumIndexParameter = _freshNameIn(
+      constructorParameterNames,
+      r'$index',
+    );
+    final enumNameParameter = _freshNameIn(constructorParameterNames, r'$name');
+    final fieldParameterNames = {
+      for (final field in instanceFields)
+        field: _freshNameIn(
+          constructorParameterNames,
+          _memberName(field.name.text),
+        ),
+    };
+    final hasPublicNameField = instanceFields.any(
+      (field) => _memberName(field.name.text) == 'name',
+    );
     final constructorParameters = [
-      'index',
-      'name',
-      ...instanceFields.map((field) => _memberName(field.name.text)),
+      enumIndexParameter,
+      enumNameParameter,
+      ...instanceFields.map((field) => fieldParameterNames[field]!),
     ];
     writeln('constructor(${constructorParameters.join(', ')}) {');
     _indent++;
     writeln(
-      'Object.defineProperty(this, "index", { value: index, enumerable: true });',
+      'Object.defineProperty(this, "index", { value: $enumIndexParameter, enumerable: true });',
     );
-    writeln(
-      'Object.defineProperty(this, "name", { value: name, enumerable: true });',
-    );
+    writeln('Object.defineProperty(this, "__dartEnumName", {');
+    _indent++;
+    writeln('value: $enumNameParameter,');
+    writeln('enumerable: false,');
+    _indent--;
+    writeln('});');
+    if (!hasPublicNameField) {
+      writeln(
+        'Object.defineProperty(this, "name", { value: $enumNameParameter, enumerable: true });',
+      );
+    }
     for (final field in instanceFields) {
       final memberName = _memberName(field.name.text);
       writeln(
-        'Object.defineProperty(this, ${jsonEncode(memberName)}, { value: $memberName, enumerable: true });',
+        'Object.defineProperty(this, ${jsonEncode(memberName)}, { value: ${fieldParameterNames[field]}, enumerable: true });',
       );
     }
     _emitInterfaceMarkers(klass);
@@ -784,11 +808,13 @@ final class _EsmEmitter {
       }
       _emitMethod(procedure);
     }
-    writeln('toString() {');
-    _indent++;
-    writeln('return ${jsonEncode('${klass.name}.')} + this.name;');
-    _indent--;
-    writeln('}');
+    if (!_hasConcreteInstanceProcedure(klass, 'toString')) {
+      writeln('toString() {');
+      _indent++;
+      writeln('return ${jsonEncode('${klass.name}.')} + this.__dartEnumName;');
+      _indent--;
+      writeln('}');
+    }
     _indent--;
     writeln('}');
     writeln('Object.defineProperties($className, {');
@@ -820,6 +846,17 @@ final class _EsmEmitter {
     );
     _emitInterfaceHasInstance(klass);
     _currentClass = previousClass;
+  }
+
+  bool _hasConcreteInstanceProcedure(k.Class klass, String name) {
+    return klass.procedures.any(
+      (procedure) =>
+          !procedure.isStatic &&
+          !procedure.isExternal &&
+          !procedure.isAbstract &&
+          !procedure.isNoSuchMethodForwarder &&
+          procedure.name.text == name,
+    );
   }
 
   void _emitInterfaceHasInstance(k.Class klass) {
@@ -1708,9 +1745,7 @@ final class _EsmEmitter {
         if (field is! k.Field) {
           throw UnsupportedKernelNode(initializer, 'field initializer');
         }
-        writeln(
-          '$_thisExpression.${_memberName(field.name.text)} = ${emitExpression(initializer.value)};',
-        );
+        _emitInstanceFieldDefinition(field, emitExpression(initializer.value));
       case k.LocalInitializer():
         emitStatement(initializer.variable);
       case k.AssertInitializer():
@@ -1880,10 +1915,68 @@ final class _EsmEmitter {
         continue;
       }
       final initializer = field.initializer;
-      writeln(
-        '$_thisExpression.${_memberName(field.name.text)} = ${initializer == null ? 'null' : emitExpression(initializer)};',
+      _emitInstanceFieldDefinition(
+        field,
+        initializer == null ? 'null' : emitExpression(initializer),
       );
     }
+  }
+
+  void _emitInstanceFieldDefinition(k.Field field, String value) {
+    final memberName = _memberName(field.name.text);
+    if (!_fieldNeedsOwnDefinition(field)) {
+      writeln('$_thisExpression.$memberName = $value;');
+      return;
+    }
+    writeln(
+      'Object.defineProperty($_thisExpression, ${jsonEncode(memberName)}, {',
+    );
+    _indent++;
+    writeln('value: $value,');
+    writeln('writable: true,');
+    writeln('configurable: true,');
+    writeln('enumerable: true,');
+    _indent--;
+    writeln('});');
+  }
+
+  bool _fieldNeedsOwnDefinition(k.Field field) {
+    final owner = field.enclosingClass;
+    if (owner == null) {
+      return false;
+    }
+    return component.libraries
+        .expand((library) => library.classes)
+        .where(
+          (klass) => !identical(klass, owner) && _isSubclassOf(klass, owner),
+        )
+        .any((klass) => _hasInstanceAccessor(klass, field.name.text));
+  }
+
+  bool _isSubclassOf(k.Class klass, k.Class ancestor) {
+    var current = _superclassNode(klass);
+    while (current != null) {
+      if (identical(current, ancestor)) {
+        return true;
+      }
+      current = _superclassNode(current);
+    }
+    return false;
+  }
+
+  k.Class? _superclassNode(k.Class klass) {
+    final node = klass.supertype?.className.node;
+    return node is k.Class ? node : null;
+  }
+
+  bool _hasInstanceAccessor(k.Class klass, String name) {
+    return klass.procedures.any(
+      (procedure) =>
+          !procedure.isStatic &&
+          (procedure.kind == k.ProcedureKind.Getter ||
+              procedure.kind == k.ProcedureKind.Setter) &&
+          procedure.name.text == name,
+    );
   }
 
   void _emitInstanceLateField(k.Class klass, k.Field field) {
@@ -5299,7 +5392,8 @@ final class _EsmEmitter {
         name == 'forEach' &&
         positionalArgs.length == 1 &&
         isMapInvocation) {
-      return '($left.forEach((value, key) => (${positionalArgs.single})(key, value)), null)';
+      _usedHelpers.add('__dartMapForEach');
+      return '__dartMapForEach($left, ${positionalArgs.single})';
     }
     if (expression.arguments.named.isEmpty &&
         name == 'forEach' &&
@@ -11303,6 +11397,7 @@ final class _EsmEmitter {
     emitRegisteredRuntimeHelper('__dartExpando');
     emitRegisteredRuntimeHelper('__dartWeakReference');
     emitRegisteredRuntimeHelper('__dartFinalizer');
+    emitRegisteredRuntimeHelper('__dartMapForEach');
     if (_usedHelpers.contains('__dartStringPattern')) {
       helper.writeln('function __dartPatternRegExp(pattern, global = false) {');
       helper.writeln(
@@ -14829,12 +14924,18 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartMapContainsKey')) {
       helper.writeln('function __dartMapContainsKey(map, key) {');
       helper.writeln(
+        '  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);',
+      );
+      helper.writeln(
         '  return __dartMapKey(map, key) !== __dartMapMissingKey;',
       );
       helper.writeln('}');
     }
     if (_usedHelpers.contains('__dartMapGet')) {
       helper.writeln('function __dartMapGet(map, key) {');
+      helper.writeln(
+        '  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);',
+      );
       helper.writeln('  const actualKey = __dartMapKey(map, key);');
       helper.writeln(
         '  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);',
@@ -15036,9 +15137,12 @@ final class _EsmEmitter {
     if (_usedHelpers.contains('__dartUnmodifiableMapView')) {
       helper.writeln('function __dartUnmodifiableMapView(source) {');
       helper.writeln(
-        '  const map = source instanceof Map ? source : new Map(source);',
+        '  const mapLike = source != null && typeof source === "object" && (source instanceof Map || typeof source["[]"] === "function");',
       );
-      helper.writeln('  const readonly = new Set(["set", "delete", "clear"]);');
+      helper.writeln('  const map = mapLike ? source : new Map(source);');
+      helper.writeln(
+        '  const readonly = new Set(["set", "delete", "clear", "[]=", "addAll", "addEntries", "remove", "removeWhere", "update", "updateAll", "putIfAbsent"]);',
+      );
       helper.writeln('  return new Proxy(map, {');
       helper.writeln('    get(target, property) {');
       helper.writeln(
@@ -18167,6 +18271,7 @@ const _generatedGlobalNames = {
   '__dartMapFromEntries',
   '__dartMapFromIterable',
   '__dartMapFromIterables',
+  '__dartMapForEach',
   '__dartMapGet',
   '__dartMapKey',
   '__dartMapMap',

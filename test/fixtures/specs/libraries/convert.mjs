@@ -556,6 +556,7 @@ function __dartMapKey(map, key) {
   return __dartMapMissingKey;
 }
 function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
   const actualKey = __dartMapKey(map, key);
   return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }

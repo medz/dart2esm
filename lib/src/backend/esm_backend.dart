@@ -4,6 +4,7 @@ import 'package:kernel/kernel.dart' as k;
 
 import '../js_ast/js_ast.dart';
 import '../lowering/lowering.dart';
+import '../names/js_names.dart';
 import '../program/program_model.dart';
 import '../program/program_roots.dart';
 import '../world/reachability.dart' show EsmProgramPlan;
@@ -70,10 +71,9 @@ final class _EsmEmitter {
   final _interfaceMarkersByClass = <k.Class, Set<k.Class>>{};
   final _interfaceMarkerNames = <k.Class, String>{};
   final _usedHelpers = EsmRuntimeHelperUseSet();
-  final _usedNames = <String>{};
+  final _names = JsNameAllocator(generatedGlobalNames: _generatedGlobalNames);
   final _jsInterfaceSuperclasses = <k.Class, k.Class>{};
   final _jsInterfaceBaseClasses = <k.Class>{};
-  final _localNameScopes = <Set<String>>[];
   var _indent = 0;
   k.Class? _currentClass;
   String? _thisAlias;
@@ -320,7 +320,7 @@ final class _EsmEmitter {
   }
 
   _TopLevelFieldNames _freshTopLevelFieldNames(String name) {
-    final base = _sanitizeIdentifier(name);
+    final base = sanitizeJsIdentifier(name);
     return _TopLevelFieldNames(value: _freshName(base));
   }
 
@@ -608,14 +608,17 @@ final class _EsmEmitter {
     writeln('${export ? 'export ' : ''}class $className {');
     _indent++;
     final constructorParameterNames = <String>{};
-    final enumIndexParameter = _freshNameIn(
+    final enumIndexParameter = _names.freshIn(
       constructorParameterNames,
       r'$index',
     );
-    final enumNameParameter = _freshNameIn(constructorParameterNames, r'$name');
+    final enumNameParameter = _names.freshIn(
+      constructorParameterNames,
+      r'$name',
+    );
     final fieldParameterNames = {
       for (final field in instanceFields)
-        field: _freshNameIn(
+        field: _names.freshIn(
           constructorParameterNames,
           _memberName(field.name.text),
         ),
@@ -2154,8 +2157,7 @@ final class _EsmEmitter {
   String _emitNamedParameterBinding(k.VariableDeclaration parameter) {
     final name = parameter.name ?? _variableName(parameter);
     final local = _variableName(parameter);
-    final binding =
-        local == name && _isIdentifier(name) && !_reservedNames.contains(name)
+    final binding = local == name && isJsBindingIdentifier(name)
         ? local
         : '${_propertyKey(name)}: $local';
     if (parameter.isRequired) {
@@ -7735,7 +7737,7 @@ final class _EsmEmitter {
   }
 
   String _emitOptionalPropertyGet(String receiver, String name) {
-    if (_isIdentifier(name) && !_reservedNames.contains(name)) {
+    if (isJsBindingIdentifier(name)) {
       return '$receiver?.$name';
     }
     return '$receiver?.[${jsonEncode(name)}]';
@@ -10970,12 +10972,7 @@ final class _EsmEmitter {
   }
 
   T _withFunctionNameScope<T>(T Function() body) {
-    _localNameScopes.add({..._usedNames, ..._generatedGlobalNames});
-    try {
-      return body();
-    } finally {
-      _localNameScopes.removeLast();
-    }
+    return _names.withFunctionScope(body);
   }
 
   void _declareVariable(k.VariableDeclaration variable) {
@@ -10983,9 +10980,7 @@ final class _EsmEmitter {
       variable,
       () => _freshScopedName(variable.name ?? 'v'),
     );
-    if (_localNameScopes.isNotEmpty) {
-      _localNameScopes.last.add(name);
-    }
+    _names.reserveLocal(name);
   }
 
   String _variableName(k.VariableDeclaration variable) {
@@ -11070,21 +11065,21 @@ final class _EsmEmitter {
   }
 
   String _memberName(String name) {
-    if (_isIdentifier(name) && !_reservedNames.contains(name)) {
+    if (isJsBindingIdentifier(name)) {
       return name;
     }
-    return _sanitizeIdentifier(name);
+    return sanitizeJsIdentifier(name);
   }
 
   String _propertyKey(String name) {
-    if (_isIdentifier(name) && !_reservedNames.contains(name)) {
+    if (isJsBindingIdentifier(name)) {
       return name;
     }
     return jsonEncode(name);
   }
 
   String _emitPropertyGet(String receiver, String name) {
-    if (_isIdentifier(name) && !_reservedNames.contains(name)) {
+    if (isJsBindingIdentifier(name)) {
       return '$receiver.$name';
     }
     return '$receiver[${jsonEncode(name)}]';
@@ -11092,67 +11087,12 @@ final class _EsmEmitter {
 
   String _recordPositionalKey(int index) => '\$${index + 1}';
 
-  bool _isIdentifier(String name) {
-    if (name.isEmpty) {
-      return false;
-    }
-    for (var i = 0; i < name.length; i++) {
-      final code = name.codeUnitAt(i);
-      final isAlpha = code >= 65 && code <= 90 || code >= 97 && code <= 122;
-      final isDigit = code >= 48 && code <= 57;
-      final isValid = isAlpha || isDigit || code == 95 || code == 36;
-      if (!isValid || i == 0 && isDigit) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   String _freshName(String original) {
-    return _freshNameIn(_usedNames, original, avoidActiveLocalScopes: true);
+    return _names.freshGlobal(original);
   }
 
   String _freshScopedName(String original) {
-    if (_localNameScopes.isEmpty) {
-      return _freshName(original);
-    }
-    return _freshNameIn(_localNameScopes.last, original);
-  }
-
-  String _freshNameIn(
-    Set<String> usedNames,
-    String original, {
-    bool avoidActiveLocalScopes = false,
-  }) {
-    final sanitized = _sanitizeIdentifier(original);
-    var candidate = sanitized;
-    var suffix = 0;
-    while (_reservedNames.contains(candidate) ||
-        _generatedGlobalNames.contains(candidate) ||
-        usedNames.contains(candidate) ||
-        avoidActiveLocalScopes &&
-            _localNameScopes.any((scope) => scope.contains(candidate))) {
-      suffix++;
-      candidate = '${sanitized}_$suffix';
-    }
-    usedNames.add(candidate);
-    return candidate;
-  }
-
-  String _sanitizeIdentifier(String name) {
-    final buffer = StringBuffer();
-    for (var i = 0; i < name.length; i++) {
-      final code = name.codeUnitAt(i);
-      final isAlpha = code >= 65 && code <= 90 || code >= 97 && code <= 122;
-      final isDigit = code >= 48 && code <= 57;
-      final isValid = isAlpha || isDigit || code == 95 || code == 36;
-      if (i == 0 && isDigit) {
-        buffer.write('_');
-      }
-      buffer.write(isValid ? name[i] : '_');
-    }
-    final result = buffer.toString();
-    return result.isEmpty ? 'v' : result;
+    return _names.freshLocal(original);
   }
 
   String _emitHelpers() {
@@ -17676,57 +17616,6 @@ const _binaryOperators = {
   '>',
   '>=',
   '==',
-};
-
-const _reservedNames = {
-  'arguments',
-  'await',
-  'break',
-  'case',
-  'catch',
-  'class',
-  'const',
-  'continue',
-  'debugger',
-  'default',
-  'delete',
-  'do',
-  'else',
-  'enum',
-  'eval',
-  'export',
-  'extends',
-  'false',
-  'finally',
-  'for',
-  'function',
-  'if',
-  'implements',
-  'import',
-  'in',
-  'instanceof',
-  'interface',
-  'let',
-  'new',
-  'null',
-  'package',
-  'private',
-  'protected',
-  'public',
-  'return',
-  'static',
-  'super',
-  'switch',
-  'this',
-  'throw',
-  'true',
-  'try',
-  'typeof',
-  'var',
-  'void',
-  'while',
-  'with',
-  'yield',
 };
 
 const _coreExceptionTypeNames = {

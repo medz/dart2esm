@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../names/js_names.dart';
 import 'ast.dart';
 
 String generateJs(JsNode node) => _JsCodeGenerator().generate(node);
@@ -62,7 +63,7 @@ final class _JsCodeGenerator {
   }
 
   String _emitObjectProperty(JsObjectProperty property) {
-    final key = _isIdentifierName(property.key)
+    final key = isJsIdentifierName(property.key)
         ? property.key
         : jsonEncode(property.key);
     return '$key: ${_emitExpression(property.value)}';
@@ -85,31 +86,4 @@ final class _JsCodeGenerator {
     _buffer.write('  ' * _indent);
     _buffer.writeln(line);
   }
-}
-
-bool _isIdentifierName(String value) {
-  if (value.isEmpty) {
-    return false;
-  }
-  final first = value.codeUnitAt(0);
-  if (!_isIdentifierStart(first)) {
-    return false;
-  }
-  for (var i = 1; i < value.length; i++) {
-    if (!_isIdentifierPart(value.codeUnitAt(i))) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool _isIdentifierStart(int codeUnit) {
-  return codeUnit == 36 ||
-      codeUnit == 95 ||
-      codeUnit >= 65 && codeUnit <= 90 ||
-      codeUnit >= 97 && codeUnit <= 122;
-}
-
-bool _isIdentifierPart(int codeUnit) {
-  return _isIdentifierStart(codeUnit) || codeUnit >= 48 && codeUnit <= 57;
 }

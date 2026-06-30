@@ -391,6 +391,22 @@ final class KernelToEsmIrLoweringStage {
         return EsmIdentifierIr(symbol.name);
       }
     }
+    if (target is k.Procedure) {
+      final symbol = world.symbolFor(target);
+      if (symbol != null) {
+        return switch (symbol.kind) {
+          EsmProcedureKind.method => EsmIdentifierIr(symbol.name),
+          EsmProcedureKind.getter => EsmCallIr(
+            callee: EsmIdentifierIr(symbol.name),
+            arguments: const [],
+          ),
+          EsmProcedureKind.setter => throw NewCompilerUnsupported(
+            expression,
+            'static setter get lowering',
+          ),
+        };
+      }
+    }
     throw NewCompilerUnsupported(expression, 'static get lowering');
   }
 
@@ -410,6 +426,17 @@ final class KernelToEsmIrLoweringStage {
         return EsmAssignmentIr(
           target: EsmIdentifierIr(symbol.name),
           value: _lowerExpression(world, helpers, locals, expression.value),
+        );
+      }
+    }
+    if (target is k.Procedure) {
+      final symbol = world.symbolFor(target);
+      if (symbol != null && symbol.kind == EsmProcedureKind.setter) {
+        return EsmCallIr(
+          callee: EsmIdentifierIr(symbol.name),
+          arguments: [
+            _lowerExpression(world, helpers, locals, expression.value),
+          ],
         );
       }
     }
@@ -486,6 +513,9 @@ final class KernelToEsmIrLoweringStage {
     final target = world.symbolFor(targetNode);
     if (target == null) {
       throw NewCompilerUnsupported(expression.target, 'external static target');
+    }
+    if (target.kind != EsmProcedureKind.method) {
+      throw NewCompilerUnsupported(expression.target, 'static accessor call');
     }
     return EsmCallIr(
       callee: EsmIdentifierIr(target.name),

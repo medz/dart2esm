@@ -78,12 +78,16 @@ final class EsmProcedureSymbol {
     required this.node,
     required this.name,
     required this.export,
+    required this.kind,
   });
 
   final k.Procedure node;
   final String name;
   final bool export;
+  final EsmProcedureKind kind;
 }
+
+enum EsmProcedureKind { method, getter, setter }
 
 final class SemanticWorldStage {
   const SemanticWorldStage();
@@ -109,7 +113,8 @@ final class SemanticWorldStage {
     }
     final procedures = <EsmProcedureSymbol>[];
     for (final procedure in mainLibrary.procedures) {
-      if (!_isTopLevelMethod(procedure)) {
+      final kind = _topLevelProcedureKind(procedure);
+      if (kind == null) {
         continue;
       }
       procedures.add(
@@ -117,10 +122,15 @@ final class SemanticWorldStage {
           node: procedure,
           name: allocator.freshGlobal(procedure.name.text),
           export: _isPublic(procedure.name.text),
+          kind: kind,
         ),
       );
     }
-    if (!procedures.any((procedure) => procedure.node == kernel.main)) {
+    if (!procedures.any(
+      (procedure) =>
+          procedure.node == kernel.main &&
+          procedure.kind == EsmProcedureKind.method,
+    )) {
       throw NewCompilerUnsupported(kernel.main, 'entrypoint procedure shape');
     }
     return SemanticWorldResult(
@@ -138,11 +148,18 @@ final class SemanticWorldStage {
     return field.isStatic && !field.isExternal && !field.isExtensionTypeMember;
   }
 
-  bool _isTopLevelMethod(k.Procedure procedure) {
-    return procedure.isStatic &&
-        !procedure.isExternal &&
-        !procedure.isExtensionTypeMember &&
-        procedure.kind == k.ProcedureKind.Method;
+  EsmProcedureKind? _topLevelProcedureKind(k.Procedure procedure) {
+    if (!procedure.isStatic ||
+        procedure.isExternal ||
+        procedure.isExtensionTypeMember) {
+      return null;
+    }
+    return switch (procedure.kind) {
+      k.ProcedureKind.Method => EsmProcedureKind.method,
+      k.ProcedureKind.Getter => EsmProcedureKind.getter,
+      k.ProcedureKind.Setter => EsmProcedureKind.setter,
+      _ => null,
+    };
   }
 
   bool _isPublic(String name) => !name.startsWith('_');

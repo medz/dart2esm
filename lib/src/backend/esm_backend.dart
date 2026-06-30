@@ -14,6 +14,7 @@ import '../program/program_model.dart';
 import '../world/sdk_classification.dart';
 import '../world/kernel_analysis.dart';
 import 'runtime_helpers.dart';
+import 'sdk_static_gets.dart';
 import 'sdk_static_invocations.dart';
 
 EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
@@ -3949,45 +3950,11 @@ final class _EsmEmitter {
   }
 
   String _emitStaticGet(k.StaticGet expression) {
-    final developerGet = _emitDeveloperStaticGet(expression);
-    if (developerGet != null) {
-      return developerGet;
-    }
-    final asyncGet = _emitAsyncStaticGet(expression);
-    if (asyncGet != null) {
-      return asyncGet;
-    }
-    final jsInteropGet = _emitJsInteropStaticGet(expression);
-    if (jsInteropGet != null) {
-      return jsInteropGet;
-    }
-    final coreGet = _emitCoreStaticGet(expression);
-    if (coreGet != null) {
-      return coreGet;
-    }
-    final convertGet = _emitConvertStaticGet(expression);
-    if (convertGet != null) {
-      return convertGet;
-    }
-    final mathGet = _emitMathStaticGet(expression);
-    if (mathGet != null) {
-      return mathGet;
-    }
-    final typedDataGet = _emitTypedDataStaticGet(expression);
-    if (typedDataGet != null) {
-      return typedDataGet;
-    }
-    final ffiGet = _emitFfiStaticGet(expression);
-    if (ffiGet != null) {
-      return ffiGet;
-    }
-    final isolateGet = _emitIsolateStaticGet(expression);
-    if (isolateGet != null) {
-      return isolateGet;
-    }
-    final ioGet = _emitIoStaticGet(expression);
-    if (ioGet != null) {
-      return ioGet;
+    final sdkStaticGet = DartSdkStaticGetEmitter(
+      helpers: _usedHelpers,
+    ).emit(expression);
+    if (sdkStaticGet != null) {
+      return sdkStaticGet;
     }
     final target = expression.targetReference.node;
     if (target is k.Field && _names.hasField(target)) {
@@ -4033,124 +4000,6 @@ final class _EsmEmitter {
       expression,
       'static get ${kernelReferencePath(expression.targetReference)}',
     );
-  }
-
-  String? _emitIoStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:io::Platform::@getters::')) {
-      return null;
-    }
-    final name = path.split('::').last;
-    const operatingSystem =
-        '((globalThis.process?.platform === "win32") ? "windows" : (globalThis.process?.platform === "darwin") ? "macos" : (globalThis.process?.platform === "linux") ? "linux" : "browser")';
-    return switch (name) {
-      'operatingSystem' => operatingSystem,
-      'pathSeparator' => '($operatingSystem === "windows" ? "\\\\" : "/")',
-      'isWindows' => '($operatingSystem === "windows")',
-      'isLinux' => '($operatingSystem === "linux")',
-      'isMacOS' => '($operatingSystem === "macos")',
-      'isAndroid' => 'false',
-      'isIOS' => 'false',
-      'isFuchsia' => 'false',
-      'environment' => 'Object.freeze({})',
-      'localHostname' => '""',
-      'numberOfProcessors' => '1',
-      'script' =>
-        'new URL("file:///", globalThis.location?.href ?? "file:///")',
-      'resolvedExecutable' => 'globalThis.process?.execPath ?? ""',
-      'executable' => 'globalThis.process?.execPath ?? ""',
-      'executableArguments' => 'Object.freeze([])',
-      'packageConfig' => 'null',
-      'version' => '""',
-      'localeName' => 'globalThis.navigator?.language ?? "en"',
-      _ => null,
-    };
-  }
-
-  String? _emitJsInteropStaticGet(k.StaticGet expression) {
-    switch (jsInteropStaticGetSymbol(expression.targetReference)) {
-      case JsInteropStaticGetSymbol.globalThis:
-        return 'globalThis';
-      case JsInteropStaticGetSymbol.objectPrototype:
-        return 'Object.prototype';
-      case null:
-        break;
-    }
-    final path = kernelReferencePath(expression.targetReference);
-    if (path == 'dart:html::@getters::window') {
-      return 'globalThis.window';
-    }
-    if (path == 'dart:html::@getters::document') {
-      return 'globalThis.document';
-    }
-    if (path == 'dart:web_gl::RenderingContext::@getters::supported') {
-      return '(!!globalThis.window?.WebGLRenderingContext)';
-    }
-    if (path == 'dart:web_audio::AudioContext::@getters::supported') {
-      return '(!!(globalThis.window?.AudioContext || globalThis.window?.webkitAudioContext || globalThis.AudioContext || globalThis.webkitAudioContext))';
-    }
-    if (path == 'dart:indexed_db::IdbFactory::@getters::supported') {
-      return '(!!(globalThis.window?.indexedDB || globalThis.window?.webkitIndexedDB || globalThis.window?.mozIndexedDB || globalThis.indexedDB))';
-    }
-    final symbolName = jsSymbolStaticGetterName(expression.targetReference);
-    if (symbolName != null) {
-      return switch (symbolName) {
-        'asyncIterator' => 'Symbol.asyncIterator',
-        'hasInstance' => 'Symbol.hasInstance',
-        'isConcatSpreadable' => 'Symbol.isConcatSpreadable',
-        'iterator' => 'Symbol.iterator',
-        'match' => 'Symbol.match',
-        'matchAll' => 'Symbol.matchAll',
-        'replace' => 'Symbol.replace',
-        'search' => 'Symbol.search',
-        'species' => 'Symbol.species',
-        'split' => 'Symbol.split',
-        'toPrimitive' => 'Symbol.toPrimitive',
-        'toStringTag' => 'Symbol.toStringTag',
-        'unscopables' => 'Symbol.unscopables',
-        _ => null,
-      };
-    }
-    return null;
-  }
-
-  String? _emitFfiStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (path == 'dart:ffi::@getters::nullptr') {
-      _usedHelpers.add('__dartFfiPointer');
-      return '__dartFfiPointer(0)';
-    }
-    return null;
-  }
-
-  String? _emitCoreStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (path.startsWith('dart:core::BigInt::@getters::')) {
-      return switch (path.split('::').last) {
-        'zero' => '0n',
-        'one' => '1n',
-        'two' => '2n',
-        _ => null,
-      };
-    }
-    if (path.startsWith('dart:core::double::@getters::')) {
-      return switch (path.split('::').last) {
-        'nan' => 'Number.NaN',
-        'infinity' => 'Infinity',
-        'negativeInfinity' => '-Infinity',
-        'minPositive' => '5e-324',
-        'maxFinite' => '1.7976931348623157e+308',
-        _ => null,
-      };
-    }
-    if (path == 'dart:core::StackTrace::@getters::current') {
-      return '(new Error().stack ?? "<javascript stack unavailable>")';
-    }
-    if (path == 'dart:core::Uri::@getters::base') {
-      _usedHelpers.add('__dartUriParse');
-      return '__dartUriParse((globalThis.location?.href ?? import.meta.url), false)';
-    }
-    return null;
   }
 
   String _emitStaticSet(k.StaticSet expression) {
@@ -8042,19 +7891,6 @@ final class _EsmEmitter {
     return null;
   }
 
-  String? _emitAsyncStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (path == 'dart:async::Zone::@getters::current') {
-      _usedHelpers.add('__dartZone');
-      return '__dartCurrentZone';
-    }
-    if (path == 'dart:async::Zone::@getters::root') {
-      _usedHelpers.add('__dartZone');
-      return '__dartRootZone';
-    }
-    return null;
-  }
-
   String? _emitAsyncStaticInvocation(
     k.StaticInvocation expression,
     List<String> positionalArgs,
@@ -9308,39 +9144,6 @@ final class _EsmEmitter {
     };
   }
 
-  String? _emitIsolateStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (path == 'dart:isolate::Isolate::@getters::current') {
-      _usedHelpers.add('__dartIsolate');
-      return '__dartCurrentIsolate';
-    }
-    return null;
-  }
-
-  String? _emitDeveloperStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:developer::')) {
-      return null;
-    }
-    if (path.endsWith('::Timeline::@getters::now')) {
-      return 'Math.trunc(Date.now() * 1000)';
-    }
-    if (path.endsWith('::@getters::extensionStreamHasListener')) {
-      return 'false';
-    }
-    if (path.endsWith('::@getters::reachabilityBarrier')) {
-      return '0';
-    }
-    if (path.endsWith('::NativeRuntime::@getters::buildId')) {
-      return 'null';
-    }
-    if (path.endsWith('::UserTag::@getters::defaultTag')) {
-      _usedHelpers.add('__dartDeveloperUserTag');
-      return '__dartDeveloperUserTag("Default")';
-    }
-    return null;
-  }
-
   String? _emitConvertStaticInvocation(
     k.StaticInvocation expression,
     List<String> positionalArgs,
@@ -9425,51 +9228,6 @@ final class _EsmEmitter {
     }
   }
 
-  String? _emitConvertStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:convert::')) {
-      return null;
-    }
-    final name = path.split('::').last;
-    switch (name) {
-      case 'json':
-        _usedHelpers.add('__dartJsonCodec');
-        return '__dartJsonCodec()';
-      case 'utf8':
-        _usedHelpers.add('__dartUtf8Codec');
-        return '__dartUtf8Codec()';
-      case 'ascii':
-        _usedHelpers.add('__dartAsciiCodec');
-        return '__dartAsciiCodec()';
-      case 'latin1':
-        _usedHelpers.add('__dartLatin1Codec');
-        return '__dartLatin1Codec()';
-      case 'base64':
-        _usedHelpers.add('__dartBase64Codec');
-        return '__dartBase64Codec(false)';
-      case 'base64Url':
-        _usedHelpers.add('__dartBase64Codec');
-        return '__dartBase64Codec(true)';
-      case 'htmlEscape':
-        _usedHelpers.add('__dartHtmlEscape');
-        return '__dartHtmlEscape()';
-      case 'unknown':
-        _usedHelpers.add('__dartHtmlEscapeMode');
-        return '__dartHtmlEscapeMode("unknown", true, true, true, true)';
-      case 'attribute':
-        _usedHelpers.add('__dartHtmlEscapeMode');
-        return '__dartHtmlEscapeMode("attribute", true, true, false, false)';
-      case 'sqAttribute':
-        _usedHelpers.add('__dartHtmlEscapeMode');
-        return '__dartHtmlEscapeMode("attribute", true, false, true, false)';
-      case 'element':
-        _usedHelpers.add('__dartHtmlEscapeMode');
-        return '__dartHtmlEscapeMode("element", true, false, false, false)';
-      default:
-        return null;
-    }
-  }
-
   String? _emitMathStaticInvocation(
     k.StaticInvocation expression,
     List<String> positionalArgs,
@@ -9514,25 +9272,6 @@ final class _EsmEmitter {
         'Math.atan2(${positionalArgs[0]}, ${positionalArgs[1]})',
       'exp' when positionalArgs.length == 1 => 'Math.exp(${positionalArgs[0]})',
       'log' when positionalArgs.length == 1 => 'Math.log(${positionalArgs[0]})',
-      _ => null,
-    };
-  }
-
-  String? _emitMathStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:math::')) {
-      return null;
-    }
-    final name = path.split('::').last;
-    return switch (name) {
-      'pi' => 'Math.PI',
-      'e' => 'Math.E',
-      'ln2' => 'Math.LN2',
-      'ln10' => 'Math.LN10',
-      'log2e' => 'Math.LOG2E',
-      'log10e' => 'Math.LOG10E',
-      'sqrt1_2' => 'Math.SQRT1_2',
-      'sqrt2' => 'Math.SQRT2',
       _ => null,
     };
   }
@@ -9671,20 +9410,6 @@ final class _EsmEmitter {
       return '(-${decimal.substring(1)}n)';
     }
     return '${decimal}n';
-  }
-
-  String? _emitTypedDataStaticGet(k.StaticGet expression) {
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:typed_data::Endian::')) {
-      return null;
-    }
-    final name = path.split('::').last;
-    return switch (name) {
-      'big' => 'false',
-      'little' => 'true',
-      'host' => '(new Uint8Array(new Uint16Array([1]).buffer)[0] === 1)',
-      _ => null,
-    };
   }
 
   String? _emitTypedDataByteBufferViewInvocation(

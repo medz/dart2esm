@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:kernel/kernel.dart' as k;
 
+import '../../kernel/kernel_references.dart';
 import '../../names/js_names.dart';
 import '../ir/esm_ir.dart';
 import '../new_compiler_unsupported.dart';
@@ -1477,7 +1480,11 @@ final class KernelToEsmIrLoweringStage {
         expression,
         thisExpression: thisExpression,
       ),
-      k.ConstantExpression() => _lowerConstantExpression(world, expression),
+      k.ConstantExpression() => _lowerConstantExpression(
+        world,
+        helpers,
+        expression,
+      ),
       k.VariableGet() => _lowerVariableGet(locals, expression),
       k.VariableSet() => _lowerVariableSet(
         world,
@@ -2061,9 +2068,18 @@ final class KernelToEsmIrLoweringStage {
 
   EsmExpressionIr _lowerConstantExpression(
     EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
     k.ConstantExpression expression,
   ) {
-    final constant = expression.constant;
+    return _lowerConstant(world, helpers, expression.constant, expression);
+  }
+
+  EsmExpressionIr _lowerConstant(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.Constant constant,
+    Object context,
+  ) {
     if (constant is k.IntConstant) {
       return EsmNumberLiteralIr(constant.value);
     }
@@ -2085,6 +2101,82 @@ final class KernelToEsmIrLoweringStage {
         arguments: [EsmStringLiteralIr(constant.name)],
       );
     }
+    if (constant is k.ListConstant) {
+      return _lowerCanonicalConstant(
+        helpers,
+        constant,
+        EsmCallIr(
+          callee: const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Object'),
+            property: 'freeze',
+          ),
+          arguments: [
+            EsmArrayLiteralIr([
+              for (final entry in constant.entries)
+                _lowerConstant(world, helpers, entry, context),
+            ]),
+          ],
+        ),
+      );
+    }
+    if (constant is k.SetConstant) {
+      helpers.add(EsmRuntimeHelper.constSet);
+      return _lowerCanonicalConstant(
+        helpers,
+        constant,
+        EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.constSet),
+          arguments: [
+            EsmArrayLiteralIr([
+              for (final entry in constant.entries)
+                _lowerConstant(world, helpers, entry, context),
+            ]),
+          ],
+        ),
+      );
+    }
+    if (constant is k.MapConstant) {
+      helpers.add(EsmRuntimeHelper.constMap);
+      return _lowerCanonicalConstant(
+        helpers,
+        constant,
+        EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.constMap),
+          arguments: [
+            EsmArrayLiteralIr([
+              for (final entry in constant.entries)
+                EsmArrayLiteralIr([
+                  _lowerConstant(world, helpers, entry.key, context),
+                  _lowerConstant(world, helpers, entry.value, context),
+                ]),
+            ]),
+          ],
+        ),
+      );
+    }
+    if (constant is k.RecordConstant) {
+      helpers.add(EsmRuntimeHelper.record);
+      return _lowerCanonicalConstant(
+        helpers,
+        constant,
+        EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.record),
+          arguments: [
+            EsmArrayLiteralIr([
+              for (final entry in constant.positional)
+                _lowerConstant(world, helpers, entry, context),
+            ]),
+            EsmObjectLiteralIr([
+              for (final entry in constant.named.entries)
+                EsmObjectLiteralPropertyIr(
+                  name: entry.key,
+                  value: _lowerConstant(world, helpers, entry.value, context),
+                ),
+            ]),
+          ],
+        ),
+      );
+    }
     if (constant is k.StaticTearOffConstant) {
       final target = constant.targetReference.node;
       if (target is k.Procedure) {
@@ -2094,7 +2186,99 @@ final class KernelToEsmIrLoweringStage {
         }
       }
     }
-    throw NewCompilerUnsupported(expression, 'constant expression lowering');
+    throw NewCompilerUnsupported(context, 'constant expression lowering');
+  }
+
+  EsmExpressionIr _lowerCanonicalConstant(
+    EsmRuntimeHelperUseSet helpers,
+    k.Constant constant,
+    EsmExpressionIr value,
+  ) {
+    helpers.add(EsmRuntimeHelper.constValue);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.constValue),
+      arguments: [
+        EsmStringLiteralIr(_constantKey(constant)),
+        EsmArrowFunctionIr(parameters: const [], body: value),
+      ],
+    );
+  }
+
+  String _constantKey(k.Constant constant) {
+    return jsonEncode(_constantKeyParts(constant));
+  }
+
+  Object? _constantKeyParts(k.Constant constant) {
+    return switch (constant) {
+      k.NullConstant() => const ['null'],
+      k.BoolConstant() => ['bool', constant.value],
+      k.IntConstant() => ['int', constant.value.toString()],
+      k.DoubleConstant() => ['double', _doubleConstantKey(constant.value)],
+      k.StringConstant() => ['string', constant.value],
+      k.SymbolConstant() => [
+        'symbol',
+        constant.name,
+        if (constant.libraryReference case final library?)
+          _referenceKey(library),
+      ],
+      k.ListConstant() => [
+        'list',
+        constant.typeArgument.toString(),
+        for (final entry in constant.entries) _constantKeyParts(entry),
+      ],
+      k.SetConstant() => [
+        'set',
+        constant.typeArgument.toString(),
+        for (final entry in constant.entries) _constantKeyParts(entry),
+      ],
+      k.MapConstant() => [
+        'map',
+        constant.keyType.toString(),
+        constant.valueType.toString(),
+        for (final entry in constant.entries)
+          [_constantKeyParts(entry.key), _constantKeyParts(entry.value)],
+      ],
+      k.RecordConstant() => [
+        'record',
+        for (final value in constant.positional) _constantKeyParts(value),
+        for (final entry in constant.named.entries)
+          ['named', entry.key, _constantKeyParts(entry.value)],
+      ],
+      k.StaticTearOffConstant() => [
+        'staticTearOff',
+        _referenceKey(constant.targetReference),
+      ],
+      _ => [constant.runtimeType.toString(), constant.toString()],
+    };
+  }
+
+  String _doubleConstantKey(double value) {
+    if (value.isNaN) {
+      return 'nan';
+    }
+    if (value == double.infinity) {
+      return 'infinity';
+    }
+    if (value == double.negativeInfinity) {
+      return '-infinity';
+    }
+    if (value == 0 && value.isNegative) {
+      return '-0.0';
+    }
+    return value.toString();
+  }
+
+  String _referenceKey(k.Reference reference) {
+    final path = kernelReferencePath(reference);
+    final node = reference.node;
+    if (node is k.Class && node.enclosingLibrary.importUri.scheme != 'dart') {
+      return 'class:${node.name}';
+    }
+    if (node is k.Member && node.enclosingLibrary.importUri.scheme != 'dart') {
+      final owner = node.enclosingClass?.name ?? '';
+      return owner.isEmpty ? node.name.text : '$owner.${node.name.text}';
+    }
+    return path;
   }
 
   EsmExpressionIr _lowerStaticGet(
@@ -2955,18 +3139,18 @@ final class KernelToEsmIrLoweringStage {
     k.StaticInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final helperCall = _lowerRuntimeStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (helperCall != null) {
+      return helperCall;
+    }
     final targetNode = expression.targetReference.node;
     if (targetNode is! k.Procedure) {
-      final helperCall = _lowerRuntimeStaticInvocation(
-        world,
-        helpers,
-        locals,
-        expression,
-        thisExpression: thisExpression,
-      );
-      if (helperCall != null) {
-        return helperCall;
-      }
       throw NewCompilerUnsupported(
         expression.targetReference,
         'external static target',
@@ -3032,6 +3216,15 @@ final class KernelToEsmIrLoweringStage {
         thisExpression: thisExpression,
       );
     }
+    if (_isCoreIdentical(expression.targetReference)) {
+      return _lowerCoreIdentical(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      );
+    }
     if (_isCoreGrowableListLiteral(expression.targetReference)) {
       return _lowerCoreGrowableListLiteral(
         world,
@@ -3053,6 +3246,36 @@ final class KernelToEsmIrLoweringStage {
     return null;
   }
 
+  EsmExpressionIr _lowerCoreIdentical(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.positional.length != 2 ||
+        expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      throw NewCompilerUnsupported(expression, 'identical argument shape');
+    }
+    return EsmCallIr(
+      callee: const EsmPropertyAccessIr(
+        receiver: EsmIdentifierIr('Object'),
+        property: 'is',
+      ),
+      arguments: [
+        for (final argument in expression.arguments.positional)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+      ],
+    );
+  }
+
   EsmExpressionIr _lowerCorePrint(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -3066,18 +3289,59 @@ final class KernelToEsmIrLoweringStage {
       throw NewCompilerUnsupported(expression, 'print argument shape');
     }
     helpers.add(EsmRuntimeHelper.print);
+    final argument = expression.arguments.positional.single;
+    final loweredArgument = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      argument,
+      thisExpression: thisExpression,
+    );
     return EsmCallIr(
       callee: runtimeHelpers.reference(EsmRuntimeHelper.print),
       arguments: [
-        _lowerExpression(
-          world,
-          helpers,
-          locals,
-          expression.arguments.positional.single,
-          thisExpression: thisExpression,
-        ),
+        if (_shouldStringifyPrintArgument(argument)) ...[
+          _lowerStringify(helpers, loweredArgument),
+        ] else ...[
+          loweredArgument,
+        ],
       ],
     );
+  }
+
+  EsmExpressionIr _lowerStringify(
+    EsmRuntimeHelperUseSet helpers,
+    EsmExpressionIr value,
+  ) {
+    helpers.add(EsmRuntimeHelper.stringify);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.stringify),
+      arguments: [value],
+    );
+  }
+
+  bool _shouldStringifyPrintArgument(k.Expression expression) {
+    return switch (expression) {
+      k.ListLiteral() ||
+      k.SetLiteral() ||
+      k.MapLiteral() ||
+      k.RecordLiteral() => true,
+      k.ConstantExpression() => _isStringifiedConstant(expression.constant),
+      k.StaticGet() => switch (expression.targetReference.node) {
+        k.Field(initializer: final initializer?) =>
+          initializer is k.ConstantExpression &&
+              _isStringifiedConstant(initializer.constant),
+        _ => false,
+      },
+      _ => false,
+    };
+  }
+
+  bool _isStringifiedConstant(k.Constant constant) {
+    return constant is k.ListConstant ||
+        constant is k.SetConstant ||
+        constant is k.MapConstant ||
+        constant is k.RecordConstant;
   }
 
   EsmExpressionIr _lowerCoreGrowableListLiteral(
@@ -3142,6 +3406,10 @@ final class KernelToEsmIrLoweringStage {
   bool _isCoreFunctionApply(k.Reference reference) {
     return reference.toStringInternal() ==
         'dart:core::Function::@methods::apply';
+  }
+
+  bool _isCoreIdentical(k.Reference reference) {
+    return reference.toStringInternal() == 'dart:core::@methods::identical';
   }
 
   bool _isCorePrint(k.Reference reference) {

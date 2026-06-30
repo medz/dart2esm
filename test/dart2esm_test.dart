@@ -1430,6 +1430,34 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles const collections through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'syntax', 'const_collections.dart'),
+    );
+    final expected = File(
+      p.join(fixtureDir.path, 'syntax', 'const_collections.mjs'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-const-collections-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'const_collections.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
   test('compiles local library imports through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-local-imports-core-',
@@ -1484,10 +1512,12 @@ void main() {
         outputPath: output.path,
         workingDirectory: Directory.current,
         runMain: false,
+        allowLegacyOracle: false,
       ),
     );
 
     expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
   });
 
@@ -1700,10 +1730,12 @@ void main() {
         outputPath: output.path,
         workingDirectory: Directory.current,
         runMain: false,
+        allowLegacyOracle: false,
       ),
     );
 
     expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
 
     final nodeRun = await Process.run('node', [

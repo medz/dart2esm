@@ -1,12 +1,16 @@
 import '../ir/esm_ir.dart';
 
 enum EsmRuntimeHelper {
+  constMap,
+  constSet,
+  constValue,
   functionApply,
   lazyField,
   print,
   recordShape,
   isRecord,
   record,
+  stringify,
   typeCast,
 }
 
@@ -15,22 +19,31 @@ final class EsmRuntimeHelperRegistry {
 
   static const generatedGlobalNames = {
     '__dartAs',
+    '__dartConst',
+    '__dartConstMap',
+    '__dartConstSet',
+    '__dartConstValues',
     '__dartFunctionApply',
     '__dartLazyField',
     '__dartIsRecord',
     '__dartPrint',
     '__dartRecord',
     '__dartRecordShape',
+    '__dartStr',
   };
 
   String name(EsmRuntimeHelper helper) {
     return switch (helper) {
+      EsmRuntimeHelper.constMap => '__dartConstMap',
+      EsmRuntimeHelper.constSet => '__dartConstSet',
+      EsmRuntimeHelper.constValue => '__dartConst',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
       EsmRuntimeHelper.print => '__dartPrint',
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
+      EsmRuntimeHelper.stringify => '__dartStr',
       EsmRuntimeHelper.typeCast => '__dartAs',
     };
   }
@@ -41,6 +54,35 @@ final class EsmRuntimeHelperRegistry {
 
   EsmModuleItemIr declaration(EsmRuntimeHelper helper) {
     return switch (helper) {
+      EsmRuntimeHelper.constValue => EsmRawModuleItemIr('''
+const __dartConstValues = new Map();
+function __dartConst(key, create) {
+  if (!__dartConstValues.has(key)) {
+    __dartConstValues.set(key, create());
+  }
+  return __dartConstValues.get(key);
+}
+'''),
+      EsmRuntimeHelper.constSet => EsmRawModuleItemIr('''
+function __dartConstSet(values) {
+  const set = new Set(values);
+  const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
+  Object.defineProperty(set, "add", { value: throwConst });
+  Object.defineProperty(set, "delete", { value: throwConst });
+  Object.defineProperty(set, "clear", { value: throwConst });
+  return Object.freeze(set);
+}
+'''),
+      EsmRuntimeHelper.constMap => EsmRawModuleItemIr('''
+function __dartConstMap(entries) {
+  const map = new Map(entries);
+  const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
+  Object.defineProperty(map, "set", { value: throwConst });
+  Object.defineProperty(map, "delete", { value: throwConst });
+  Object.defineProperty(map, "clear", { value: throwConst });
+  return Object.freeze(map);
+}
+'''),
       EsmRuntimeHelper.functionApply => EsmRawModuleItemIr('''
 function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
   const args = Array.from(positionalArguments);
@@ -143,6 +185,27 @@ function __dartLazyField(name, initialize, writable, publish = null) {
           ),
         ],
       ),
+      EsmRuntimeHelper.stringify => EsmRawModuleItemIr(r'''
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
+}
+'''),
       EsmRuntimeHelper.typeCast => EsmFunctionIr(
         name: name(helper),
         export: false,
@@ -183,6 +246,10 @@ final class EsmRuntimeHelperUseSet {
 
   bool add(EsmRuntimeHelper helper) {
     switch (helper) {
+      case EsmRuntimeHelper.constValue:
+      case EsmRuntimeHelper.constMap:
+      case EsmRuntimeHelper.constSet:
+        break;
       case EsmRuntimeHelper.isRecord:
         _helpers.add(EsmRuntimeHelper.recordShape);
       case EsmRuntimeHelper.record:
@@ -192,6 +259,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.lazyField:
       case EsmRuntimeHelper.print:
       case EsmRuntimeHelper.recordShape:
+      case EsmRuntimeHelper.stringify:
       case EsmRuntimeHelper.typeCast:
         break;
     }

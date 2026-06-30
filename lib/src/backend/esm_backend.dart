@@ -15,6 +15,7 @@ import '../world/sdk_classification.dart';
 import '../world/kernel_analysis.dart';
 import 'runtime_helpers.dart';
 import 'sdk_constructor_invocations.dart';
+import 'sdk_instance_invocations.dart';
 import 'sdk_static_gets.dart';
 import 'sdk_static_invocations.dart';
 
@@ -3826,25 +3827,11 @@ final class _EsmEmitter {
         isDartCoreMapMember(target, name) || receiverCollectionKind == 'Map';
     final isListInvocation =
         isDartCoreListMember(target, name) || receiverCollectionKind == 'List';
-    final durationOperator = _emitDurationOperatorInvocation(
-      target,
-      name,
-      left,
-      positionalArgs,
-      expression.arguments.named.isEmpty,
-    );
-    if (durationOperator != null) {
-      return durationOperator;
-    }
-    final bigIntInvocation = _emitBigIntInstanceInvocation(
-      target,
-      name,
-      left,
-      positionalArgs,
-      expression.arguments.named.isEmpty,
-    );
-    if (bigIntInvocation != null) {
-      return bigIntInvocation;
+    final sdkInstanceInvocation = DartSdkInstanceInvocationEmitter(
+      helpers: _usedHelpers,
+    ).emitInvocation(target, name, left, positionalArgs, expression.arguments);
+    if (sdkInstanceInvocation != null) {
+      return sdkInstanceInvocation;
     }
     final ffiInvocation = _emitFfiInstanceInvocation(
       target,
@@ -4139,16 +4126,6 @@ final class _EsmEmitter {
         positionalArgs.length == 1 &&
         isDartCoreMember(target, 'String', name)) {
       return '($left < ${positionalArgs.single} ? -1 : ($left > ${positionalArgs.single} ? 1 : 0))';
-    }
-    final numberInvocation = _emitNumberInstanceInvocation(
-      target,
-      name,
-      left,
-      positionalArgs,
-      expression.arguments.named.isEmpty,
-    );
-    if (numberInvocation != null) {
-      return numberInvocation;
     }
     if (expression.arguments.named.isEmpty &&
         name == 'replaceAll' &&
@@ -4890,16 +4867,6 @@ final class _EsmEmitter {
       final skipCount = positionalArgs.length == 4 ? positionalArgs[3] : '0';
       return '__dartListSetRange($left, ${positionalArgs[0]}, ${positionalArgs[1]}, ${positionalArgs[2]}, $skipCount)';
     }
-    final byteDataInvocation = _emitByteDataInstanceInvocation(
-      target,
-      name,
-      left,
-      positionalArgs,
-      expression.arguments.named.isEmpty,
-    );
-    if (byteDataInvocation != null) {
-      return byteDataInvocation;
-    }
     if (expression.arguments.named.isEmpty &&
         name == 'setAll' &&
         positionalArgs.length == 2 &&
@@ -5243,202 +5210,6 @@ final class _EsmEmitter {
     return '$left.${_memberName(name)}($args)';
   }
 
-  String? _emitNumberInstanceInvocation(
-    k.Reference target,
-    String name,
-    String left,
-    List<String> positionalArgs,
-    bool namedArgumentsEmpty,
-  ) {
-    if (!namedArgumentsEmpty || !isDartCoreNumberMember(target, name)) {
-      return null;
-    }
-    if (positionalArgs.isEmpty) {
-      return switch (name) {
-        'abs' => 'Math.abs($left)',
-        'round' => () {
-          _usedHelpers.add('__dartRoundToInt');
-          return '__dartRoundToInt($left)';
-        }(),
-        'floor' => 'Math.floor($left)',
-        'ceil' => 'Math.ceil($left)',
-        'truncate' || 'toInt' => 'Math.trunc($left)',
-        'roundToDouble' => () {
-          _usedHelpers.add('__dartDouble');
-          _usedHelpers.add('__dartRoundToInt');
-          return '__dartDouble(__dartRoundToInt($left))';
-        }(),
-        'floorToDouble' => () {
-          _usedHelpers.add('__dartDouble');
-          return '__dartDouble(Math.floor($left))';
-        }(),
-        'ceilToDouble' => () {
-          _usedHelpers.add('__dartDouble');
-          return '__dartDouble(Math.ceil($left))';
-        }(),
-        'truncateToDouble' => () {
-          _usedHelpers.add('__dartDouble');
-          return '__dartDouble(Math.trunc($left))';
-        }(),
-        'toDouble' => () {
-          _usedHelpers.add('__dartDouble');
-          return '__dartDouble($left)';
-        }(),
-        'toString' => () {
-          _usedHelpers.add('__dartStr');
-          return '__dartStr($left)';
-        }(),
-        _ => null,
-      };
-    }
-    if (name == 'clamp' && positionalArgs.length == 2) {
-      _usedHelpers.add('__dartNumClamp');
-      return '__dartNumClamp($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (isDartCoreMember(target, 'int', name)) {
-      if (name == 'modPow' && positionalArgs.length == 2) {
-        _usedHelpers.add('__dartCoreError');
-        _usedHelpers.add('__dartIntModPow');
-        return '__dartIntModPow($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
-      }
-      if (positionalArgs.length == 1) {
-        final argument = positionalArgs.single;
-        return switch (name) {
-          'gcd' => () {
-            _usedHelpers.add('__dartIntGcd');
-            return '__dartIntGcd($left, $argument)';
-          }(),
-          'modInverse' => () {
-            _usedHelpers.add('__dartCoreError');
-            _usedHelpers.add('__dartIntModInverse');
-            return '__dartIntModInverse($left, $argument)';
-          }(),
-          'toRadixString' => () {
-            _usedHelpers.add('__dartCoreError');
-            _usedHelpers.add('__dartIntToRadixString');
-            return '__dartIntToRadixString($left, $argument)';
-          }(),
-          _ => null,
-        };
-      }
-    }
-    if (positionalArgs.length != 1) {
-      return null;
-    }
-    final argument = positionalArgs.single;
-    return switch (name) {
-      'remainder' => '($left % $argument)',
-      'compareTo' => '($left < $argument ? -1 : ($left > $argument ? 1 : 0))',
-      'toStringAsFixed' => 'Number($left).toFixed($argument)',
-      'toStringAsExponential' => 'Number($left).toExponential($argument)',
-      'toStringAsPrecision' => 'Number($left).toPrecision($argument)',
-      _ => null,
-    };
-  }
-
-  String? _emitByteDataInstanceInvocation(
-    k.Reference target,
-    String name,
-    String receiver,
-    List<String> positionalArgs,
-    bool namedArgumentsEmpty,
-  ) {
-    if (!namedArgumentsEmpty ||
-        !isDartTypedDataClassMember(target, 'ByteData', name)) {
-      return null;
-    }
-    if ((name == 'getInt64' || name == 'getUint64') &&
-        positionalArgs.isNotEmpty &&
-        positionalArgs.length <= 2) {
-      final method = name == 'getInt64' ? 'getBigInt64' : 'getBigUint64';
-      final endian = positionalArgs.length == 2 ? positionalArgs[1] : 'false';
-      return 'Number($receiver.$method(${positionalArgs[0]}, $endian))';
-    }
-    if ((name == 'setInt64' || name == 'setUint64') &&
-        positionalArgs.length >= 2 &&
-        positionalArgs.length <= 3) {
-      final method = name == 'setInt64' ? 'setBigInt64' : 'setBigUint64';
-      final endian = positionalArgs.length == 3 ? positionalArgs[2] : 'false';
-      return '($receiver.$method(${positionalArgs[0]}, BigInt(${positionalArgs[1]}), $endian), null)';
-    }
-    return null;
-  }
-
-  String? _emitBigIntInstanceInvocation(
-    k.Reference target,
-    String name,
-    String left,
-    List<String> positionalArgs,
-    bool namedArgumentsEmpty,
-  ) {
-    if (!namedArgumentsEmpty || !isDartCoreMember(target, 'BigInt', name)) {
-      return null;
-    }
-    if (positionalArgs.isEmpty) {
-      return switch (name) {
-        'toInt' || 'toDouble' => 'Number($left)',
-        'abs' => '($left < 0n ? -$left : $left)',
-        'unary-' => '(-$left)',
-        '~' => '(~$left)',
-        _ => null,
-      };
-    }
-    if (positionalArgs.length != 1) {
-      return null;
-    }
-    final right = positionalArgs.single;
-    return switch (name) {
-      '~/' => '($left / $right)',
-      'toRadixString' => '$left.toString($right)',
-      'remainder' => '($left % $right)',
-      _ => null,
-    };
-  }
-
-  String? _emitDurationOperatorInvocation(
-    k.Reference target,
-    String name,
-    String left,
-    List<String> positionalArgs,
-    bool namedArgumentsEmpty,
-  ) {
-    if (!namedArgumentsEmpty || !isDartCoreMember(target, 'Duration', name)) {
-      return null;
-    }
-    if (name == 'unary-' && positionalArgs.isEmpty) {
-      _usedHelpers.add('__dartDuration');
-      return '__dartDuration({ microseconds: -$left.inMicroseconds })';
-    }
-    if (positionalArgs.length != 1) {
-      return null;
-    }
-    final right = positionalArgs.single;
-    return switch (name) {
-      '+' => () {
-        _usedHelpers.add('__dartDuration');
-        return '__dartDuration({ microseconds: $left.inMicroseconds + $right.inMicroseconds })';
-      }(),
-      '-' => () {
-        _usedHelpers.add('__dartDuration');
-        return '__dartDuration({ microseconds: $left.inMicroseconds - $right.inMicroseconds })';
-      }(),
-      '*' => () {
-        _usedHelpers.add('__dartDuration');
-        _usedHelpers.add('__dartRoundToInt');
-        return '__dartDuration({ microseconds: __dartRoundToInt($left.inMicroseconds * $right) })';
-      }(),
-      '~/' => () {
-        _usedHelpers.add('__dartDuration');
-        return '__dartDuration({ microseconds: Math.trunc($left.inMicroseconds / $right) })';
-      }(),
-      '<' => '($left.inMicroseconds < $right.inMicroseconds)',
-      '<=' => '($left.inMicroseconds <= $right.inMicroseconds)',
-      '>' => '($left.inMicroseconds > $right.inMicroseconds)',
-      '>=' => '($left.inMicroseconds >= $right.inMicroseconds)',
-      _ => null,
-    };
-  }
-
   String _emitFunctionInvocation(k.FunctionInvocation expression) {
     return '(${emitExpression(expression.receiver)})(${_emitArguments(expression.arguments)})';
   }
@@ -5522,13 +5293,11 @@ final class _EsmEmitter {
         isDartCoreMember(expression.interfaceTargetReference, 'int', name)) {
       return '(Math.trunc($receiver) % 2 === 0)';
     }
-    final numberGet = _emitNumberInstanceGet(
-      expression.interfaceTargetReference,
-      name,
-      receiver,
-    );
-    if (numberGet != null) {
-      return numberGet;
+    final sdkInstanceGet = DartSdkInstanceInvocationEmitter(
+      helpers: _usedHelpers,
+    ).emitGet(expression.interfaceTargetReference, name, receiver);
+    if (sdkInstanceGet != null) {
+      return sdkInstanceGet;
     }
     final ffiGet = _emitFfiInstanceGet(
       expression.interfaceTargetReference,
@@ -5821,26 +5590,6 @@ final class _EsmEmitter {
       };
     }
     return null;
-  }
-
-  String? _emitNumberInstanceGet(
-    k.Reference target,
-    String name,
-    String receiver,
-  ) {
-    if (!isDartCoreNumberMember(target, name)) {
-      return null;
-    }
-    final value = 'Number($receiver)';
-    return switch (name) {
-      'sign' =>
-        '(Number.isNaN($value) ? Number.NaN : ($value < 0 ? -1 : ($value > 0 ? 1 : $value)))',
-      'isNaN' => 'Number.isNaN($value)',
-      'isInfinite' => '($value === Infinity || $value === -Infinity)',
-      'isFinite' => 'Number.isFinite($value)',
-      'isNegative' => '($value < 0 || Object.is($value, -0))',
-      _ => null,
-    };
   }
 
   String _emitInstanceSet(k.InstanceSet expression) {

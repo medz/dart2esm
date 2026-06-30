@@ -100,6 +100,7 @@ final class EsmClassSymbol {
     required this.node,
     required this.name,
     required this.export,
+    required this.interfaceMarkerName,
     required this.localSuperclass,
     required List<EsmConstructorSymbol> constructors,
     required List<EsmInstanceFieldSymbol> fields,
@@ -111,6 +112,7 @@ final class EsmClassSymbol {
   final k.Class node;
   final String name;
   final bool export;
+  final String? interfaceMarkerName;
   final k.Class? localSuperclass;
   final List<EsmConstructorSymbol> constructors;
   final List<EsmInstanceFieldSymbol> fields;
@@ -247,6 +249,9 @@ final class SemanticWorldStage {
       node: klass,
       name: allocator.freshGlobal(klass.name),
       export: _isPublic(klass.name),
+      interfaceMarkerName: klass.isAbstract || klass.isInterface
+          ? allocator.freshGlobal('\$${klass.name}_interface')
+          : null,
       localSuperclass:
           localSuperclass is k.Class &&
               localSuperclass.enclosingLibrary == klass.enclosingLibrary
@@ -287,9 +292,8 @@ final class SemanticWorldStage {
     );
   }
 
-  bool _isTopLevelClass(k.Class klass) {
-    return !klass.isAbstract && !klass.isEnum && _isPublic(klass.name);
-  }
+  bool _isTopLevelClass(k.Class klass) =>
+      !klass.isEnum && _isPublic(klass.name);
 
   bool _isTopLevelField(k.Field field) {
     return field.isStatic && !field.isExternal && !field.isExtensionTypeMember;

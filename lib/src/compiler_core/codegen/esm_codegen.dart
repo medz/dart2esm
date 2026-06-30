@@ -308,6 +308,8 @@ final class _EsmIrPrinter {
         'new ${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmPropertyAccessIr() =>
         '${_emitExpression(expression.receiver)}.${expression.property}',
+      EsmComputedPropertyAccessIr() =>
+        '${_emitExpression(expression.receiver)}[${_emitExpression(expression.property)}]',
       EsmThisIr() => 'this',
       EsmNewTargetIr() => 'new.target',
       EsmSuperIr() => 'super',

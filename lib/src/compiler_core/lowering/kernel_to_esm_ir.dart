@@ -29,7 +29,8 @@ final class KernelToEsmIrLoweringStage {
     final world = semantic.world;
     final helpers = EsmRuntimeHelperUseSet();
     final items = <EsmModuleItemIr>[
-      for (final klass in world.classes) _lowerClass(world, helpers, klass),
+      for (final klass in world.classes)
+        ..._lowerClassItems(world, helpers, klass),
       for (final field in world.fields) _lowerField(world, helpers, field),
       for (final procedure in world.procedures)
         _lowerProcedure(world, helpers, procedure),
@@ -46,6 +47,27 @@ final class KernelToEsmIrLoweringStage {
       module: EsmModuleIr(items: items),
       runtimeHelpers: helpers.toList(),
     );
+  }
+
+  List<EsmModuleItemIr> _lowerClassItems(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmClassSymbol klass,
+  ) {
+    final markerName = klass.interfaceMarkerName;
+    return [
+      if (markerName != null)
+        EsmVariableDeclarationIr(
+          name: markerName,
+          initializer: EsmCallIr(
+            callee: const EsmIdentifierIr('Symbol'),
+            arguments: [EsmStringLiteralIr(klass.node.name)],
+          ),
+          mutable: false,
+        ),
+      _lowerClass(world, helpers, klass),
+      if (markerName != null) _lowerInterfaceHasInstance(klass, markerName),
+    ];
   }
 
   EsmClassIr _lowerClass(
@@ -70,10 +92,24 @@ final class KernelToEsmIrLoweringStage {
       for (final constructor in klass.constructors)
         if (constructor.name.isNotEmpty) constructor,
     ];
+    final interfaceMarkers = _interfaceMarkersForClass(world, klass);
     final constructor = unnamedConstructors.isNotEmpty
-        ? _lowerConstructor(world, helpers, unnamedConstructors.single)
+        ? _lowerConstructor(
+            world,
+            helpers,
+            unnamedConstructors.single,
+            interfaceMarkers: interfaceMarkers,
+          )
         : namedConstructors.isNotEmpty
         ? _lowerMissingUnnamedConstructor(klass)
+        : interfaceMarkers.isNotEmpty
+        ? EsmClassConstructorIr(
+            parameters: const [],
+            body: _lowerInterfaceMarkerDefinitions(
+              const EsmThisIr(),
+              interfaceMarkers,
+            ),
+          )
         : null;
     return EsmClassIr(
       name: klass.name,
@@ -84,9 +120,98 @@ final class KernelToEsmIrLoweringStage {
         for (final constructor in namedConstructors)
           _lowerNamedConstructor(world, helpers, constructor),
         for (final procedure in klass.procedures)
-          _lowerClassProcedure(world, helpers, procedure),
+          _lowerClassProcedure(world, helpers, klass, procedure),
       ],
     );
+  }
+
+  EsmExpressionStatementIr _lowerInterfaceHasInstance(
+    EsmClassSymbol klass,
+    String markerName,
+  ) {
+    return EsmExpressionStatementIr(
+      EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr('Object'),
+          property: 'defineProperty',
+        ),
+        arguments: [
+          EsmIdentifierIr(klass.name),
+          const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Symbol'),
+            property: 'hasInstance',
+          ),
+          EsmObjectLiteralIr([
+            EsmObjectLiteralPropertyIr(
+              name: 'value',
+              value: EsmFunctionExpressionIr(
+                parameters: const [EsmIdentifierParameterIr(name: 'value')],
+                body: [
+                  EsmReturnStatementIr(
+                    EsmBinaryIr(
+                      left: EsmBinaryIr(
+                        left: const EsmIdentifierIr('value'),
+                        operator: '!=',
+                        right: const EsmNullLiteralIr(),
+                      ),
+                      operator: '&&',
+                      right: EsmBinaryIr(
+                        left: EsmComputedPropertyAccessIr(
+                          receiver: const EsmIdentifierIr('value'),
+                          property: EsmIdentifierIr(markerName),
+                        ),
+                        operator: '===',
+                        right: const EsmBooleanLiteralIr(true),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  List<String> _interfaceMarkersForClass(
+    EsmSemanticWorld world,
+    EsmClassSymbol klass,
+  ) {
+    return [
+      for (final interfaceType in klass.node.implementedTypes)
+        if (interfaceType.className.node case final k.Class interfaceClass)
+          if (world.classSymbolFor(interfaceClass)?.interfaceMarkerName
+              case final markerName?)
+            markerName,
+    ];
+  }
+
+  List<EsmStatementIr> _lowerInterfaceMarkerDefinitions(
+    EsmExpressionIr receiver,
+    List<String> markerNames,
+  ) {
+    return [
+      for (final markerName in markerNames)
+        EsmExpressionStatementIr(
+          EsmCallIr(
+            callee: const EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr('Object'),
+              property: 'defineProperty',
+            ),
+            arguments: [
+              receiver,
+              EsmIdentifierIr(markerName),
+              const EsmObjectLiteralIr([
+                EsmObjectLiteralPropertyIr(
+                  name: 'value',
+                  value: EsmBooleanLiteralIr(true),
+                ),
+              ]),
+            ],
+          ),
+        ),
+    ];
   }
 
   EsmClassConstructorIr _lowerMissingUnnamedConstructor(EsmClassSymbol klass) {
@@ -110,8 +235,9 @@ final class KernelToEsmIrLoweringStage {
   EsmClassConstructorIr _lowerConstructor(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
-    EsmConstructorSymbol constructor,
-  ) {
+    EsmConstructorSymbol constructor, {
+    List<String> interfaceMarkers = const [],
+  }) {
     assert(constructor.name.isEmpty);
     final function = constructor.node.function;
     final locals = <k.VariableDeclaration, String>{};
@@ -192,6 +318,7 @@ final class KernelToEsmIrLoweringStage {
             thisExpression: self,
           ),
         ],
+        ..._lowerInterfaceMarkerDefinitions(self, interfaceMarkers),
         EsmReturnStatementIr(self),
       ];
       return EsmClassConstructorIr(parameters: parameters, body: body);
@@ -210,6 +337,7 @@ final class KernelToEsmIrLoweringStage {
       if (function.body case final body?) ...[
         ..._lowerStatementList(world, helpers, locals, labels, body),
       ],
+      ..._lowerInterfaceMarkerDefinitions(const EsmThisIr(), interfaceMarkers),
     ];
     return EsmClassConstructorIr(parameters: parameters, body: body);
   }
@@ -541,6 +669,7 @@ final class KernelToEsmIrLoweringStage {
   EsmClassMethodIr _lowerClassProcedure(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
+    EsmClassSymbol klass,
     EsmInstanceProcedureSymbol procedure,
   ) {
     final function = procedure.node.function;
@@ -558,9 +687,6 @@ final class KernelToEsmIrLoweringStage {
       function,
     );
     final body = function.body;
-    if (body == null) {
-      throw NewCompilerUnsupported(function, 'procedure without body');
-    }
     return EsmClassMethodIr(
       name: procedure.name,
       kind: switch (procedure.kind) {
@@ -570,8 +696,28 @@ final class KernelToEsmIrLoweringStage {
       },
       isStatic: false,
       parameters: parameters,
-      body: _lowerStatementList(world, helpers, locals, labels, body),
+      body: body == null
+          ? _lowerAbstractMemberBody(klass, procedure)
+          : _lowerStatementList(world, helpers, locals, labels, body),
     );
+  }
+
+  List<EsmStatementIr> _lowerAbstractMemberBody(
+    EsmClassSymbol klass,
+    EsmInstanceProcedureSymbol procedure,
+  ) {
+    return [
+      EsmThrowStatementIr(
+        EsmNewIr(
+          callee: const EsmIdentifierIr('TypeError'),
+          arguments: [
+            EsmStringLiteralIr(
+              'Abstract member ${klass.node.name}.${procedure.node.name.text}',
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   EsmVariableDeclarationIr _lowerField(

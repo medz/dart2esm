@@ -340,6 +340,16 @@ final class EsmPropertyAccessIr extends EsmExpressionIr {
   final String property;
 }
 
+final class EsmComputedPropertyAccessIr extends EsmExpressionIr {
+  const EsmComputedPropertyAccessIr({
+    required this.receiver,
+    required this.property,
+  });
+
+  final EsmExpressionIr receiver;
+  final EsmExpressionIr property;
+}
+
 final class EsmThisIr extends EsmExpressionIr {
   const EsmThisIr();
 }

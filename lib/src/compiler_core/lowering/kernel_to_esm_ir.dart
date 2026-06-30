@@ -4236,9 +4236,6 @@ final class KernelToEsmIrLoweringStage
     k.InstanceInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    if (expression.arguments.types.isNotEmpty) {
-      return null;
-    }
     final target = kernelReferencePath(expression.interfaceTargetReference);
     final collectionInvocation = _lowerCoreCollectionInstanceInvocation(
       world,
@@ -4250,6 +4247,9 @@ final class KernelToEsmIrLoweringStage
     );
     if (collectionInvocation != null) {
       return collectionInvocation;
+    }
+    if (expression.arguments.types.isNotEmpty) {
+      return null;
     }
     if (expression.arguments.named.isNotEmpty) {
       return null;
@@ -4430,6 +4430,30 @@ final class KernelToEsmIrLoweringStage
             thisExpression: thisExpression,
           ),
           property: 'add',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (target == 'dart:core::Set::@methods::contains' &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          property: 'has',
         ),
         arguments: [
           _lowerExpression(
@@ -4641,6 +4665,10 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::int::@methods::unary-') {
       return EsmUnaryIr(operator: '-', operand: receiver);
     }
+    if (target == 'dart:core::num::@methods::unary-' ||
+        target == 'dart:core::double::@methods::unary-') {
+      return EsmUnaryIr(operator: '-', operand: receiver);
+    }
     if (target == 'dart:core::BigInt::@methods::unary-') {
       return EsmUnaryIr(operator: '-', operand: receiver);
     }
@@ -4838,6 +4866,90 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
+    if ((target == 'dart:core::Iterable::@methods::map' ||
+            target == 'dart:core::List::@methods::map') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr('Array'),
+          property: 'from',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::Iterable::@methods::take' ||
+            target == 'dart:core::List::@methods::take') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+          ),
+          property: 'slice',
+        ),
+        arguments: [
+          const EsmNumberLiteralIr(0),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::Iterable::@methods::skip' ||
+            target == 'dart:core::List::@methods::skip') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+          ),
+          property: 'slice',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
     return null;
   }
 
@@ -4850,7 +4962,108 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
     final positional = expression.arguments.positional;
+    if (expression.arguments.named.isEmpty && positional.isEmpty) {
+      final receiver = _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      );
+      final numberMethod = switch (target) {
+        'dart:core::num::@methods::abs' ||
+        'dart:core::int::@methods::abs' ||
+        'dart:core::double::@methods::abs' => 'abs',
+        'dart:core::num::@methods::floor' ||
+        'dart:core::double::@methods::floor' => 'floor',
+        'dart:core::num::@methods::ceil' ||
+        'dart:core::double::@methods::ceil' => 'ceil',
+        'dart:core::num::@methods::round' ||
+        'dart:core::double::@methods::round' => 'round',
+        'dart:core::num::@methods::truncate' ||
+        'dart:core::double::@methods::truncate' ||
+        'dart:core::num::@methods::toInt' ||
+        'dart:core::double::@methods::toInt' => 'trunc',
+        _ => null,
+      };
+      if (numberMethod != null) {
+        return EsmCallIr(
+          callee: EsmPropertyAccessIr(
+            receiver: const EsmIdentifierIr('Math'),
+            property: numberMethod,
+          ),
+          arguments: [receiver],
+        );
+      }
+    }
     if (!_isCoreCompareToTarget(target) || positional.length != 1) {
+      if ((target == 'dart:core::num::@methods::clamp' ||
+              target == 'dart:core::int::@methods::clamp' ||
+              target == 'dart:core::double::@methods::clamp') &&
+          positional.length == 2 &&
+          expression.arguments.named.isEmpty) {
+        final receiver = _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        );
+        return EsmCallIr(
+          callee: const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Math'),
+            property: 'min',
+          ),
+          arguments: [
+            EsmCallIr(
+              callee: const EsmPropertyAccessIr(
+                receiver: EsmIdentifierIr('Math'),
+                property: 'max',
+              ),
+              arguments: [
+                receiver,
+                _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  positional[0],
+                  thisExpression: thisExpression,
+                ),
+              ],
+            ),
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional[1],
+              thisExpression: thisExpression,
+            ),
+          ],
+        );
+      }
+      if ((target == 'dart:core::num::@methods::remainder' ||
+              target == 'dart:core::int::@methods::remainder' ||
+              target == 'dart:core::double::@methods::remainder') &&
+          positional.length == 1 &&
+          expression.arguments.named.isEmpty) {
+        return EsmBinaryIr(
+          left: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          operator: '%',
+          right: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        );
+      }
       return null;
     }
     helpers.add(EsmRuntimeHelper.compare);
@@ -5162,6 +5375,51 @@ final class KernelToEsmIrLoweringStage
         target == 'dart:core::String::@getters::length') {
       return EsmPropertyAccessIr(receiver: receiver, property: 'length');
     }
+    if (target == 'dart:core::Iterable::@getters::length') {
+      return EsmPropertyAccessIr(
+        receiver: _arrayFrom(receiver),
+        property: 'length',
+      );
+    }
+    if (target == 'dart:core::Map::@getters::length') {
+      return EsmPropertyAccessIr(receiver: receiver, property: 'size');
+    }
+    if (target == 'dart:core::Map::@getters::keys') {
+      return _arrayFrom(
+        EsmCallIr(
+          callee: EsmPropertyAccessIr(receiver: receiver, property: 'keys'),
+          arguments: const [],
+        ),
+      );
+    }
+    if (target == 'dart:core::Map::@getters::values') {
+      return _arrayFrom(
+        EsmCallIr(
+          callee: EsmPropertyAccessIr(receiver: receiver, property: 'values'),
+          arguments: const [],
+        ),
+      );
+    }
+    if (target == 'dart:core::Iterable::@getters::isEmpty') {
+      return EsmBinaryIr(
+        left: EsmPropertyAccessIr(
+          receiver: _arrayFrom(receiver),
+          property: 'length',
+        ),
+        operator: '===',
+        right: const EsmNumberLiteralIr(0),
+      );
+    }
+    if (target == 'dart:core::Iterable::@getters::isNotEmpty') {
+      return EsmBinaryIr(
+        left: EsmPropertyAccessIr(
+          receiver: _arrayFrom(receiver),
+          property: 'length',
+        ),
+        operator: '>',
+        right: const EsmNumberLiteralIr(0),
+      );
+    }
     if (target == 'dart:core::_Enum::@getters::index') {
       return EsmPropertyAccessIr(receiver: receiver, property: 'index');
     }
@@ -5272,6 +5530,35 @@ final class KernelToEsmIrLoweringStage
           arguments: [receiver],
         );
       }(),
+      'dart:core::num::@getters::sign' ||
+      'dart:core::int::@getters::sign' ||
+      'dart:core::double::@getters::sign' => EsmConditionalIr(
+        condition: EsmCallIr(
+          callee: const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Number'),
+            property: 'isNaN',
+          ),
+          arguments: [receiver],
+        ),
+        thenExpression: const EsmIdentifierIr('NaN'),
+        otherwiseExpression: EsmConditionalIr(
+          condition: EsmBinaryIr(
+            left: receiver,
+            operator: '<',
+            right: const EsmNumberLiteralIr(0),
+          ),
+          thenExpression: const EsmNumberLiteralIr(-1),
+          otherwiseExpression: EsmConditionalIr(
+            condition: EsmBinaryIr(
+              left: receiver,
+              operator: '>',
+              right: const EsmNumberLiteralIr(0),
+            ),
+            thenExpression: const EsmNumberLiteralIr(1),
+            otherwiseExpression: receiver,
+          ),
+        ),
+      ),
       _ => null,
     };
   }
@@ -5618,6 +5905,10 @@ final class KernelToEsmIrLoweringStage
         callee: const EsmIdentifierIr('Set'),
         arguments: const [],
       );
+    }
+    if (target == 'dart:_internal::EmptyIterable::@constructors::' &&
+        expression.arguments.positional.isEmpty) {
+      return const EsmArrayLiteralIr([]);
     }
     if ((target.startsWith('dart:core::Symbol::') ||
             target.startsWith('dart:_internal::Symbol::')) &&
@@ -6653,11 +6944,192 @@ final class KernelToEsmIrLoweringStage
         arguments: [const EsmArrayLiteralIr([]), growable],
       );
     }
+    if (_isCoreCollectionCastFrom(target) &&
+        positional.length == 1 &&
+        arguments.named.isEmpty) {
+      return _lowerExpression(
+        world,
+        helpers,
+        locals,
+        positional.single,
+        thisExpression: thisExpression,
+      );
+    }
+    if (target == 'dart:core::List::@methods::copyRange' &&
+        positional.length >= 3 &&
+        positional.length <= 5 &&
+        arguments.named.isEmpty) {
+      helpers.add(EsmRuntimeHelper.listRangeOps);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.listRangeOps),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    if (target == 'dart:core::List::@methods::writeIterable' &&
+        positional.length == 3 &&
+        arguments.named.isEmpty) {
+      helpers.add(EsmRuntimeHelper.listRangeOps);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartListWriteIterable'),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    final listGenerateFactory = switch (target) {
+      'dart:core::List::@factories::generate' ||
+      'dart:core::_GrowableList::@factories::generate' ||
+      'dart:core::Iterable::@factories::generate' => true,
+      _ => false,
+    };
+    if (listGenerateFactory &&
+        positional.length >= 1 &&
+        positional.length <= 2 &&
+        _hasOnlyNamedArguments(arguments, {'growable'})) {
+      helpers.add(EsmRuntimeHelper.listFactory);
+      final generator = positional.length == 1
+          ? const EsmArrowFunctionIr(
+              parameters: ['index'],
+              body: EsmIdentifierIr('index'),
+            )
+          : _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional[1],
+              thisExpression: thisExpression,
+            );
+      final growable =
+          _lowerNamedArgument(
+            world,
+            helpers,
+            locals,
+            arguments,
+            'growable',
+            thisExpression: thisExpression,
+          ) ??
+          EsmBooleanLiteralIr(_isCoreGrowableListFactory(target));
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartListGenerate'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.first,
+            thisExpression: thisExpression,
+          ),
+          generator,
+          growable,
+        ],
+      );
+    }
+    if (_isCoreSetFactory(target) &&
+        positional.length == 1 &&
+        arguments.named.isEmpty) {
+      return EsmNewIr(
+        callee: const EsmIdentifierIr('Set'),
+        arguments: [
+          _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.single,
+              thisExpression: thisExpression,
+            ),
+          ),
+        ],
+      );
+    }
+    if (_isCoreSetIdentityFactory(target) &&
+        positional.isEmpty &&
+        arguments.named.isEmpty) {
+      return EsmNewIr(
+        callee: const EsmIdentifierIr('Set'),
+        arguments: const [],
+      );
+    }
+    if (_isCoreMapFactory(target) &&
+        positional.length == 1 &&
+        arguments.named.isEmpty) {
+      return EsmNewIr(
+        callee: const EsmIdentifierIr('Map'),
+        arguments: [
+          _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.single,
+              thisExpression: thisExpression,
+            ),
+          ),
+        ],
+      );
+    }
+    if (_isCoreMapIdentityFactory(target) &&
+        positional.isEmpty &&
+        arguments.named.isEmpty) {
+      return EsmNewIr(
+        callee: const EsmIdentifierIr('Map'),
+        arguments: const [],
+      );
+    }
     return null;
   }
 
   bool _isCoreGrowableListFactory(String target) {
     return target.startsWith('dart:core::_GrowableList::@factories::');
+  }
+
+  bool _isCoreSetFactory(String target) {
+    return target == 'dart:core::Set::@factories::of' ||
+        target == 'dart:core::Set::@factories::from' ||
+        target == 'dart:core::Set::@factories::unmodifiable' ||
+        target == 'dart:collection::LinkedHashSet::@factories::of' ||
+        target == 'dart:collection::LinkedHashSet::@factories::from';
+  }
+
+  bool _isCoreSetIdentityFactory(String target) {
+    return target == 'dart:core::Set::@factories::identity' ||
+        target == 'dart:collection::LinkedHashSet::@factories::identity';
+  }
+
+  bool _isCoreCollectionCastFrom(String target) {
+    return target == 'dart:core::List::@methods::castFrom' ||
+        target == 'dart:core::Set::@methods::castFrom' ||
+        target == 'dart:core::Map::@methods::castFrom';
+  }
+
+  bool _isCoreMapFactory(String target) {
+    return target == 'dart:core::Map::@factories::of' ||
+        target == 'dart:core::Map::@factories::from' ||
+        target == 'dart:core::Map::@factories::fromEntries' ||
+        target == 'dart:core::Map::@factories::unmodifiable' ||
+        target == 'dart:collection::LinkedHashMap::@factories::of' ||
+        target == 'dart:collection::LinkedHashMap::@factories::from';
+  }
+
+  bool _isCoreMapIdentityFactory(String target) {
+    return target == 'dart:core::Map::@factories::identity' ||
+        target == 'dart:collection::LinkedHashMap::@factories::identity';
   }
 
   EsmExpressionIr? _lowerCoreStringStaticInvocation(

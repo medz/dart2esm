@@ -24,6 +24,7 @@ enum EsmRuntimeHelper {
   listAdd,
   listAddAll,
   listFactory,
+  listRangeOps,
   mapAddAll,
   mapContainsKey,
   mapSet,
@@ -77,10 +78,13 @@ final class EsmRuntimeHelperRegistry {
     '__dartIterator',
     '__dartLazyField',
     '__dartFixedList',
+    '__dartListCopyRange',
     '__dartListAdd',
     '__dartListAddAll',
     '__dartListFilled',
+    '__dartListGenerate',
     '__dartListOf',
+    '__dartListWriteIterable',
     '__dartUnmodifiableList',
     '__dartMapAddAll',
     '__dartMapContainsKey',
@@ -144,6 +148,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.listAdd => '__dartListAdd',
       EsmRuntimeHelper.listAddAll => '__dartListAddAll',
       EsmRuntimeHelper.listFactory => '__dartListOf',
+      EsmRuntimeHelper.listRangeOps => '__dartListCopyRange',
       EsmRuntimeHelper.mapAddAll => '__dartMapAddAll',
       EsmRuntimeHelper.mapContainsKey => '__dartMapContainsKey',
       EsmRuntimeHelper.mapSet => '__dartMapSet',
@@ -722,8 +727,25 @@ function __dartListFilled(length, fill, growable = false) {
   const list = Array(Number(length)).fill(fill);
   return growable ? list : __dartFixedList(list);
 }
+function __dartListGenerate(length, generator, growable = true) {
+  const list = Array.from({ length: Number(length) }, (_, index) => generator(index));
+  return growable ? list : __dartFixedList(list);
+}
 function __dartUnmodifiableList(values) {
   return Object.freeze(Array.from(values));
+}
+'''),
+      EsmRuntimeHelper.listRangeOps => EsmRawModuleItemIr('''
+function __dartListCopyRange(target, at, source, start = 0, end = null) {
+  const values = Array.from(source).slice(Number(start), end == null ? undefined : Number(end));
+  let index = Number(at);
+  for (const value of values) target[index++] = value;
+  return null;
+}
+function __dartListWriteIterable(target, at, source) {
+  let index = Number(at);
+  for (const value of source) target[index++] = value;
+  return null;
 }
 '''),
       EsmRuntimeHelper.mapSet => EsmRawModuleItemIr('''
@@ -929,6 +951,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.enumByName:
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.listFactory:
+      case EsmRuntimeHelper.listRangeOps:
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:
       case EsmRuntimeHelper.stringFactory:

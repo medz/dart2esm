@@ -1355,6 +1355,7 @@ void main() {
   final parsedDouble = double.parse('3.5');
   final maybeDouble = double.tryParse('bad') ?? 1.25;
   final parsedNum = num.parse('7.25');
+  final numeric = -3.6;
   final even = parsed.isEven;
   final odd = fallback.isOdd;
   final numberCompare = parsed.compareTo(fallback);
@@ -1362,7 +1363,10 @@ void main() {
   final stableHash = parsed.hashCode == 42.hashCode;
   print('numbers \$parsed \$fallback \$even \$odd '
       '\$numberCompare \$textCompare \$stableHash '
-      '\$parsedDouble \$maybeDouble \$parsedNum');
+      '\$parsedDouble \$maybeDouble \$parsedNum '
+      '\${numeric.abs()} \${numeric.sign < 0} \${numeric.round()} '
+      '\${numeric.floor()} \${numeric.ceil()} \${numeric.truncate()} '
+      '\${numeric.clamp(-3, 2)} \${numeric.remainder(2)}');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1397,6 +1401,7 @@ void main() {
       ..writeAsStringSync('''
 void main() {
   final fromSet = List<int>.of({1, 2, 3});
+  final generated = List<int>.generate(4, (index) => index * index);
   final fixed = List<int>.filled(2, 7);
   fixed[0] = 8;
   var fixedAddFailed = false;
@@ -1409,6 +1414,11 @@ void main() {
   growable.add(1);
   final fixedCopy = [1, 2, 3].toList(growable: false);
   fixedCopy[1] = 5;
+  final cast = List.castFrom<int, num>([1, 2]);
+  final copyTarget = [0, 0, 0, 0];
+  List.copyRange(copyTarget, 1, [7, 8, 9], 0, 2);
+  final writeTarget = [0, 0, 0];
+  List.writeIterable(writeTarget, 0, [4, 5]);
   var fixedCopyAddFailed = false;
   try {
     fixedCopy.add(4);
@@ -1418,7 +1428,10 @@ void main() {
   final unmodifiable = List<int>.unmodifiable(fromSet);
   print('lists \${fromSet.join(':')} \${fixed.join(',')} '
       '\$fixedAddFailed \${growable.first} \${fixedCopy.join(',')} '
-      '\$fixedCopyAddFailed \${unmodifiable.first} \${unmodifiable.last}');
+      '\$fixedCopyAddFailed \${unmodifiable.first} \${unmodifiable.last} '
+      '\${generated.join(':')} \${cast.map((value) => value + 1).join(',')} '
+      '\${copyTarget.join(',')} \${writeTarget.join(',')} '
+      '\${generated.skip(1).take(2).join('|')}');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1437,7 +1450,53 @@ void main() {
     final code = output.readAsStringSync();
     expect(code, contains('__dartListOf'));
     expect(code, contains('__dartListFilled'));
+    expect(code, contains('__dartListGenerate'));
+    expect(code, contains('__dartListCopyRange'));
     expect(code, contains('__dartUnmodifiableList'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
+  test('compiles core Set and Map factories through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-core-map-set-factories-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  final set = Set<int>.from([1, 2, 2, 3]);
+  final setOf = Set<int>.of(set);
+  final identitySet = Set<List<int>>.identity();
+  final key = [1];
+  identitySet.add(key);
+  identitySet.add([1]);
+  final map = Map<String, int>.from({'a': 1, 'b': 2});
+  final mapOf = Map<String, int>.of(map);
+  final identityMap = Map<List<int>, String>.identity();
+  identityMap[key] = 'same';
+  print('collections \${set.length} \${set.contains(2)} '
+      '\${setOf.join(':')} \${identitySet.contains(key)} '
+      '\${identitySet.contains([1])} \${identitySet.length} '
+      '\${map.length} \${map.keys.join(',')} \${map.values.join(',')} '
+      '\${mapOf['b']} \${identityMap.containsKey(key)}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('new Set'));
+    expect(code, contains('new Map'));
     await _expectSameDartAndNodeOutput(input, output);
   });
 

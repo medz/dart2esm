@@ -33,7 +33,8 @@ final class _EsmIrPrinter {
     _emitRuntimeHelpers(module.runtimeHelpers);
     for (var i = 0; i < module.items.length; i++) {
       _emitModuleItem(module.items[i]);
-      if (i != module.items.length - 1 && module.items[i] is EsmFunctionIr) {
+      if (i != module.items.length - 1 &&
+          (module.items[i] is EsmClassIr || module.items[i] is EsmFunctionIr)) {
         _buffer.writeln();
       }
     }
@@ -49,11 +50,49 @@ final class _EsmIrPrinter {
 
   void _emitModuleItem(EsmModuleItemIr item) {
     switch (item) {
+      case EsmClassIr():
+        _emitClass(item);
       case EsmFunctionIr():
         _emitFunction(item);
       case EsmStatementIr():
         _emitStatement(item);
     }
+  }
+
+  void _emitClass(EsmClassIr klass) {
+    final exportPrefix = klass.export ? 'export ' : '';
+    _writeIndented('${exportPrefix}class ${klass.name} {');
+    _indent++;
+    final constructor = klass.constructor;
+    if (constructor != null) {
+      _writeIndented('constructor(${constructor.parameters.join(', ')}) {');
+      _indent++;
+      for (final statement in constructor.body) {
+        _emitStatement(statement);
+      }
+      _indent--;
+      _writeIndented('}');
+    }
+    for (final method in klass.methods) {
+      _emitClassMethod(method);
+    }
+    _indent--;
+    _writeIndented('}');
+  }
+
+  void _emitClassMethod(EsmClassMethodIr method) {
+    final prefix = switch (method.kind) {
+      EsmClassMethodKindIr.method => '',
+      EsmClassMethodKindIr.getter => 'get ',
+      EsmClassMethodKindIr.setter => 'set ',
+    };
+    _writeIndented('$prefix${method.name}(${method.parameters.join(', ')}) {');
+    _indent++;
+    for (final statement in method.body) {
+      _emitStatement(statement);
+    }
+    _indent--;
+    _writeIndented('}');
   }
 
   void _emitFunction(EsmFunctionIr function) {
@@ -226,6 +265,11 @@ final class _EsmIrPrinter {
       EsmNullLiteralIr() => 'null',
       EsmCallIr() =>
         '${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
+      EsmNewIr() =>
+        'new ${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
+      EsmPropertyAccessIr() =>
+        '${_emitExpression(expression.receiver)}.${expression.property}',
+      EsmThisIr() => 'this',
     };
   }
 

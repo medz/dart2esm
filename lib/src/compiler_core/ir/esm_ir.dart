@@ -15,6 +15,43 @@ sealed class EsmModuleItemIr extends EsmIrNode {
   const EsmModuleItemIr();
 }
 
+final class EsmClassIr extends EsmModuleItemIr {
+  const EsmClassIr({
+    required this.name,
+    required this.export,
+    required this.constructor,
+    required this.methods,
+  });
+
+  final String name;
+  final bool export;
+  final EsmClassConstructorIr? constructor;
+  final List<EsmClassMethodIr> methods;
+}
+
+final class EsmClassConstructorIr extends EsmIrNode {
+  const EsmClassConstructorIr({required this.parameters, required this.body});
+
+  final List<String> parameters;
+  final List<EsmStatementIr> body;
+}
+
+final class EsmClassMethodIr extends EsmIrNode {
+  const EsmClassMethodIr({
+    required this.name,
+    required this.kind,
+    required this.parameters,
+    required this.body,
+  });
+
+  final String name;
+  final EsmClassMethodKindIr kind;
+  final List<String> parameters;
+  final List<EsmStatementIr> body;
+}
+
+enum EsmClassMethodKindIr { method, getter, setter }
+
 final class EsmFunctionIr extends EsmModuleItemIr {
   const EsmFunctionIr({
     required this.name,
@@ -156,7 +193,7 @@ final class EsmStringConcatenationIr extends EsmExpressionIr {
 final class EsmAssignmentIr extends EsmExpressionIr {
   const EsmAssignmentIr({required this.target, required this.value});
 
-  final EsmIdentifierIr target;
+  final EsmExpressionIr target;
   final EsmExpressionIr value;
 }
 
@@ -193,4 +230,22 @@ final class EsmCallIr extends EsmExpressionIr {
 
   final EsmExpressionIr callee;
   final List<EsmExpressionIr> arguments;
+}
+
+final class EsmNewIr extends EsmExpressionIr {
+  const EsmNewIr({required this.callee, required this.arguments});
+
+  final EsmExpressionIr callee;
+  final List<EsmExpressionIr> arguments;
+}
+
+final class EsmPropertyAccessIr extends EsmExpressionIr {
+  const EsmPropertyAccessIr({required this.receiver, required this.property});
+
+  final EsmExpressionIr receiver;
+  final String property;
+}
+
+final class EsmThisIr extends EsmExpressionIr {
+  const EsmThisIr();
 }

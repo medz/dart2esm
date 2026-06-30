@@ -1430,6 +1430,40 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles local library imports through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-local-imports-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+
+    for (final id in const [
+      'imports/exports_api',
+      'imports/reexport_api',
+      'imports/parts',
+      'imports/relative_imports',
+    ]) {
+      final source = File(p.join(fixtureDir.path, '$id.dart'));
+      final expected = File(p.join(fixtureDir.path, '$id.mjs'));
+      final output = File(p.join(tempDir.path, '${p.basename(id)}.mjs'));
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+          allowLegacyOracle: false,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+      expect(output.readAsStringSync(), expected.readAsStringSync());
+      await _expectSameDartAndNodeOutput(source, output);
+    }
+
+    await _expectLocalImportSurface(fixtureDir, tempDir);
+  });
+
   test('can emit an ESM module without running main', () async {
     final fixture = _GoldenFixture(
       root: fixtureDir,
@@ -1798,6 +1832,101 @@ void main() {
       await _expectGoldenFixture(fixture);
     });
   }
+}
+
+Future<void> _expectLocalImportSurface(
+  Directory fixtureDir,
+  Directory tempDir,
+) async {
+  final exportsSource = File(
+    p.join(fixtureDir.path, 'imports', 'exports_api.dart'),
+  );
+  final exportsExpected = File(
+    p.join(fixtureDir.path, 'imports', 'exports_api.mjs'),
+  );
+  final exportsModule = File(p.join(tempDir.path, 'exports_module.mjs'));
+  final exportsResult = await compileDartToEsm(
+    Dart2EsmOptions(
+      inputPath: exportsSource.path,
+      outputPath: exportsModule.path,
+      workingDirectory: Directory.current,
+      runMain: false,
+      allowLegacyOracle: false,
+    ),
+  );
+
+  expect(
+    exportsResult.success,
+    isTrue,
+    reason: exportsResult.diagnostics.join('\n'),
+  );
+  expect(exportsResult.compilerPath, Dart2EsmCompilerPath.newCore);
+  expect(
+    exportsModule.readAsStringSync(),
+    _withoutMainCall(exportsExpected.readAsStringSync()),
+  );
+
+  final reexportSource = File(
+    p.join(fixtureDir.path, 'imports', 'reexport_api.dart'),
+  );
+  final reexportExpected = File(
+    p.join(fixtureDir.path, 'imports', 'reexport_api.mjs'),
+  );
+  final reexportModule = File(p.join(tempDir.path, 'reexport_module.mjs'));
+  final reexportResult = await compileDartToEsm(
+    Dart2EsmOptions(
+      inputPath: reexportSource.path,
+      outputPath: reexportModule.path,
+      workingDirectory: Directory.current,
+      runMain: false,
+      allowLegacyOracle: false,
+    ),
+  );
+
+  expect(
+    reexportResult.success,
+    isTrue,
+    reason: reexportResult.diagnostics.join('\n'),
+  );
+  expect(reexportResult.compilerPath, Dart2EsmCompilerPath.newCore);
+  expect(
+    reexportModule.readAsStringSync(),
+    _withoutMainCall(reexportExpected.readAsStringSync()),
+  );
+
+  final consumer = File(p.join(tempDir.path, 'consumer.mjs'))
+    ..writeAsStringSync('''
+const exportsApi = await import('./exports_module.mjs');
+console.log([
+  Object.hasOwn(exportsApi, 'ExportedThing'),
+  Object.hasOwn(exportsApi, 'exportedValue'),
+  Object.hasOwn(exportsApi, 'HiddenThing'),
+  Object.hasOwn(exportsApi, 'hiddenValue'),
+].join(' '));
+const reexportApi = await import('./reexport_module.mjs');
+console.log([
+  Object.hasOwn(reexportApi, 'BarrelThing'),
+  Object.hasOwn(reexportApi, 'LeafThing'),
+  Object.hasOwn(reexportApi, 'leafValue'),
+  Object.hasOwn(reexportApi, 'HiddenLeafThing'),
+  Object.hasOwn(reexportApi, 'barrelValue'),
+].join(' '));
+''');
+  final importResult = await Process.run('node', [
+    consumer.path,
+  ], workingDirectory: tempDir.path);
+
+  expect(
+    importResult.exitCode,
+    0,
+    reason: '${importResult.stdout}\n${importResult.stderr}',
+  );
+  expect(
+    importResult.stdout,
+    'true true false false\n'
+    'true true true false false\n',
+  );
+  expect(importResult.stderr, isEmpty);
 }
 
 String _withoutMainCall(String code) {

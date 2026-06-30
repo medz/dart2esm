@@ -239,44 +239,62 @@ final class SemanticWorldStage {
 
   SemanticWorldResult build(KernelFrontendResult kernel) {
     final mainLibrary = kernel.main.enclosingLibrary;
+    final exportedReferences = mainLibrary.additionalExports.toSet();
     final allocator = JsNameAllocator(
       generatedGlobalNames: generatedGlobalNames,
     );
+    final libraries = _compilableLibraries(kernel.component, mainLibrary);
     final classes = <EsmClassSymbol>[];
-    for (final klass in mainLibrary.classes) {
-      if (!_isTopLevelClass(klass)) {
-        continue;
+    for (final library in libraries) {
+      for (final klass in library.classes) {
+        if (!_isTopLevelClass(klass)) {
+          continue;
+        }
+        classes.add(
+          _buildClassSymbol(
+            allocator,
+            klass,
+            export: _exportsClass(mainLibrary, exportedReferences, klass),
+          ),
+        );
       }
-      classes.add(_buildClassSymbol(allocator, klass));
     }
     final fields = <EsmFieldSymbol>[];
-    for (final field in mainLibrary.fields) {
-      if (!_isTopLevelField(field)) {
-        continue;
+    for (final library in libraries) {
+      for (final field in library.fields) {
+        if (!_isTopLevelField(field)) {
+          continue;
+        }
+        fields.add(
+          EsmFieldSymbol(
+            node: field,
+            name: allocator.freshGlobal(field.name.text),
+            export: _exportsField(mainLibrary, exportedReferences, field),
+            mutable: field.hasSetter,
+          ),
+        );
       }
-      fields.add(
-        EsmFieldSymbol(
-          node: field,
-          name: allocator.freshGlobal(field.name.text),
-          export: _isPublic(field.name.text),
-          mutable: field.hasSetter,
-        ),
-      );
     }
     final procedures = <EsmProcedureSymbol>[];
-    for (final procedure in mainLibrary.procedures) {
-      final kind = _topLevelProcedureKind(procedure);
-      if (kind == null) {
-        continue;
+    for (final library in libraries) {
+      for (final procedure in library.procedures) {
+        final kind = _topLevelProcedureKind(procedure);
+        if (kind == null) {
+          continue;
+        }
+        procedures.add(
+          EsmProcedureSymbol(
+            node: procedure,
+            name: allocator.freshGlobal(procedure.name.text),
+            export: _exportsProcedure(
+              mainLibrary,
+              exportedReferences,
+              procedure,
+            ),
+            kind: kind,
+          ),
+        );
       }
-      procedures.add(
-        EsmProcedureSymbol(
-          node: procedure,
-          name: allocator.freshGlobal(procedure.name.text),
-          export: _isPublic(procedure.name.text),
-          kind: kind,
-        ),
-      );
     }
     if (!procedures.any(
       (procedure) =>
@@ -297,7 +315,22 @@ final class SemanticWorldStage {
     );
   }
 
-  EsmClassSymbol _buildClassSymbol(JsNameAllocator allocator, k.Class klass) {
+  List<k.Library> _compilableLibraries(
+    k.Component component,
+    k.Library mainLibrary,
+  ) {
+    return [
+      for (final library in component.libraries)
+        if (library == mainLibrary || library.importUri.scheme == 'file')
+          library,
+    ];
+  }
+
+  EsmClassSymbol _buildClassSymbol(
+    JsNameAllocator allocator,
+    k.Class klass, {
+    required bool export,
+  }) {
     final usedNames = <String>{};
     final usedStaticNames = <String>{};
     final accessorNames = <String, String>{};
@@ -306,7 +339,7 @@ final class SemanticWorldStage {
     return EsmClassSymbol(
       node: klass,
       name: allocator.freshGlobal(klass.name),
-      export: _isPublic(klass.name),
+      export: export,
       interfaceMarkerName: klass.isAbstract || klass.isInterface
           ? allocator.freshGlobal('\$${klass.name}_interface')
           : null,
@@ -377,7 +410,7 @@ final class SemanticWorldStage {
   }
 
   bool _isTopLevelClass(k.Class klass) =>
-      !klass.isEnum && _isPublic(klass.name);
+      !klass.isEnum && !klass.isAnonymousMixin;
 
   bool _isTopLevelField(k.Field field) {
     return field.isStatic && !field.isExternal && !field.isExtensionTypeMember;
@@ -457,4 +490,38 @@ final class SemanticWorldStage {
   }
 
   bool _isPublic(String name) => !name.startsWith('_');
+
+  bool _exportsClass(
+    k.Library mainLibrary,
+    Set<k.Reference> exportedReferences,
+    k.Class klass,
+  ) {
+    if (klass.enclosingLibrary == mainLibrary) {
+      return _isPublic(klass.name);
+    }
+    return exportedReferences.contains(klass.reference);
+  }
+
+  bool _exportsField(
+    k.Library mainLibrary,
+    Set<k.Reference> exportedReferences,
+    k.Field field,
+  ) {
+    if (field.enclosingLibrary == mainLibrary) {
+      return _isPublic(field.name.text);
+    }
+    return exportedReferences.contains(field.getterReference) ||
+        exportedReferences.contains(field.fieldReference);
+  }
+
+  bool _exportsProcedure(
+    k.Library mainLibrary,
+    Set<k.Reference> exportedReferences,
+    k.Procedure procedure,
+  ) {
+    if (procedure.enclosingLibrary == mainLibrary) {
+      return _isPublic(procedure.name.text);
+    }
+    return exportedReferences.contains(procedure.reference);
+  }
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:kernel/kernel.dart' as k;
 
 import '../js_ast/js_ast.dart';
+import '../diagnostics/unsupported_kernel_node.dart';
 import '../kernel/kernel_references.dart';
 import '../kernel/sdk_symbols.dart';
 import '../lowering/lowering.dart';
@@ -31,6 +32,10 @@ EsmBackendResult emitEsm(k.Component component, {bool runMain = true}) {
     throw UnsupportedKernelNode(component, 'component without main method');
   }
   final model = buildEsmProgramModel(component);
+  return emitEsmModel(model, runMain: runMain);
+}
+
+EsmBackendResult emitEsmModel(EsmProgramModel model, {bool runMain = true}) {
   final emitter = _EsmEmitter(model, runMain: runMain);
   return emitter.emit();
 }
@@ -40,17 +45,6 @@ final class EsmBackendResult {
 
   final String code;
   final List<String> diagnostics;
-}
-
-final class UnsupportedKernelNode implements Exception {
-  UnsupportedKernelNode(this.node, this.context);
-
-  final Object node;
-  final String context;
-
-  @override
-  String toString() =>
-      'Unsupported Kernel node in $context: ${node.runtimeType}';
 }
 
 final class _EsmEmitter {

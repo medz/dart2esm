@@ -1,5 +1,6 @@
 import 'package:dart2esm/src/compiler_core/codegen/esm_codegen.dart';
 import 'package:dart2esm/src/compiler_core/compiler_pipeline.dart';
+import 'package:dart2esm/src/compiler_core/compiler_stage.dart';
 import 'package:dart2esm/src/compiler_core/frontend/kernel_frontend.dart';
 import 'package:dart2esm/src/compiler_core/ir/esm_ir.dart';
 import 'package:dart2esm/src/compiler_core/lowering/kernel_to_esm_ir.dart';
@@ -13,6 +14,29 @@ import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {
+  test('compiler core exposes the ordered stage contract', () {
+    expect(dart2EsmCompilerStageOrder, [
+      Dart2EsmCompilerStageId.kernelFrontend,
+      Dart2EsmCompilerStageId.semanticWorld,
+      Dart2EsmCompilerStageId.dartLowering,
+      Dart2EsmCompilerStageId.moduleNormalizer,
+      Dart2EsmCompilerStageId.runtimeLinker,
+      Dart2EsmCompilerStageId.esmCodegen,
+    ]);
+    expect(const KernelFrontendStage().stageId, dart2EsmCompilerStageOrder[0]);
+    expect(const SemanticWorldStage().stageId, dart2EsmCompilerStageOrder[1]);
+    expect(
+      const KernelToEsmIrLoweringStage().stageId,
+      dart2EsmCompilerStageOrder[2],
+    );
+    expect(
+      const ModuleNormalizerStage().stageId,
+      dart2EsmCompilerStageOrder[3],
+    );
+    expect(const RuntimeLinkerStage().stageId, dart2EsmCompilerStageOrder[4]);
+    expect(const EsmCodegenStage().stageId, dart2EsmCompilerStageOrder[5]);
+  });
+
   test('compiles supported Kernel through the new compiler core', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
@@ -46,6 +70,7 @@ void main() {
     ).compile(component);
 
     expect(result.path, Dart2EsmCompilerPath.newCore);
+    expect(result.completedStages, dart2EsmCompilerStageOrder);
     expect(result.usedLegacyOracle, isFalse);
     expect(result.kernel.component, same(component));
     expect(result.semantic?.world.main, same(main));

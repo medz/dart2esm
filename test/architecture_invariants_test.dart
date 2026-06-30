@@ -20,12 +20,18 @@ void main() {
 
   test('compiler core has explicit Oxc-style stage result boundaries', () {
     final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
+    final stages = _read('lib/src/compiler_core/compiler_stage.dart');
     final normalizer = _read(
       'lib/src/compiler_core/transform/module_normalizer.dart',
     );
 
+    expect(stages, contains('enum Dart2EsmCompilerStageId'));
+    expect(stages, contains('dart2EsmCompilerStageOrder'));
+    expect(stages, contains('abstract interface class Dart2EsmCompilerStage'));
+    expect(stages, contains('final class Dart2EsmStageContext'));
     expect(pipeline, contains('final class Dart2EsmPipelineResult'));
     expect(pipeline, contains('final KernelFrontendResult kernel'));
+    expect(pipeline, contains('final List<Dart2EsmCompilerStageId>'));
     expect(pipeline, contains('final SemanticWorldResult? semantic'));
     expect(pipeline, contains('final LoweringResult? lowering'));
     expect(pipeline, contains('final NormalizationResult? normalization'));

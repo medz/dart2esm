@@ -1,6 +1,7 @@
 import 'package:kernel/kernel.dart' as k;
 
 import 'codegen/esm_codegen.dart';
+import 'compiler_stage.dart';
 import 'frontend/kernel_frontend.dart';
 import 'legacy_oracle.dart';
 import 'lowering/kernel_to_esm_ir.dart';
@@ -23,23 +24,25 @@ final class Dart2EsmPipelineOptions {
 }
 
 final class Dart2EsmPipelineResult {
-  const Dart2EsmPipelineResult({
+  Dart2EsmPipelineResult({
     required this.code,
     required this.diagnostics,
     required this.path,
     required this.kernel,
+    required Iterable<Dart2EsmCompilerStageId> completedStages,
     this.semantic,
     this.lowering,
     this.normalization,
     this.runtime,
     this.codegen,
     this.legacyOracle,
-  });
+  }) : completedStages = List.unmodifiable(completedStages);
 
   final String code;
   final List<String> diagnostics;
   final Dart2EsmCompilerPath path;
   final KernelFrontendResult kernel;
+  final List<Dart2EsmCompilerStageId> completedStages;
   final SemanticWorldResult? semantic;
   final LoweringResult? lowering;
   final NormalizationResult? normalization;
@@ -74,18 +77,27 @@ final class Dart2EsmCompilerPipeline {
   final LegacyBackendOracle legacyOracle;
 
   Dart2EsmPipelineResult compile(k.Component component) {
-    final kernel = kernelFrontend.accept(component);
+    final context = Dart2EsmStageContext(runMain: options.runMain);
+    final completedStages = <Dart2EsmCompilerStageId>[];
+    final kernel = kernelFrontend.run(component, context);
+    completedStages.add(kernelFrontend.stageId);
     try {
-      final semantic = semanticWorld.build(kernel);
-      final lowered = lowering.lower(semantic, runMain: options.runMain);
-      final normalized = normalizer.normalize(lowered);
-      final linked = runtimeLinker.link(normalized);
-      final codegenResult = codegen.emit(linked.module);
+      final semantic = semanticWorld.run(kernel, context);
+      completedStages.add(semanticWorld.stageId);
+      final lowered = lowering.run(semantic, context);
+      completedStages.add(lowering.stageId);
+      final normalized = normalizer.run(lowered, context);
+      completedStages.add(normalizer.stageId);
+      final linked = runtimeLinker.run(normalized, context);
+      completedStages.add(runtimeLinker.stageId);
+      final codegenResult = codegen.run(linked.module, context);
+      completedStages.add(codegen.stageId);
       return Dart2EsmPipelineResult(
         code: codegenResult.code,
         diagnostics: codegenResult.diagnostics,
         path: Dart2EsmCompilerPath.newCore,
         kernel: kernel,
+        completedStages: completedStages,
         semantic: semantic,
         lowering: lowered,
         normalization: normalized,
@@ -106,6 +118,7 @@ final class Dart2EsmCompilerPipeline {
         diagnostics: legacy.diagnostics,
         path: Dart2EsmCompilerPath.legacyOracle,
         kernel: kernel,
+        completedStages: completedStages,
         legacyOracle: legacy,
       );
     }

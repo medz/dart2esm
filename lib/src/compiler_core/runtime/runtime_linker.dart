@@ -1,3 +1,4 @@
+import '../compiler_stage.dart';
 import '../ir/esm_ir.dart';
 import '../transform/module_normalizer.dart';
 import 'runtime_helpers.dart';
@@ -14,12 +15,24 @@ final class RuntimeLinkResult {
   final List<EsmRuntimeHelper> linkedHelpers;
 }
 
-final class RuntimeLinkerStage {
+final class RuntimeLinkerStage
+    implements Dart2EsmCompilerStage<NormalizationResult, RuntimeLinkResult> {
   const RuntimeLinkerStage({
     this.runtimeHelpers = const EsmRuntimeHelperRegistry(),
   });
 
   final EsmRuntimeHelperRegistry runtimeHelpers;
+
+  @override
+  Dart2EsmCompilerStageId get stageId => Dart2EsmCompilerStageId.runtimeLinker;
+
+  @override
+  RuntimeLinkResult run(
+    NormalizationResult input,
+    Dart2EsmStageContext context,
+  ) {
+    return link(input);
+  }
 
   RuntimeLinkResult link(NormalizationResult normalized) {
     final helperUseSet = EsmRuntimeHelperUseSet();

@@ -1,6 +1,7 @@
 import 'package:kernel/kernel.dart' as k;
 
 import '../../names/js_names.dart';
+import '../compiler_stage.dart';
 import '../frontend/kernel_frontend.dart';
 import '../new_compiler_unsupported.dart';
 
@@ -232,10 +233,23 @@ final class EsmProcedureSymbol {
 
 enum EsmProcedureKind { method, getter, setter }
 
-final class SemanticWorldStage {
+final class SemanticWorldStage
+    implements
+        Dart2EsmCompilerStage<KernelFrontendResult, SemanticWorldResult> {
   const SemanticWorldStage({this.generatedGlobalNames = const {}});
 
   final Set<String> generatedGlobalNames;
+
+  @override
+  Dart2EsmCompilerStageId get stageId => Dart2EsmCompilerStageId.semanticWorld;
+
+  @override
+  SemanticWorldResult run(
+    KernelFrontendResult input,
+    Dart2EsmStageContext context,
+  ) {
+    return build(input);
+  }
 
   SemanticWorldResult build(KernelFrontendResult kernel) {
     final mainLibrary = kernel.main.enclosingLibrary;

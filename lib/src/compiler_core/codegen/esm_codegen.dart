@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../compiler_stage.dart';
 import '../ir/esm_ir.dart';
 
 final class CodegenStageResult {
@@ -9,8 +10,17 @@ final class CodegenStageResult {
   final List<String> diagnostics;
 }
 
-final class EsmCodegenStage {
+final class EsmCodegenStage
+    implements Dart2EsmCompilerStage<EsmModuleIr, CodegenStageResult> {
   const EsmCodegenStage();
+
+  @override
+  Dart2EsmCompilerStageId get stageId => Dart2EsmCompilerStageId.esmCodegen;
+
+  @override
+  CodegenStageResult run(EsmModuleIr input, Dart2EsmStageContext context) {
+    return emit(input);
+  }
 
   CodegenStageResult emit(EsmModuleIr module) {
     final printer = _EsmIrPrinter();

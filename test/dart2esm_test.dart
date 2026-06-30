@@ -811,6 +811,34 @@ void main() {
     },
   );
 
+  test('compiles factory constructor bodies through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'classes', 'factory_bodies.dart'),
+    );
+    final expected = File(
+      p.join(fixtureDir.path, 'classes', 'factory_bodies.mjs'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-factory-bodies-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'factory_bodies.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.readAsStringSync(), expected.readAsStringSync());
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
   test('compiles function parameters through the new core', () async {
     final source = File(
       p.join(fixtureDir.path, 'functions', 'parameters.dart'),

@@ -1,5 +1,6 @@
 import 'package:kernel/kernel.dart' as k;
 
+import '../../kernel/kernel_references.dart';
 import '../../names/js_names.dart';
 import '../compiler_stage.dart';
 import '../frontend/kernel_frontend.dart';
@@ -28,6 +29,11 @@ final class EsmSemanticWorld {
            for (final constructor in klass.constructors)
              constructor.node: constructor,
        },
+       _constructorSymbolsByReference = {
+         for (final klass in classes)
+           for (final constructor in klass.constructors)
+             kernelReferencePath(constructor.node.reference): constructor,
+       },
        _instanceFieldSymbols = {
          for (final klass in classes)
            for (final field in klass.fields) field.node: field,
@@ -45,9 +51,18 @@ final class EsmSemanticWorld {
            for (final procedure in klass.staticProcedures)
              procedure.node: procedure,
        },
+       _staticProcedureSymbolsByReference = {
+         for (final klass in classes)
+           for (final procedure in klass.staticProcedures)
+             kernelReferencePath(procedure.node.reference): procedure,
+       },
        _fieldSymbols = {for (final field in fields) field.node: field},
        _procedureSymbols = {
          for (final procedure in procedures) procedure.node: procedure,
+       },
+       _procedureSymbolsByReference = {
+         for (final procedure in procedures)
+           kernelReferencePath(procedure.node.reference): procedure,
        };
 
   final k.Component component;
@@ -57,12 +72,16 @@ final class EsmSemanticWorld {
   final List<EsmProcedureSymbol> procedures;
   final Map<k.Class, EsmClassSymbol> _classSymbols;
   final Map<k.Constructor, EsmConstructorSymbol> _constructorSymbols;
+  final Map<String, EsmConstructorSymbol> _constructorSymbolsByReference;
   final Map<k.Field, EsmInstanceFieldSymbol> _instanceFieldSymbols;
   final Map<k.Field, EsmStaticFieldSymbol> _staticFieldSymbols;
   final Map<k.Procedure, EsmInstanceProcedureSymbol> _instanceProcedureSymbols;
   final Map<k.Procedure, EsmStaticProcedureSymbol> _staticProcedureSymbols;
+  final Map<String, EsmStaticProcedureSymbol>
+  _staticProcedureSymbolsByReference;
   final Map<k.Field, EsmFieldSymbol> _fieldSymbols;
   final Map<k.Procedure, EsmProcedureSymbol> _procedureSymbols;
+  final Map<String, EsmProcedureSymbol> _procedureSymbolsByReference;
 
   EsmClassSymbol? classSymbolFor(k.Class klass) {
     return _classSymbols[klass];
@@ -70,6 +89,10 @@ final class EsmSemanticWorld {
 
   EsmConstructorSymbol? constructorSymbolFor(k.Constructor constructor) {
     return _constructorSymbols[constructor];
+  }
+
+  EsmConstructorSymbol? constructorSymbolForReference(k.Reference reference) {
+    return _constructorSymbolsByReference[kernelReferencePath(reference)];
   }
 
   EsmInstanceFieldSymbol? instanceFieldSymbolFor(k.Field field) {
@@ -90,6 +113,12 @@ final class EsmSemanticWorld {
     return _staticProcedureSymbols[procedure];
   }
 
+  EsmStaticProcedureSymbol? staticProcedureSymbolForReference(
+    k.Reference reference,
+  ) {
+    return _staticProcedureSymbolsByReference[kernelReferencePath(reference)];
+  }
+
   EsmFieldSymbol? fieldSymbolFor(k.Field field) {
     return _fieldSymbols[field];
   }
@@ -104,6 +133,10 @@ final class EsmSemanticWorld {
 
   EsmProcedureSymbol? symbolFor(k.Procedure procedure) {
     return _procedureSymbols[procedure];
+  }
+
+  EsmProcedureSymbol? symbolForReference(k.Reference reference) {
+    return _procedureSymbolsByReference[kernelReferencePath(reference)];
   }
 
   EsmProcedureSymbol symbolForRequired(k.Procedure procedure) {

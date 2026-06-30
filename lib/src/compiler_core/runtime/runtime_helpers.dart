@@ -13,6 +13,7 @@ enum EsmRuntimeHelper {
   enumAsNameMap,
   enumByName,
   functionApply,
+  intParse,
   iterator,
   lazyField,
   listAdd,
@@ -52,6 +53,9 @@ final class EsmRuntimeHelperRegistry {
     '__dartEnumByName',
     '__dartEquals',
     '__dartFunctionApply',
+    '__dartFormatException',
+    '__dartIntParse',
+    '__dartIntTryParse',
     '__dartIterator',
     '__dartLazyField',
     '__dartListAdd',
@@ -95,6 +99,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.enumAsNameMap => '__dartEnumAsNameMap',
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
+      EsmRuntimeHelper.intParse => '__dartIntParse',
       EsmRuntimeHelper.iterator => '__dartIterator',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
@@ -309,6 +314,34 @@ function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
     if (hasNamed) args.push(options);
   }
   return fn(...args);
+}
+'''),
+      EsmRuntimeHelper.intParse => EsmRawModuleItemIr(r'''
+function __dartFormatException(message) {
+  const error = new Error(String(message));
+  error.name = "FormatException";
+  return error;
+}
+function __dartIntTryParse(source, radix = null) {
+  const text = String(source).trim();
+  let base = radix == null ? null : Number(radix);
+  if (base != null && (!Number.isInteger(base) || base < 2 || base > 36)) return null;
+  if (base == null && /^[+-]?0x[0-9a-f]+$/i.test(text)) return Number.parseInt(text, 16);
+  base ??= 10;
+  const sign = /^[+-]/.test(text) ? text[0] : "";
+  const digits = sign === "" ? text : text.slice(1);
+  if (digits.length === 0) return null;
+  for (const char of digits.toLowerCase()) {
+    const code = char.charCodeAt(0);
+    const value = code >= 48 && code <= 57 ? code - 48 : code >= 97 && code <= 122 ? code - 87 : -1;
+    if (value < 0 || value >= base) return null;
+  }
+  return Number.parseInt(text, base);
+}
+function __dartIntParse(source, radix = null) {
+  const value = __dartIntTryParse(source, radix);
+  if (value == null) throw __dartFormatException("Invalid integer literal");
+  return value;
 }
 '''),
       EsmRuntimeHelper.iterator => EsmRawModuleItemIr('''
@@ -631,6 +664,7 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.functionApply:
+      case EsmRuntimeHelper.intParse:
       case EsmRuntimeHelper.iterator:
       case EsmRuntimeHelper.lazyField:
       case EsmRuntimeHelper.listAdd:

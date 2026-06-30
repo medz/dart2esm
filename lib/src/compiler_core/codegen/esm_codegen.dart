@@ -73,6 +73,10 @@ final class _EsmIrPrinter {
     switch (statement) {
       case EsmExpressionStatementIr():
         _writeIndented('${_emitExpression(statement.expression)};');
+      case EsmLabeledStatementIr():
+        _emitLabeledStatement(statement);
+      case EsmBreakStatementIr():
+        _writeIndented('break ${statement.label};');
       case EsmVariableDeclarationIr():
         final keyword = statement.mutable ? 'let' : 'const';
         final initializer = statement.initializer;
@@ -97,6 +101,16 @@ final class _EsmIrPrinter {
               : 'return ${_emitExpression(expression)};',
         );
     }
+  }
+
+  void _emitLabeledStatement(EsmLabeledStatementIr statement) {
+    _writeIndented('${statement.label}: {');
+    _indent++;
+    for (final child in statement.body) {
+      _emitStatement(child);
+    }
+    _indent--;
+    _writeIndented('}');
   }
 
   void _emitIfStatement(EsmIfStatementIr statement) {

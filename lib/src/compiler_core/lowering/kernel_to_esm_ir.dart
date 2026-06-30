@@ -49,6 +49,7 @@ final class KernelToEsmIrLoweringStage {
       throw NewCompilerUnsupported(function, 'named parameter lowering');
     }
     final locals = <k.VariableDeclaration, String>{};
+    final labels = <k.LabeledStatement, String>{};
     final usedParameters = <String>{};
     final parameters = [
       for (final parameter in function.positionalParameters)
@@ -62,7 +63,7 @@ final class KernelToEsmIrLoweringStage {
       name: procedure.name,
       export: procedure.export,
       parameters: parameters,
-      body: _lowerStatementList(world, helpers, locals, body),
+      body: _lowerStatementList(world, helpers, locals, labels, body),
     );
   }
 
@@ -81,13 +82,18 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
     k.Statement statement,
   ) {
     return switch (statement) {
       k.Block() => [
         for (final child in statement.statements)
-          ..._lowerStatementList(world, helpers, locals, child),
+          ..._lowerStatementList(world, helpers, locals, labels, child),
       ],
+      k.LabeledStatement() => [
+        _lowerLabeledStatement(world, helpers, locals, labels, statement),
+      ],
+      k.BreakStatement() => [_lowerBreakStatement(labels, statement)],
       k.VariableDeclaration() => [
         _lowerVariableDeclaration(world, helpers, locals, statement),
       ],
@@ -97,13 +103,17 @@ final class KernelToEsmIrLoweringStage {
           _lowerExpression(world, helpers, locals, statement.expression),
         ),
       ],
-      k.IfStatement() => [_lowerIfStatement(world, helpers, locals, statement)],
-      k.WhileStatement() => [
-        _lowerWhileStatement(world, helpers, locals, statement),
+      k.IfStatement() => [
+        _lowerIfStatement(world, helpers, locals, labels, statement),
       ],
-      k.DoStatement() => [_lowerDoStatement(world, helpers, locals, statement)],
+      k.WhileStatement() => [
+        _lowerWhileStatement(world, helpers, locals, labels, statement),
+      ],
+      k.DoStatement() => [
+        _lowerDoStatement(world, helpers, locals, labels, statement),
+      ],
       k.ForStatement() => [
-        _lowerForStatement(world, helpers, locals, statement),
+        _lowerForStatement(world, helpers, locals, labels, statement),
       ],
       k.ReturnStatement() => [
         EsmReturnStatementIr(
@@ -116,19 +126,52 @@ final class KernelToEsmIrLoweringStage {
     };
   }
 
+  EsmLabeledStatementIr _lowerLabeledStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    k.LabeledStatement statement,
+  ) {
+    final label = _freshIn(labels.values.toSet(), 'label');
+    labels[statement] = label;
+    return EsmLabeledStatementIr(
+      label: label,
+      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
+    );
+  }
+
+  EsmBreakStatementIr _lowerBreakStatement(
+    Map<k.LabeledStatement, String> labels,
+    k.BreakStatement statement,
+  ) {
+    final label = labels[statement.target];
+    if (label == null) {
+      throw NewCompilerUnsupported(statement, 'unbound break target');
+    }
+    return EsmBreakStatementIr(label);
+  }
+
   EsmIfStatementIr _lowerIfStatement(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
     k.IfStatement statement,
   ) {
     final otherwise = statement.otherwise;
     return EsmIfStatementIr(
       condition: _lowerExpression(world, helpers, locals, statement.condition),
-      thenBody: _lowerStatementList(world, helpers, locals, statement.then),
+      thenBody: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.then,
+      ),
       otherwiseBody: otherwise == null
           ? null
-          : _lowerStatementList(world, helpers, locals, otherwise),
+          : _lowerStatementList(world, helpers, locals, labels, otherwise),
     );
   }
 
@@ -136,11 +179,12 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
     k.WhileStatement statement,
   ) {
     return EsmWhileStatementIr(
       condition: _lowerExpression(world, helpers, locals, statement.condition),
-      body: _lowerStatementList(world, helpers, locals, statement.body),
+      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
     );
   }
 
@@ -148,10 +192,11 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
     k.DoStatement statement,
   ) {
     return EsmDoStatementIr(
-      body: _lowerStatementList(world, helpers, locals, statement.body),
+      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
       condition: _lowerExpression(world, helpers, locals, statement.condition),
     );
   }
@@ -160,6 +205,7 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
     k.ForStatement statement,
   ) {
     return EsmForStatementIr(
@@ -174,7 +220,7 @@ final class KernelToEsmIrLoweringStage {
         for (final update in statement.updates)
           _lowerExpression(world, helpers, locals, update),
       ],
-      body: _lowerStatementList(world, helpers, locals, statement.body),
+      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
     );
   }
 

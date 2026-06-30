@@ -41,10 +41,12 @@ void main() {
   test('codegen only consumes prepared ESM IR', () {
     final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
 
-    expect(codegen, contains('CodegenStageResult emit(RuntimeLinkResult'));
+    expect(codegen, contains('CodegenStageResult emit(EsmModuleIr'));
     expect(codegen, contains('EsmModuleIr'));
     expect(codegen, isNot(contains("package:kernel/kernel.dart")));
     expect(codegen, isNot(contains('runtime/runtime_helpers.dart')));
+    expect(codegen, isNot(contains('runtime/runtime_linker.dart')));
+    expect(codegen, isNot(contains('RuntimeLinkResult')));
     expect(codegen, isNot(contains('esmRuntimeHelperSource')));
     expect(codegen, isNot(contains('buildEsmProgramModel')));
     expect(codegen, isNot(contains('emitEsm(')));

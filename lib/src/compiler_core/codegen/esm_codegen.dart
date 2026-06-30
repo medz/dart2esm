@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import '../ir/esm_ir.dart';
-import '../runtime/runtime_linker.dart';
 
 final class CodegenStageResult {
   const CodegenStageResult({required this.code, required this.diagnostics});
@@ -13,10 +12,10 @@ final class CodegenStageResult {
 final class EsmCodegenStage {
   const EsmCodegenStage();
 
-  CodegenStageResult emit(RuntimeLinkResult linked) {
+  CodegenStageResult emit(EsmModuleIr module) {
     final printer = _EsmIrPrinter();
     return CodegenStageResult(
-      code: printer.print(linked.module),
+      code: printer.print(module),
       diagnostics: const [],
     );
   }

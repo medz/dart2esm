@@ -80,7 +80,7 @@ final class Dart2EsmCompilerPipeline {
       final lowered = lowering.lower(semantic, runMain: options.runMain);
       final normalized = normalizer.normalize(lowered);
       final linked = runtimeLinker.link(normalized);
-      final codegenResult = codegen.emit(linked);
+      final codegenResult = codegen.emit(linked.module);
       return Dart2EsmPipelineResult(
         code: codegenResult.code,
         diagnostics: codegenResult.diagnostics,

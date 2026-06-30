@@ -111,6 +111,23 @@ final class KernelToEsmIrLoweringStage {
       for (final parameter in function.positionalParameters)
         _bindParameter(locals, usedParameters, parameter),
     ];
+    final redirectingInitializer = _redirectingInitializer(constructor);
+    if (redirectingInitializer != null) {
+      return EsmClassConstructorIr(
+        parameters: parameters,
+        body: [
+          EsmReturnStatementIr(
+            _lowerRedirectingAllocation(
+              world,
+              helpers,
+              locals,
+              redirectingInitializer,
+              const EsmNewTargetIr(),
+            ),
+          ),
+        ],
+      );
+    }
     final superInitializers = [
       for (final initializer in constructor.node.initializers)
         if (initializer is k.SuperInitializer) initializer,
@@ -204,6 +221,26 @@ final class KernelToEsmIrLoweringStage {
       for (final parameter in function.positionalParameters)
         _bindParameter(locals, usedNames, parameter),
     ];
+    final redirectingInitializer = _redirectingInitializer(constructor);
+    if (redirectingInitializer != null) {
+      return EsmClassMethodIr(
+        name: constructor.name,
+        kind: EsmClassMethodKindIr.method,
+        isStatic: true,
+        parameters: parameters,
+        body: [
+          EsmReturnStatementIr(
+            _lowerRedirectingAllocation(
+              world,
+              helpers,
+              locals,
+              redirectingInitializer,
+              const EsmThisIr(),
+            ),
+          ),
+        ],
+      );
+    }
     final self = EsmIdentifierIr(selfName);
     final superInitializers = [
       for (final initializer in constructor.node.initializers)
@@ -263,6 +300,59 @@ final class KernelToEsmIrLoweringStage {
     );
   }
 
+  k.RedirectingInitializer? _redirectingInitializer(
+    EsmConstructorSymbol constructor,
+  ) {
+    k.RedirectingInitializer? redirectingInitializer;
+    for (final initializer in constructor.node.initializers) {
+      if (initializer is! k.RedirectingInitializer) {
+        continue;
+      }
+      if (redirectingInitializer != null) {
+        throw NewCompilerUnsupported(initializer, 'multiple redirecting calls');
+      }
+      redirectingInitializer = initializer;
+    }
+    if (redirectingInitializer != null &&
+        constructor.node.initializers.length != 1) {
+      throw NewCompilerUnsupported(
+        constructor.node,
+        'redirecting constructor initializers',
+      );
+    }
+    return redirectingInitializer;
+  }
+
+  EsmExpressionIr _lowerRedirectingAllocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.RedirectingInitializer initializer,
+    EsmExpressionIr newTarget,
+  ) {
+    if (initializer.arguments.named.isNotEmpty ||
+        initializer.arguments.types.isNotEmpty) {
+      throw NewCompilerUnsupported(
+        initializer,
+        'redirecting initializer arguments',
+      );
+    }
+    final target = initializer.targetReference.node;
+    if (target is! k.Constructor) {
+      throw NewCompilerUnsupported(initializer, 'redirecting initializer');
+    }
+    return _lowerConstructorAllocation(
+      world,
+      helpers,
+      locals,
+      target,
+      initializer.arguments.positional,
+      newTarget,
+      initializer,
+      'redirecting initializer',
+    );
+  }
+
   bool _isFactorySuperInitializer(
     EsmSemanticWorld world,
     k.SuperInitializer initializer,
@@ -310,8 +400,35 @@ final class KernelToEsmIrLoweringStage {
       }
       throw NewCompilerUnsupported(initializer, 'super initializer target');
     }
+    return _lowerConstructorAllocation(
+      world,
+      helpers,
+      locals,
+      target,
+      initializer.arguments.positional,
+      newTarget,
+      initializer,
+      'super initializer target',
+    );
+  }
+
+  EsmExpressionIr _lowerConstructorAllocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.Constructor target,
+    List<k.Expression> positionalArguments,
+    EsmExpressionIr newTarget,
+    k.TreeNode contextNode,
+    String context,
+  ) {
+    final constructor = world.constructorSymbolFor(target);
+    final klass = world.classSymbolFor(target.enclosingClass);
+    if (constructor == null || klass == null) {
+      throw NewCompilerUnsupported(contextNode, context);
+    }
     final arguments = [
-      for (final argument in initializer.arguments.positional)
+      for (final argument in positionalArguments)
         _lowerExpression(world, helpers, locals, argument),
     ];
     if (constructor.name.isEmpty) {

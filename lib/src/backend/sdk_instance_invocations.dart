@@ -4,9 +4,13 @@ import '../kernel/sdk_symbols.dart';
 import 'runtime_helpers.dart';
 
 final class DartSdkInstanceInvocationEmitter {
-  DartSdkInstanceInvocationEmitter({required this.helpers});
+  DartSdkInstanceInvocationEmitter({
+    required this.helpers,
+    this.namedArgument = _noNamedArgument,
+  });
 
   final EsmRuntimeHelperUseSet helpers;
+  final String? Function(k.Arguments arguments, String name) namedArgument;
 
   String? emitInvocation(
     k.Reference target,
@@ -16,7 +20,14 @@ final class DartSdkInstanceInvocationEmitter {
     k.Arguments arguments,
   ) {
     final namedArgumentsEmpty = arguments.named.isEmpty;
-    return _emitDurationOperatorInvocation(
+    return _emitCoreInstanceInvocation(
+          target,
+          name,
+          receiver,
+          positionalArgs,
+          arguments,
+        ) ??
+        _emitDurationOperatorInvocation(
           target,
           name,
           receiver,
@@ -47,6 +58,108 @@ final class DartSdkInstanceInvocationEmitter {
   }
 
   String? emitGet(k.Reference target, String name, String receiver) {
+    final weakReferenceGet = _emitWeakReferenceGet(target, name, receiver);
+    if (weakReferenceGet != null) {
+      return weakReferenceGet;
+    }
+    final objectGet = _emitObjectGet(target, name, receiver);
+    if (objectGet != null) {
+      return objectGet;
+    }
+    final intGet = _emitIntGet(target, name, receiver);
+    if (intGet != null) {
+      return intGet;
+    }
+    final numberGet = _emitNumberGet(target, name, receiver);
+    if (numberGet != null) {
+      return numberGet;
+    }
+    return _emitBigIntGet(target, name, receiver);
+  }
+
+  String? _emitCoreInstanceInvocation(
+    k.Reference target,
+    String name,
+    String receiver,
+    List<String> positionalArgs,
+    k.Arguments arguments,
+  ) {
+    if (arguments.named.isEmpty &&
+        name == '[]' &&
+        positionalArgs.length == 1 &&
+        isDartCoreMember(target, 'Expando', '[]')) {
+      return '$receiver.get(${positionalArgs.single})';
+    }
+    if (arguments.named.isEmpty &&
+        name == '[]=' &&
+        positionalArgs.length == 2 &&
+        isDartCoreMember(target, 'Expando', '[]=')) {
+      return '$receiver.set(${positionalArgs[0]}, ${positionalArgs[1]})';
+    }
+    if (name == 'attach' &&
+        isDartCoreFinalizerMember(target, name) &&
+        positionalArgs.length == 2 &&
+        _hasOnlyNamedArguments(arguments, {'detach'})) {
+      final detach = namedArgument(arguments, 'detach') ?? 'null';
+      return '$receiver.attach(${positionalArgs[0]}, ${positionalArgs[1]}, { detach: $detach })';
+    }
+    if (name == 'detach' &&
+        isDartCoreFinalizerMember(target, name) &&
+        arguments.named.isEmpty &&
+        positionalArgs.length == 1) {
+      return '$receiver.detach(${positionalArgs.single})';
+    }
+    if (arguments.named.isEmpty &&
+        positionalArgs.isEmpty &&
+        name == 'toString' &&
+        isDartCoreMember(target, 'Object', name)) {
+      helpers.add('__dartObjectToString');
+      return '__dartObjectToString($receiver)';
+    }
+    return null;
+  }
+
+  String? _emitWeakReferenceGet(
+    k.Reference target,
+    String name,
+    String receiver,
+  ) {
+    if (name == 'target' && isDartCoreWeakReferenceMember(target, name)) {
+      return '$receiver.target';
+    }
+    return null;
+  }
+
+  String? _emitObjectGet(k.Reference target, String name, String receiver) {
+    if (!isDartCoreMember(target, 'Object', name)) {
+      return null;
+    }
+    return switch (name) {
+      'hashCode' => () {
+        helpers.add('__dartObjectHash');
+        return '__dartHashValue($receiver)';
+      }(),
+      'runtimeType' => () {
+        helpers.add('__dartRuntimeType');
+        helpers.add('__dartType');
+        return '__dartRuntimeType($receiver)';
+      }(),
+      _ => null,
+    };
+  }
+
+  String? _emitIntGet(k.Reference target, String name, String receiver) {
+    if (!isDartCoreMember(target, 'int', name)) {
+      return null;
+    }
+    return switch (name) {
+      'isOdd' => '(Math.trunc($receiver) % 2 !== 0)',
+      'isEven' => '(Math.trunc($receiver) % 2 === 0)',
+      _ => null,
+    };
+  }
+
+  String? _emitNumberGet(k.Reference target, String name, String receiver) {
     if (!isDartCoreNumberMember(target, name)) {
       return null;
     }
@@ -60,6 +173,27 @@ final class DartSdkInstanceInvocationEmitter {
       'isNegative' => '($value < 0 || Object.is($value, -0))',
       _ => null,
     };
+  }
+
+  String? _emitBigIntGet(k.Reference target, String name, String receiver) {
+    if (!isDartCoreMember(target, 'BigInt', name)) {
+      return null;
+    }
+    return switch (name) {
+      'isEven' => '($receiver % 2n === 0n)',
+      'isOdd' => '($receiver % 2n !== 0n)',
+      'isNegative' => '($receiver < 0n)',
+      'sign' => '($receiver < 0n ? -1 : ($receiver > 0n ? 1 : 0))',
+      'bitLength' => () {
+        helpers.add('__dartBigIntBitLength');
+        return '__dartBigIntBitLength($receiver)';
+      }(),
+      _ => null,
+    };
+  }
+
+  bool _hasOnlyNamedArguments(k.Arguments arguments, Set<String> names) {
+    return arguments.named.every((argument) => names.contains(argument.name));
   }
 
   String? _emitComparableInstanceInvocation(
@@ -248,3 +382,5 @@ final class DartSdkInstanceInvocationEmitter {
     };
   }
 }
+
+String? _noNamedArgument(k.Arguments arguments, String name) => null;

@@ -3827,6 +3827,7 @@ final class _EsmEmitter {
         isDartCoreListMember(target, name) || receiverCollectionKind == 'List';
     final sdkInstanceInvocation = DartSdkInstanceInvocationEmitter(
       helpers: _usedHelpers,
+      namedArgument: _namedArgument,
     ).emitInvocation(target, name, left, positionalArgs, expression.arguments);
     if (sdkInstanceInvocation != null) {
       return sdkInstanceInvocation;
@@ -3946,9 +3947,6 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == '[]' &&
         positionalArgs.length == 1) {
-      if (isDartCoreMember(target, 'Expando', '[]')) {
-        return '$left.get(${positionalArgs.single})';
-      }
       if (isMapInvocation) {
         _usedHelpers.add('__dartMapGet');
         _usedHelpers.add('__dartMapKey');
@@ -3967,9 +3965,6 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         name == '[]=' &&
         positionalArgs.length == 2) {
-      if (isDartCoreMember(target, 'Expando', '[]=')) {
-        return '$left.set(${positionalArgs[0]}, ${positionalArgs[1]})';
-      }
       if (isMapInvocation) {
         _usedHelpers.add('__dartMapSet');
         _usedHelpers.add('__dartMapKey');
@@ -3984,19 +3979,6 @@ final class _EsmEmitter {
         return '${_emitPropertyGet(left, name)}(${positionalArgs.join(', ')})';
       }
       return '$left[${positionalArgs[0]}] = ${positionalArgs[1]}';
-    }
-    if (name == 'attach' &&
-        isDartCoreFinalizerMember(target, name) &&
-        positionalArgs.length == 2 &&
-        _hasOnlyNamedArguments(expression.arguments, {'detach'})) {
-      final detach = _namedArgument(expression.arguments, 'detach') ?? 'null';
-      return '$left.attach(${positionalArgs[0]}, ${positionalArgs[1]}, { detach: $detach })';
-    }
-    if (name == 'detach' &&
-        isDartCoreFinalizerMember(target, name) &&
-        expression.arguments.named.isEmpty &&
-        positionalArgs.length == 1) {
-      return '$left.detach(${positionalArgs.single})';
     }
     final textInvocation = DartSdkTextInstanceEmitter(
       helpers: _usedHelpers,
@@ -4051,10 +4033,6 @@ final class _EsmEmitter {
     if (expression.arguments.named.isEmpty &&
         positionalArgs.isEmpty &&
         name == 'toString') {
-      if (isDartCoreMember(target, 'Object', name)) {
-        _usedHelpers.add('__dartObjectToString');
-        return '__dartObjectToString($left)';
-      }
       _usedHelpers.add('__dartStr');
       return '__dartStr($left)';
     }
@@ -4103,23 +4081,9 @@ final class _EsmEmitter {
     if (typedDataGet != null) {
       return typedDataGet;
     }
-    if (name == 'target' &&
-        isDartCoreWeakReferenceMember(
-          expression.interfaceTargetReference,
-          name,
-        )) {
-      return '$receiver.target';
-    }
-    if (name == 'isOdd' &&
-        isDartCoreMember(expression.interfaceTargetReference, 'int', name)) {
-      return '(Math.trunc($receiver) % 2 !== 0)';
-    }
-    if (name == 'isEven' &&
-        isDartCoreMember(expression.interfaceTargetReference, 'int', name)) {
-      return '(Math.trunc($receiver) % 2 === 0)';
-    }
     final sdkInstanceGet = DartSdkInstanceInvocationEmitter(
       helpers: _usedHelpers,
+      namedArgument: _namedArgument,
     ).emitGet(expression.interfaceTargetReference, name, receiver);
     if (sdkInstanceGet != null) {
       return sdkInstanceGet;
@@ -4131,39 +4095,6 @@ final class _EsmEmitter {
     );
     if (ffiGet != null) {
       return ffiGet;
-    }
-    if (isDartCoreMember(expression.interfaceTargetReference, 'Object', name)) {
-      final objectGet = switch (name) {
-        'hashCode' => () {
-          _usedHelpers.add('__dartObjectHash');
-          return '__dartHashValue($receiver)';
-        }(),
-        'runtimeType' => () {
-          _usedHelpers.add('__dartRuntimeType');
-          _usedHelpers.add('__dartType');
-          return '__dartRuntimeType($receiver)';
-        }(),
-        _ => null,
-      };
-      if (objectGet != null) {
-        return objectGet;
-      }
-    }
-    if (isDartCoreMember(expression.interfaceTargetReference, 'BigInt', name)) {
-      final bigIntGet = switch (name) {
-        'isEven' => '($receiver % 2n === 0n)',
-        'isOdd' => '($receiver % 2n !== 0n)',
-        'isNegative' => '($receiver < 0n)',
-        'sign' => '($receiver < 0n ? -1 : ($receiver > 0n ? 1 : 0))',
-        'bitLength' => () {
-          _usedHelpers.add('__dartBigIntBitLength');
-          return '__dartBigIntBitLength($receiver)';
-        }(),
-        _ => null,
-      };
-      if (bigIntGet != null) {
-        return bigIntGet;
-      }
     }
     final receiverCollectionKind = _expressionCollectionKind(
       expression.receiver,

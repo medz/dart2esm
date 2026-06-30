@@ -13,6 +13,87 @@ enum LegacyJsFactorySymbol {
 
 enum JsInteropStaticGetSymbol { globalThis, objectPrototype }
 
+bool kernelPathHasMember(String path, String name) {
+  return path.contains('::@methods::$name') ||
+      path.contains('::@getters::$name') ||
+      path.contains('::@setters::$name') ||
+      path.endsWith('::$name');
+}
+
+bool isDartSdkLibraryClassMember(
+  k.Reference reference,
+  String libraryUri,
+  String className,
+  String name,
+) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('$libraryUri::$className::') &&
+      kernelPathHasMember(path, name);
+}
+
+bool isDartCoreMember(k.Reference reference, String className, String name) {
+  final path = kernelReferencePath(reference);
+  return path == 'dart:core::$className::@methods::$name' ||
+      path == 'dart:core::$className::@getters::$name' ||
+      path == 'dart:core::$className::@setters::$name' ||
+      path == 'dart:core::$className::$name' ||
+      path.endsWith('dart:core::$className::$name');
+}
+
+bool isDartCoreNumberMember(k.Reference reference, String name) {
+  return isDartCoreMember(reference, 'num', name) ||
+      isDartCoreMember(reference, 'int', name) ||
+      isDartCoreMember(reference, 'double', name);
+}
+
+bool isDartCoreUriMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  if (!kernelPathHasMember(path, name)) {
+    return false;
+  }
+  return path.contains('::Uri::') || path.contains('::_Uri::');
+}
+
+bool isDartAsyncStreamMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return path == 'dart:async::Stream::@methods::$name' ||
+      path == 'dart:async::Stream::@getters::$name' ||
+      path == 'dart:async::Stream::$name';
+}
+
+bool isDartAsyncStreamTransformerMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return path == 'dart:async::StreamTransformer::@methods::$name' ||
+      path == 'dart:async::StreamTransformer::@getters::$name' ||
+      path == 'dart:async::StreamTransformer::$name';
+}
+
+bool isDartAsyncStreamConsumerMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  if (!kernelPathHasMember(path, name)) {
+    return false;
+  }
+  return path.startsWith('dart:async::StreamConsumer::') ||
+      path.startsWith('dart:async::StreamSink::') ||
+      path.startsWith('dart:async::StreamController::') ||
+      path.contains('::StreamConsumer') ||
+      path.contains('::StreamSink') ||
+      path.contains('::StreamController');
+}
+
+bool isDartAsyncFutureMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return path == 'dart:async::Future::@methods::$name' ||
+      path == 'dart:async::Future::@getters::$name' ||
+      path == 'dart:async::Future::$name';
+}
+
+bool isDartAsyncZoneMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return kernelPathHasMember(path, name) &&
+      path.startsWith('dart:async::Zone::');
+}
+
 LegacyJsFactorySymbol? legacyJsFactorySymbol(k.Reference reference) {
   return switch (kernelReferencePath(reference)) {
     'dart:js::JsObject::@factories::' => LegacyJsFactorySymbol.jsObject,

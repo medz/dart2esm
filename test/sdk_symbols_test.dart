@@ -48,6 +48,126 @@ void main() {
     );
     expect(jsSymbolStaticGetterName(_reference('dart:core::Object')), isNull);
   });
+
+  test('matches kernel member path segments', () {
+    expect(
+      kernelPathHasMember('dart:core::String::@methods::contains', 'contains'),
+      isTrue,
+    );
+    expect(
+      kernelPathHasMember('dart:core::Object::@getters::hashCode', 'hashCode'),
+      isTrue,
+    );
+    expect(
+      kernelPathHasMember(
+        'dart:core::Object::@setters::debugName',
+        'debugName',
+      ),
+      isTrue,
+    );
+    expect(
+      kernelPathHasMember('dart:core::Object::@getters::hashCode', 'debugName'),
+      isFalse,
+    );
+  });
+
+  test('classifies sdk library class members', () {
+    expect(
+      isDartSdkLibraryClassMember(
+        _reference('dart:html::Element::@getters::children'),
+        'dart:html',
+        'Element',
+        'children',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartSdkLibraryClassMember(
+        _reference('dart:html::Node::@getters::children'),
+        'dart:html',
+        'Element',
+        'children',
+      ),
+      isFalse,
+    );
+  });
+
+  test('classifies dart:core members', () {
+    expect(
+      isDartCoreMember(
+        _reference('dart:core::String::@methods::contains'),
+        'String',
+        'contains',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreNumberMember(
+        _reference('dart:core::double::@methods::round'),
+        'round',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreUriMember(
+        _reference('dart:core::_Uri::@getters::path'),
+        'path',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreUriMember(
+        _reference('dart:async::Future::@getters::path'),
+        'path',
+      ),
+      isFalse,
+    );
+  });
+
+  test('classifies dart:async members', () {
+    expect(
+      isDartAsyncStreamMember(
+        _reference('dart:async::Stream::@methods::listen'),
+        'listen',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartAsyncStreamTransformerMember(
+        _reference('dart:async::StreamTransformer::@methods::bind'),
+        'bind',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartAsyncStreamConsumerMember(
+        _reference('dart:async::StreamController::@getters::sink'),
+        'sink',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartAsyncFutureMember(
+        _reference('dart:async::Future::@methods::then'),
+        'then',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartAsyncZoneMember(
+        _reference('dart:async::Zone::@methods::run'),
+        'run',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartAsyncZoneMember(
+        _reference('dart:async::Future::@methods::run'),
+        'run',
+      ),
+      isFalse,
+    );
+  });
 }
 
 k.Reference _reference(String path) {

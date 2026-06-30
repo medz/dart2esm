@@ -52,6 +52,14 @@ void main() {
     expect(codegen, isNot(contains('backend/esm_backend.dart')));
   });
 
+  test('ESM IR is independent from runtime helper registry', () {
+    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+
+    expect(ir, isNot(contains('runtime_helpers.dart')));
+    expect(ir, isNot(contains('EsmRuntimeHelper')));
+    expect(ir, isNot(contains('runtimeHelpers')));
+  });
+
   test('runtime helpers are owned by compiler core, not legacy backend', () {
     final runtime = _read('lib/src/compiler_core/runtime/runtime_helpers.dart');
     final linker = _read('lib/src/compiler_core/runtime/runtime_linker.dart');
@@ -60,7 +68,7 @@ void main() {
     expect(runtime, contains('enum EsmRuntimeHelper'));
     expect(runtime, contains('__dartPrint'));
     expect(linker, contains('final class RuntimeLinkerStage'));
-    expect(linker, contains('esmRuntimeHelperSource'));
+    expect(linker, contains('esmRuntimeHelperDeclaration'));
     for (final file in coreFiles) {
       expect(
         file.readAsStringSync(),

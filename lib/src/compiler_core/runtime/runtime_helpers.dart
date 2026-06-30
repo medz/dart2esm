@@ -1,3 +1,5 @@
+import '../ir/esm_ir.dart';
+
 enum EsmRuntimeHelper { print }
 
 final class EsmRuntimeHelperUseSet {
@@ -22,13 +24,23 @@ String esmRuntimeHelperName(EsmRuntimeHelper helper) {
   };
 }
 
-String esmRuntimeHelperSource(EsmRuntimeHelper helper) {
+EsmFunctionIr esmRuntimeHelperDeclaration(EsmRuntimeHelper helper) {
   return switch (helper) {
-    EsmRuntimeHelper.print =>
-      '''
-function __dartPrint(value) {
-  console.log(value);
-}
-''',
+    EsmRuntimeHelper.print => EsmFunctionIr(
+      name: esmRuntimeHelperName(helper),
+      export: false,
+      parameters: const [EsmIdentifierParameterIr(name: 'value')],
+      body: const [
+        EsmExpressionStatementIr(
+          EsmCallIr(
+            callee: EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr('console'),
+              property: 'log',
+            ),
+            arguments: [EsmIdentifierIr('value')],
+          ),
+        ),
+      ],
+    ),
   };
 }

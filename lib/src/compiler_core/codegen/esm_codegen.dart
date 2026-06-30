@@ -40,15 +40,11 @@ final class _EsmIrPrinter {
   }
 
   bool _needsBlankLineAfter(EsmModuleItemIr item) {
-    return item is EsmRuntimeHelperDeclarationIr ||
-        item is EsmClassIr ||
-        item is EsmFunctionIr;
+    return item is EsmClassIr || item is EsmFunctionIr;
   }
 
   void _emitModuleItem(EsmModuleItemIr item) {
     switch (item) {
-      case EsmRuntimeHelperDeclarationIr():
-        _emitRuntimeHelperDeclaration(item);
       case EsmClassIr():
         _emitClass(item);
       case EsmFunctionIr():
@@ -56,11 +52,6 @@ final class _EsmIrPrinter {
       case EsmStatementIr():
         _emitStatement(item);
     }
-  }
-
-  void _emitRuntimeHelperDeclaration(EsmRuntimeHelperDeclarationIr item) {
-    _buffer.write(item.source.trimRight());
-    _buffer.writeln();
   }
 
   void _emitClass(EsmClassIr klass) {

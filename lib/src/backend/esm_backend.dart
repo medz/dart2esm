@@ -11139,6 +11139,13 @@ final class _EsmEmitter {
       }
     }
 
+    void emitRegisteredRuntimeHelper(String name) {
+      final source = esmRuntimeHelperSource(name);
+      if (_usedHelpers.contains(name) && source != null) {
+        helper.writeln(source);
+      }
+    }
+
     final usesJson =
         _usedHelpers.contains('__dartJsonCodec') ||
         _usedHelpers.contains('__dartJsonEncoder') ||
@@ -11199,110 +11206,12 @@ final class _EsmEmitter {
       );
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartStr')) {
-      helper.writeln('function __dartStr(value) {');
-      helper.writeln('  if (value == null) return "null";');
-      helper.writeln('  if (Array.isArray(value)) {');
-      helper.writeln('    return "[" + value.map(__dartStr).join(", ") + "]";');
-      helper.writeln('  }');
-      helper.writeln('  if (value instanceof Set) {');
-      helper.writeln(
-        '    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";',
-      );
-      helper.writeln('  }');
-      helper.writeln('  if (value instanceof Map) {');
-      helper.writeln(
-        '    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";',
-      );
-      helper.writeln('  }');
-      helper.writeln('  if (typeof value === "object") {');
-      helper.writeln('    const toString = value.toString;');
-      helper.writeln(
-        '    if (typeof toString === "function" && toString !== Object.prototype.toString) {',
-      );
-      helper.writeln('      return String(toString.call(value));');
-      helper.writeln('    }');
-      helper.writeln('  }');
-      helper.writeln('  return String(value);');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartDouble')) {
-      helper.writeln('function __dartDouble(value) {');
-      helper.writeln('  const number = Number(value);');
-      helper.writeln('  const boxed = new Number(number);');
-      helper.writeln(
-        '  Object.defineProperty(boxed, "__dartType", { value: "double" });',
-      );
-      helper.writeln('  Object.defineProperty(boxed, "toString", { value() {');
-      helper.writeln('    if (Number.isNaN(number)) return "NaN";');
-      helper.writeln('    if (number === Infinity) return "Infinity";');
-      helper.writeln('    if (number === -Infinity) return "-Infinity";');
-      helper.writeln('    if (Object.is(number, -0)) return "-0.0";');
-      helper.writeln(
-        '    return Number.isInteger(number) ? String(number) + ".0" : String(number);',
-      );
-      helper.writeln('  } });');
-      helper.writeln('  return boxed;');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartObjectToString')) {
-      helper.writeln('function __dartObjectToString(value) {');
-      helper.writeln('  if (value == null) return "null";');
-      helper.writeln('  if (typeof value === "object") {');
-      helper.writeln('    const toString = value.toString;');
-      helper.writeln(
-        '    if (typeof toString === "function" && toString !== Object.prototype.toString) {',
-      );
-      helper.writeln('      return String(toString.call(value));');
-      helper.writeln('    }');
-      helper.writeln(
-        '    const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";',
-      );
-      helper.writeln('    return "Instance of \'" + typeName + "\'";');
-      helper.writeln('  }');
-      helper.writeln('  return String(value);');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartSafeToString')) {
-      helper.writeln('function __dartSafeToString(value) {');
-      helper.writeln('  try {');
-      helper.writeln('    if (value == null) return "null";');
-      helper.writeln('    if (typeof value === "object") {');
-      helper.writeln('      const toString = value.toString;');
-      helper.writeln(
-        '      if (typeof toString === "function" && toString !== Object.prototype.toString) return String(toString.call(value));',
-      );
-      helper.writeln(
-        '      const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";',
-      );
-      helper.writeln('      return "Instance of \'" + typeName + "\'";');
-      helper.writeln('    }');
-      helper.writeln('    return String(value);');
-      helper.writeln('  } catch (_) {');
-      helper.writeln(
-        '    const typeName = value != null && value.constructor && value.constructor.name ? value.constructor.name : "Object";',
-      );
-      helper.writeln('    return "Instance of \'" + typeName + "\'";');
-      helper.writeln('  }');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartThrowWithStackTrace')) {
-      helper.writeln('function __dartThrowWithStackTrace(error, stackTrace) {');
-      helper.writeln(
-        '  if (error != null && (typeof error === "object" || typeof error === "function")) {',
-      );
-      helper.writeln(
-        '    try { error.stack = String(stackTrace); } catch (_) {}',
-      );
-      helper.writeln('  }');
-      helper.writeln('  throw error;');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartPrint')) {
-      helper.writeln('function __dartPrint(value) {');
-      helper.writeln('  console.log(__dartStr(value));');
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartStr');
+    emitRegisteredRuntimeHelper('__dartDouble');
+    emitRegisteredRuntimeHelper('__dartObjectToString');
+    emitRegisteredRuntimeHelper('__dartSafeToString');
+    emitRegisteredRuntimeHelper('__dartThrowWithStackTrace');
+    emitRegisteredRuntimeHelper('__dartPrint');
     if (_usedHelpers.contains('__dartStringBuffer')) {
       helper.writeln('function __dartStringBuffer(initial = "") {');
       helper.writeln('  let value = initial == null ? "" : String(initial);');

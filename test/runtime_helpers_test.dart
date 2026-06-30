@@ -39,6 +39,12 @@ void main() {
     );
   });
 
+  test('exposes registered helper source definitions', () {
+    expect(esmRuntimeHelperSource('__dartPrint'), contains('__dartStr(value)'));
+    expect(esmRuntimeHelperSource('__dartStr'), contains('function __dartStr'));
+    expect(esmRuntimeHelperSource('__dartStreamMap'), isNull);
+  });
+
   test('tracks helpers emitted by the legacy stream runtime block', () {
     expect(isEsmLegacyStreamRuntimeHelper('__dartStreamMap'), isTrue);
     expect(isEsmLegacyStreamRuntimeHelper('__dartStreamController'), isFalse);

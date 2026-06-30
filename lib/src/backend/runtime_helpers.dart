@@ -14,13 +14,90 @@ final class EsmRuntimeHelperSpec {
     required this.category,
     this.dependencies = const [],
     this.description = '',
+    this.source,
   });
 
   final String name;
   final EsmRuntimeHelperCategory category;
   final List<String> dependencies;
   final String description;
+  final String? source;
 }
+
+const _dartStrSource = r'''function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
+}''';
+
+const _dartDoubleSource = r'''function __dartDouble(value) {
+  const number = Number(value);
+  const boxed = new Number(number);
+  Object.defineProperty(boxed, "__dartType", { value: "double" });
+  Object.defineProperty(boxed, "toString", { value() {
+    if (Number.isNaN(number)) return "NaN";
+    if (number === Infinity) return "Infinity";
+    if (number === -Infinity) return "-Infinity";
+    if (Object.is(number, -0)) return "-0.0";
+    return Number.isInteger(number) ? String(number) + ".0" : String(number);
+  } });
+  return boxed;
+}''';
+
+const _dartObjectToStringSource = r'''function __dartObjectToString(value) {
+  if (value == null) return "null";
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+    const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+  return String(value);
+}''';
+
+const _dartSafeToStringSource = r'''function __dartSafeToString(value) {
+  try {
+    if (value == null) return "null";
+    if (typeof value === "object") {
+      const toString = value.toString;
+      if (typeof toString === "function" && toString !== Object.prototype.toString) return String(toString.call(value));
+      const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+      return "Instance of '" + typeName + "'";
+    }
+    return String(value);
+  } catch (_) {
+    const typeName = value != null && value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+}''';
+
+const _dartThrowWithStackTraceSource =
+    r'''function __dartThrowWithStackTrace(error, stackTrace) {
+  if (error != null && (typeof error === "object" || typeof error === "function")) {
+    try { error.stack = String(stackTrace); } catch (_) {}
+  }
+  throw error;
+}''';
+
+const _dartPrintSource = r'''function __dartPrint(value) {
+  console.log(__dartStr(value));
+}''';
 
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
@@ -28,6 +105,32 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     category: EsmRuntimeHelperCategory.core,
     dependencies: ['__dartStr'],
     description: 'Dart print() sink backed by console.log.',
+    source: _dartPrintSource,
+  ),
+  '__dartStr': EsmRuntimeHelperSpec(
+    name: '__dartStr',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartStrSource,
+  ),
+  '__dartDouble': EsmRuntimeHelperSpec(
+    name: '__dartDouble',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartDoubleSource,
+  ),
+  '__dartObjectToString': EsmRuntimeHelperSpec(
+    name: '__dartObjectToString',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartObjectToStringSource,
+  ),
+  '__dartSafeToString': EsmRuntimeHelperSpec(
+    name: '__dartSafeToString',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartSafeToStringSource,
+  ),
+  '__dartThrowWithStackTrace': EsmRuntimeHelperSpec(
+    name: '__dartThrowWithStackTrace',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartThrowWithStackTraceSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',
@@ -692,3 +795,5 @@ Set<String> resolveEsmRuntimeHelperDependencies(Iterable<String> helpers) {
 
 bool isEsmLegacyStreamRuntimeHelper(String name) =>
     _legacyStreamRuntimeHelpers.contains(name);
+
+String? esmRuntimeHelperSource(String name) => _helperSpecs[name]?.source;

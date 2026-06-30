@@ -777,6 +777,9 @@ final class KernelToEsmIrLoweringStage {
           thisExpression: thisExpression,
         ),
       ],
+      k.FunctionDeclaration() => [
+        _lowerFunctionDeclaration(world, helpers, locals, statement),
+      ],
       k.EmptyStatement() => const [],
       k.ExpressionStatement() => [
         EsmExpressionStatementIr(
@@ -1136,6 +1139,29 @@ final class KernelToEsmIrLoweringStage {
     );
   }
 
+  EsmVariableDeclarationIr _lowerFunctionDeclaration(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.FunctionDeclaration statement,
+  ) {
+    final name = _freshIn(
+      locals.values.toSet(),
+      statement.variable.name ?? 'f',
+    );
+    locals[statement.variable] = name;
+    return EsmVariableDeclarationIr(
+      name: name,
+      initializer: _lowerFunctionNodeExpression(
+        world,
+        helpers,
+        locals,
+        statement.function,
+      ),
+      mutable: false,
+    );
+  }
+
   EsmExpressionIr _lowerExpression(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -1162,6 +1188,31 @@ final class KernelToEsmIrLoweringStage {
       k.ConstantExpression() => _lowerConstantExpression(world, expression),
       k.VariableGet() => _lowerVariableGet(locals, expression),
       k.VariableSet() => _lowerVariableSet(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
+      k.FunctionInvocation() => EsmCallIr(
+        callee: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        arguments: _lowerArguments(
+          world,
+          helpers,
+          locals,
+          expression.arguments,
+          thisExpression: thisExpression,
+          contextNode: expression,
+          context: 'function invocation arguments',
+        ),
+      ),
+      k.LocalFunctionInvocation() => _lowerLocalFunctionInvocation(
         world,
         helpers,
         locals,
@@ -1323,7 +1374,20 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> outerLocals,
     k.FunctionExpression expression,
   ) {
-    final function = expression.function;
+    return _lowerFunctionNodeExpression(
+      world,
+      helpers,
+      outerLocals,
+      expression.function,
+    );
+  }
+
+  EsmExpressionIr _lowerFunctionNodeExpression(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> outerLocals,
+    k.FunctionNode function,
+  ) {
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw NewCompilerUnsupported(
         function,
@@ -1345,6 +1409,31 @@ final class KernelToEsmIrLoweringStage {
         function,
       ),
       body: _lowerStatementList(world, helpers, locals, {}, body),
+    );
+  }
+
+  EsmExpressionIr _lowerLocalFunctionInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.LocalFunctionInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final name = locals[expression.variable];
+    if (name == null) {
+      throw NewCompilerUnsupported(expression, 'unbound local function');
+    }
+    return EsmCallIr(
+      callee: EsmIdentifierIr(name),
+      arguments: _lowerArguments(
+        world,
+        helpers,
+        locals,
+        expression.arguments,
+        thisExpression: thisExpression,
+        contextNode: expression,
+        context: 'local function invocation arguments',
+      ),
     );
   }
 

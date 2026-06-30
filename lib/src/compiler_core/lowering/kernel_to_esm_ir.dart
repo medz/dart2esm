@@ -10,6 +10,7 @@ import '../ir/esm_ir.dart';
 import '../new_compiler_unsupported.dart';
 import '../runtime/runtime_helpers.dart';
 import '../semantic/semantic_world.dart';
+import 'lowering_context.dart';
 
 final class LoweringResult {
   LoweringResult({
@@ -40,8 +41,12 @@ final class KernelToEsmIrLoweringStage
   }
 
   LoweringResult lower(SemanticWorldResult semantic, {required bool runMain}) {
-    final world = semantic.world;
-    final helpers = EsmRuntimeHelperUseSet();
+    final context = DartLoweringContext(
+      world: semantic.world,
+      runtimeHelpers: runtimeHelpers,
+    );
+    final world = context.world;
+    final helpers = context.helpers;
     final items = <EsmModuleItemIr>[
       for (final klass in world.classes)
         ..._lowerClassItems(world, helpers, klass),
@@ -59,7 +64,7 @@ final class KernelToEsmIrLoweringStage
     return LoweringResult(
       semantic: semantic,
       module: EsmModuleIr(items: items),
-      runtimeHelpers: helpers.toList(),
+      runtimeHelpers: context.runtimeHelperUses,
     );
   }
 

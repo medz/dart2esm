@@ -92,6 +92,9 @@ void main() {
     final lowering = _read(
       'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
     );
+    final loweringContext = _read(
+      'lib/src/compiler_core/lowering/lowering_context.dart',
+    );
     final coreFiles = _dartFiles('lib/src/compiler_core');
 
     expect(runtime, contains('enum EsmRuntimeHelper'));
@@ -99,7 +102,12 @@ void main() {
     expect(runtime, contains('__dartPrint'));
     expect(linker, contains('final class RuntimeLinkerStage'));
     expect(linker, contains('runtimeHelpers.declaration'));
+    expect(loweringContext, contains('final class DartLoweringContext'));
+    expect(loweringContext, contains('EsmRuntimeHelperUseSet'));
+    expect(loweringContext, contains('runtimeHelperUses'));
     expect(lowering, contains('runtimeHelpers.reference'));
+    expect(lowering, contains('DartLoweringContext('));
+    expect(lowering, isNot(contains('EsmRuntimeHelperUseSet()')));
     expect(lowering, isNot(contains('esmRuntimeHelperName')));
     for (final file in coreFiles) {
       expect(

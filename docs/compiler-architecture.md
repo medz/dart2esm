@@ -121,8 +121,9 @@ Target boundary:
 
 ## Semantic Lowering IR
 
-Lowering converts Kernel into a dart2esm semantic IR. This is the missing center
-of the current compiler.
+Lowering converts Kernel into a dart2esm semantic IR. This is still the most
+important missing center of the current compiler, but the first real path now
+exists for entrypoint invocation.
 
 Responsibilities:
 
@@ -141,6 +142,14 @@ Target boundary:
 - Output-shape decisions such as optional chaining, nullish coalescing,
   `class extends`, and `instanceof` belong after semantic lowering, not inside
   every Kernel visitor branch.
+
+Current implementation:
+
+- `lib/src/lowering/semantic_ir.dart` defines the first semantic IR nodes.
+- `lib/src/lowering/entrypoint_lowering.dart` lowers the Kernel `main`
+  procedure into `EsmEntrypointInvocation`.
+- `lib/src/lowering/js_lowering.dart` converts that semantic IR into JS AST
+  nodes for codegen.
 
 ## Runtime / Helper Registry
 

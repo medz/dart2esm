@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:kernel/kernel.dart' as k;
 
 import '../js_ast/js_ast.dart';
+import '../lowering/lowering.dart';
 import '../program/program_roots.dart';
 import '../world/reachability.dart';
 import 'runtime_helpers.dart';
@@ -2182,12 +2183,11 @@ final class _EsmEmitter {
   }
 
   void _emitMainCall(k.Procedure main) {
-    final name = _procedureName(main);
-    final call = JsCallExpression(callee: JsIdentifier(name));
-    final expression = main.function.asyncMarker == k.AsyncMarker.Async
-        ? JsAwaitExpression(call)
-        : call;
-    emitJsStatement(JsExpressionStatement(expression));
+    emitJsStatement(
+      lowerSemanticStatementToJs(
+        lowerKernelEntrypointInvocation(main, procedureName: _procedureName),
+      ),
+    );
   }
 
   void emitStatement(k.Statement statement) {

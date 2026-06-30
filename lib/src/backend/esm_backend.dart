@@ -17666,73 +17666,8 @@ final class _EsmEmitter {
       helper.writeln('  return Object.freeze(map);');
       helper.writeln('}');
     }
-    if (_usedHelpers.contains('__dartLazyField')) {
-      helper.writeln(
-        'function __dartLazyField(name, initialize, writable, publish) {',
-      );
-      helper.writeln('  let state = 0;');
-      helper.writeln('  let value;');
-      helper.writeln('  function get() {');
-      helper.writeln('    if (state === 2) return value;');
-      helper.writeln('    if (state === 1) {');
-      helper.writeln(
-        '      throw new Error("Cyclic initialization of field " + name);',
-      );
-      helper.writeln('    }');
-      helper.writeln('    if (initialize == null) {');
-      helper.writeln(
-        '      throw new Error("Late field " + name + " has not been initialized");',
-      );
-      helper.writeln('    }');
-      helper.writeln('    state = 1;');
-      helper.writeln('    try {');
-      helper.writeln('      value = initialize();');
-      helper.writeln('      if (publish) publish(value);');
-      helper.writeln('      state = 2;');
-      helper.writeln('      return value;');
-      helper.writeln('    } catch (error) {');
-      helper.writeln('      state = 0;');
-      helper.writeln('      throw error;');
-      helper.writeln('    }');
-      helper.writeln('  }');
-      helper.writeln('  function set(next) {');
-      helper.writeln(
-        '    if (writable === false || (writable === "once" && state === 2)) {',
-      );
-      helper.writeln(
-        '      throw new TypeError("Cannot assign to final field " + name);',
-      );
-      helper.writeln('    }');
-      helper.writeln('    value = next;');
-      helper.writeln('    if (publish) publish(value);');
-      helper.writeln('    state = 2;');
-      helper.writeln('    return next;');
-      helper.writeln('  }');
-      helper.writeln('  return { get, set };');
-      helper.writeln('}');
-    }
-    if (_usedHelpers.contains('__dartIterator')) {
-      helper.writeln('function __dartIterator(iterable) {');
-      helper.writeln(
-        '  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);',
-      );
-      helper.writeln('  let index = -1;');
-      helper.writeln('  return {');
-      helper.writeln('    current: undefined,');
-      helper.writeln('    moveNext() {');
-      helper.writeln('      index++;');
-      helper.writeln('      if (index < values.length) {');
-      helper.writeln(
-        '        this.current = typeof values.get === "function" ? values.get(index) : values[index];',
-      );
-      helper.writeln('        return true;');
-      helper.writeln('      }');
-      helper.writeln('      this.current = undefined;');
-      helper.writeln('      return false;');
-      helper.writeln('    },');
-      helper.writeln('  };');
-      helper.writeln('}');
-    }
+    emitRegisteredRuntimeHelper('__dartLazyField');
+    emitRegisteredRuntimeHelper('__dartIterator');
     return helper.toString();
   }
 

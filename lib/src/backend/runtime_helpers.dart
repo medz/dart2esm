@@ -228,6 +228,58 @@ const _dartMapForEachSource = r'''function __dartMapForEach(map, callback) {
   return null;
 }''';
 
+const _dartLazyFieldSource =
+    r'''function __dartLazyField(name, initialize, writable, publish) {
+  let state = 0;
+  let value;
+  function get() {
+    if (state === 2) return value;
+    if (state === 1) {
+      throw new Error("Cyclic initialization of field " + name);
+    }
+    if (initialize == null) {
+      throw new Error("Late field " + name + " has not been initialized");
+    }
+    state = 1;
+    try {
+      value = initialize();
+      if (publish) publish(value);
+      state = 2;
+      return value;
+    } catch (error) {
+      state = 0;
+      throw error;
+    }
+  }
+  function set(next) {
+    if (writable === false || (writable === "once" && state === 2)) {
+      throw new TypeError("Cannot assign to final field " + name);
+    }
+    value = next;
+    if (publish) publish(value);
+    state = 2;
+    return next;
+  }
+  return { get, set };
+}''';
+
+const _dartIteratorSource = r'''function __dartIterator(iterable) {
+  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);
+  let index = -1;
+  return {
+    current: undefined,
+    moveNext() {
+      index++;
+      if (index < values.length) {
+        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        return true;
+      }
+      this.current = undefined;
+      return false;
+    },
+  };
+}''';
+
 const _helperSpecs = <String, EsmRuntimeHelperSpec>{
   '__dartPrint': EsmRuntimeHelperSpec(
     name: '__dartPrint',
@@ -285,6 +337,16 @@ const _helperSpecs = <String, EsmRuntimeHelperSpec>{
     name: '__dartMapForEach',
     category: EsmRuntimeHelperCategory.collection,
     source: _dartMapForEachSource,
+  ),
+  '__dartLazyField': EsmRuntimeHelperSpec(
+    name: '__dartLazyField',
+    category: EsmRuntimeHelperCategory.core,
+    source: _dartLazyFieldSource,
+  ),
+  '__dartIterator': EsmRuntimeHelperSpec(
+    name: '__dartIterator',
+    category: EsmRuntimeHelperCategory.collection,
+    source: _dartIteratorSource,
   ),
   '__dartScheduleMicrotask': EsmRuntimeHelperSpec(
     name: '__dartScheduleMicrotask',

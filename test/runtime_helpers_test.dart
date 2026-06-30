@@ -51,6 +51,14 @@ void main() {
       contains('function __dartStringBuffer'),
     );
     expect(esmRuntimeHelperSource('__dartFinalizer'), contains('detachTokens'));
+    expect(
+      esmRuntimeHelperSource('__dartLazyField'),
+      contains('function __dartLazyField'),
+    );
+    expect(
+      esmRuntimeHelperSource('__dartIterator'),
+      contains('function __dartIterator'),
+    );
     expect(esmRuntimeHelperSource('__dartStreamMap'), isNull);
   });
 

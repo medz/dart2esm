@@ -54,6 +54,80 @@ bool isDartCoreUriMember(k.Reference reference, String name) {
   return path.contains('::Uri::') || path.contains('::_Uri::');
 }
 
+bool isDartCoreWeakReferenceMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return (path.startsWith('dart:core::WeakReference::') ||
+          path.startsWith('dart:core::_WeakReference::')) &&
+      kernelPathHasMember(path, name);
+}
+
+bool isDartCoreFinalizerMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return (path.startsWith('dart:core::Finalizer::') ||
+          path.startsWith('dart:core::_FinalizerImpl::')) &&
+      kernelPathHasMember(path, name);
+}
+
+bool isDartCoreCollectionMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  if (!path.startsWith('dart:core::') &&
+      !path.startsWith('dart:_') &&
+      !path.startsWith('dart:collection::') &&
+      !path.startsWith('package:collection/')) {
+    return false;
+  }
+  if (!kernelPathHasMember(path, name)) {
+    return false;
+  }
+  return path.contains('::Iterable::') ||
+      path.contains('::ListIterable::') ||
+      path.contains('::List::') ||
+      path.contains('::ListBase::') ||
+      path.contains('::ListMixin::') ||
+      path.contains('::_List::') ||
+      path.contains('::_GrowableList::') ||
+      path.contains('::Runes::') ||
+      path.contains('::Set::') ||
+      path.contains('::_Set::') ||
+      path.contains('::Map::') ||
+      path.contains('::_Map::') ||
+      path.startsWith('dart:_compact_hash::') ||
+      path.contains('::SplayTreeSet::') ||
+      path.contains('::_SplayTreeSet::') ||
+      path.contains('::SplayTreeMap::') ||
+      path.contains('::_SplayTreeMap::') ||
+      path.contains('::_SplayTree::') ||
+      path.startsWith('dart:collection::Queue::') ||
+      path.startsWith('dart:collection::ListQueue::') ||
+      path.startsWith('dart:collection::DoubleLinkedQueue::');
+}
+
+bool isDartCoreListMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return isDartCoreMember(reference, 'List', name) ||
+      path.contains('::ListBase::') ||
+      path.contains('::ListMixin::') ||
+      path.contains('::_List::') ||
+      path.contains('::_GrowableList::');
+}
+
+bool isDartCoreSetMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return isDartCoreMember(reference, 'Set', name) ||
+      path.contains('::_Set::') ||
+      path.startsWith('dart:_compact_hash::') ||
+      path.contains('::SplayTreeSet::') ||
+      path.contains('::_SplayTreeSet::');
+}
+
+bool isDartCoreMapMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return isDartCoreMember(reference, 'Map', name) ||
+      path.contains('::_Map::') ||
+      path.contains('::SplayTreeMap::') ||
+      path.contains('::_SplayTreeMap::');
+}
+
 bool isDartAsyncStreamMember(k.Reference reference, String name) {
   final path = kernelReferencePath(reference);
   return path == 'dart:async::Stream::@methods::$name' ||
@@ -92,6 +166,96 @@ bool isDartAsyncZoneMember(k.Reference reference, String name) {
   final path = kernelReferencePath(reference);
   return kernelPathHasMember(path, name) &&
       path.startsWith('dart:async::Zone::');
+}
+
+bool isDartConvertStringConversionSinkMember(
+  k.Reference reference,
+  String name,
+) {
+  final path = kernelReferencePath(reference);
+  final hasMember =
+      path.contains('::@methods::$name') ||
+      path.contains('::@getters::$name') ||
+      path.endsWith('::$name');
+  if (!hasMember) {
+    return false;
+  }
+  return path.startsWith('dart:convert::StringConversionSink::') ||
+      path.contains('::StringConversionSink') ||
+      path.contains('::_StringAdapterSink') ||
+      path.contains('::_StringCallbackSink') ||
+      path.contains('::_StringSinkConversionSink');
+}
+
+bool isDartConvertConverterMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  final hasMember =
+      path.contains('::@methods::$name') ||
+      path.contains('::@getters::$name') ||
+      path.endsWith('::$name');
+  if (!hasMember || !path.startsWith('dart:convert::')) {
+    return false;
+  }
+  return path.contains('::Converter') ||
+      path.contains('::Codec') ||
+      path.contains('::Encoding') ||
+      path.contains('::Utf8') ||
+      path.contains('::Ascii') ||
+      path.contains('::Latin1') ||
+      path.contains('::Base64') ||
+      path.contains('::Json') ||
+      path.contains('::LineSplitter') ||
+      path.contains('::HtmlEscape') ||
+      path.contains('::_FusedConverter');
+}
+
+bool isDartConvertLineSplitterMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  final hasMember =
+      path.contains('::@methods::$name') ||
+      path.contains('::@getters::$name') ||
+      path.endsWith('::$name');
+  return hasMember && path.contains('::LineSplitter');
+}
+
+bool isDartCollectionQueueMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  final hasMember =
+      path.contains('::@methods::$name') ||
+      path.contains('::@getters::$name') ||
+      path.endsWith('::$name');
+  if (!hasMember) {
+    return false;
+  }
+  return path.startsWith('dart:collection::Queue::') ||
+      path.startsWith('dart:collection::ListQueue::') ||
+      path.startsWith('dart:collection::DoubleLinkedQueue::');
+}
+
+bool isDartTypedDataMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('dart:typed_data::') &&
+      (path.contains('::@methods::$name') ||
+          path.contains('::@getters::$name') ||
+          path.endsWith('::$name'));
+}
+
+bool isDartTypedDataClassMember(
+  k.Reference reference,
+  String className,
+  String name,
+) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('dart:typed_data::$className::') &&
+      (path.contains('::@methods::$name') ||
+          path.contains('::@getters::$name') ||
+          path.endsWith('::$name'));
+}
+
+bool isDartTypedDataByteBufferMember(k.Reference reference, String name) {
+  final path = kernelReferencePath(reference);
+  return path.startsWith('dart:typed_data::ByteBuffer::') &&
+      (path.contains('::@methods::$name') || path.endsWith('::$name'));
 }
 
 LegacyJsFactorySymbol? legacyJsFactorySymbol(k.Reference reference) {

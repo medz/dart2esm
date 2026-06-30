@@ -124,6 +124,58 @@ void main() {
     );
   });
 
+  test('classifies dart:core object and collection members', () {
+    expect(
+      isDartCoreWeakReferenceMember(
+        _reference('dart:core::_WeakReference::@getters::target'),
+        'target',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreFinalizerMember(
+        _reference('dart:core::_FinalizerImpl::@methods::detach'),
+        'detach',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreCollectionMember(
+        _reference('dart:collection::ListQueue::@methods::add'),
+        'add',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreListMember(
+        _reference('dart:_internal::_GrowableList::@methods::add'),
+        'add',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreSetMember(
+        _reference('dart:_compact_hash::CompactLinkedHashSet::@methods::add'),
+        'add',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreMapMember(
+        _reference('dart:core::_Map::@methods::containsKey'),
+        'containsKey',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreCollectionMember(
+        _reference('dart:async::Stream::@methods::map'),
+        'map',
+      ),
+      isFalse,
+    );
+  });
+
   test('classifies dart:async members', () {
     expect(
       isDartAsyncStreamMember(
@@ -164,6 +216,70 @@ void main() {
       isDartAsyncZoneMember(
         _reference('dart:async::Future::@methods::run'),
         'run',
+      ),
+      isFalse,
+    );
+  });
+
+  test('classifies dart:convert members', () {
+    expect(
+      isDartConvertStringConversionSinkMember(
+        _reference('dart:convert::_StringAdapterSink::@methods::add'),
+        'add',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartConvertConverterMember(
+        _reference('dart:convert::Utf8Encoder::@methods::convert'),
+        'convert',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartConvertLineSplitterMember(
+        _reference('dart:convert::LineSplitter::@methods::convert'),
+        'convert',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartConvertConverterMember(
+        _reference('dart:core::Utf8Encoder::@methods::convert'),
+        'convert',
+      ),
+      isFalse,
+    );
+  });
+
+  test('classifies dart:typed_data members', () {
+    expect(
+      isDartTypedDataMember(
+        _reference('dart:typed_data::Uint8List::@methods::sublist'),
+        'sublist',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartTypedDataClassMember(
+        _reference('dart:typed_data::ByteData::@methods::getUint8'),
+        'ByteData',
+        'getUint8',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartTypedDataByteBufferMember(
+        _reference('dart:typed_data::ByteBuffer::@methods::asUint8List'),
+        'asUint8List',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartTypedDataClassMember(
+        _reference('dart:typed_data::Uint8List::@methods::getUint8'),
+        'ByteData',
+        'getUint8',
       ),
       isFalse,
     );

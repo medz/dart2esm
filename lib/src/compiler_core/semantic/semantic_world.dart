@@ -239,6 +239,7 @@ final class SemanticWorldStage {
 
   EsmClassSymbol _buildClassSymbol(JsNameAllocator allocator, k.Class klass) {
     final usedNames = <String>{};
+    final usedStaticNames = <String>{};
     final accessorNames = <String, String>{};
     final localSuperclass = klass.supertype?.className.node;
     return EsmClassSymbol(
@@ -255,7 +256,9 @@ final class SemanticWorldStage {
           if (!constructor.isExternal && !constructor.isSynthetic)
             EsmConstructorSymbol(
               node: constructor,
-              name: constructor.name.text,
+              name: constructor.name.text.isEmpty
+                  ? ''
+                  : _freshMemberName(usedStaticNames, constructor.name.text),
             ),
       ],
       fields: [

@@ -42,12 +42,14 @@ final class EsmClassMethodIr extends EsmIrNode {
   const EsmClassMethodIr({
     required this.name,
     required this.kind,
+    required this.isStatic,
     required this.parameters,
     required this.body,
   });
 
   final String name;
   final EsmClassMethodKindIr kind;
+  final bool isStatic;
   final List<String> parameters;
   final List<EsmStatementIr> body;
 }
@@ -168,6 +170,12 @@ final class EsmReturnStatementIr extends EsmStatementIr {
   const EsmReturnStatementIr(this.expression);
 
   final EsmExpressionIr? expression;
+}
+
+final class EsmThrowStatementIr extends EsmStatementIr {
+  const EsmThrowStatementIr(this.expression);
+
+  final EsmExpressionIr expression;
 }
 
 sealed class EsmExpressionIr extends EsmIrNode {

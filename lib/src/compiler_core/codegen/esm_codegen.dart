@@ -84,12 +84,15 @@ final class _EsmIrPrinter {
   }
 
   void _emitClassMethod(EsmClassMethodIr method) {
+    final staticPrefix = method.isStatic ? 'static ' : '';
     final prefix = switch (method.kind) {
       EsmClassMethodKindIr.method => '',
       EsmClassMethodKindIr.getter => 'get ',
       EsmClassMethodKindIr.setter => 'set ',
     };
-    _writeIndented('$prefix${method.name}(${method.parameters.join(', ')}) {');
+    _writeIndented(
+      '$staticPrefix$prefix${method.name}(${method.parameters.join(', ')}) {',
+    );
     _indent++;
     for (final statement in method.body) {
       _emitStatement(statement);
@@ -145,6 +148,8 @@ final class _EsmIrPrinter {
               ? 'return;'
               : 'return ${_emitExpression(expression)};',
         );
+      case EsmThrowStatementIr():
+        _writeIndented('throw ${_emitExpression(statement.expression)};');
     }
   }
 

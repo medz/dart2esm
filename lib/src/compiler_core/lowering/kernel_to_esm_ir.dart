@@ -49,20 +49,50 @@ final class KernelToEsmIrLoweringStage {
     if (klass.localSuperclass != null && superclass == null) {
       throw NewCompilerUnsupported(klass.node, 'class inheritance lowering');
     }
-    if (klass.constructors.length > 1) {
-      throw NewCompilerUnsupported(klass.node, 'multiple constructor lowering');
+    final unnamedConstructors = [
+      for (final constructor in klass.constructors)
+        if (constructor.name.isEmpty) constructor,
+    ];
+    if (unnamedConstructors.length > 1) {
+      throw NewCompilerUnsupported(klass.node, 'unnamed constructor lowering');
     }
-    final constructor = klass.constructors.isEmpty
-        ? null
-        : _lowerConstructor(world, helpers, klass.constructors.single);
+    final namedConstructors = [
+      for (final constructor in klass.constructors)
+        if (constructor.name.isNotEmpty) constructor,
+    ];
+    final constructor = unnamedConstructors.isNotEmpty
+        ? _lowerConstructor(world, helpers, unnamedConstructors.single)
+        : namedConstructors.isNotEmpty
+        ? _lowerMissingUnnamedConstructor(klass)
+        : null;
     return EsmClassIr(
       name: klass.name,
       export: klass.export,
       superclass: superclass?.name,
       constructor: constructor,
       methods: [
+        for (final constructor in namedConstructors)
+          _lowerNamedConstructor(world, helpers, klass, constructor),
         for (final procedure in klass.procedures)
           _lowerClassProcedure(world, helpers, procedure),
+      ],
+    );
+  }
+
+  EsmClassConstructorIr _lowerMissingUnnamedConstructor(EsmClassSymbol klass) {
+    return EsmClassConstructorIr(
+      parameters: const [],
+      body: [
+        EsmThrowStatementIr(
+          EsmNewIr(
+            callee: const EsmIdentifierIr('TypeError'),
+            arguments: [
+              EsmStringLiteralIr(
+                'Class ${klass.node.name} has no unnamed constructor',
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -72,12 +102,7 @@ final class KernelToEsmIrLoweringStage {
     EsmRuntimeHelperUseSet helpers,
     EsmConstructorSymbol constructor,
   ) {
-    if (constructor.name.isNotEmpty) {
-      throw NewCompilerUnsupported(
-        constructor.node,
-        'named constructor lowering',
-      );
-    }
+    assert(constructor.name.isEmpty);
     final function = constructor.node.function;
     final locals = <k.VariableDeclaration, String>{};
     final labels = <k.LabeledStatement, String>{};
@@ -98,7 +123,13 @@ final class KernelToEsmIrLoweringStage {
       for (final initializer in superInitializers)
         ..._lowerSuperInitializer(world, helpers, locals, initializer),
       for (final initializer in otherInitializers)
-        ..._lowerConstructorInitializer(world, helpers, locals, initializer),
+        ..._lowerConstructorInitializer(
+          world,
+          helpers,
+          locals,
+          initializer,
+          const EsmThisIr(),
+        ),
       if (function.body case final body?) ...[
         ..._lowerStatementList(world, helpers, locals, labels, body),
       ],
@@ -106,21 +137,117 @@ final class KernelToEsmIrLoweringStage {
     return EsmClassConstructorIr(parameters: parameters, body: body);
   }
 
+  EsmClassMethodIr _lowerNamedConstructor(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmClassSymbol klass,
+    EsmConstructorSymbol constructor,
+  ) {
+    final function = constructor.node.function;
+    if (function.asyncMarker != k.AsyncMarker.Sync) {
+      throw NewCompilerUnsupported(function, 'async constructor lowering');
+    }
+    if (function.namedParameters.isNotEmpty) {
+      throw NewCompilerUnsupported(function, 'named parameter lowering');
+    }
+    final locals = <k.VariableDeclaration, String>{};
+    final labels = <k.LabeledStatement, String>{};
+    final usedNames = <String>{};
+    final selfName = _freshIn(usedNames, r'$self');
+    final parameters = [
+      for (final parameter in function.positionalParameters)
+        _bindParameter(locals, usedNames, parameter),
+    ];
+    final self = EsmIdentifierIr(selfName);
+    final superInitializers = [
+      for (final initializer in constructor.node.initializers)
+        if (initializer is k.SuperInitializer) initializer,
+    ];
+    final otherInitializers = [
+      for (final initializer in constructor.node.initializers)
+        if (initializer is! k.SuperInitializer) initializer,
+    ];
+    final body = <EsmStatementIr>[
+      EsmVariableDeclarationIr(
+        name: selfName,
+        initializer: EsmCallIr(
+          callee: const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Object'),
+            property: 'create',
+          ),
+          arguments: const [
+            EsmPropertyAccessIr(receiver: EsmThisIr(), property: 'prototype'),
+          ],
+        ),
+        mutable: false,
+      ),
+      for (final initializer in superInitializers)
+        ..._lowerNamedConstructorSuperInitializer(initializer),
+      for (final initializer in otherInitializers)
+        ..._lowerConstructorInitializer(
+          world,
+          helpers,
+          locals,
+          initializer,
+          self,
+        ),
+      if (function.body case final body?) ...[
+        ..._lowerStatementList(
+          world,
+          helpers,
+          locals,
+          labels,
+          body,
+          thisExpression: self,
+        ),
+      ],
+      EsmReturnStatementIr(self),
+    ];
+    return EsmClassMethodIr(
+      name: constructor.name,
+      kind: EsmClassMethodKindIr.method,
+      isStatic: true,
+      parameters: parameters,
+      body: body,
+    );
+  }
+
+  List<EsmStatementIr> _lowerNamedConstructorSuperInitializer(
+    k.SuperInitializer initializer,
+  ) {
+    if (initializer.arguments.positional.isEmpty &&
+        initializer.arguments.named.isEmpty &&
+        initializer.arguments.types.isEmpty) {
+      return const [];
+    }
+    throw NewCompilerUnsupported(
+      initializer,
+      'named super initializer lowering',
+    );
+  }
+
   List<EsmStatementIr> _lowerConstructorInitializer(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
     k.Initializer initializer,
+    EsmExpressionIr receiver,
   ) {
     return switch (initializer) {
       k.FieldInitializer() => [
         EsmExpressionStatementIr(
           EsmAssignmentIr(
             target: EsmPropertyAccessIr(
-              receiver: const EsmThisIr(),
+              receiver: receiver,
               property: _instanceFieldName(world, initializer.field),
             ),
-            value: _lowerExpression(world, helpers, locals, initializer.value),
+            value: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              initializer.value,
+              thisExpression: receiver,
+            ),
           ),
         ),
       ],
@@ -191,6 +318,7 @@ final class KernelToEsmIrLoweringStage {
         EsmProcedureKind.getter => EsmClassMethodKindIr.getter,
         EsmProcedureKind.setter => EsmClassMethodKindIr.setter,
       },
+      isStatic: false,
       parameters: parameters,
       body: _lowerStatementList(world, helpers, locals, labels, body),
     );
@@ -264,46 +392,114 @@ final class KernelToEsmIrLoweringStage {
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
-    k.Statement statement,
-  ) {
+    k.Statement statement, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     return switch (statement) {
       k.Block() => [
         for (final child in statement.statements)
-          ..._lowerStatementList(world, helpers, locals, labels, child),
+          ..._lowerStatementList(
+            world,
+            helpers,
+            locals,
+            labels,
+            child,
+            thisExpression: thisExpression,
+          ),
       ],
       k.LabeledStatement() => [
-        _lowerLabeledStatement(world, helpers, locals, labels, statement),
+        _lowerLabeledStatement(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+        ),
       ],
       k.BreakStatement() => [_lowerBreakStatement(labels, statement)],
       k.VariableDeclaration() => [
-        _lowerVariableDeclaration(world, helpers, locals, statement),
+        _lowerVariableDeclaration(
+          world,
+          helpers,
+          locals,
+          statement,
+          thisExpression: thisExpression,
+        ),
       ],
       k.EmptyStatement() => const [],
       k.ExpressionStatement() => [
         EsmExpressionStatementIr(
-          _lowerExpression(world, helpers, locals, statement.expression),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            statement.expression,
+            thisExpression: thisExpression,
+          ),
         ),
       ],
       k.IfStatement() => [
-        _lowerIfStatement(world, helpers, locals, labels, statement),
+        _lowerIfStatement(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+        ),
       ],
       k.WhileStatement() => [
-        _lowerWhileStatement(world, helpers, locals, labels, statement),
+        _lowerWhileStatement(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+        ),
       ],
       k.DoStatement() => [
-        _lowerDoStatement(world, helpers, locals, labels, statement),
+        _lowerDoStatement(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+        ),
       ],
       k.SwitchStatement() => [
-        _lowerSwitchStatement(world, helpers, locals, labels, statement),
+        _lowerSwitchStatement(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+        ),
       ],
       k.ForStatement() => [
-        _lowerForStatement(world, helpers, locals, labels, statement),
+        _lowerForStatement(
+          world,
+          helpers,
+          locals,
+          labels,
+          statement,
+          thisExpression,
+        ),
       ],
       k.ReturnStatement() => [
         EsmReturnStatementIr(
           statement.expression == null
               ? null
-              : _lowerExpression(world, helpers, locals, statement.expression!),
+              : _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  statement.expression!,
+                  thisExpression: thisExpression,
+                ),
         ),
       ],
       _ => throw NewCompilerUnsupported(statement, 'statement lowering'),
@@ -316,12 +512,20 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.LabeledStatement statement,
+    EsmExpressionIr thisExpression,
   ) {
     final label = _freshIn(labels.values.toSet(), 'label');
     labels[statement] = label;
     return EsmLabeledStatementIr(
       label: label,
-      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
+      body: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.body,
+        thisExpression: thisExpression,
+      ),
     );
   }
 
@@ -342,20 +546,35 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.IfStatement statement,
+    EsmExpressionIr thisExpression,
   ) {
     final otherwise = statement.otherwise;
     return EsmIfStatementIr(
-      condition: _lowerExpression(world, helpers, locals, statement.condition),
+      condition: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        statement.condition,
+        thisExpression: thisExpression,
+      ),
       thenBody: _lowerStatementList(
         world,
         helpers,
         locals,
         labels,
         statement.then,
+        thisExpression: thisExpression,
       ),
       otherwiseBody: otherwise == null
           ? null
-          : _lowerStatementList(world, helpers, locals, labels, otherwise),
+          : _lowerStatementList(
+              world,
+              helpers,
+              locals,
+              labels,
+              otherwise,
+              thisExpression: thisExpression,
+            ),
     );
   }
 
@@ -365,10 +584,24 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.WhileStatement statement,
+    EsmExpressionIr thisExpression,
   ) {
     return EsmWhileStatementIr(
-      condition: _lowerExpression(world, helpers, locals, statement.condition),
-      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
+      condition: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        statement.condition,
+        thisExpression: thisExpression,
+      ),
+      body: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.body,
+        thisExpression: thisExpression,
+      ),
     );
   }
 
@@ -378,10 +611,24 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.DoStatement statement,
+    EsmExpressionIr thisExpression,
   ) {
     return EsmDoStatementIr(
-      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
-      condition: _lowerExpression(world, helpers, locals, statement.condition),
+      body: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.body,
+        thisExpression: thisExpression,
+      ),
+      condition: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        statement.condition,
+        thisExpression: thisExpression,
+      ),
     );
   }
 
@@ -391,6 +638,7 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.SwitchStatement statement,
+    EsmExpressionIr thisExpression,
   ) {
     return EsmSwitchStatementIr(
       expression: _lowerExpression(
@@ -398,10 +646,18 @@ final class KernelToEsmIrLoweringStage {
         helpers,
         locals,
         statement.expression,
+        thisExpression: thisExpression,
       ),
       cases: [
         for (final switchCase in statement.cases)
-          _lowerSwitchCase(world, helpers, locals, labels, switchCase),
+          _lowerSwitchCase(
+            world,
+            helpers,
+            locals,
+            labels,
+            switchCase,
+            thisExpression,
+          ),
       ],
     );
   }
@@ -412,11 +668,18 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.SwitchCase switchCase,
+    EsmExpressionIr thisExpression,
   ) {
     return EsmSwitchCaseIr(
       expressions: [
         for (final expression in switchCase.expressions)
-          _lowerExpression(world, helpers, locals, expression),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression,
+            thisExpression: thisExpression,
+          ),
       ],
       isDefault: switchCase.isDefault,
       body: _lowerStatementList(
@@ -425,6 +688,7 @@ final class KernelToEsmIrLoweringStage {
         locals,
         labels,
         switchCase.body,
+        thisExpression: thisExpression,
       ),
     );
   }
@@ -435,20 +699,46 @@ final class KernelToEsmIrLoweringStage {
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.ForStatement statement,
+    EsmExpressionIr thisExpression,
   ) {
     return EsmForStatementIr(
       initializers: [
         for (final initializer in statement.variableInitializations)
-          _lowerForInitializer(world, helpers, locals, initializer),
+          _lowerForInitializer(
+            world,
+            helpers,
+            locals,
+            initializer,
+            thisExpression,
+          ),
       ],
       condition: statement.condition == null
           ? null
-          : _lowerExpression(world, helpers, locals, statement.condition!),
+          : _lowerExpression(
+              world,
+              helpers,
+              locals,
+              statement.condition!,
+              thisExpression: thisExpression,
+            ),
       updates: [
         for (final update in statement.updates)
-          _lowerExpression(world, helpers, locals, update),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            update,
+            thisExpression: thisExpression,
+          ),
       ],
-      body: _lowerStatementList(world, helpers, locals, labels, statement.body),
+      body: _lowerStatementList(
+        world,
+        helpers,
+        locals,
+        labels,
+        statement.body,
+        thisExpression: thisExpression,
+      ),
     );
   }
 
@@ -457,19 +747,27 @@ final class KernelToEsmIrLoweringStage {
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
     k.VariableInitializationBase initializer,
+    EsmExpressionIr thisExpression,
   ) {
     if (initializer is! k.VariableDeclaration) {
       throw NewCompilerUnsupported(initializer, 'for initializer lowering');
     }
-    return _lowerVariableDeclaration(world, helpers, locals, initializer);
+    return _lowerVariableDeclaration(
+      world,
+      helpers,
+      locals,
+      initializer,
+      thisExpression: thisExpression,
+    );
   }
 
   EsmVariableDeclarationIr _lowerVariableDeclaration(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.VariableDeclaration statement,
-  ) {
+    k.VariableDeclaration statement, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final name = _freshIn(locals.values.toSet(), statement.name ?? 'v');
     locals[statement] = name;
     final initializer = statement.initializer;
@@ -477,7 +775,13 @@ final class KernelToEsmIrLoweringStage {
       name: name,
       initializer: initializer == null
           ? null
-          : _lowerExpression(world, helpers, locals, initializer),
+          : _lowerExpression(
+              world,
+              helpers,
+              locals,
+              initializer,
+              thisExpression: thisExpression,
+            ),
       mutable: statement.isAssignable,
     );
   }
@@ -486,33 +790,61 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.Expression expression,
-  ) {
+    k.Expression expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     return switch (expression) {
       k.StaticInvocation() => _lowerStaticInvocation(
         world,
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
       ),
       k.StaticGet() => _lowerStaticGet(world, expression),
-      k.StaticSet() => _lowerStaticSet(world, helpers, locals, expression),
+      k.StaticSet() => _lowerStaticSet(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
       k.ConstantExpression() => _lowerConstantExpression(expression),
       k.VariableGet() => _lowerVariableGet(locals, expression),
-      k.VariableSet() => _lowerVariableSet(world, helpers, locals, expression),
+      k.VariableSet() => _lowerVariableSet(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
       k.InstanceInvocation() => _lowerInstanceInvocation(
         world,
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
       ),
-      k.InstanceGet() => _lowerInstanceGet(world, helpers, locals, expression),
-      k.InstanceSet() => _lowerInstanceSet(world, helpers, locals, expression),
+      k.InstanceGet() => _lowerInstanceGet(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
+      k.InstanceSet() => _lowerInstanceSet(
+        world,
+        helpers,
+        locals,
+        expression,
+        thisExpression: thisExpression,
+      ),
       k.SuperMethodInvocation() => _lowerSuperMethodInvocation(
         world,
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
       ),
       k.SuperPropertyGet() => _lowerSuperPropertyGet(
         world,
@@ -525,24 +857,33 @@ final class KernelToEsmIrLoweringStage {
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
       ),
       k.ConstructorInvocation() => _lowerConstructorInvocation(
         world,
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
       ),
       k.IsExpression() => _lowerIsExpression(
         world,
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
       ),
-      k.ThisExpression() => const EsmThisIr(),
+      k.ThisExpression() => thisExpression,
       k.StringLiteral() => EsmStringLiteralIr(expression.value),
       k.StringConcatenation() => EsmStringConcatenationIr([
         for (final part in expression.expressions)
-          _lowerExpression(world, helpers, locals, part),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            part,
+            thisExpression: thisExpression,
+          ),
       ]),
       k.IntLiteral() => EsmNumberLiteralIr(expression.value),
       k.DoubleLiteral() => EsmNumberLiteralIr(expression.value),
@@ -606,8 +947,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.StaticSet expression,
-  ) {
+    k.StaticSet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final target = expression.targetReference.node;
     if (target is k.Field) {
       final symbol = world.fieldSymbolFor(target);
@@ -617,7 +959,13 @@ final class KernelToEsmIrLoweringStage {
         }
         return EsmAssignmentIr(
           target: EsmIdentifierIr(symbol.name),
-          value: _lowerExpression(world, helpers, locals, expression.value),
+          value: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.value,
+            thisExpression: thisExpression,
+          ),
         );
       }
     }
@@ -627,7 +975,13 @@ final class KernelToEsmIrLoweringStage {
         return EsmCallIr(
           callee: EsmIdentifierIr(symbol.name),
           arguments: [
-            _lowerExpression(world, helpers, locals, expression.value),
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.value,
+              thisExpression: thisExpression,
+            ),
           ],
         );
       }
@@ -639,15 +993,22 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.VariableSet expression,
-  ) {
+    k.VariableSet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final name = locals[expression.variable];
     if (name == null) {
       throw NewCompilerUnsupported(expression, 'unbound variable set');
     }
     return EsmAssignmentIr(
       target: EsmIdentifierIr(name),
-      value: _lowerExpression(world, helpers, locals, expression.value),
+      value: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.value,
+        thisExpression: thisExpression,
+      ),
     );
   }
 
@@ -655,8 +1016,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.InstanceInvocation expression,
-  ) {
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final operator = expression.name.text;
     if (!_binaryOperators.contains(operator) ||
         expression.arguments.positional.length != 1 ||
@@ -680,12 +1042,19 @@ final class KernelToEsmIrLoweringStage {
                 helpers,
                 locals,
                 expression.receiver,
+                thisExpression: thisExpression,
               ),
               property: symbol.name,
             ),
             arguments: [
               for (final argument in expression.arguments.positional)
-                _lowerExpression(world, helpers, locals, argument),
+                _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  argument,
+                  thisExpression: thisExpression,
+                ),
             ],
           );
         }
@@ -693,13 +1062,20 @@ final class KernelToEsmIrLoweringStage {
       throw NewCompilerUnsupported(expression, 'instance invocation lowering');
     }
     return EsmBinaryIr(
-      left: _lowerExpression(world, helpers, locals, expression.receiver),
+      left: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
       operator: operator,
       right: _lowerExpression(
         world,
         helpers,
         locals,
         expression.arguments.positional.single,
+        thisExpression: thisExpression,
       ),
     );
   }
@@ -708,14 +1084,21 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.InstanceGet expression,
-  ) {
+    k.InstanceGet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'instance get lowering');
     }
     return EsmPropertyAccessIr(
-      receiver: _lowerExpression(world, helpers, locals, expression.receiver),
+      receiver: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
       property: _instanceMemberName(world, target),
     );
   }
@@ -724,18 +1107,31 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.InstanceSet expression,
-  ) {
+    k.InstanceSet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'instance set lowering');
     }
     return EsmAssignmentIr(
       target: EsmPropertyAccessIr(
-        receiver: _lowerExpression(world, helpers, locals, expression.receiver),
+        receiver: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
         property: _instanceMemberName(world, target),
       ),
-      value: _lowerExpression(world, helpers, locals, expression.value),
+      value: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.value,
+        thisExpression: thisExpression,
+      ),
     );
   }
 
@@ -743,8 +1139,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.SuperMethodInvocation expression,
-  ) {
+    k.SuperMethodInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     if (expression.arguments.named.isNotEmpty ||
         expression.arguments.types.isNotEmpty) {
       throw NewCompilerUnsupported(
@@ -763,7 +1160,13 @@ final class KernelToEsmIrLoweringStage {
           ),
           arguments: [
             for (final argument in expression.arguments.positional)
-              _lowerExpression(world, helpers, locals, argument),
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                argument,
+                thisExpression: thisExpression,
+              ),
           ],
         );
       }
@@ -791,8 +1194,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.SuperPropertySet expression,
-  ) {
+    k.SuperPropertySet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'super set lowering');
@@ -802,7 +1206,13 @@ final class KernelToEsmIrLoweringStage {
         receiver: const EsmSuperIr(),
         property: _instanceMemberName(world, target),
       ),
-      value: _lowerExpression(world, helpers, locals, expression.value),
+      value: _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.value,
+        thisExpression: thisExpression,
+      ),
     );
   }
 
@@ -810,8 +1220,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.ConstructorInvocation expression,
-  ) {
+    k.ConstructorInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     if (expression.arguments.named.isNotEmpty ||
         expression.arguments.types.isNotEmpty) {
       throw NewCompilerUnsupported(
@@ -829,13 +1240,34 @@ final class KernelToEsmIrLoweringStage {
       throw NewCompilerUnsupported(expression, 'constructor invocation');
     }
     if (constructor.name.isNotEmpty) {
-      throw NewCompilerUnsupported(expression, 'named constructor invocation');
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr(klass.name),
+          property: constructor.name,
+        ),
+        arguments: [
+          for (final argument in expression.arguments.positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
     }
     return EsmNewIr(
       callee: EsmIdentifierIr(klass.name),
       arguments: [
         for (final argument in expression.arguments.positional)
-          _lowerExpression(world, helpers, locals, argument),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
       ],
     );
   }
@@ -844,8 +1276,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.IsExpression expression,
-  ) {
+    k.IsExpression expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     final type = expression.type;
     if (type is k.InterfaceType) {
       final target = type.classReference.node;
@@ -853,7 +1286,13 @@ final class KernelToEsmIrLoweringStage {
         final klass = world.classSymbolFor(target);
         if (klass != null) {
           return EsmBinaryIr(
-            left: _lowerExpression(world, helpers, locals, expression.operand),
+            left: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.operand,
+              thisExpression: thisExpression,
+            ),
             operator: 'instanceof',
             right: EsmIdentifierIr(klass.name),
           );
@@ -867,8 +1306,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression,
-  ) {
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     if (expression.arguments.named.isNotEmpty ||
         expression.arguments.types.isNotEmpty) {
       throw NewCompilerUnsupported(expression, 'static invocation arguments');
@@ -880,6 +1320,7 @@ final class KernelToEsmIrLoweringStage {
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
       );
       if (helperCall != null) {
         return helperCall;
@@ -900,7 +1341,13 @@ final class KernelToEsmIrLoweringStage {
       callee: EsmIdentifierIr(target.name),
       arguments: [
         for (final argument in expression.arguments.positional)
-          _lowerExpression(world, helpers, locals, argument),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
       ],
     );
   }
@@ -909,8 +1356,9 @@ final class KernelToEsmIrLoweringStage {
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression,
-  ) {
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
     if (!_isCorePrint(expression.targetReference)) {
       return null;
     }
@@ -926,6 +1374,7 @@ final class KernelToEsmIrLoweringStage {
           helpers,
           locals,
           expression.arguments.positional.single,
+          thisExpression: thisExpression,
         ),
       ],
     );

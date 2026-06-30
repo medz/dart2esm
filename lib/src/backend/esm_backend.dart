@@ -14,6 +14,7 @@ import '../program/program_model.dart';
 import '../world/sdk_classification.dart';
 import '../world/kernel_analysis.dart';
 import 'runtime_helpers.dart';
+import 'sdk_async_instances.dart';
 import 'sdk_constructor_invocations.dart';
 import 'sdk_instance_invocations.dart';
 import 'sdk_static_gets.dart';
@@ -4390,304 +4391,21 @@ final class _EsmEmitter {
         isCollectionInvocation) {
       return 'Array.from($left).every(${positionalArgs.single})';
     }
-    if (expression.arguments.named.isEmpty &&
-        name == 'map' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamMap');
-      return '__dartStreamMap($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'where' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamWhere');
-      return '__dartStreamWhere($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'asyncMap' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamAsyncMap');
-      return '__dartStreamAsyncMap($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'asyncExpand' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamAsyncExpand');
-      return '__dartStreamAsyncExpand($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'expand' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamExpand');
-      return '__dartStreamExpand($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'transform' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamTransform');
-      return '__dartStreamTransform($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'bind' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamTransformerMember(target, name)) {
-      _usedHelpers.add('__dartStreamTransformerBind');
-      return '__dartStreamTransformerBind($left, ${positionalArgs.single})';
-    }
-    if (name == 'asBroadcastStream' &&
-        positionalArgs.isEmpty &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamAsBroadcastStream');
-      final onListen =
-          _namedArgument(expression.arguments, 'onListen') ?? 'null';
-      final onCancel =
-          _namedArgument(expression.arguments, 'onCancel') ?? 'null';
-      return '__dartStreamAsBroadcastStream($left, $onListen, $onCancel)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'distinct' &&
-        positionalArgs.length <= 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamDistinct');
-      final equals = positionalArgs.isEmpty ? 'null' : positionalArgs.single;
-      return '__dartStreamDistinct($left, $equals)';
-    }
-    if (name == 'handleError' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamHandleError');
-      final test = _namedArgument(expression.arguments, 'test') ?? 'null';
-      return '__dartStreamHandleError($left, ${positionalArgs.single}, $test)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        (name == 'take' || name == 'skip') &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      final helper = name == 'take' ? '__dartStreamTake' : '__dartStreamSkip';
-      _usedHelpers.add(helper);
-      return '$helper($left, ${positionalArgs.single})';
-    }
-    if (name == 'timeout' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamTimeout');
-      final onTimeout = _namedArgument(expression.arguments, 'onTimeout');
-      return '__dartStreamTimeout($left, ${positionalArgs.single}, ${onTimeout ?? 'null'})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        (name == 'takeWhile' || name == 'skipWhile') &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      final helper = name == 'takeWhile'
-          ? '__dartStreamTakeWhile'
-          : '__dartStreamSkipWhile';
-      _usedHelpers.add(helper);
-      return '$helper($left, ${positionalArgs.single})';
-    }
-    if ((name == 'firstWhere' ||
-            name == 'lastWhere' ||
-            name == 'singleWhere') &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      final helper = switch (name) {
-        'firstWhere' => '__dartStreamFirstWhere',
-        'lastWhere' => '__dartStreamLastWhere',
-        'singleWhere' => '__dartStreamSingleWhere',
-        _ => throw StateError('unreachable'),
-      };
-      _usedHelpers.add(helper);
-      final orElse = _namedArgument(expression.arguments, 'orElse') ?? 'null';
-      return '$helper($left, ${positionalArgs.single}, $orElse)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'toList' &&
-        positionalArgs.isEmpty &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamToList');
-      return '__dartStreamToList($left)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'toSet' &&
-        positionalArgs.isEmpty &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartEquals');
-      _usedHelpers.add('__dartIterableContains');
-      _usedHelpers.add('__dartStreamToSet');
-      return '__dartStreamToSet($left)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'fold' &&
-        positionalArgs.length == 2 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamFold');
-      return '__dartStreamFold($left, ${positionalArgs[0]}, ${positionalArgs[1]})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'reduce' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamReduce');
-      return '__dartStreamReduce($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'forEach' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamForEach');
-      return '__dartStreamForEach($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'cast' &&
-        positionalArgs.isEmpty &&
-        expression.arguments.types.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamCast');
-      final type = expression.arguments.types.single;
-      final typeTest = _emitTypeTest('value', type, expression);
-      return '__dartStreamCast($left, (value) => $typeTest, ${jsonEncode(type.toString())})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        (name == 'any' || name == 'every') &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      final helper = name == 'any' ? '__dartStreamAny' : '__dartStreamEvery';
-      _usedHelpers.add(helper);
-      return '$helper($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'contains' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamContains');
-      return '__dartStreamContains($left, ${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'join' &&
-        positionalArgs.length <= 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamJoin');
-      final separator = positionalArgs.isEmpty ? '""' : positionalArgs.single;
-      return '__dartStreamJoin($left, $separator)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'drain' &&
-        positionalArgs.length <= 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamDrain');
-      final futureValue = positionalArgs.isEmpty
-          ? 'null'
-          : positionalArgs.single;
-      return '__dartStreamDrain($left, $futureValue)';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'pipe' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamPipe');
-      return '__dartStreamPipe($left, ${positionalArgs.single})';
-    }
-    if (name == 'addStream' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamConsumerMember(target, name)) {
-      final cancelOnError =
-          _namedArgument(expression.arguments, 'cancelOnError') ?? 'false';
-      return '$left.addStream(${positionalArgs.single}, { cancelOnError: $cancelOnError })';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'asUtf8Sink' &&
-        positionalArgs.length == 1 &&
-        isDartConvertStringConversionSinkMember(target, name)) {
-      _usedHelpers.add('__dartStringConversionSinkAsUtf8Sink');
-      _usedHelpers.add('__dartUtf8Decode');
-      return '$left.asUtf8Sink(${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == '[]' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncZoneMember(target, name)) {
-      return '$left.get(${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'scheduleMicrotask' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncZoneMember(target, name)) {
-      _usedHelpers.add('__dartZone');
-      _usedHelpers.add('__dartScheduleMicrotask');
-      return '$left.scheduleMicrotask(${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'bind' &&
-        positionalArgs.length == 1 &&
-        isDartConvertConverterMember(target, name)) {
-      if (isDartConvertLineSplitterMember(target, name)) {
-        return '$left.bind(${positionalArgs.single})';
-      }
-      _usedHelpers.add('__dartConverterBind');
-      return '__dartConverterBind($left, ${positionalArgs.single})';
-    }
-    if (name == 'listen' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncStreamMember(target, name)) {
-      _usedHelpers.add('__dartStreamListen');
-      final onError = _namedArgument(expression.arguments, 'onError') ?? 'null';
-      final onDone = _namedArgument(expression.arguments, 'onDone') ?? 'null';
-      final cancelOnError =
-          _namedArgument(expression.arguments, 'cancelOnError') ?? 'false';
-      return '__dartStreamListen($left, ${positionalArgs.single}, $onError, $onDone, $cancelOnError)';
-    }
-    if (name == 'then' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncFutureMember(target, name)) {
-      final onError = _namedArgument(expression.arguments, 'onError');
-      if (onError == null) {
-        return '$left.then(${positionalArgs.single})';
-      }
-      return '$left.then(${positionalArgs.single}, $onError)';
-    }
-    if (name == 'catchError' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncFutureMember(target, name)) {
-      final test = _namedArgument(expression.arguments, 'test');
-      if (test == null) {
-        return '$left.catch(${positionalArgs.single})';
-      }
-      return '$left.catch((error) => ($test)(error) ? (${positionalArgs.single})(error) : Promise.reject(error))';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'onError' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncFutureMember(target, name)) {
-      return '$left.catch((error) => (${positionalArgs.single})(error, error?.stack ?? "<javascript stack unavailable>"))';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'ignore' &&
-        positionalArgs.isEmpty &&
-        isDartAsyncFutureMember(target, name)) {
-      return '($left.catch(() => null), null)';
-    }
-    if (name == 'whenComplete' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncFutureMember(target, name)) {
-      return '$left.finally(${positionalArgs.single})';
-    }
-    if (expression.arguments.named.isEmpty &&
-        name == 'asStream' &&
-        positionalArgs.isEmpty &&
-        isDartAsyncFutureMember(target, name)) {
-      _usedHelpers.add('__dartFutureAsStream');
-      return '__dartFutureAsStream($left)';
-    }
-    if (name == 'timeout' &&
-        positionalArgs.length == 1 &&
-        isDartAsyncFutureMember(target, name)) {
-      _usedHelpers.add('__dartFutureTimeout');
-      final onTimeout = _namedArgument(expression.arguments, 'onTimeout');
-      return '__dartFutureTimeout($left, ${positionalArgs.single}, ${onTimeout ?? 'null'})';
+    final asyncInvocation =
+        DartSdkAsyncInstanceEmitter(
+          helpers: _usedHelpers,
+          namedArgument: _namedArgument,
+          emitTypeTest: _emitTypeTest,
+        ).emitInvocation(
+          target,
+          name,
+          left,
+          positionalArgs,
+          expression.arguments,
+          expression,
+        );
+    if (asyncInvocation != null) {
+      return asyncInvocation;
     }
     if (expression.arguments.named.isEmpty &&
         name == 'add' &&
@@ -5229,34 +4947,13 @@ final class _EsmEmitter {
       _usedHelpers.add('__dartIterator');
       return '__dartIterator($receiver)';
     }
-    if (name == 'first' &&
-        isDartAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStreamFirst');
-      return '__dartStreamFirst($receiver)';
-    }
-    if (name == 'last' &&
-        isDartAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStreamLast');
-      return '__dartStreamLast($receiver)';
-    }
-    if (name == 'single' &&
-        isDartAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStreamSingle');
-      return '__dartStreamSingle($receiver)';
-    }
-    if (name == 'length' &&
-        isDartAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStreamLength');
-      return '__dartStreamLength($receiver)';
-    }
-    if (name == 'isEmpty' &&
-        isDartAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      _usedHelpers.add('__dartStreamIsEmpty');
-      return '__dartStreamIsEmpty($receiver)';
-    }
-    if (name == 'isBroadcast' &&
-        isDartAsyncStreamMember(expression.interfaceTargetReference, name)) {
-      return '($receiver.isBroadcast === true)';
+    final asyncGet = DartSdkAsyncInstanceEmitter(
+      helpers: _usedHelpers,
+      namedArgument: _namedArgument,
+      emitTypeTest: _emitTypeTest,
+    ).emitGet(expression.interfaceTargetReference, name, receiver);
+    if (asyncGet != null) {
+      return asyncGet;
     }
     if (name == 'lengthInBytes' &&
         isDartTypedDataMember(expression.interfaceTargetReference, name)) {

@@ -119,7 +119,15 @@ function __dartLazyField(name, initialize, writable, publish = null) {
 }
 
 function __dartListAdd(list, value) {
-  list.push(value);
+  if (Array.isArray(list)) {
+    list.push(value);
+  } else if (list != null && typeof list.add === "function") {
+    list.add(value);
+  } else {
+    const index = list.length;
+    list.length = index + 1;
+    __dartListLikeSet(list, index, value);
+  }
   return null;
 }
 
@@ -159,23 +167,45 @@ function __dartListMixinInsert(list, index, value) {
   return null;
 }
 
+function __dartListRangeRead(list, index) {
+  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
+}
+function __dartListRangeWrite(list, index, value) {
+  if (list != null && typeof list["[]="] === "function") {
+    list["[]="](index, value);
+  } else {
+    list[index] = value;
+  }
+}
+function __dartListRangeValues(source, start = 0, end = null) {
+  const from = Number(start);
+  if (source != null && typeof source["[]"] === "function" && typeof source.length === "number") {
+    const actualEnd = end == null ? source.length : Number(end);
+    const result = [];
+    for (let index = from; index < actualEnd; index++) result.push(source["[]"](index));
+    return result;
+  }
+  return Array.from(source).slice(from, end == null ? undefined : Number(end));
+}
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
-  const values = Array.from(source).slice(Number(start), end == null ? undefined : Number(end));
+  const values = __dartListRangeValues(source, start, end);
   let index = Number(at);
-  for (const value of values) target[index++] = value;
+  for (const value of values) __dartListRangeWrite(target, index++, value);
   return null;
 }
 function __dartListWriteIterable(target, at, source) {
   let index = Number(at);
-  for (const value of source) target[index++] = value;
+  for (const value of __dartListRangeValues(source)) {
+    __dartListRangeWrite(target, index++, value);
+  }
   return null;
 }
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const from = Number(skipCount);
   const count = Number(end) - Number(start);
-  const values = Array.from(source).slice(from, from + count);
+  const values = __dartListRangeValues(source, from, from + count);
   let index = Number(start);
-  for (const value of values) target[index++] = value;
+  for (const value of values) __dartListRangeWrite(target, index++, value);
   return null;
 }
 

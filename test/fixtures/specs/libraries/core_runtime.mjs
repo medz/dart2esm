@@ -300,7 +300,9 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = Array.from(values, (item) => __dartStr(item));
+      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
+        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
+        : Array.from(values, (item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },

@@ -725,6 +725,12 @@ bool isDartReversedListIterableConstructorPath(String path) {
   );
 }
 
+bool isDartMapBaseValueIterableConstructorPath(String path) {
+  return path.startsWith(
+    'dart:collection::_MapBaseValueIterable::@constructors::',
+  );
+}
+
 bool isDartCoreExpandoConstructorReference(k.Reference reference) {
   return kernelReferencePath(
     reference,

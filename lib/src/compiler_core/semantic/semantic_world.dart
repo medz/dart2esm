@@ -52,6 +52,11 @@ final class EsmSemanticWorld {
          for (final klass in classes)
            for (final field in klass.fields) field.node: field,
        },
+       _instanceFieldSymbolsByReference = {
+         for (final klass in classes)
+           for (final field in klass.fields)
+             kernelReferencePath(field.node.fieldReference): field,
+       },
        _staticFieldSymbols = {
          for (final klass in classes)
            for (final field in klass.staticFields) field.node: field,
@@ -59,6 +64,11 @@ final class EsmSemanticWorld {
        _instanceProcedureSymbols = {
          for (final klass in classes)
            for (final procedure in klass.procedures) procedure.node: procedure,
+       },
+       _instanceProcedureSymbolsByReference = {
+         for (final klass in classes)
+           for (final procedure in klass.procedures)
+             kernelReferencePath(procedure.node.reference): procedure,
        },
        _staticProcedureSymbols = {
          for (final klass in classes)
@@ -109,8 +119,11 @@ final class EsmSemanticWorld {
   final Map<k.Constructor, EsmConstructorSymbol> _constructorSymbols;
   final Map<String, EsmConstructorSymbol> _constructorSymbolsByReference;
   final Map<k.Field, EsmInstanceFieldSymbol> _instanceFieldSymbols;
+  final Map<String, EsmInstanceFieldSymbol> _instanceFieldSymbolsByReference;
   final Map<k.Field, EsmStaticFieldSymbol> _staticFieldSymbols;
   final Map<k.Procedure, EsmInstanceProcedureSymbol> _instanceProcedureSymbols;
+  final Map<String, EsmInstanceProcedureSymbol>
+  _instanceProcedureSymbolsByReference;
   final Map<k.Procedure, EsmStaticProcedureSymbol> _staticProcedureSymbols;
   final Map<String, EsmStaticProcedureSymbol>
   _staticProcedureSymbolsByReference;
@@ -148,6 +161,12 @@ final class EsmSemanticWorld {
     return _instanceFieldSymbols[field];
   }
 
+  EsmInstanceFieldSymbol? instanceFieldSymbolForReference(
+    k.Reference reference,
+  ) {
+    return _instanceFieldSymbolsByReference[kernelReferencePath(reference)];
+  }
+
   EsmStaticFieldSymbol? staticFieldSymbolFor(k.Field field) {
     return _staticFieldSymbols[field];
   }
@@ -156,6 +175,12 @@ final class EsmSemanticWorld {
     k.Procedure procedure,
   ) {
     return _instanceProcedureSymbols[procedure];
+  }
+
+  EsmInstanceProcedureSymbol? instanceProcedureSymbolForReference(
+    k.Reference reference,
+  ) {
+    return _instanceProcedureSymbolsByReference[kernelReferencePath(reference)];
   }
 
   EsmStaticProcedureSymbol? staticProcedureSymbolFor(k.Procedure procedure) {
@@ -324,11 +349,13 @@ final class EsmInstanceProcedureSymbol implements EsmClassProcedureSymbol {
     required this.node,
     required this.name,
     required this.kind,
+    this.emit = true,
   });
 
   final k.Procedure node;
   final String name;
   final EsmProcedureKind kind;
+  final bool emit;
 }
 
 final class EsmStaticProcedureSymbol implements EsmClassProcedureSymbol {
@@ -500,6 +527,9 @@ final class SemanticWorldStage
     final usedStaticNames = <String>{};
     final accessorNames = <String, String>{};
     final staticAccessorNames = <String, String>{};
+    final inheritedMixinProcedures = _anonymousMixinApplicationProcedures(
+      klass,
+    ).toList(growable: false);
     return EsmClassSymbol(
       node: klass,
       name: allocator.freshGlobal(klass.name),
@@ -550,6 +580,19 @@ final class SemanticWorldStage
             ),
       ],
       procedures: [
+        for (final procedure in inheritedMixinProcedures)
+          if (_instanceProcedureKind(procedure) case final kind?)
+            EsmInstanceProcedureSymbol(
+              node: procedure,
+              name: _freshProcedureMemberName(
+                usedNames,
+                accessorNames,
+                _memberJsBaseName(procedure.name),
+                kind,
+              ),
+              kind: kind,
+              emit: procedure.function.body != null,
+            ),
         for (final procedure in klass.procedures)
           if (_instanceProcedureKind(procedure) case final kind?)
             EsmInstanceProcedureSymbol(
@@ -617,6 +660,24 @@ final class SemanticWorldStage
   }
 
   bool _isTopLevelClass(k.Class klass) => !klass.isAnonymousMixin;
+
+  Iterable<k.Procedure> _anonymousMixinApplicationProcedures(k.Class klass) {
+    final mixinApplications = <k.Class>[];
+    var superclass = _supertypeClassNode(klass.supertype);
+    while (superclass != null && superclass.isAnonymousMixin) {
+      mixinApplications.add(superclass);
+      superclass = _supertypeClassNode(superclass.supertype);
+    }
+    return mixinApplications.reversed.expand((klass) => klass.procedures);
+  }
+
+  k.Class? _supertypeClassNode(k.Supertype? supertype) {
+    if (supertype == null) {
+      return null;
+    }
+    final node = supertype.className.node;
+    return node is k.Class ? node : null;
+  }
 
   k.Class? _emittableJsSuperclass(
     EsmClassRuntimePlan classRuntime,

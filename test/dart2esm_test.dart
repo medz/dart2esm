@@ -3731,7 +3731,6 @@ bool _usesLegacyOracleFixture(String fixtureId) {
 }
 
 const _legacyOracleFixtureIds = {
-  'classes/mixins_generics_extensions',
   'classes/no_such_method',
   'functions/generators',
   'imports/deferred_imports',

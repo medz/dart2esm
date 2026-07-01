@@ -126,7 +126,15 @@ function __dartIterableJoin(iterable, separator = "") {
 }
 
 function __dartListAdd(list, value) {
-  list.push(value);
+  if (Array.isArray(list)) {
+    list.push(value);
+  } else if (list != null && typeof list.add === "function") {
+    list.add(value);
+  } else {
+    const index = list.length;
+    list.length = index + 1;
+    __dartListLikeSet(list, index, value);
+  }
   return null;
 }
 

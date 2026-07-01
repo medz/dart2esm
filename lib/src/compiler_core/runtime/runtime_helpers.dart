@@ -147,6 +147,9 @@ final class EsmRuntimeHelperRegistry {
     '__dartListLastIndexWhere',
     '__dartListInsert',
     '__dartListInsertAll',
+    '__dartListMutationRead',
+    '__dartListMutationValues',
+    '__dartListMutationWrite',
     '__dartListMixinFirst',
     '__dartListMixinInsert',
     '__dartListMixinLast',
@@ -159,6 +162,9 @@ final class EsmRuntimeHelperRegistry {
     '__dartListRemoveWhere',
     '__dartListReplaceRange',
     '__dartListRetainWhere',
+    '__dartListRangeRead',
+    '__dartListRangeValues',
+    '__dartListRangeWrite',
     '__dartListSetAll',
     '__dartListSetRange',
     '__dartListShuffle',
@@ -1719,7 +1725,9 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = Array.from(values, (item) => __dartStr(item));
+      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
+        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
+        : Array.from(values, (item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },
@@ -1807,13 +1815,23 @@ function __dartLazyField(name, initialize, writable, publish = null) {
 '''),
       EsmRuntimeHelper.listAdd => EsmRawModuleItemIr('''
 function __dartListAdd(list, value) {
-  list.push(value);
+  if (Array.isArray(list)) {
+    list.push(value);
+  } else if (list != null && typeof list.add === "function") {
+    list.add(value);
+  } else {
+    const index = list.length;
+    list.length = index + 1;
+    __dartListLikeSet(list, index, value);
+  }
   return null;
 }
 '''),
       EsmRuntimeHelper.listAddAll => EsmRawModuleItemIr('''
 function __dartListAddAll(list, values) {
-  list.push(...Array.from(values));
+  for (const value of Array.from(values)) {
+    __dartListAdd(list, value);
+  }
   return null;
 }
 '''),
@@ -1877,89 +1895,180 @@ function __dartListMixinInsert(list, index, value) {
 }
 '''),
       EsmRuntimeHelper.listMutation => EsmRawModuleItemIr('''
+function __dartListMutationRead(list, index) {
+  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
+}
+function __dartListMutationWrite(list, index, value) {
+  if (list != null && typeof list["[]="] === "function") {
+    list["[]="](index, value);
+  } else {
+    list[index] = value;
+  }
+}
+function __dartListMutationValues(values) {
+  if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") {
+    const result = [];
+    for (let index = 0; index < values.length; index++) result.push(values["[]"](index));
+    return result;
+  }
+  return Array.from(values);
+}
 function __dartListShuffle(list, random = null) {
   for (let index = list.length - 1; index > 0; index--) {
     const nextInt = random == null ? Math.floor(Math.random() * (index + 1)) : Number(random.nextInt(index + 1));
-    [list[index], list[nextInt]] = [list[nextInt], list[index]];
+    const current = __dartListMutationRead(list, index);
+    __dartListMutationWrite(list, index, __dartListMutationRead(list, nextInt));
+    __dartListMutationWrite(list, nextInt, current);
   }
   return null;
 }
 function __dartListRemoveAt(list, index) {
-  return list.splice(Number(index), 1)[0];
+  index = Number(index);
+  const value = __dartListMutationRead(list, index);
+  __dartListRemoveRange(list, index, index + 1);
+  return value;
 }
 function __dartListInsert(list, index, value) {
-  list.splice(Number(index), 0, value);
+  index = Number(index);
+  if (Array.isArray(list)) {
+    list.splice(index, 0, value);
+    return null;
+  }
+  const length = Number(list.length);
+  list.length = length + 1;
+  for (let cursor = length; cursor > index; cursor--) {
+    __dartListMutationWrite(list, cursor, __dartListMutationRead(list, cursor - 1));
+  }
+  __dartListMutationWrite(list, index, value);
   return null;
 }
 function __dartListRemove(list, value) {
   for (let index = 0; index < list.length; index++) {
-    if (__dartEquals(list[index], value)) {
-      list.splice(index, 1);
+    if (__dartEquals(__dartListMutationRead(list, index), value)) {
+      __dartListRemoveRange(list, index, index + 1);
       return true;
     }
   }
   return false;
 }
 function __dartListRemoveLast(list) {
-  return list.pop();
+  return __dartListRemoveAt(list, list.length - 1);
 }
 function __dartListInsertAll(list, index, values) {
-  list.splice(Number(index), 0, ...Array.from(values));
+  index = Number(index);
+  const inserted = __dartListMutationValues(values);
+  if (Array.isArray(list)) {
+    list.splice(index, 0, ...inserted);
+    return null;
+  }
+  const length = Number(list.length);
+  list.length = length + inserted.length;
+  for (let cursor = length - 1; cursor >= index; cursor--) {
+    __dartListMutationWrite(list, cursor + inserted.length, __dartListMutationRead(list, cursor));
+  }
+  for (let cursor = 0; cursor < inserted.length; cursor++) {
+    __dartListMutationWrite(list, index + cursor, inserted[cursor]);
+  }
   return null;
 }
 function __dartListSetAll(list, index, values) {
   let cursor = Number(index);
-  for (const value of values) list[cursor++] = value;
+  for (const value of __dartListMutationValues(values)) {
+    __dartListMutationWrite(list, cursor++, value);
+  }
   return null;
 }
 function __dartListFillRange(list, start, end, fill = null) {
-  list.fill(fill, Number(start), Number(end));
+  for (let index = Number(start); index < Number(end); index++) {
+    __dartListMutationWrite(list, index, fill);
+  }
   return null;
 }
 function __dartListReplaceRange(list, start, end, values) {
-  list.splice(Number(start), Number(end) - Number(start), ...Array.from(values));
+  start = Number(start);
+  end = Number(end);
+  const replacement = __dartListMutationValues(values);
+  __dartListRemoveRange(list, start, end);
+  __dartListInsertAll(list, start, replacement);
   return null;
 }
 function __dartListRemoveRange(list, start, end) {
-  list.splice(Number(start), Number(end) - Number(start));
+  start = Number(start);
+  end = Number(end);
+  if (Array.isArray(list)) {
+    list.splice(start, end - start);
+    return null;
+  }
+  const length = Number(list.length);
+  const count = end - start;
+  for (let cursor = end; cursor < length; cursor++) {
+    __dartListMutationWrite(list, cursor - count, __dartListMutationRead(list, cursor));
+  }
+  list.length = length - count;
   return null;
 }
 function __dartListRemoveWhere(list, test) {
   for (let index = list.length - 1; index >= 0; index--) {
-    if (test(list[index])) list.splice(index, 1);
+    if (test(__dartListMutationRead(list, index))) {
+      __dartListRemoveRange(list, index, index + 1);
+    }
   }
   return null;
 }
 function __dartListRetainWhere(list, test) {
   for (let index = list.length - 1; index >= 0; index--) {
-    if (!test(list[index])) list.splice(index, 1);
+    if (!test(__dartListMutationRead(list, index))) {
+      __dartListRemoveRange(list, index, index + 1);
+    }
   }
   return null;
 }
 function __dartListAsMap(list) {
   const map = new Map();
-  for (let index = 0; index < list.length; index++) map.set(index, list[index]);
+  for (let index = 0; index < list.length; index++) map.set(index, __dartListMutationRead(list, index));
   return map;
 }
 '''),
       EsmRuntimeHelper.listRangeOps => EsmRawModuleItemIr('''
+function __dartListRangeRead(list, index) {
+  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
+}
+function __dartListRangeWrite(list, index, value) {
+  if (list != null && typeof list["[]="] === "function") {
+    list["[]="](index, value);
+  } else {
+    list[index] = value;
+  }
+}
+function __dartListRangeValues(source, start = 0, end = null) {
+  const from = Number(start);
+  if (source != null && typeof source["[]"] === "function" && typeof source.length === "number") {
+    const actualEnd = end == null ? source.length : Number(end);
+    const result = [];
+    for (let index = from; index < actualEnd; index++) result.push(source["[]"](index));
+    return result;
+  }
+  return Array.from(source).slice(from, end == null ? undefined : Number(end));
+}
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
-  const values = Array.from(source).slice(Number(start), end == null ? undefined : Number(end));
+  const values = __dartListRangeValues(source, start, end);
   let index = Number(at);
-  for (const value of values) target[index++] = value;
+  for (const value of values) __dartListRangeWrite(target, index++, value);
   return null;
 }
 function __dartListWriteIterable(target, at, source) {
   let index = Number(at);
-  for (const value of source) target[index++] = value;
+  for (const value of __dartListRangeValues(source)) {
+    __dartListRangeWrite(target, index++, value);
+  }
   return null;
 }
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const from = Number(skipCount);
   const count = Number(end) - Number(start);
-  const values = Array.from(source).slice(from, from + count);
+  const values = __dartListRangeValues(source, from, from + count);
   let index = Number(start);
-  for (const value of values) target[index++] = value;
+  for (const value of values) __dartListRangeWrite(target, index++, value);
   return null;
 }
 '''),

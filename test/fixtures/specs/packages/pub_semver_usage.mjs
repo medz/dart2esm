@@ -204,7 +204,15 @@ function __dartLazyField(name, initialize, writable, publish = null) {
 }
 
 function __dartListAdd(list, value) {
-  list.push(value);
+  if (Array.isArray(list)) {
+    list.push(value);
+  } else if (list != null && typeof list.add === "function") {
+    list.add(value);
+  } else {
+    const index = list.length;
+    list.length = index + 1;
+    __dartListLikeSet(list, index, value);
+  }
   return null;
 }
 
@@ -622,7 +630,9 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = Array.from(values, (item) => __dartStr(item));
+      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
+        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
+        : Array.from(values, (item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },

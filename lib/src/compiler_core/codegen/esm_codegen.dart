@@ -367,7 +367,7 @@ final class _EsmIrPrinter {
       EsmConditionalIr() =>
         '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.thenExpression)} : ${_emitExpression(expression.otherwiseExpression)})',
       EsmNullishCoalesceIr() =>
-        '(${_emitExpression(expression.left)} ?? ${_emitExpression(expression.right)})',
+        '(${_emitNullishOperand(expression.left)} ?? ${_emitNullishOperand(expression.right)})',
       EsmParenthesizedIr() => '(${_emitExpression(expression.expression)})',
       EsmNumberLiteralIr() => _emitNumber(expression.value),
       EsmBooleanLiteralIr() => expression.value ? 'true' : 'false',
@@ -478,6 +478,16 @@ final class _EsmIrPrinter {
       EsmBinaryIr() ||
       EsmAssignmentIr() ||
       EsmConditionalIr() => '(${_emitExpression(expression)})',
+      _ => _emitExpression(expression),
+    };
+  }
+
+  String _emitNullishOperand(EsmExpressionIr expression) {
+    return switch (expression) {
+      EsmArrowFunctionIr() ||
+      EsmAssignmentIr() ||
+      EsmConditionalIr() ||
+      EsmNullishCoalesceIr() => '(${_emitExpression(expression)})',
       _ => _emitExpression(expression),
     };
   }

@@ -2884,7 +2884,6 @@ const _legacyOracleFixtureIds = {
   'libraries/js',
   'libraries/js_interop',
   'libraries/mirrors',
-  'libraries/regexp',
   'libraries/streams',
   'libraries/time',
   'libraries/typed_data',

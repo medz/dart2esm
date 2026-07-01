@@ -4790,6 +4790,39 @@ final class KernelToEsmIrLoweringStage
     if (stringBufferInvocation != null) {
       return stringBufferInvocation;
     }
+    final patternInvocation = _lowerCorePatternInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (patternInvocation != null) {
+      return patternInvocation;
+    }
+    final regExpInvocation = _lowerCoreRegExpInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (regExpInvocation != null) {
+      return regExpInvocation;
+    }
+    final matchInvocation = _lowerCoreMatchInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (matchInvocation != null) {
+      return matchInvocation;
+    }
     if (isDartCoreFinalizerMember(
           expression.interfaceTargetReference,
           memberName,
@@ -5692,7 +5725,7 @@ final class KernelToEsmIrLoweringStage
     String target, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    if (expression.arguments.named.isNotEmpty || !_isCoreStringTarget(target)) {
+    if (expression.arguments.types.isNotEmpty || !_isCoreStringTarget(target)) {
       return null;
     }
     final positional = expression.arguments.positional;
@@ -5720,14 +5753,11 @@ final class KernelToEsmIrLoweringStage
     final directMethod = switch (target) {
       'dart:core::String::@methods::codeUnitAt' => 'charCodeAt',
       'dart:core::String::@methods::substring' => 'substring',
-      'dart:core::String::@methods::startsWith' => 'startsWith',
       'dart:core::String::@methods::endsWith' => 'endsWith',
-      'dart:core::String::@methods::indexOf' => 'indexOf',
-      'dart:core::String::@methods::split' => 'split',
-      'dart:core::String::@methods::replaceAll' => 'replaceAll',
       _ => null,
     };
     if (directMethod != null &&
+        expression.arguments.named.isEmpty &&
         positional.isNotEmpty &&
         positional.length <= 2) {
       return EsmCallIr(
@@ -5744,9 +5774,52 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if (target == 'dart:core::String::@methods::contains' &&
+    final directPatternMethod = switch (target) {
+      'dart:core::String::@methods::startsWith' => 'startsWith',
+      'dart:core::String::@methods::indexOf' => 'indexOf',
+      'dart:core::String::@methods::split' => 'split',
+      'dart:core::String::@methods::replaceAll' => 'replaceAll',
+      _ => null,
+    };
+    if (directPatternMethod != null &&
+        expression.arguments.named.isEmpty &&
         positional.isNotEmpty &&
-        positional.length <= 2) {
+        positional.length <= 2 &&
+        _isStringLiteralArgument(expression.arguments, 0)) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: receiver,
+          property: directPatternMethod,
+        ),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    final patternCall = _lowerCoreStringPatternInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      receiver,
+      thisExpression: thisExpression,
+    );
+    if (patternCall != null) {
+      return patternCall;
+    }
+    if (target == 'dart:core::String::@methods::contains' &&
+        expression.arguments.named.isEmpty &&
+        positional.isNotEmpty &&
+        positional.length <= 2 &&
+        _isStringLiteralArgument(expression.arguments, 0)) {
       return EsmCallIr(
         callee: EsmPropertyAccessIr(receiver: receiver, property: 'includes'),
         arguments: [
@@ -5763,6 +5836,7 @@ final class KernelToEsmIrLoweringStage
     }
     if ((target == 'dart:core::String::@methods::padLeft' ||
             target == 'dart:core::String::@methods::padRight') &&
+        expression.arguments.named.isEmpty &&
         positional.isNotEmpty &&
         positional.length <= 2) {
       return EsmCallIr(
@@ -5791,6 +5865,7 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (target == 'dart:core::String::@methods::replaceFirst' &&
+        expression.arguments.named.isEmpty &&
         positional.length >= 2 &&
         positional.length <= 3) {
       helpers.add(EsmRuntimeHelper.stringOps);
@@ -5810,6 +5885,7 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (target == 'dart:core::String::@methods::replaceRange' &&
+        expression.arguments.named.isEmpty &&
         positional.length == 3) {
       helpers.add(EsmRuntimeHelper.stringOps);
       return EsmCallIr(
@@ -5826,6 +5902,194 @@ final class KernelToEsmIrLoweringStage
             ),
         ],
       );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerCoreStringPatternInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target,
+    EsmExpressionIr receiver, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final positional = expression.arguments.positional;
+    EsmExpressionIr lower(k.Expression argument) => _lowerExpression(
+      world,
+      helpers,
+      locals,
+      argument,
+      thisExpression: thisExpression,
+    );
+
+    EsmExpressionIr callPatternHelper(
+      String name,
+      List<EsmExpressionIr> arguments,
+    ) {
+      helpers.add(EsmRuntimeHelper.pattern);
+      return EsmCallIr(callee: EsmIdentifierIr(name), arguments: arguments);
+    }
+
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::contains' &&
+        positional.isNotEmpty &&
+        positional.length <= 2 &&
+        !_isStringLiteralArgument(expression.arguments, 0)) {
+      return callPatternHelper('__dartStringContains', [
+        receiver,
+        lower(positional[0]),
+        positional.length == 2
+            ? lower(positional[1])
+            : const EsmNumberLiteralIr(0),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::startsWith' &&
+        positional.isNotEmpty &&
+        positional.length <= 2 &&
+        !_isStringLiteralArgument(expression.arguments, 0)) {
+      return callPatternHelper('__dartStringStartsWith', [
+        receiver,
+        lower(positional[0]),
+        positional.length == 2
+            ? lower(positional[1])
+            : const EsmNumberLiteralIr(0),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::indexOf' &&
+        positional.isNotEmpty &&
+        positional.length <= 2 &&
+        !_isStringLiteralArgument(expression.arguments, 0)) {
+      return callPatternHelper('__dartStringIndexOf', [
+        receiver,
+        lower(positional[0]),
+        positional.length == 2
+            ? lower(positional[1])
+            : const EsmNumberLiteralIr(0),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::lastIndexOf' &&
+        positional.isNotEmpty &&
+        positional.length <= 2) {
+      return callPatternHelper('__dartStringLastIndexOf', [
+        receiver,
+        lower(positional[0]),
+        positional.length == 2
+            ? lower(positional[1])
+            : const EsmNullLiteralIr(),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::split' &&
+        positional.length == 1 &&
+        !_isStringLiteralArgument(expression.arguments, 0)) {
+      return callPatternHelper('__dartStringSplit', [
+        receiver,
+        lower(positional.single),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::allMatches' &&
+        positional.isNotEmpty &&
+        positional.length <= 2) {
+      return callPatternHelper('__dartPatternAllMatches', [
+        receiver,
+        lower(positional[0]),
+        positional.length == 2
+            ? lower(positional[1])
+            : const EsmNumberLiteralIr(0),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::matchAsPrefix' &&
+        positional.isNotEmpty &&
+        positional.length <= 2) {
+      return callPatternHelper('__dartPatternMatchAsPrefix', [
+        receiver,
+        lower(positional[0]),
+        positional.length == 2
+            ? lower(positional[1])
+            : const EsmNumberLiteralIr(0),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::replaceAll' &&
+        positional.length == 2 &&
+        !_isStringLiteralArgument(expression.arguments, 0)) {
+      return callPatternHelper('__dartStringReplaceAll', [
+        receiver,
+        lower(positional[0]),
+        lower(positional[1]),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::replaceAllMapped' &&
+        positional.length == 2) {
+      return callPatternHelper('__dartStringReplaceAllMapped', [
+        receiver,
+        lower(positional[0]),
+        lower(positional[1]),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::replaceFirst' &&
+        positional.length >= 2 &&
+        positional.length <= 3 &&
+        !_isStringLiteralArgument(expression.arguments, 0)) {
+      return callPatternHelper('__dartStringReplaceFirstPattern', [
+        receiver,
+        lower(positional[0]),
+        lower(positional[1]),
+        positional.length == 3
+            ? lower(positional[2])
+            : const EsmNumberLiteralIr(0),
+      ]);
+    }
+    if (expression.arguments.named.isEmpty &&
+        target == 'dart:core::String::@methods::replaceFirstMapped' &&
+        positional.length >= 2 &&
+        positional.length <= 3) {
+      return callPatternHelper('__dartStringReplaceFirstMapped', [
+        receiver,
+        lower(positional[0]),
+        lower(positional[1]),
+        positional.length == 3
+            ? lower(positional[2])
+            : const EsmNumberLiteralIr(0),
+      ]);
+    }
+    if (target == 'dart:core::String::@methods::splitMapJoin' &&
+        positional.length == 1 &&
+        _hasOnlyNamedArguments(expression.arguments, {
+          'onMatch',
+          'onNonMatch',
+        })) {
+      return callPatternHelper('__dartStringSplitMapJoin', [
+        receiver,
+        lower(positional.single),
+        _lowerNamedArgument(
+              world,
+              helpers,
+              locals,
+              expression.arguments,
+              'onMatch',
+              thisExpression: thisExpression,
+            ) ??
+            const EsmNullLiteralIr(),
+        _lowerNamedArgument(
+              world,
+              helpers,
+              locals,
+              expression.arguments,
+              'onNonMatch',
+              thisExpression: thisExpression,
+            ) ??
+            const EsmNullLiteralIr(),
+      ]);
     }
     return null;
   }
@@ -5875,6 +6139,158 @@ final class KernelToEsmIrLoweringStage
             argument,
             thisExpression: thisExpression,
           ),
+      ],
+    );
+  }
+
+  EsmExpressionIr? _lowerCorePatternInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty ||
+        !target.startsWith('dart:core::Pattern::@methods::')) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    final helperName = switch (expression.name.text) {
+      'allMatches' when positional.isNotEmpty && positional.length <= 2 =>
+        '__dartPatternAllMatches',
+      'matchAsPrefix' when positional.isNotEmpty && positional.length <= 2 =>
+        '__dartPatternMatchAsPrefix',
+      _ => null,
+    };
+    if (helperName == null) {
+      return null;
+    }
+    helpers.add(EsmRuntimeHelper.pattern);
+    return EsmCallIr(
+      callee: EsmIdentifierIr(helperName),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          positional[0],
+          thisExpression: thisExpression,
+        ),
+        positional.length == 2
+            ? _lowerExpression(
+                world,
+                helpers,
+                locals,
+                positional[1],
+                thisExpression: thisExpression,
+              )
+            : const EsmNumberLiteralIr(0),
+      ],
+    );
+  }
+
+  EsmExpressionIr? _lowerCoreRegExpInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty ||
+        !_isCoreRegExpMember(target)) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    final method = switch (expression.name.text) {
+      'hasMatch' ||
+      'firstMatch' ||
+      'stringMatch' when positional.length == 1 => expression.name.text,
+      'matchAsPrefix' || 'allMatches'
+          when positional.isNotEmpty && positional.length <= 2 =>
+        expression.name.text,
+      'toString' when positional.isEmpty => expression.name.text,
+      _ => null,
+    };
+    if (method == null) {
+      return null;
+    }
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(
+        receiver: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        property: method,
+      ),
+      arguments: [
+        for (final argument in positional)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+      ],
+    );
+  }
+
+  EsmExpressionIr? _lowerCoreMatchInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty ||
+        !_isCoreMatchMember(target)) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    final method = switch (expression.name.text) {
+      'group' ||
+      'groups' ||
+      'namedGroup' when positional.length == 1 => expression.name.text,
+      _ => null,
+    };
+    if (method == null) {
+      return null;
+    }
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(
+        receiver: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        property: method,
+      ),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          positional.single,
+          thisExpression: thisExpression,
+        ),
       ],
     );
   }
@@ -7648,6 +8064,33 @@ final class KernelToEsmIrLoweringStage
         arguments: [receiver],
       );
     }
+    if (_isCoreRegExpMember(target)) {
+      final property = switch (memberName) {
+        'pattern' ||
+        'isCaseSensitive' ||
+        'isMultiLine' ||
+        'isUnicode' ||
+        'isDotAll' => memberName,
+        _ => null,
+      };
+      if (property != null) {
+        return EsmPropertyAccessIr(receiver: receiver, property: property);
+      }
+    }
+    if (_isCoreMatchMember(target)) {
+      final property = switch (memberName) {
+        'start' ||
+        'end' ||
+        'input' ||
+        'pattern' ||
+        'groupCount' ||
+        'groupNames' => memberName,
+        _ => null,
+      };
+      if (property != null) {
+        return EsmPropertyAccessIr(receiver: receiver, property: property);
+      }
+    }
     if (_isCoreStringBufferMember(target)) {
       final property = switch (memberName) {
         'length' || 'isEmpty' || 'isNotEmpty' => memberName,
@@ -8945,6 +9388,8 @@ final class KernelToEsmIrLoweringStage
         '_WeakReference' => _lowerDartTypeTagTest(value, 'WeakReference'),
         'Finalizer' ||
         '_FinalizerImpl' => _lowerDartTypeTagTest(value, 'Finalizer'),
+        'Pattern' => _lowerCorePatternTypeTest(value),
+        'RegExp' => _lowerCoreRegExpTypeTest(value),
         'Record' => _lowerRecordObjectTest(helpers, value),
         _ => throw NewCompilerUnsupported(
           type,
@@ -9123,6 +9568,41 @@ final class KernelToEsmIrLoweringStage
     ]);
   }
 
+  EsmExpressionIr _lowerCoreRegExpTypeTest(EsmExpressionIr value) {
+    return _or(
+      EsmBinaryIr(
+        left: value,
+        operator: 'instanceof',
+        right: const EsmIdentifierIr('RegExp'),
+      ),
+      _andAll([
+        _notNull(value),
+        _typeofEquals(value, 'object'),
+        _typeofEquals(
+          EsmPropertyAccessIr(receiver: value, property: '__dartRegExpMake'),
+          'function',
+        ),
+      ]),
+    );
+  }
+
+  EsmExpressionIr _lowerCorePatternTypeTest(EsmExpressionIr value) {
+    return _or(
+      _typeofEquals(value, 'string'),
+      _or(
+        _lowerCoreRegExpTypeTest(value),
+        _andAll([
+          _notNull(value),
+          _typeofEquals(value, 'object'),
+          _typeofEquals(
+            EsmPropertyAccessIr(receiver: value, property: 'matchAsPrefix'),
+            'function',
+          ),
+        ]),
+      ),
+    );
+  }
+
   bool _isTopType(k.DartType type) {
     if (type is k.DynamicType || type is k.VoidType || type is k.InvalidType) {
       return true;
@@ -9189,6 +9669,34 @@ final class KernelToEsmIrLoweringStage
 
   bool _isCoreStringTarget(String target) {
     return target.startsWith('dart:core::String::@methods::');
+  }
+
+  bool _isCoreRegExpMember(String target) {
+    return target.startsWith('dart:core::RegExp::@');
+  }
+
+  bool _isCoreMatchMember(String target) {
+    return target.startsWith('dart:core::Match::@') ||
+        target.startsWith('dart:core::RegExpMatch::@');
+  }
+
+  bool _isStringLiteralArgument(k.Arguments arguments, int index) {
+    return arguments.positional.length > index &&
+        _isKnownStringExpression(arguments.positional[index]);
+  }
+
+  bool _isKnownStringExpression(k.Expression expression) {
+    return switch (expression) {
+      k.StringLiteral() => true,
+      k.StringConcatenation() => expression.expressions.every(
+        _isKnownStringExpression,
+      ),
+      k.ConditionalExpression() =>
+        _isKnownStringExpression(expression.then) &&
+            _isKnownStringExpression(expression.otherwise),
+      k.Let() => _isKnownStringExpression(expression.body),
+      _ => false,
+    };
   }
 
   EsmExpressionIr _andAll(List<EsmExpressionIr> expressions) {
@@ -9470,6 +9978,16 @@ final class KernelToEsmIrLoweringStage
     );
     if (coreStringStatic != null) {
       return coreStringStatic;
+    }
+    final coreRegExpStatic = _lowerCoreRegExpStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (coreRegExpStatic != null) {
+      return coreRegExpStatic;
     }
     final coreUriStatic = _lowerCoreUriStaticInvocation(
       world,
@@ -10435,6 +10953,114 @@ final class KernelToEsmIrLoweringStage
               argument,
               thisExpression: thisExpression,
             ),
+        ],
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerCoreRegExpStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final target = kernelReferencePath(expression.targetReference);
+    final positional = expression.arguments.positional;
+    if (target.startsWith('dart:core::RegExp::@factories::') &&
+        positional.length == 1 &&
+        _hasOnlyNamedArguments(expression.arguments, {
+          'multiLine',
+          'caseSensitive',
+          'unicode',
+          'dotAll',
+        })) {
+      helpers.add(EsmRuntimeHelper.regExp);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.regExp),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+          EsmObjectLiteralIr([
+            EsmObjectLiteralPropertyIr(
+              name: 'caseSensitive',
+              value:
+                  _lowerNamedArgument(
+                    world,
+                    helpers,
+                    locals,
+                    expression.arguments,
+                    'caseSensitive',
+                    thisExpression: thisExpression,
+                  ) ??
+                  const EsmBooleanLiteralIr(true),
+            ),
+            EsmObjectLiteralPropertyIr(
+              name: 'multiLine',
+              value:
+                  _lowerNamedArgument(
+                    world,
+                    helpers,
+                    locals,
+                    expression.arguments,
+                    'multiLine',
+                    thisExpression: thisExpression,
+                  ) ??
+                  const EsmBooleanLiteralIr(false),
+            ),
+            EsmObjectLiteralPropertyIr(
+              name: 'unicode',
+              value:
+                  _lowerNamedArgument(
+                    world,
+                    helpers,
+                    locals,
+                    expression.arguments,
+                    'unicode',
+                    thisExpression: thisExpression,
+                  ) ??
+                  const EsmBooleanLiteralIr(false),
+            ),
+            EsmObjectLiteralPropertyIr(
+              name: 'dotAll',
+              value:
+                  _lowerNamedArgument(
+                    world,
+                    helpers,
+                    locals,
+                    expression.arguments,
+                    'dotAll',
+                    thisExpression: thisExpression,
+                  ) ??
+                  const EsmBooleanLiteralIr(false),
+            ),
+          ]),
+        ],
+      );
+    }
+    if (target == 'dart:core::RegExp::@methods::escape' &&
+        positional.length == 1 &&
+        expression.arguments.named.isEmpty) {
+      helpers.add(EsmRuntimeHelper.regExpEscape);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.regExpEscape),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
         ],
       );
     }

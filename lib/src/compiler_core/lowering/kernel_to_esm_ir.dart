@@ -2989,7 +2989,7 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
-      catchParameter: errorName,
+      catchParameter: EsmIdentifierParameterIr(name: errorName),
       catchBody: _lowerCatchChain(
         world,
         helpers,

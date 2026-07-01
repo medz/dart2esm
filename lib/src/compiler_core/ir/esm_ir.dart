@@ -237,7 +237,7 @@ final class EsmTryStatementIr extends EsmStatementIr {
   });
 
   final List<EsmStatementIr> body;
-  final String? catchParameter;
+  final EsmParameterIr? catchParameter;
   final List<EsmStatementIr>? catchBody;
   final List<EsmStatementIr>? finallyBody;
 }

@@ -191,7 +191,8 @@ void main() {
     expect(ir, contains('final List<EsmParameterIr> parameters;'));
     expect(ir, isNot(contains('final List<String> parameters;')));
     expect(codegen, contains('EsmArrayPatternParameterIr()'));
-    expect(codegen, contains('parameter.elements.map(_emitParameter)'));
+    expect(codegen, contains('parameter.elements.map(_emitBindingPattern)'));
+    expect(codegen, contains('String _emitBindingPattern(EsmParameterIr'));
     expect(codegen, contains('expression.parameters.map(_emitParameter)'));
     expect(codegen, isNot(contains('expression.parameters.join')));
   });
@@ -204,6 +205,20 @@ void main() {
     expect(ir, isNot(contains('final String? superclass;')));
     expect(codegen, contains('extends \${_emitExpression(klass.superclass!)}'));
     expect(codegen, isNot(contains('extends \${klass.superclass}')));
+  });
+
+  test('ESM catch parameter uses binding IR', () {
+    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final lowering = _read(
+      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
+    );
+
+    expect(ir, contains('final EsmParameterIr? catchParameter;'));
+    expect(ir, isNot(contains('final String? catchParameter;')));
+    expect(codegen, contains('_emitBindingPattern(catchParameter)'));
+    expect(codegen, isNot(contains('catch (\${statement.catchParameter})')));
+    expect(lowering, contains('catchParameter: EsmIdentifierParameterIr'));
   });
 
   test('ESM identifier IR is not used for member expressions', () {

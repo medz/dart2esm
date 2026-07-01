@@ -281,7 +281,12 @@ final class _EsmIrPrinter {
     final catchBody = statement.catchBody;
     final finallyBody = statement.finallyBody;
     if (catchBody != null) {
-      _writeIndented('} catch (${statement.catchParameter}) {');
+      final catchParameter = statement.catchParameter;
+      _writeIndented(
+        catchParameter == null
+            ? '} catch {'
+            : '} catch (${_emitBindingPattern(catchParameter)}) {',
+      );
       _indent++;
       for (final child in catchBody) {
         _emitStatement(child);
@@ -335,11 +340,19 @@ final class _EsmIrPrinter {
       EsmIdentifierParameterIr() =>
         parameter.defaultValue == null
             ? parameter.name
-            : '${parameter.name} = ${_emitExpression(parameter.defaultValue!)}',
+            : '${_emitBindingPattern(parameter)} = ${_emitExpression(parameter.defaultValue!)}',
+      EsmObjectPatternParameterIr() => '${_emitBindingPattern(parameter)} = {}',
+      EsmArrayPatternParameterIr() => _emitBindingPattern(parameter),
+    };
+  }
+
+  String _emitBindingPattern(EsmParameterIr parameter) {
+    return switch (parameter) {
+      EsmIdentifierParameterIr() => parameter.name,
       EsmObjectPatternParameterIr() =>
-        '{ ${parameter.bindings.map(_emitObjectPatternBinding).join(', ')} } = {}',
+        '{ ${parameter.bindings.map(_emitObjectPatternBinding).join(', ')} }',
       EsmArrayPatternParameterIr() =>
-        '[${parameter.elements.map(_emitParameter).join(', ')}]',
+        '[${parameter.elements.map(_emitBindingPattern).join(', ')}]',
     };
   }
 

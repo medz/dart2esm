@@ -2508,7 +2508,7 @@ final class KernelToEsmIrLoweringStage
     return EsmVariableDeclarationIr(
       name: name,
       initializer: initializer == null
-          ? null
+          ? const EsmNullLiteralIr()
           : _lowerExpression(
               world,
               helpers,
@@ -3483,6 +3483,20 @@ final class KernelToEsmIrLoweringStage
         if (symbol != null && symbol.kind == EsmProcedureKind.method) {
           return EsmIdentifierIr(symbol.name);
         }
+        final staticSymbol =
+            world.staticProcedureSymbolFor(target) ??
+            world.staticProcedureSymbolForReference(constant.targetReference);
+        final staticClass = staticSymbol == null
+            ? null
+            : world.classSymbolFor(staticSymbol.node.enclosingClass!);
+        if (staticSymbol != null &&
+            staticClass != null &&
+            staticSymbol.kind == EsmProcedureKind.method) {
+          return EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr(staticClass.name),
+            property: staticSymbol.name,
+          );
+        }
       }
     }
     if (constant is k.ConstructorTearOffConstant ||
@@ -3515,7 +3529,10 @@ final class KernelToEsmIrLoweringStage
       );
       return _lowerCanonicalConstant(helpers, constant, instance);
     }
-    throw NewCompilerUnsupported(context, 'constant expression lowering');
+    throw NewCompilerUnsupported(
+      context,
+      'constant expression lowering ${constant.runtimeType}',
+    );
   }
 
   EsmExpressionIr? _lowerDartConvertInstanceConstant(
@@ -3602,17 +3619,29 @@ final class KernelToEsmIrLoweringStage
     if (mathConstant != null) {
       return mathConstant;
     }
-    final coreConstant = _lowerDartCoreInstanceConstant(constant);
+    final coreConstant = _lowerDartCoreInstanceConstant(
+      world,
+      helpers,
+      constant,
+      context,
+    );
     if (coreConstant != null) {
       return coreConstant;
     }
+    final classPath = kernelReferencePath(constant.classReference);
     if (klass is! k.Class ||
         klass.enclosingLibrary.importUri.scheme == 'dart') {
-      throw NewCompilerUnsupported(context, 'constant expression lowering');
+      throw NewCompilerUnsupported(
+        context,
+        'constant expression lowering $classPath',
+      );
     }
     final symbol = world.classSymbolFor(klass);
     if (symbol == null) {
-      throw NewCompilerUnsupported(context, 'constant expression lowering');
+      throw NewCompilerUnsupported(
+        context,
+        'constant expression lowering $classPath',
+      );
     }
     final fields = <EsmObjectLiteralPropertyIr>[];
     String? enumName;
@@ -3714,7 +3743,12 @@ final class KernelToEsmIrLoweringStage
     );
   }
 
-  EsmExpressionIr? _lowerDartCoreInstanceConstant(k.InstanceConstant constant) {
+  EsmExpressionIr? _lowerDartCoreInstanceConstant(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.InstanceConstant constant,
+    Object context,
+  ) {
     if (_isDartCoreObjectConstant(constant)) {
       return const EsmCallIr(
         callee: EsmPropertyAccessIr(
@@ -3724,7 +3758,34 @@ final class KernelToEsmIrLoweringStage
         arguments: [EsmObjectLiteralIr([])],
       );
     }
+    final errorTypeName = _dartCoreErrorConstantTypeName(constant);
+    if (errorTypeName != null) {
+      helpers.add(EsmRuntimeHelper.coreError);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.coreError),
+        arguments: [
+          EsmStringLiteralIr(errorTypeName),
+          _lowerOptionalConstantField(
+                world,
+                helpers,
+                constant,
+                'message',
+                context,
+              ) ??
+              const EsmNullLiteralIr(),
+        ],
+      );
+    }
     return null;
+  }
+
+  String? _dartCoreErrorConstantTypeName(k.InstanceConstant constant) {
+    final path = kernelReferencePath(constant.classReference);
+    if (!path.startsWith('dart:core::')) {
+      return null;
+    }
+    final typeName = path.substring('dart:core::'.length);
+    return dartCoreErrorTypeNames.contains(typeName) ? typeName : null;
   }
 
   bool _isDartCoreObjectConstant(k.InstanceConstant constant) {
@@ -3780,6 +3841,23 @@ final class KernelToEsmIrLoweringStage
       }
     }
     throw NewCompilerUnsupported(context, 'constant expression lowering');
+  }
+
+  EsmExpressionIr? _lowerOptionalConstantField(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    k.InstanceConstant constant,
+    String fieldName,
+    Object context,
+  ) {
+    for (final entry in constant.fieldValues.entries) {
+      final path = kernelReferencePath(entry.key);
+      if (path.endsWith('::@fields::$fieldName') ||
+          path.endsWith('::$fieldName')) {
+        return _lowerConstant(world, helpers, entry.value, context);
+      }
+    }
+    return null;
   }
 
   String? _enumBackingFieldName(k.Reference reference) {
@@ -8050,7 +8128,7 @@ final class KernelToEsmIrLoweringStage
         property: const EsmNumberLiteralIr(1),
       );
     }
-    if (target == 'dart:core::Object::@getters::hashCode') {
+    if (_isCoreHashCodeGetter(target)) {
       helpers.add(EsmRuntimeHelper.objectHash);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartHashValue'),
@@ -9669,6 +9747,14 @@ final class KernelToEsmIrLoweringStage
 
   bool _isCoreStringTarget(String target) {
     return target.startsWith('dart:core::String::@methods::');
+  }
+
+  bool _isCoreHashCodeGetter(String target) {
+    return target == 'dart:core::Object::@getters::hashCode' ||
+        target == 'dart:core::String::@getters::hashCode' ||
+        target == 'dart:core::bool::@getters::hashCode' ||
+        target == 'dart:core::BigInt::@getters::hashCode' ||
+        target == 'dart:core::Null::@getters::hashCode';
   }
 
   bool _isCoreRegExpMember(String target) {

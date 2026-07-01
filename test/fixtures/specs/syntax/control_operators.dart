@@ -1,3 +1,5 @@
+Object? hide(Object? value) => value;
+
 class Box {
   int value;
 
@@ -24,7 +26,21 @@ String describe(Box? maybe) {
   return '$first $second ${assigned.describe()} ${cascaded.describe()} $bits $truth';
 }
 
+String defaultNulls() {
+  Object? value;
+  final before = hide(value) == null;
+  value ??= 'filled';
+  int? loop;
+  var loopStartedNull = false;
+  for (int? cursor; hide(cursor) == null; cursor = 1) {
+    loopStartedNull = hide(cursor) == null;
+    loop = cursor;
+  }
+  return '$before $value $loopStartedNull ${loop == null}';
+}
+
 void main() {
   print(describe(Box(5)));
   print(describe(null));
+  print(defaultNulls());
 }

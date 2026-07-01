@@ -1008,8 +1008,8 @@ class HeapPriorityQueue {
           return this.comparison(v, v_1);
         })();
       })();
-      let minChildIndex;
-      let minChild;
+      let minChildIndex = null;
+      let minChild = null;
       if (comp < 0) {
         minChild = leftChild;
         minChildIndex = leftChildIndex;

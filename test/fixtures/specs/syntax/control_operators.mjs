@@ -38,6 +38,10 @@ export class Box {
   }
 }
 
+export function hide(value) {
+  return value;
+}
+
 export function describe(maybe) {
   const first = (maybe?.value ?? -1);
   const second = (maybe?.bump(2) ?? -2);
@@ -56,9 +60,23 @@ export function describe(maybe) {
   return `${__dartStr(first)} ${__dartStr(second)} ${__dartStr(assigned.describe())} ${__dartStr(cascaded.describe())} ${__dartStr(bits)} ${__dartStr(truth)}`;
 }
 
+export function defaultNulls() {
+  let value = null;
+  const before = hide(value) === null;
+  (value === null ? value = "filled" : null);
+  let loop = null;
+  let loopStartedNull = false;
+  for (let cursor = null; hide(cursor) === null; cursor = 1) {
+    loopStartedNull = hide(cursor) === null;
+    loop = cursor;
+  }
+  return `${__dartStr(before)} ${__dartStr(value)} ${__dartStr(loopStartedNull)} ${__dartStr(loop === null)}`;
+}
+
 export function main() {
   __dartPrint(describe(new Box(5)));
   __dartPrint(describe(null));
+  __dartPrint(defaultNulls());
 }
 
 main();

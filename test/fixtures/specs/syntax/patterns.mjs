@@ -174,7 +174,7 @@ export class Pair {
 
 export function classify(value) {
   const _0_0 = value;
-  let n;
+  let n = null;
   if (((typeof _0_0 === "number" && (() => {
     const v = n = _0_0;
     return true;
@@ -182,21 +182,21 @@ export function classify(value) {
     return `even ${__dartStr(n)}`;
   }
   return (() => {
-    let v;
+    let v = null;
     const _1_0 = value;
-    let _1_2;
+    let _1_2 = null;
     let _1_2_isSet = false;
-    let _1_3;
+    let _1_3 = null;
     let _1_3_isSet = false;
     label: {
-      let s;
+      let s = null;
       if (typeof _1_0 === "string") {
         s = _1_0;
         v = `string ${__dartStr(s)}`;
         break label;
       }
-      let a;
-      let b;
+      let a = null;
+      let b = null;
       if ((((((((__dartIsRecord(_1_0) && _1_0[__dartRecordShape].length === 2) && _1_0[__dartRecordShape][0] === "$1") && _1_0[__dartRecordShape][1] === "$2") && true) && true) && (typeof ((_1_2_isSet ? _1_2 : (() => {
         const v_1 = _1_2_isSet = true;
         return _1_2 = _1_0.$1;
@@ -228,25 +228,25 @@ export function classify(value) {
 
 export function shape(value) {
   return (() => {
-    let v;
+    let v = null;
     const _0_0 = value;
     const _0_3 = 2;
-    let _0_6;
+    let _0_6 = null;
     let _0_6_isSet = false;
-    let _0_7;
+    let _0_7 = null;
     let _0_7_isSet = false;
-    let _0_11;
+    let _0_11 = null;
     let _0_11_isSet = false;
     const _0_9 = "name";
-    let _0_14;
+    let _0_14 = null;
     let _0_14_isSet = false;
     const _0_12 = "age";
     const _0_19 = 0;
     const _0_21 = 10;
     const _0_23 = null;
     label: {
-      let first;
-      let second;
+      let first = null;
+      let second = null;
       if (((((Array.isArray(_0_0) || (ArrayBuffer.isView(_0_0) && !(_0_0 instanceof DataView))) && __dartEquals(_0_0.length, 2)) && (typeof ((_0_6_isSet ? _0_6 : (() => {
         const v_1 = _0_6_isSet = true;
         return _0_6 = _0_0[0];
@@ -267,8 +267,8 @@ export function shape(value) {
         v = `list ${__dartStr(first + second)}`;
         break label;
       }
-      let name;
-      let age;
+      let name = null;
+      let age = null;
       if (((((_0_0 instanceof Map && (!((_0_11_isSet ? _0_11 : (() => {
         const v_1 = _0_11_isSet = true;
         return _0_11 = __dartMapGet(_0_0, "name");
@@ -295,8 +295,8 @@ export function shape(value) {
         v = `map ${__dartStr(name)} ${__dartStr(age)}`;
         break label;
       }
-      let left;
-      let right;
+      let left = null;
+      let right = null;
       if ((((_0_0 instanceof Pair && (() => {
         const v_1 = left = _0_0.left;
         return true;
@@ -325,8 +325,8 @@ export function shape(value) {
 }
 
 export function main() {
-  let first;
-  let second;
+  let first = null;
+  let second = null;
   const _0_0 = __dartRecord([1, 2], {  });
   first = _0_0.$1;
   second = _0_0.$2;

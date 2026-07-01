@@ -344,8 +344,8 @@ export function describe(input) {
     }
     return v;
   })();
-  let a;
-  let b;
+  let a = null;
+  let b = null;
   const _0_0 = __dartRecord([1, 2], {  });
   a = _0_0.$1;
   b = _0_0.$2;
@@ -353,10 +353,10 @@ export function describe(input) {
   a = _1_0.$1;
   b = _1_0.$2;
   const result = (() => {
-    let v;
+    let v = null;
     const _2_0 = input;
     label: {
-      let value;
+      let value = null;
       if (((typeof _2_0 === "number" && (() => {
         const v_1 = value = _2_0;
         return true;
@@ -364,7 +364,7 @@ export function describe(input) {
         v = `big ${__dartStr(value)}`;
         break label;
       }
-      let value_1;
+      let value_1 = null;
       if (typeof _2_0 === "string") {
         value_1 = _2_0;
         v = `string ${__dartStr(value_1)}`;

@@ -77,6 +77,12 @@ void main() {
     '${identityHashCode('x') == identityHashCode('x')} '
     '${identityHashCode(null) == identityHashCode(null)}',
   );
+  final dynamic stringHash = hide('dart'.hashCode);
+  final dynamic boolHash = hide(true.hashCode);
+  print(
+    'primitiveHash ${stringHash is int} ${stringHash == 'dart'.hashCode} '
+    '${boolHash is int} ${boolHash != false.hashCode}',
+  );
   print('runtime ${plain.runtimeType} ${1.runtimeType} ${1.5.runtimeType}');
   print(
     'objectString ${plain.toString().contains('PlainObject')} '

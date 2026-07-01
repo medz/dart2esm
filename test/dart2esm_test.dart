@@ -2897,7 +2897,6 @@ const _legacyOracleFixtureIds = {
   'packages/http_parser_usage',
   'packages/mime_usage',
   'packages/path_usage',
-  'packages/pub_semver_usage',
   'packages/source_span_usage',
   'packages/typed_data_usage',
   'packages/yaml_usage',

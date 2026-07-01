@@ -639,6 +639,9 @@ export function main() {
   __dartPrint(`object ${__dartStr(typeof hash === "number")} ${__dartStr(stableHash)} ${__dartStr(Object.is(plain, plain))} ${__dartStr(Object.is(plain, other))}`);
   const identityHash = __dartHashValue(plain);
   __dartPrint(`identityHash ${__dartStr(typeof identityHash === "number")} ${__dartStr(__dartEquals(identityHash, __dartHashValue(plain)))} ${__dartStr(__dartEquals(__dartHashValue("x"), __dartHashValue("x")))} ${__dartStr(__dartEquals(__dartHashValue(null), __dartHashValue(null)))}`);
+  const stringHash = hide(__dartHashValue("dart"));
+  const boolHash = hide(__dartHashValue(true));
+  __dartPrint(`primitiveHash ${__dartStr(typeof stringHash === "number")} ${__dartStr(__dartEquals(stringHash, __dartHashValue("dart")))} ${__dartStr(typeof boolHash === "number")} ${__dartStr(!(__dartEquals(boolHash, __dartHashValue(false))))}`);
   __dartPrint(`runtime ${__dartStr(__dartRuntimeType(plain))} ${__dartStr(__dartRuntimeType(1))} ${__dartStr(__dartRuntimeType(1.5))}`);
   __dartPrint(`objectString ${__dartStr(__dartSafeToString(plain).includes("PlainObject"))} ${__dartStr(__dartSafeToString(object).includes("Object"))}`);
   const constObject = __dartConst("[\"instance\",\"dart:core::Object\"]", () => Object.freeze({  }));

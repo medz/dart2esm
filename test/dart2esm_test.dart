@@ -1427,43 +1427,52 @@ void main() {
     expect((nodeResult.stdout as String).trim(), 'two/three');
   });
 
-  test(
-    'reports unsupported real switch continue when oracle is disabled',
-    () async {
-      final tempDir = await Directory.systemTemp.createTemp(
-        'dart2esm-no-oracle-',
-      );
-      addTearDown(() => tempDir.deleteSync(recursive: true));
-      final input = File(p.join(tempDir.path, 'main.dart'))
-        ..writeAsStringSync('''
+  test('compiles real switch continue when oracle is disabled', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-no-oracle-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
 void main() {
+  var log = '';
   switch (0) {
-    target:
+    first:
     case 0:
-      continue target;
+      log = '\${log}first';
+      continue second;
+    second:
+    case 1:
+      print(log);
+      break;
   }
 }
 ''');
-      final output = File(p.join(tempDir.path, 'main.mjs'));
+    final output = File(p.join(tempDir.path, 'main.mjs'));
 
-      final result = await compileDartToEsm(
-        Dart2EsmOptions(
-          inputPath: input.path,
-          outputPath: output.path,
-          workingDirectory: Directory.current,
-          allowLegacyOracle: false,
-        ),
-      );
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
 
-      expect(result.success, isFalse);
-      expect(result.compilerPath, isNull);
-      expect(
-        result.diagnostics.single,
-        contains('New compiler core does not support statement lowering'),
-      );
-      expect(output.existsSync(), isFalse);
-    },
-  );
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    expect(output.existsSync(), isTrue);
+    expect(output.readAsStringSync(), contains(r'continue $switchLoop;'));
+
+    final nodeResult = await Process.run('node', [output.path]);
+    expect(
+      nodeResult.exitCode,
+      0,
+      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+    );
+    expect(nodeResult.stdout, 'first\n');
+    expect(nodeResult.stderr, isEmpty);
+  });
 
   test('compiles type tests through the new core', () async {
     final source = File(p.join(fixtureDir.path, 'syntax', 'type_tests.dart'));
@@ -3724,7 +3733,6 @@ bool _usesLegacyOracleFixture(String fixtureId) {
 const _legacyOracleFixtureIds = {
   'classes/mixins_generics_extensions',
   'classes/no_such_method',
-  'control_flow/switch_continue',
   'functions/generators',
   'imports/deferred_imports',
   'libraries/async',

@@ -2111,6 +2111,7 @@ final class KernelToEsmIrLoweringStage
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.Statement statement, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
     EsmExpressionIr thisExpression = const EsmThisIr(),
     String? rethrowName,
   }) {
@@ -2123,6 +2124,7 @@ final class KernelToEsmIrLoweringStage
             locals,
             labels,
             child,
+            continueSwitchTargets: continueSwitchTargets,
             thisExpression: thisExpression,
             rethrowName: rethrowName,
           ),
@@ -2135,10 +2137,15 @@ final class KernelToEsmIrLoweringStage
           labels,
           statement,
           thisExpression,
+          continueSwitchTargets: continueSwitchTargets,
           rethrowName: rethrowName,
         ),
       ],
       k.BreakStatement() => [_lowerBreakStatement(labels, statement)],
+      k.ContinueSwitchStatement() => _lowerContinueSwitchStatement(
+        continueSwitchTargets,
+        statement,
+      ),
       k.VariableDeclaration() => [
         _lowerVariableDeclaration(
           world,
@@ -2184,6 +2191,7 @@ final class KernelToEsmIrLoweringStage
           labels,
           statement,
           thisExpression,
+          continueSwitchTargets: continueSwitchTargets,
           rethrowName: rethrowName,
         ),
       ],
@@ -2195,6 +2203,7 @@ final class KernelToEsmIrLoweringStage
           labels,
           statement,
           thisExpression,
+          continueSwitchTargets: continueSwitchTargets,
           rethrowName: rethrowName,
         ),
       ],
@@ -2206,6 +2215,7 @@ final class KernelToEsmIrLoweringStage
           labels,
           statement,
           thisExpression,
+          continueSwitchTargets: continueSwitchTargets,
           rethrowName: rethrowName,
         ),
       ],
@@ -2217,6 +2227,7 @@ final class KernelToEsmIrLoweringStage
           labels,
           statement,
           thisExpression,
+          continueSwitchTargets: continueSwitchTargets,
           rethrowName: rethrowName,
         ),
       ],
@@ -2228,6 +2239,7 @@ final class KernelToEsmIrLoweringStage
           labels,
           statement,
           thisExpression,
+          continueSwitchTargets: continueSwitchTargets,
           rethrowName: rethrowName,
         ),
       ],
@@ -2240,6 +2252,7 @@ final class KernelToEsmIrLoweringStage
           statement,
           thisExpression,
           rethrowName,
+          continueSwitchTargets: continueSwitchTargets,
         ),
       ],
       k.TryFinally() => [
@@ -2251,6 +2264,7 @@ final class KernelToEsmIrLoweringStage
           statement,
           thisExpression,
           rethrowName,
+          continueSwitchTargets: continueSwitchTargets,
         ),
       ],
       k.ReturnStatement() => [
@@ -2277,21 +2291,26 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.LabeledStatement statement,
     EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
     String? rethrowName,
   }) {
     final label = _freshIn(labels.values.toSet(), 'label');
     labels[statement] = label;
+    final body = _lowerStatementList(
+      world,
+      helpers,
+      locals,
+      labels,
+      statement.body,
+      continueSwitchTargets: continueSwitchTargets,
+      thisExpression: thisExpression,
+      rethrowName: rethrowName,
+    );
     return EsmLabeledStatementIr(
       label: label,
-      body: _lowerStatementList(
-        world,
-        helpers,
-        locals,
-        labels,
-        statement.body,
-        thisExpression: thisExpression,
-        rethrowName: rethrowName,
-      ),
+      statement: body.length == 1 && body.single is EsmBlockStatementIr
+          ? body.single
+          : EsmBlockStatementIr(body),
     );
   }
 
@@ -2313,6 +2332,7 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.IfStatement statement,
     EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
     String? rethrowName,
   }) {
     final otherwise = statement.otherwise;
@@ -2330,6 +2350,7 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         statement.then,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
@@ -2341,6 +2362,7 @@ final class KernelToEsmIrLoweringStage
               locals,
               labels,
               otherwise,
+              continueSwitchTargets: continueSwitchTargets,
               thisExpression: thisExpression,
               rethrowName: rethrowName,
             ),
@@ -2354,6 +2376,7 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.WhileStatement statement,
     EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
     String? rethrowName,
   }) {
     return EsmWhileStatementIr(
@@ -2370,6 +2393,7 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         statement.body,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
@@ -2383,6 +2407,7 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.DoStatement statement,
     EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
     String? rethrowName,
   }) {
     return EsmDoStatementIr(
@@ -2392,6 +2417,7 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         statement.body,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
@@ -2405,15 +2431,28 @@ final class KernelToEsmIrLoweringStage
     );
   }
 
-  EsmSwitchStatementIr _lowerSwitchStatement(
+  EsmStatementIr _lowerSwitchStatement(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
     k.SwitchStatement statement,
     EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
     String? rethrowName,
   }) {
+    if (_switchCanContinueToCase(statement)) {
+      return _lowerContinuableSwitchStatement(
+        world,
+        helpers,
+        locals,
+        labels,
+        continueSwitchTargets,
+        statement,
+        thisExpression,
+        rethrowName: rethrowName,
+      );
+    }
     return EsmSwitchStatementIr(
       expression: _lowerExpression(
         world,
@@ -2429,6 +2468,7 @@ final class KernelToEsmIrLoweringStage
             helpers,
             locals,
             labels,
+            continueSwitchTargets,
             switchCase,
             thisExpression,
             rethrowName: rethrowName,
@@ -2442,6 +2482,7 @@ final class KernelToEsmIrLoweringStage
     EsmRuntimeHelperUseSet helpers,
     Map<k.VariableDeclaration, String> locals,
     Map<k.LabeledStatement, String> labels,
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets,
     k.SwitchCase switchCase,
     EsmExpressionIr thisExpression, {
     String? rethrowName,
@@ -2464,10 +2505,215 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         switchCase.body,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
     );
+  }
+
+  EsmBlockStatementIr _lowerContinuableSwitchStatement(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets,
+    k.SwitchStatement statement,
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
+    final usedNames = {
+      ...world.globalBindingNames,
+      ...locals.values,
+      ...labels.values,
+      for (final target in continueSwitchTargets.values) ...[
+        target.stateName,
+        target.loopLabel,
+      ],
+    };
+    final valueName = _freshIn(usedNames, r'$switchValue');
+    final targetName = _freshIn(usedNames, r'$switchTarget');
+    final loopLabel = _freshIn(usedNames, r'$switchLoop');
+    final targets = {
+      for (var index = 0; index < statement.cases.length; index++)
+        statement.cases[index]: _ContinueSwitchTarget(
+          stateName: targetName,
+          loopLabel: loopLabel,
+          caseIndex: index,
+        ),
+    };
+    final nestedTargets = {...continueSwitchTargets, ...targets};
+    return EsmBlockStatementIr([
+      EsmVariableDeclarationIr(
+        name: valueName,
+        initializer: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          statement.expression,
+          thisExpression: thisExpression,
+        ),
+        mutable: false,
+      ),
+      EsmVariableDeclarationIr(
+        name: targetName,
+        initializer: const EsmNumberLiteralIr(-1),
+        mutable: true,
+      ),
+      EsmSwitchStatementIr(
+        expression: EsmIdentifierIr(valueName),
+        cases: [
+          for (var index = 0; index < statement.cases.length; index++)
+            _lowerContinuableSwitchDispatchCase(
+              world,
+              helpers,
+              locals,
+              statement.cases[index],
+              index,
+              targetName,
+              thisExpression,
+            ),
+        ],
+      ),
+      EsmLabeledStatementIr(
+        label: loopLabel,
+        statement: EsmWhileStatementIr(
+          condition: EsmBinaryIr(
+            left: EsmIdentifierIr(targetName),
+            operator: '!==',
+            right: const EsmNumberLiteralIr(-1),
+          ),
+          body: [
+            EsmSwitchStatementIr(
+              expression: EsmIdentifierIr(targetName),
+              cases: [
+                for (var index = 0; index < statement.cases.length; index++)
+                  _lowerContinuableSwitchBodyCase(
+                    world,
+                    helpers,
+                    locals,
+                    labels,
+                    nestedTargets,
+                    statement.cases[index],
+                    index,
+                    targetName,
+                    thisExpression,
+                    rethrowName: rethrowName,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ]);
+  }
+
+  EsmSwitchCaseIr _lowerContinuableSwitchDispatchCase(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.SwitchCase switchCase,
+    int caseIndex,
+    String targetName,
+    EsmExpressionIr thisExpression,
+  ) {
+    return EsmSwitchCaseIr(
+      expressions: [
+        for (final expression in switchCase.expressions)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression,
+            thisExpression: thisExpression,
+          ),
+      ],
+      isDefault: switchCase.isDefault,
+      body: [
+        EsmExpressionStatementIr(
+          EsmAssignmentIr(
+            target: EsmIdentifierIr(targetName),
+            value: EsmNumberLiteralIr(caseIndex),
+          ),
+        ),
+        const EsmBreakStatementIr(null),
+      ],
+    );
+  }
+
+  EsmSwitchCaseIr _lowerContinuableSwitchBodyCase(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    Map<k.LabeledStatement, String> labels,
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets,
+    k.SwitchCase switchCase,
+    int caseIndex,
+    String targetName,
+    EsmExpressionIr thisExpression, {
+    String? rethrowName,
+  }) {
+    final body = _lowerStatementList(
+      world,
+      helpers,
+      locals,
+      labels,
+      switchCase.body,
+      continueSwitchTargets: continueSwitchTargets,
+      thisExpression: thisExpression,
+      rethrowName: rethrowName,
+    );
+    return EsmSwitchCaseIr(
+      expressions: [EsmNumberLiteralIr(caseIndex)],
+      isDefault: false,
+      body: [
+        EsmExpressionStatementIr(
+          EsmAssignmentIr(
+            target: EsmIdentifierIr(targetName),
+            value: const EsmNumberLiteralIr(-1),
+          ),
+        ),
+        ...body,
+        if (!_endsAbruptly(body)) const EsmBreakStatementIr(null),
+      ],
+    );
+  }
+
+  List<EsmStatementIr> _lowerContinueSwitchStatement(
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets,
+    k.ContinueSwitchStatement statement,
+  ) {
+    final target = continueSwitchTargets[statement.target];
+    if (target == null) {
+      throw NewCompilerUnsupported(statement, 'continue switch statement');
+    }
+    return [
+      EsmExpressionStatementIr(
+        EsmAssignmentIr(
+          target: EsmIdentifierIr(target.stateName),
+          value: EsmNumberLiteralIr(target.caseIndex),
+        ),
+      ),
+      EsmContinueStatementIr(target.loopLabel),
+    ];
+  }
+
+  bool _endsAbruptly(List<EsmStatementIr> statements) {
+    if (statements.isEmpty) {
+      return false;
+    }
+    return switch (statements.last) {
+      EsmBreakStatementIr() ||
+      EsmContinueStatementIr() ||
+      EsmReturnStatementIr() ||
+      EsmThrowStatementIr() => true,
+      EsmBlockStatementIr(:final body) => _endsAbruptly(body),
+      EsmIfStatementIr(:final thenBody, :final otherwiseBody) =>
+        otherwiseBody != null &&
+            _endsAbruptly(thenBody) &&
+            _endsAbruptly(otherwiseBody),
+      _ => false,
+    };
   }
 
   EsmForStatementIr _lowerForStatement(
@@ -2477,6 +2723,7 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.ForStatement statement,
     EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
     String? rethrowName,
   }) {
     return EsmForStatementIr(
@@ -2515,6 +2762,7 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         statement.body,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
@@ -2556,8 +2804,9 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.TryCatch statement,
     EsmExpressionIr thisExpression,
-    String? rethrowName,
-  ) {
+    String? rethrowName, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
+  }) {
     final errorName = _freshLocalName(world, locals.values, r'$error');
     return EsmTryStatementIr(
       body: _lowerStatementList(
@@ -2566,6 +2815,7 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         statement.body,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
@@ -2578,6 +2828,7 @@ final class KernelToEsmIrLoweringStage
         statement.catches,
         errorName,
         thisExpression,
+        continueSwitchTargets: continueSwitchTargets,
       ),
       finallyBody: null,
     );
@@ -2590,8 +2841,9 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.TryFinally statement,
     EsmExpressionIr thisExpression,
-    String? rethrowName,
-  ) {
+    String? rethrowName, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
+  }) {
     return EsmTryStatementIr(
       body: _lowerStatementList(
         world,
@@ -2599,6 +2851,7 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         statement.body,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
@@ -2610,6 +2863,7 @@ final class KernelToEsmIrLoweringStage
         locals,
         labels,
         statement.finalizer,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: rethrowName,
       ),
@@ -2623,8 +2877,9 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     List<k.Catch> catches,
     String errorName,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
+  }) {
     var otherwise = <EsmStatementIr>[
       EsmThrowStatementIr(EsmIdentifierIr(errorName)),
     ];
@@ -2637,6 +2892,7 @@ final class KernelToEsmIrLoweringStage
         catchClause,
         errorName,
         thisExpression,
+        continueSwitchTargets: continueSwitchTargets,
       );
       if (_isTopType(catchClause.guard.unalias)) {
         otherwise = body;
@@ -2665,8 +2921,9 @@ final class KernelToEsmIrLoweringStage
     Map<k.LabeledStatement, String> labels,
     k.Catch catchClause,
     String errorName,
-    EsmExpressionIr thisExpression,
-  ) {
+    EsmExpressionIr thisExpression, {
+    Map<k.SwitchCase, _ContinueSwitchTarget> continueSwitchTargets = const {},
+  }) {
     final catchLocals = Map<k.VariableDeclaration, String>.of(locals);
     final statements = <EsmStatementIr>[];
     final error = EsmIdentifierIr(errorName);
@@ -2717,6 +2974,7 @@ final class KernelToEsmIrLoweringStage
         catchLocals,
         labels,
         catchClause.body,
+        continueSwitchTargets: continueSwitchTargets,
         thisExpression: thisExpression,
         rethrowName: errorName,
       ),
@@ -13715,6 +13973,84 @@ final class KernelToEsmIrLoweringStage
       suffix++;
     }
     return candidate;
+  }
+}
+
+final class _ContinueSwitchTarget {
+  const _ContinueSwitchTarget({
+    required this.stateName,
+    required this.loopLabel,
+    required this.caseIndex,
+  });
+
+  final String stateName;
+  final String loopLabel;
+  final int caseIndex;
+}
+
+bool _switchCanContinueToCase(k.SwitchStatement statement) {
+  final targets = statement.cases.toSet();
+  for (final switchCase in statement.cases) {
+    if (_containsContinueToSwitchCase(switchCase.body, targets)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _containsContinueToSwitchCase(
+  k.Statement statement,
+  Set<k.SwitchCase> targets,
+) {
+  switch (statement) {
+    case k.ContinueSwitchStatement():
+      return targets.contains(statement.target);
+    case k.Block():
+      return statement.statements.any(
+        (child) => _containsContinueToSwitchCase(child, targets),
+      );
+    case k.LabeledStatement():
+      return _containsContinueToSwitchCase(statement.body, targets);
+    case k.ExpressionStatement() ||
+        k.EmptyStatement() ||
+        k.ReturnStatement() ||
+        k.VariableDeclaration() ||
+        k.BreakStatement() ||
+        k.AssertStatement():
+      return false;
+    case k.FunctionDeclaration():
+      return false;
+    case k.IfStatement():
+      return _containsContinueToSwitchCase(statement.then, targets) ||
+          (statement.otherwise != null &&
+              _containsContinueToSwitchCase(statement.otherwise!, targets));
+    case k.WhileStatement():
+      return _containsContinueToSwitchCase(statement.body, targets);
+    case k.DoStatement():
+      return _containsContinueToSwitchCase(statement.body, targets);
+    case k.ForStatement():
+      return _containsContinueToSwitchCase(statement.body, targets);
+    case k.ForInStatement():
+      return _containsContinueToSwitchCase(statement.body, targets);
+    case k.SwitchStatement():
+      return statement.cases.any(
+        (switchCase) => _containsContinueToSwitchCase(switchCase.body, targets),
+      );
+    case k.TryCatch():
+      return _containsContinueToSwitchCase(statement.body, targets) ||
+          statement.catches.any(
+            (catchNode) =>
+                _containsContinueToSwitchCase(catchNode.body, targets),
+          );
+    case k.TryFinally():
+      return _containsContinueToSwitchCase(statement.body, targets) ||
+          _containsContinueToSwitchCase(statement.finalizer, targets);
+    case k.AssertBlock():
+      return statement.statements.any(
+        (child) => _containsContinueToSwitchCase(child, targets),
+      );
+    default:
+      return false;
   }
 }
 

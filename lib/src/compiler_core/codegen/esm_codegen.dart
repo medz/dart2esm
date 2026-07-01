@@ -128,10 +128,16 @@ final class _EsmIrPrinter {
     switch (statement) {
       case EsmExpressionStatementIr():
         _writeIndented('${_emitExpression(statement.expression)};');
+      case EsmBlockStatementIr():
+        _emitBlockStatement(statement);
       case EsmLabeledStatementIr():
         _emitLabeledStatement(statement);
       case EsmBreakStatementIr():
-        _writeIndented('break ${statement.label};');
+        final label = statement.label;
+        _writeIndented(label == null ? 'break;' : 'break $label;');
+      case EsmContinueStatementIr():
+        final label = statement.label;
+        _writeIndented(label == null ? 'continue;' : 'continue $label;');
       case EsmVariableDeclarationIr():
         final keyword = statement.mutable ? 'let' : 'const';
         final exportPrefix = statement.export ? 'export ' : '';
@@ -165,14 +171,36 @@ final class _EsmIrPrinter {
     }
   }
 
-  void _emitLabeledStatement(EsmLabeledStatementIr statement) {
-    _writeIndented('${statement.label}: {');
+  void _emitBlockStatement(EsmBlockStatementIr statement) {
+    _writeIndented('{');
     _indent++;
     for (final child in statement.body) {
       _emitStatement(child);
     }
     _indent--;
     _writeIndented('}');
+  }
+
+  void _emitLabeledStatement(EsmLabeledStatementIr statement) {
+    final body = statement.statement;
+    if (body is EsmBlockStatementIr) {
+      _writeIndented('${statement.label}: {');
+      _indent++;
+      for (final child in body.body) {
+        _emitStatement(child);
+      }
+      _indent--;
+      _writeIndented('}');
+      return;
+    }
+    if (body is EsmWhileStatementIr) {
+      _emitWhileStatement(body, label: statement.label);
+      return;
+    }
+    _writeIndented('${statement.label}:');
+    _indent++;
+    _emitStatement(body);
+    _indent--;
   }
 
   void _emitIfStatement(EsmIfStatementIr statement) {
@@ -196,8 +224,11 @@ final class _EsmIrPrinter {
     _writeIndented('}');
   }
 
-  void _emitWhileStatement(EsmWhileStatementIr statement) {
-    _writeIndented('while (${_emitExpression(statement.condition)}) {');
+  void _emitWhileStatement(EsmWhileStatementIr statement, {String? label}) {
+    final prefix = label == null ? '' : '$label: ';
+    _writeIndented(
+      '${prefix}while (${_emitExpression(statement.condition)}) {',
+    );
     _indent++;
     for (final child in statement.body) {
       _emitStatement(child);

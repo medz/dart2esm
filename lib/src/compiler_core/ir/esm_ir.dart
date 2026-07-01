@@ -112,17 +112,29 @@ final class EsmExpressionStatementIr extends EsmStatementIr {
   final EsmExpressionIr expression;
 }
 
+final class EsmBlockStatementIr extends EsmStatementIr {
+  const EsmBlockStatementIr(this.body);
+
+  final List<EsmStatementIr> body;
+}
+
 final class EsmLabeledStatementIr extends EsmStatementIr {
-  const EsmLabeledStatementIr({required this.label, required this.body});
+  const EsmLabeledStatementIr({required this.label, required this.statement});
 
   final String label;
-  final List<EsmStatementIr> body;
+  final EsmStatementIr statement;
 }
 
 final class EsmBreakStatementIr extends EsmStatementIr {
   const EsmBreakStatementIr(this.label);
 
-  final String label;
+  final String? label;
+}
+
+final class EsmContinueStatementIr extends EsmStatementIr {
+  const EsmContinueStatementIr([this.label]);
+
+  final String? label;
 }
 
 final class EsmVariableDeclarationIr extends EsmStatementIr {

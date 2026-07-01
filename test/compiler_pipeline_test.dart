@@ -333,10 +333,22 @@ export function main() {
     expect(derivedSymbol.interfaceMarkerClasses, contains(mixin));
   });
 
+  test('compiles switch continue through the new compiler core', () {
+    final result = Dart2EsmCompilerPipeline(
+      options: const Dart2EsmPipelineOptions(runMain: true),
+    ).compile(_componentWithSwitchContinue());
+
+    expect(result.path, Dart2EsmCompilerPath.newCore);
+    expect(result.usedLegacyOracle, isFalse);
+    expect(result.completedStages, dart2EsmCompilerStageOrder);
+    expect(result.code, contains(r'$switchTarget'));
+    expect(result.code, contains(r'continue $switchLoop;'));
+  });
+
   test(
     'rejects unsupported Kernel without invoking the legacy oracle by default',
     () {
-      final component = _componentWithSwitchContinue();
+      final component = _componentWithYieldStatement();
 
       final pipeline = Dart2EsmCompilerPipeline(
         options: const Dart2EsmPipelineOptions(runMain: true),
@@ -350,7 +362,7 @@ export function main() {
   );
 
   test('can explicitly invoke the legacy oracle for unsupported Kernel', () {
-    final component = _componentWithSwitchContinue();
+    final component = _componentWithYieldStatement();
 
     final result = Dart2EsmCompilerPipeline(
       options: const Dart2EsmPipelineOptions(
@@ -361,11 +373,11 @@ export function main() {
 
     expect(result.path, Dart2EsmCompilerPath.legacyOracle);
     expect(result.usedLegacyOracle, isTrue);
-    expect(result.legacyOracle?.reason, contains('ContinueSwitchStatement'));
+    expect(result.legacyOracle?.reason, contains('YieldStatement'));
   });
 
   test('can reject unsupported Kernel without invoking the legacy oracle', () {
-    final component = _componentWithSwitchContinue();
+    final component = _componentWithYieldStatement();
 
     final pipeline = Dart2EsmCompilerPipeline(
       options: const Dart2EsmPipelineOptions(
@@ -412,6 +424,19 @@ k.Component _componentWithSwitchContinue() {
         ),
       ]),
     ]),
+  );
+  library.addProcedure(main);
+  final component = k.Component(libraries: [library]);
+  component.setMainMethodAndMode(main.reference, true);
+  return component;
+}
+
+k.Component _componentWithYieldStatement() {
+  final libraryUri = Uri.parse('package:sample/main.dart');
+  final library = k.Library(libraryUri, fileUri: libraryUri);
+  final main = _procedure(
+    'main',
+    body: k.Block([k.YieldStatement(k.IntLiteral(1))]),
   );
   library.addProcedure(main);
   final component = k.Component(libraries: [library]);

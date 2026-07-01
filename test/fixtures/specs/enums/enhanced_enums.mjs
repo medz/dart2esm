@@ -8,6 +8,25 @@ function __dartConst(key, create) {
   return __dartConstValues.get(key);
 }
 
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
+  if (__dartIsRecord(left) && __dartIsRecord(right)) {
+    const leftShape = left[__dartRecordShape];
+    const rightShape = right[__dartRecordShape];
+    if (leftShape.length !== rightShape.length) return false;
+    for (let i = 0; i < leftShape.length; i++) {
+      const name = leftShape[i];
+      if (name !== rightShape[i]) return false;
+      if (!__dartEquals(left[name], right[name])) return false;
+    }
+    return true;
+  }
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
+}
+
 function __dartEnumAsNameMap(values) {
   const map = new Map();
   for (const value of values) map.set(value.name, value);
@@ -55,6 +74,62 @@ function __dartLazyField(name, initialize, writable, publish = null) {
   return { get, set };
 }
 
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+function __dartMapAddAll(map, entries) {
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return null;
+}
+function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapFromEntries(entries) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  __dartMapAddAll(map, entries);
+  return map;
+}
+function __dartMapFromIterable(iterable, key = null, value = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (const element of iterable) {
+    __dartMapSet(
+      map,
+      typeof key === "function" ? key(element) : element,
+      typeof value === "function" ? value(element) : element,
+    );
+  }
+  return map;
+}
+function __dartMapFromIterables(keys, values) {
+  const keyList = Array.from(keys);
+  const valueList = Array.from(values);
+  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (let index = 0; index < keyList.length; index++) {
+    __dartMapSet(map, keyList[index], valueList[index]);
+  }
+  return map;
+}
+
 function __dartNullCheck(value) {
   if (value == null) throw new TypeError("Null check operator used on a null value");
   return value;
@@ -62,6 +137,12 @@ function __dartNullCheck(value) {
 
 function __dartPrint(value) {
   console.log(__dartStr(value));
+}
+
+const __dartRecordShape = Symbol("dart.recordShape");
+
+function __dartIsRecord(value) {
+  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
 }
 
 function __dartStr(value) {
@@ -179,7 +260,7 @@ export function main() {
   } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
     return "Status.failed";
   } })))])));
-  __dartPrint(`byName ${__dartStr(byName.code)} ${__dartStr(__dartNullCheck(nameMap.get("failed")).label)}`);
+  __dartPrint(`byName ${__dartStr(byName.code)} ${__dartStr(__dartNullCheck(__dartMapGet(nameMap, "failed")).label)}`);
   __dartPrint(`static ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Status{Status.code: 500, Status.label: \\\"Failed\\\", _Enum.index: 1, _Enum._name: \\\"failed\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Status.prototype), { code: 500, label: "Failed", index: 1, __dartEnumName: "failed", name: "failed", toString: function() {
     return "Status.failed";
   } }))).name)} ${__dartStr(Status.isErrorCode(500))}`);

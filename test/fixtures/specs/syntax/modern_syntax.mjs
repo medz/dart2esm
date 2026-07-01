@@ -79,6 +79,25 @@ function __dartDynamicSet(receiver, name, value) {
   return value;
 }
 
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
+  if (__dartIsRecord(left) && __dartIsRecord(right)) {
+    const leftShape = left[__dartRecordShape];
+    const rightShape = right[__dartRecordShape];
+    if (leftShape.length !== rightShape.length) return false;
+    for (let i = 0; i < leftShape.length; i++) {
+      const name = leftShape[i];
+      if (name !== rightShape[i]) return false;
+      if (!__dartEquals(left[name], right[name])) return false;
+    }
+    return true;
+  }
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
+}
+
 function __dartIterator(iterable) {
   const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
     ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
@@ -108,15 +127,65 @@ function __dartListAddAll(list, values) {
   return null;
 }
 
+
+
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
 function __dartMapAddAll(map, entries) {
-  for (const [key, value] of entries) map.set(key, value);
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
+}
+function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapFromEntries(entries) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  __dartMapAddAll(map, entries);
+  return map;
+}
+function __dartMapFromIterable(iterable, key = null, value = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (const element of iterable) {
+    __dartMapSet(
+      map,
+      typeof key === "function" ? key(element) : element,
+      typeof value === "function" ? value(element) : element,
+    );
+  }
+  return map;
+}
+function __dartMapFromIterables(keys, values) {
+  const keyList = Array.from(keys);
+  const valueList = Array.from(values);
+  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (let index = 0; index < keyList.length; index++) {
+    __dartMapSet(map, keyList[index], valueList[index]);
+  }
+  return map;
 }
 
-function __dartMapSet(map, key, value) {
-  map.set(key, value);
-  return null;
-}
+
 
 function __dartNullCheck(value) {
   if (value == null) throw new TypeError("Null check operator used on a null value");
@@ -157,8 +226,26 @@ function __dartRecord(positional, named) {
   return Object.freeze(record);
 }
 
+function __dartSetContains(set, needle) {
+  if (!set.__dartEqualitySet) return set.has(needle);
+  for (const value of set) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
+function __dartSetAdd(set, value) {
+  if (__dartSetContains(set, value)) return false;
+  set.add(value);
+  return true;
+}
+function __dartSetFrom(values) {
+  const set = new Set();
+  Object.defineProperty(set, "__dartEqualitySet", { value: true });
+  for (const value of values) __dartSetAdd(set, value);
+  return set;
+}
 function __dartSetAddAll(set, values) {
-  for (const value of values) set.add(value);
+  for (const value of values) __dartSetAdd(set, value);
   return null;
 }
 
@@ -206,28 +293,28 @@ export function describe(input) {
     return v;
   })();
   const set = (function() {
-    const v = new Set();
-    v.add(0);
+    const v = __dartSetFrom([]);
+    __dartSetAdd(v, 0);
     __dartSetAddAll(v, (function() {
-      const v_1 = new Set();
-      v_1.add(1);
-      v_1.add(2);
+      const v_1 = __dartSetFrom([]);
+      __dartSetAdd(v_1, 1);
+      __dartSetAdd(v_1, 2);
       return v_1;
     })());
     if (!(input === null)) {
-      v.add(3);
+      __dartSetAdd(v, 3);
     }
     let _sync_for_iterator = __dartIterator([4, 5]);
     for (; _sync_for_iterator.moveNext(); ) {
       const x = _sync_for_iterator.current;
-      v.add(x);
+      __dartSetAdd(v, x);
     }
     return v;
   })();
   const map = (function() {
-    const v = new Map([]);
+    const v = __dartMapFromEntries([]);
     __dartMapSet(v, "a", 1);
-    __dartMapAddAll(v, new Map([["b", 2]]));
+    __dartMapAddAll(v, __dartMapFromEntries([["b", 2]]));
     if (!(input === null)) {
       __dartMapSet(v, "c", 3);
     }
@@ -278,12 +365,12 @@ export function describe(input) {
   __dartDynamicInvoke(dynList, "add", [3], null);
   __dartDynamicInvoke(dynList, "[]=", [1, 4], null);
   const dynListText = `${__dartStr(__dartDynamicInvoke(dynList, "[]", [0], null))}:${__dartStr(__dartDynamicInvoke(dynList, "[]", [1], null))}:${__dartStr(__dartDynamicInvoke(dynList, "join", ["|"], null))}:${__dartStr(__dartDynamicInvoke(dynList, "contains", [3], null))}`;
-  let dynMap = new Map([["a", 1]]);
+  let dynMap = __dartMapFromEntries([["a", 1]]);
   __dartDynamicInvoke(dynMap, "[]=", ["b", 2], null);
   const dynMapText = `${__dartStr(__dartDynamicInvoke(dynMap, "[]", ["a"], null))}:${__dartStr(__dartDynamicInvoke(dynMap, "containsKey", ["b"], null))}:${__dartStr(__dartDynamicInvoke(dynMap, "remove", ["a"], null))}:${__dartStr(__dartDynamicInvoke(dynMap, "[]", ["a"], null))}`;
   let dynSet = (function() {
-    const v = new Set();
-    v.add("a");
+    const v = __dartSetFrom([]);
+    __dartSetAdd(v, "a");
     return v;
   })();
   const dynSetAdded = __dartDynamicInvoke(dynSet, "add", ["b"], null);

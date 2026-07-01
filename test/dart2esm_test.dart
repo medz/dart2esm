@@ -1356,6 +1356,10 @@ void main() {
   final maybeDouble = double.tryParse('bad') ?? 1.25;
   final parsedNum = num.parse('7.25');
   final numeric = -3.6;
+  final nan = 0.0 / 0.0;
+  final infinite = 1.0 / 0.0;
+  final finite = 3.5;
+  final negativeZero = -0.0;
   final even = parsed.isEven;
   final odd = fallback.isOdd;
   final numberCompare = parsed.compareTo(fallback);
@@ -1366,7 +1370,9 @@ void main() {
       '\$parsedDouble \$maybeDouble \$parsedNum '
       '\${numeric.abs()} \${numeric.sign < 0} \${numeric.round()} '
       '\${numeric.floor()} \${numeric.ceil()} \${numeric.truncate()} '
-      '\${numeric.clamp(-3, 2)} \${numeric.remainder(2)}');
+      '\${numeric.clamp(-3, 2)} \${numeric.remainder(2)} '
+      '\${nan.isNaN} \${infinite.isInfinite} \${finite.isFinite} '
+      '\${negativeZero.isNegative} \${5.gcd(15)} \${(-12).gcd(18)}');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1389,6 +1395,10 @@ void main() {
     expect(code, contains('__dartCompare'));
     expect(code, contains('__dartHashValue'));
     expect(code, contains('Math.trunc(parsed) % 2 === 0'));
+    expect(code, contains('Number.isNaN'));
+    expect(code, contains('Number.isFinite'));
+    expect(code, contains('Object.is'));
+    expect(code, contains('__dartIntGcd'));
     await _expectSameDartAndNodeOutput(input, output);
   });
 
@@ -1431,7 +1441,13 @@ void main() {
       '\$fixedCopyAddFailed \${unmodifiable.first} \${unmodifiable.last} '
       '\${generated.join(':')} \${cast.map((value) => value + 1).join(',')} '
       '\${copyTarget.join(',')} \${writeTarget.join(',')} '
-      '\${generated.skip(1).take(2).join('|')}');
+      '\${generated.skip(1).take(2).join('|')} '
+      '\${generated.where((value) => value.isEven).join('|')} '
+      '\${generated.fold<int>(0, (total, value) => total + value)} '
+      '\${generated.any((value) => value > 8)} '
+      '\${generated.every((value) => value >= 0)} '
+      '\${generated.reduce((total, value) => total + value)} '
+      '\${generated.elementAt(2)}');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1463,6 +1479,8 @@ void main() {
     addTearDown(() => tempDir.deleteSync(recursive: true));
     final input = File(p.join(tempDir.path, 'main.dart'))
       ..writeAsStringSync('''
+import 'dart:collection';
+
 void main() {
   final set = Set<int>.from([1, 2, 2, 3]);
   final setOf = Set<int>.of(set);
@@ -1474,11 +1492,32 @@ void main() {
   final mapOf = Map<String, int>.of(map);
   final identityMap = Map<List<int>, String>.identity();
   identityMap[key] = 'same';
+  final entries = Map<String, int>.fromEntries([
+    MapEntry('three', 3),
+    MapEntry('four', 4),
+  ]);
+  final hashMap = HashMap<String, int>();
+  hashMap['one'] = 1;
+  hashMap['two'] = 2;
+  final hashSet = HashSet<int>();
+  hashSet.add(1);
+  hashSet.add(2);
+  hashSet.add(1);
+  final iterableMap = Map<int, String>.fromIterable(
+    ['aa', 'bbb'],
+    key: (value) => value.length,
+    value: (value) => value.toUpperCase(),
+  );
+  final iterablesMap = Map<String, int>.fromIterables(['x', 'y'], [10, 20]);
   print('collections \${set.length} \${set.contains(2)} '
       '\${setOf.join(':')} \${identitySet.contains(key)} '
       '\${identitySet.contains([1])} \${identitySet.length} '
       '\${map.length} \${map.keys.join(',')} \${map.values.join(',')} '
-      '\${mapOf['b']} \${identityMap.containsKey(key)}');
+      '\${mapOf['b']} \${identityMap.containsKey(key)} '
+      '\${entries['four']} \${hashMap.length} '
+      '\${hashMap.containsKey('two')} \${hashMap['one']} '
+      '\${hashSet.length} \${hashSet.contains(2)} '
+      '\${iterableMap[3]} \${iterablesMap['y']}');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1497,6 +1536,8 @@ void main() {
     final code = output.readAsStringSync();
     expect(code, contains('new Set'));
     expect(code, contains('new Map'));
+    expect(code, contains('__dartMapFromIterable'));
+    expect(code, contains('__dartMapFromIterables'));
     await _expectSameDartAndNodeOutput(input, output);
   });
 

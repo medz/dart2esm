@@ -18,6 +18,7 @@ enum EsmRuntimeHelper {
   enumByName,
   extensionTypeRep,
   functionApply,
+  intGcd,
   intParse,
   iterator,
   lazyField,
@@ -27,6 +28,8 @@ enum EsmRuntimeHelper {
   listRangeOps,
   mapAddAll,
   mapContainsKey,
+  mapFactories,
+  mapGet,
   mapSet,
   mathPoint,
   mathRandom,
@@ -72,6 +75,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartEquals',
     '__dartExtensionTypeRep',
     '__dartFunctionApply',
+    '__dartIntGcd',
     '__dartFormatException',
     '__dartIntParse',
     '__dartIntTryParse',
@@ -88,6 +92,12 @@ final class EsmRuntimeHelperRegistry {
     '__dartUnmodifiableList',
     '__dartMapAddAll',
     '__dartMapContainsKey',
+    '__dartMapFromIterable',
+    '__dartMapFromIterables',
+    '__dartMapFromEntries',
+    '__dartMapGet',
+    '__dartMapKey',
+    '__dartMapMissingKey',
     '__dartMapSet',
     '__dartPoint',
     '__dartRandom',
@@ -110,6 +120,9 @@ final class EsmRuntimeHelperRegistry {
     '__dartRecordShape',
     '__dartSafeToString',
     '__dartSetAddAll',
+    '__dartSetAdd',
+    '__dartSetContains',
+    '__dartSetFrom',
     '__dartStringCodeUnits',
     '__dartStringFromCharCodes',
     '__dartStringReplaceFirst',
@@ -141,6 +154,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
       EsmRuntimeHelper.extensionTypeRep => '__dartExtensionTypeRep',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
+      EsmRuntimeHelper.intGcd => '__dartIntGcd',
       EsmRuntimeHelper.intParse => '__dartIntParse',
       EsmRuntimeHelper.iterator => '__dartIterator',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
@@ -151,6 +165,8 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.listRangeOps => '__dartListCopyRange',
       EsmRuntimeHelper.mapAddAll => '__dartMapAddAll',
       EsmRuntimeHelper.mapContainsKey => '__dartMapContainsKey',
+      EsmRuntimeHelper.mapFactories => '__dartMapFromIterable',
+      EsmRuntimeHelper.mapGet => '__dartMapGet',
       EsmRuntimeHelper.mapSet => '__dartMapSet',
       EsmRuntimeHelper.mathPoint => '__dartPoint',
       EsmRuntimeHelper.mathRandom => '__dartRandom',
@@ -283,7 +299,7 @@ function __dartNumParse(source) {
 '''),
       EsmRuntimeHelper.constSet => EsmRawModuleItemIr('''
 function __dartConstSet(values) {
-  const set = new Set(values);
+  const set = __dartSetFrom(values);
   const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
   Object.defineProperty(set, "add", { value: throwConst });
   Object.defineProperty(set, "delete", { value: throwConst });
@@ -293,7 +309,7 @@ function __dartConstSet(values) {
 '''),
       EsmRuntimeHelper.constMap => EsmRawModuleItemIr('''
 function __dartConstMap(entries) {
-  const map = new Map(entries);
+  const map = __dartMapFromEntries(entries);
   const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
   Object.defineProperty(map, "set", { value: throwConst });
   Object.defineProperty(map, "delete", { value: throwConst });
@@ -538,6 +554,18 @@ function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
   return fn(...args);
 }
 '''),
+      EsmRuntimeHelper.intGcd => EsmRawModuleItemIr('''
+function __dartIntGcd(left, right) {
+  let a = Math.abs(Math.trunc(Number(left)));
+  let b = Math.abs(Math.trunc(Number(right)));
+  while (b !== 0) {
+    const next = a % b;
+    a = b;
+    b = next;
+  }
+  return a;
+}
+'''),
       EsmRuntimeHelper.intParse => EsmRawModuleItemIr(r'''
 function __dartFormatException(message) {
   const error = new Error(String(message));
@@ -584,6 +612,65 @@ function __dartIterator(iterable) {
       return false;
     },
   };
+}
+'''),
+      EsmRuntimeHelper.mapFactories => EsmRawModuleItemIr('''
+'''),
+      EsmRuntimeHelper.mapGet => EsmRawModuleItemIr('''
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+function __dartMapAddAll(map, entries) {
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return null;
+}
+function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapFromEntries(entries) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  __dartMapAddAll(map, entries);
+  return map;
+}
+function __dartMapFromIterable(iterable, key = null, value = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (const element of iterable) {
+    __dartMapSet(
+      map,
+      typeof key === "function" ? key(element) : element,
+      typeof value === "function" ? value(element) : element,
+    );
+  }
+  return map;
+}
+function __dartMapFromIterables(keys, values) {
+  const keyList = Array.from(keys);
+  const valueList = Array.from(values);
+  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (let index = 0; index < keyList.length; index++) {
+    __dartMapSet(map, keyList[index], valueList[index]);
+  }
+  return map;
 }
 '''),
       EsmRuntimeHelper.recordShape => const EsmRawModuleItemIr(
@@ -637,8 +724,26 @@ function __dartSafeToString(value) {
 }
 '''),
       EsmRuntimeHelper.setAddAll => EsmRawModuleItemIr('''
+function __dartSetContains(set, needle) {
+  if (!set.__dartEqualitySet) return set.has(needle);
+  for (const value of set) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
+function __dartSetAdd(set, value) {
+  if (__dartSetContains(set, value)) return false;
+  set.add(value);
+  return true;
+}
+function __dartSetFrom(values) {
+  const set = new Set();
+  Object.defineProperty(set, "__dartEqualitySet", { value: true });
+  for (const value of values) __dartSetAdd(set, value);
+  return set;
+}
 function __dartSetAddAll(set, values) {
-  for (const value of values) set.add(value);
+  for (const value of values) __dartSetAdd(set, value);
   return null;
 }
 '''),
@@ -749,26 +854,10 @@ function __dartListWriteIterable(target, at, source) {
 }
 '''),
       EsmRuntimeHelper.mapSet => EsmRawModuleItemIr('''
-function __dartMapSet(map, key, value) {
-  map.set(key, value);
-  return null;
-}
 '''),
       EsmRuntimeHelper.mapAddAll => EsmRawModuleItemIr('''
-function __dartMapAddAll(map, entries) {
-  for (const [key, value] of entries) map.set(key, value);
-  return null;
-}
 '''),
       EsmRuntimeHelper.mapContainsKey => EsmRawModuleItemIr('''
-function __dartMapContainsKey(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
-  if (map.has(key)) return true;
-  for (const candidate of map.keys()) {
-    if (__dartEquals(candidate, key)) return true;
-  }
-  return false;
-}
 '''),
       EsmRuntimeHelper.nullCheck => EsmRawModuleItemIr('''
 function __dartNullCheck(value) {
@@ -941,8 +1030,6 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
       case EsmRuntimeHelper.doubleParse:
-      case EsmRuntimeHelper.constMap:
-      case EsmRuntimeHelper.constSet:
       case EsmRuntimeHelper.dynamicCall:
       case EsmRuntimeHelper.dynamicGet:
       case EsmRuntimeHelper.dynamicInvoke:
@@ -952,11 +1039,22 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.listFactory:
       case EsmRuntimeHelper.listRangeOps:
+      case EsmRuntimeHelper.intGcd:
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:
       case EsmRuntimeHelper.stringFactory:
       case EsmRuntimeHelper.stringOps:
         break;
+      case EsmRuntimeHelper.constMap:
+        _helpers.add(EsmRuntimeHelper.mapGet);
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.constSet:
+        _helpers.add(EsmRuntimeHelper.setAddAll);
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.equals:
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);
@@ -971,25 +1069,37 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.lazyField:
       case EsmRuntimeHelper.listAdd:
       case EsmRuntimeHelper.listAddAll:
-      case EsmRuntimeHelper.mapAddAll:
-      case EsmRuntimeHelper.mapSet:
       case EsmRuntimeHelper.nullCheck:
       case EsmRuntimeHelper.print:
         _helpers.add(EsmRuntimeHelper.stringify);
-      case EsmRuntimeHelper.mapContainsKey:
+      case EsmRuntimeHelper.mapAddAll:
+      case EsmRuntimeHelper.mapSet:
+        _helpers.add(EsmRuntimeHelper.mapGet);
         _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.mapContainsKey:
+      case EsmRuntimeHelper.mapFactories:
+      case EsmRuntimeHelper.mapGet:
+        _helpers.add(EsmRuntimeHelper.mapGet);
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mathRectangle:
         _helpers.add(EsmRuntimeHelper.mathPoint);
       case EsmRuntimeHelper.recordShape:
       case EsmRuntimeHelper.objectHash:
       case EsmRuntimeHelper.safeToString:
-      case EsmRuntimeHelper.setAddAll:
       case EsmRuntimeHelper.stringify:
       case EsmRuntimeHelper.symbol:
       case EsmRuntimeHelper.throwWithStackTrace:
       case EsmRuntimeHelper.type:
       case EsmRuntimeHelper.typeCast:
         break;
+      case EsmRuntimeHelper.setAddAll:
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
     }
     return _helpers.add(helper);
   }

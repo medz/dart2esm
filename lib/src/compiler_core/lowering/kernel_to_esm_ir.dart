@@ -2499,45 +2499,51 @@ final class KernelToEsmIrLoweringStage
             thisExpression: thisExpression,
           ),
       ]),
-      k.SetLiteral() => EsmNewIr(
-        callee: const EsmIdentifierIr('Set'),
-        arguments: [
-          EsmArrayLiteralIr([
-            for (final element in expression.expressions)
-              _lowerExpression(
-                world,
-                helpers,
-                locals,
-                element,
-                thisExpression: thisExpression,
-              ),
-          ]),
-        ],
-      ),
-      k.MapLiteral() => EsmNewIr(
-        callee: const EsmIdentifierIr('Map'),
-        arguments: [
-          EsmArrayLiteralIr([
-            for (final entry in expression.entries)
-              EsmArrayLiteralIr([
+      k.SetLiteral() => () {
+        helpers.add(EsmRuntimeHelper.setAddAll);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartSetFrom'),
+          arguments: [
+            EsmArrayLiteralIr([
+              for (final element in expression.expressions)
                 _lowerExpression(
                   world,
                   helpers,
                   locals,
-                  entry.key,
+                  element,
                   thisExpression: thisExpression,
                 ),
-                _lowerExpression(
-                  world,
-                  helpers,
-                  locals,
-                  entry.value,
-                  thisExpression: thisExpression,
-                ),
-              ]),
-          ]),
-        ],
-      ),
+            ]),
+          ],
+        );
+      }(),
+      k.MapLiteral() => () {
+        helpers.add(EsmRuntimeHelper.mapGet);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartMapFromEntries'),
+          arguments: [
+            EsmArrayLiteralIr([
+              for (final entry in expression.entries)
+                EsmArrayLiteralIr([
+                  _lowerExpression(
+                    world,
+                    helpers,
+                    locals,
+                    entry.key,
+                    thisExpression: thisExpression,
+                  ),
+                  _lowerExpression(
+                    world,
+                    helpers,
+                    locals,
+                    entry.value,
+                    thisExpression: thisExpression,
+                  ),
+                ]),
+            ]),
+          ],
+        );
+      }(),
       k.RecordLiteral() => _lowerRecordLiteral(
         world,
         helpers,
@@ -4306,9 +4312,10 @@ final class KernelToEsmIrLoweringStage
       if (target == 'dart:core::Map::@methods::[]' ||
           target == 'dart:_compact_hash::_ConstMap::@methods::[]' ||
           target == 'dart:_compact_hash::_Map::@methods::[]') {
+        helpers.add(EsmRuntimeHelper.mapGet);
         return EsmCallIr(
-          callee: EsmPropertyAccessIr(receiver: receiver, property: 'get'),
-          arguments: [property],
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.mapGet),
+          arguments: [receiver, property],
         );
       }
       return EsmComputedPropertyAccessIr(
@@ -4420,18 +4427,17 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::Set::@methods::add' &&
         expression.arguments.positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.setAddAll);
       return EsmCallIr(
-        callee: EsmPropertyAccessIr(
-          receiver: _lowerExpression(
+        callee: const EsmIdentifierIr('__dartSetAdd'),
+        arguments: [
+          _lowerExpression(
             world,
             helpers,
             locals,
             expression.receiver,
             thisExpression: thisExpression,
           ),
-          property: 'add',
-        ),
-        arguments: [
           _lowerExpression(
             world,
             helpers,
@@ -4444,18 +4450,17 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::Set::@methods::contains' &&
         expression.arguments.positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.setAddAll);
       return EsmCallIr(
-        callee: EsmPropertyAccessIr(
-          receiver: _lowerExpression(
+        callee: const EsmIdentifierIr('__dartSetContains'),
+        arguments: [
+          _lowerExpression(
             world,
             helpers,
             locals,
             expression.receiver,
             thisExpression: thisExpression,
           ),
-          property: 'has',
-        ),
-        arguments: [
           _lowerExpression(
             world,
             helpers,
@@ -4893,6 +4898,155 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
+    if ((target == 'dart:core::Iterable::@methods::where' ||
+            target == 'dart:core::List::@methods::where') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+          ),
+          property: 'filter',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::Iterable::@methods::any' ||
+            target == 'dart:core::List::@methods::any' ||
+            target == 'dart:core::Iterable::@methods::every' ||
+            target == 'dart:core::List::@methods::every') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 1) {
+      final method =
+          target == 'dart:core::Iterable::@methods::any' ||
+              target == 'dart:core::List::@methods::any'
+          ? 'some'
+          : 'every';
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+          ),
+          property: method,
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::Iterable::@methods::fold' ||
+            target == 'dart:core::List::@methods::fold') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 2) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+          ),
+          property: 'reduce',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional[1],
+            thisExpression: thisExpression,
+          ),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional[0],
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::Iterable::@methods::reduce' ||
+            target == 'dart:core::List::@methods::reduce') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _arrayFrom(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+          ),
+          property: 'reduce',
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::Iterable::@methods::elementAt' ||
+            target == 'dart:core::List::@methods::elementAt') &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.length == 1) {
+      return EsmComputedPropertyAccessIr(
+        receiver: _arrayFrom(
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+        ),
+        property: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.arguments.positional.single,
+          thisExpression: thisExpression,
+        ),
+      );
+    }
     if ((target == 'dart:core::Iterable::@methods::take' ||
             target == 'dart:core::List::@methods::take') &&
         expression.arguments.named.isEmpty &&
@@ -5062,6 +5216,30 @@ final class KernelToEsmIrLoweringStage
             positional.single,
             thisExpression: thisExpression,
           ),
+        );
+      }
+      if (target == 'dart:core::int::@methods::gcd' &&
+          positional.length == 1 &&
+          expression.arguments.named.isEmpty) {
+        helpers.add(EsmRuntimeHelper.intGcd);
+        return EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.intGcd),
+          arguments: [
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.single,
+              thisExpression: thisExpression,
+            ),
+          ],
         );
       }
       return null;
@@ -5559,6 +5737,56 @@ final class KernelToEsmIrLoweringStage
           ),
         ),
       ),
+      'dart:core::num::@getters::isNaN' ||
+      'dart:core::double::@getters::isNaN' => EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr('Number'),
+          property: 'isNaN',
+        ),
+        arguments: [receiver],
+      ),
+      'dart:core::num::@getters::isFinite' ||
+      'dart:core::double::@getters::isFinite' => EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr('Number'),
+          property: 'isFinite',
+        ),
+        arguments: [receiver],
+      ),
+      'dart:core::num::@getters::isInfinite' ||
+      'dart:core::double::@getters::isInfinite' => _or(
+        EsmBinaryIr(
+          left: receiver,
+          operator: '===',
+          right: const EsmIdentifierIr('Infinity'),
+        ),
+        EsmBinaryIr(
+          left: receiver,
+          operator: '===',
+          right: const EsmUnaryIr(
+            operator: '-',
+            operand: EsmIdentifierIr('Infinity'),
+          ),
+        ),
+      ),
+      'dart:core::num::@getters::isNegative' ||
+      'dart:core::double::@getters::isNegative' => _or(
+        EsmBinaryIr(
+          left: receiver,
+          operator: '<',
+          right: const EsmNumberLiteralIr(0),
+        ),
+        EsmCallIr(
+          callee: const EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('Object'),
+            property: 'is',
+          ),
+          arguments: [
+            receiver,
+            const EsmUnaryIr(operator: '-', operand: EsmNumberLiteralIr(0)),
+          ],
+        ),
+      ),
       _ => null,
     };
   }
@@ -5901,14 +6129,28 @@ final class KernelToEsmIrLoweringStage
     final target = kernelReferencePath(expression.targetReference);
     if (target == 'dart:_compact_hash::_Set::@constructors::' &&
         expression.arguments.positional.isEmpty) {
-      return EsmNewIr(
-        callee: const EsmIdentifierIr('Set'),
-        arguments: const [],
+      helpers.add(EsmRuntimeHelper.setAddAll);
+      return const EsmCallIr(
+        callee: EsmIdentifierIr('__dartSetFrom'),
+        arguments: [EsmArrayLiteralIr([])],
       );
     }
     if (target == 'dart:_internal::EmptyIterable::@constructors::' &&
         expression.arguments.positional.isEmpty) {
       return const EsmArrayLiteralIr([]);
+    }
+    if (target.startsWith('dart:core::MapEntry::@constructors::') &&
+        expression.arguments.positional.length == 2) {
+      return EsmArrayLiteralIr([
+        for (final argument in expression.arguments.positional)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+      ]);
     }
     if ((target.startsWith('dart:core::Symbol::') ||
             target.startsWith('dart:_internal::Symbol::')) &&
@@ -7043,17 +7285,16 @@ final class KernelToEsmIrLoweringStage
     if (_isCoreSetFactory(target) &&
         positional.length == 1 &&
         arguments.named.isEmpty) {
-      return EsmNewIr(
-        callee: const EsmIdentifierIr('Set'),
+      helpers.add(EsmRuntimeHelper.setAddAll);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartSetFrom'),
         arguments: [
-          _arrayFrom(
-            _lowerExpression(
-              world,
-              helpers,
-              locals,
-              positional.single,
-              thisExpression: thisExpression,
-            ),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
           ),
         ],
       );
@@ -7066,20 +7307,81 @@ final class KernelToEsmIrLoweringStage
         arguments: const [],
       );
     }
-    if (_isCoreMapFactory(target) &&
-        positional.length == 1 &&
+    if (_isCoreSetEmptyFactory(target) &&
+        positional.isEmpty &&
         arguments.named.isEmpty) {
-      return EsmNewIr(
-        callee: const EsmIdentifierIr('Map'),
+      helpers.add(EsmRuntimeHelper.setAddAll);
+      return const EsmCallIr(
+        callee: EsmIdentifierIr('__dartSetFrom'),
+        arguments: [EsmArrayLiteralIr([])],
+      );
+    }
+    if (_isCoreMapFromIterableFactory(target) &&
+        positional.length == 1 &&
+        _hasOnlyNamedArguments(arguments, {'key', 'value'})) {
+      helpers.add(EsmRuntimeHelper.mapFactories);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.mapFactories),
         arguments: [
-          _arrayFrom(
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+          _lowerNamedArgument(
+                world,
+                helpers,
+                locals,
+                arguments,
+                'key',
+                thisExpression: thisExpression,
+              ) ??
+              const EsmNullLiteralIr(),
+          _lowerNamedArgument(
+                world,
+                helpers,
+                locals,
+                arguments,
+                'value',
+                thisExpression: thisExpression,
+              ) ??
+              const EsmNullLiteralIr(),
+        ],
+      );
+    }
+    if (_isCoreMapFromIterablesFactory(target) &&
+        positional.length == 2 &&
+        arguments.named.isEmpty) {
+      helpers.add(EsmRuntimeHelper.mapFactories);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartMapFromIterables'),
+        arguments: [
+          for (final argument in positional)
             _lowerExpression(
               world,
               helpers,
               locals,
-              positional.single,
+              argument,
               thisExpression: thisExpression,
             ),
+        ],
+      );
+    }
+    if (_isCoreMapFactory(target) &&
+        positional.length == 1 &&
+        arguments.named.isEmpty) {
+      helpers.add(EsmRuntimeHelper.mapGet);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartMapFromEntries'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
           ),
         ],
       );
@@ -7090,6 +7392,15 @@ final class KernelToEsmIrLoweringStage
       return EsmNewIr(
         callee: const EsmIdentifierIr('Map'),
         arguments: const [],
+      );
+    }
+    if (_isCoreMapEmptyFactory(target) &&
+        positional.isEmpty &&
+        arguments.named.isEmpty) {
+      helpers.add(EsmRuntimeHelper.mapGet);
+      return const EsmCallIr(
+        callee: EsmIdentifierIr('__dartMapFromEntries'),
+        arguments: [EsmArrayLiteralIr([])],
       );
     }
     return null;
@@ -7112,6 +7423,11 @@ final class KernelToEsmIrLoweringStage
         target == 'dart:collection::LinkedHashSet::@factories::identity';
   }
 
+  bool _isCoreSetEmptyFactory(String target) {
+    return target == 'dart:collection::HashSet::@factories::' ||
+        target == 'dart:collection::LinkedHashSet::@factories::';
+  }
+
   bool _isCoreCollectionCastFrom(String target) {
     return target == 'dart:core::List::@methods::castFrom' ||
         target == 'dart:core::Set::@methods::castFrom' ||
@@ -7127,9 +7443,24 @@ final class KernelToEsmIrLoweringStage
         target == 'dart:collection::LinkedHashMap::@factories::from';
   }
 
+  bool _isCoreMapFromIterableFactory(String target) {
+    return target == 'dart:core::Map::@factories::fromIterable' ||
+        target == 'dart:collection::LinkedHashMap::@factories::fromIterable';
+  }
+
+  bool _isCoreMapFromIterablesFactory(String target) {
+    return target == 'dart:core::Map::@factories::fromIterables' ||
+        target == 'dart:collection::LinkedHashMap::@factories::fromIterables';
+  }
+
   bool _isCoreMapIdentityFactory(String target) {
     return target == 'dart:core::Map::@factories::identity' ||
         target == 'dart:collection::LinkedHashMap::@factories::identity';
+  }
+
+  bool _isCoreMapEmptyFactory(String target) {
+    return target == 'dart:collection::HashMap::@factories::' ||
+        target == 'dart:collection::LinkedHashMap::@factories::';
   }
 
   EsmExpressionIr? _lowerCoreStringStaticInvocation(

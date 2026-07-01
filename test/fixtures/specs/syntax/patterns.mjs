@@ -27,13 +27,62 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+
+
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+function __dartMapAddAll(map, entries) {
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return null;
+}
 function __dartMapContainsKey(map, key) {
   if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
-  if (map.has(key)) return true;
-  for (const candidate of map.keys()) {
-    if (__dartEquals(candidate, key)) return true;
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+function __dartMapFromEntries(entries) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  __dartMapAddAll(map, entries);
+  return map;
+}
+function __dartMapFromIterable(iterable, key = null, value = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (const element of iterable) {
+    __dartMapSet(
+      map,
+      typeof key === "function" ? key(element) : element,
+      typeof value === "function" ? value(element) : element,
+    );
   }
-  return false;
+  return map;
+}
+function __dartMapFromIterables(keys, values) {
+  const keyList = Array.from(keys);
+  const valueList = Array.from(values);
+  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (let index = 0; index < keyList.length; index++) {
+    __dartMapSet(map, keyList[index], valueList[index]);
+  }
+  return map;
 }
 
 function __dartPrint(value) {
@@ -203,26 +252,26 @@ export function shape(value) {
       let age;
       if (((((_0_0 instanceof Map && (!((_0_11_isSet ? _0_11 : (function() {
         const v_1 = _0_11_isSet = true;
-        return _0_11 = _0_0.get("name");
+        return _0_11 = __dartMapGet(_0_0, "name");
       })()) === null) || (true && __dartMapContainsKey(_0_0, "name")))) && (typeof ((_0_11_isSet ? _0_11 : (function() {
         const v_1 = _0_11_isSet = true;
-        return _0_11 = _0_0.get("name");
+        return _0_11 = __dartMapGet(_0_0, "name");
       })())) === "string" && (function() {
         const v_1 = name = __dartAs((_0_11_isSet ? _0_11 : (function() {
           const v_2 = _0_11_isSet = true;
-          return _0_11 = _0_0.get("name");
+          return _0_11 = __dartMapGet(_0_0, "name");
         })()), (value) => typeof value === "string", "String");
         return true;
       })())) && (!((_0_14_isSet ? _0_14 : (function() {
         const v_1 = _0_14_isSet = true;
-        return _0_14 = _0_0.get("age");
+        return _0_14 = __dartMapGet(_0_0, "age");
       })()) === null) || (true && __dartMapContainsKey(_0_0, "age")))) && typeof ((_0_14_isSet ? _0_14 : (function() {
         const v_1 = _0_14_isSet = true;
-        return _0_14 = _0_0.get("age");
+        return _0_14 = __dartMapGet(_0_0, "age");
       })())) === "number")) {
         age = __dartAs((_0_14_isSet ? _0_14 : (function() {
           const v_1 = _0_14_isSet = true;
-          return _0_14 = _0_0.get("age");
+          return _0_14 = __dartMapGet(_0_0, "age");
         })()), (value) => typeof value === "number", "int");
         v = `map ${__dartStr(name)} ${__dartStr(age)}`;
         break label;
@@ -268,7 +317,7 @@ export function main() {
   __dartPrint(classify(__dartRecord([2, 3], {  })));
   __dartPrint(classify(true));
   __dartPrint(shape([3, 4]));
-  __dartPrint(shape(new Map([["name", "Ada"], ["age", 37]])));
+  __dartPrint(shape(__dartMapFromEntries([["name", "Ada"], ["age", 37]])));
   __dartPrint(shape(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Pair{Pair.left: 1, Pair.right: 2})\"]", () => Object.freeze(Object.assign(Object.create(Pair.prototype), { left: 1, right: 2 })))));
   __dartPrint(shape(5));
   __dartPrint(shape(null));

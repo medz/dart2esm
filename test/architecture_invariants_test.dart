@@ -189,6 +189,9 @@ void main() {
     final coreIterable = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
     );
+    final coreText = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_text_intrinsics.dart',
+    );
     final coreUri = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_uri_intrinsics.dart',
     );
@@ -234,6 +237,8 @@ void main() {
     expect(lowering, isNot(contains('_lowerCoreUriInstanceGet')));
     expect(lowering, isNot(contains('_lowerCoreUriStaticInvocation')));
     expect(lowering, isNot(contains('_lowerUriOptionsObject')));
+    expect(lowering, isNot(contains('_lowerCoreStringStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreRegExpStaticInvocation')));
     expect(
       lowering,
       isNot(contains('_typedDataByteBufferViewConstructorName')),
@@ -268,6 +273,15 @@ void main() {
     expect(lowering, isNot(contains('dart:typed_data::ByteBuffer')));
     expect(lowering, isNot(contains('dart:core::Uri::')));
     expect(lowering, isNot(contains('dart:core::_Uri::')));
+    expect(
+      lowering,
+      isNot(contains('dart:core::String::@factories::fromCharCode')),
+    );
+    expect(
+      lowering,
+      isNot(contains('dart:core::String::@factories::fromCharCodes')),
+    );
+    expect(lowering, isNot(contains('dart:core::RegExp::@methods::escape')));
     expect(typedDataInvocation, isNot(contains('__dartListSetAll')));
     expect(typedDataInvocation, isNot(contains('__dartListSetRange')));
     expect(typedDataInvocation, isNot(contains('__dartListFillRange')));
@@ -288,6 +302,13 @@ void main() {
     expect(typedData, contains('__dartListSetRange'));
     expect(typedData, contains('__dartListFillRange'));
     expect(typedData, contains('__dartListAsMap'));
+    expect(coreText, contains('lowerDartCoreTextStaticInvocation'));
+    expect(coreText, contains('dart:core::String::@factories::fromCharCode'));
+    expect(coreText, contains('dart:core::String::@factories::fromCharCodes'));
+    expect(coreText, contains('dart:core::RegExp::@factories::'));
+    expect(coreText, contains('dart:core::RegExp::@methods::escape'));
+    expect(coreText, contains('EsmRuntimeHelper.regExp'));
+    expect(coreText, contains('EsmRuntimeHelper.stringFactory'));
     expect(coreUri, contains('lowerDartCoreUriStaticGet'));
     expect(coreUri, contains('lowerDartCoreUriInstanceInvocation'));
     expect(coreUri, contains('lowerDartCoreUriInstanceGet'));

@@ -5,6 +5,7 @@ import '../../runtime/runtime_helpers.dart';
 import 'dart_collection_intrinsics.dart';
 import 'dart_convert_intrinsics.dart';
 import 'dart_core_iterable_intrinsics.dart';
+import 'dart_core_text_intrinsics.dart';
 import 'dart_core_uri_intrinsics.dart';
 import 'dart_internal_intrinsics.dart';
 import 'dart_typed_data_intrinsics.dart';
@@ -147,6 +148,13 @@ final class DartSdkIntrinsicRegistry {
           lower: lower,
         ) ??
         lowerDartCoreUriStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
+          lower: lower,
+          lowerNamedArgument: lowerNamedArgument,
+        ) ??
+        lowerDartCoreTextStaticInvocation(
           expression: expression,
           helpers: helpers,
           runtimeHelpers: runtimeHelpers,

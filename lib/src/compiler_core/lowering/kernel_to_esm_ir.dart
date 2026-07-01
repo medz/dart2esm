@@ -178,7 +178,7 @@ final class KernelToEsmIrLoweringStage
 
   EsmClassMethodIr _lowerEnumToString(EsmClassSymbol klass) {
     return EsmClassMethodIr(
-      name: 'toString',
+      key: EsmStaticPropertyKeyIr('toString'),
       kind: EsmClassMethodKindIr.method,
       isStatic: false,
       parameters: const [],
@@ -430,7 +430,7 @@ final class KernelToEsmIrLoweringStage
       function,
     );
     return EsmClassMethodIr(
-      name: bridgeName,
+      key: EsmStaticPropertyKeyIr(bridgeName),
       kind: _classMethodKind(interfaceProcedure),
       isStatic: false,
       parameters: parameters,
@@ -552,7 +552,7 @@ final class KernelToEsmIrLoweringStage
 
   EsmClassMethodIr _lowerInheritedGetterBridge(String name) {
     return EsmClassMethodIr(
-      name: name,
+      key: EsmStaticPropertyKeyIr(name),
       kind: EsmClassMethodKindIr.getter,
       isStatic: false,
       parameters: const [],
@@ -562,7 +562,7 @@ final class KernelToEsmIrLoweringStage
 
   EsmClassMethodIr _lowerInheritedSetterBridge(String name) {
     return EsmClassMethodIr(
-      name: name,
+      key: EsmStaticPropertyKeyIr(name),
       kind: EsmClassMethodKindIr.setter,
       isStatic: false,
       parameters: const [EsmIdentifierParameterIr(name: 'value')],
@@ -681,7 +681,7 @@ final class KernelToEsmIrLoweringStage
       k.ExtensionTypeMemberKind.Constructor => const [],
       k.ExtensionTypeMemberKind.Field => [
         EsmClassMethodIr(
-          name: member.name,
+          key: EsmStaticPropertyKeyIr(member.name),
           kind: EsmClassMethodKindIr.getter,
           isStatic: true,
           parameters: const [],
@@ -698,7 +698,7 @@ final class KernelToEsmIrLoweringStage
         ),
         if (member.mutable)
           EsmClassMethodIr(
-            name: member.name,
+            key: EsmStaticPropertyKeyIr(member.name),
             kind: EsmClassMethodKindIr.setter,
             isStatic: true,
             parameters: const [EsmIdentifierParameterIr(name: 'value')],
@@ -772,7 +772,7 @@ final class KernelToEsmIrLoweringStage
     );
     final isSetter = descriptor.kind == k.ExtensionTypeMemberKind.Setter;
     return EsmClassMethodIr(
-      name: member.name,
+      key: EsmStaticPropertyKeyIr(member.name),
       kind: switch (descriptor.kind) {
         k.ExtensionTypeMemberKind.Getter => EsmClassMethodKindIr.getter,
         k.ExtensionTypeMemberKind.Setter => EsmClassMethodKindIr.setter,
@@ -1614,7 +1614,7 @@ final class KernelToEsmIrLoweringStage
     final redirectingInitializer = _redirectingInitializer(constructor);
     if (redirectingInitializer != null) {
       return EsmClassMethodIr(
-        name: constructor.name,
+        key: EsmStaticPropertyKeyIr(constructor.name),
         kind: EsmClassMethodKindIr.method,
         isStatic: true,
         parameters: parameters,
@@ -1692,7 +1692,7 @@ final class KernelToEsmIrLoweringStage
       EsmReturnStatementIr(self),
     ];
     return EsmClassMethodIr(
-      name: constructor.name,
+      key: EsmStaticPropertyKeyIr(constructor.name),
       kind: EsmClassMethodKindIr.method,
       isStatic: true,
       parameters: parameters,
@@ -2017,7 +2017,7 @@ final class KernelToEsmIrLoweringStage
     );
     final body = function.body;
     return EsmClassMethodIr(
-      name: procedure.name,
+      key: EsmStaticPropertyKeyIr(procedure.name),
       kind: switch (procedure.kind) {
         EsmProcedureKind.method => EsmClassMethodKindIr.method,
         EsmProcedureKind.getter => EsmClassMethodKindIr.getter,

@@ -43,18 +43,25 @@ final class EsmClassConstructorIr extends EsmIrNode {
 
 final class EsmClassMethodIr extends EsmIrNode {
   const EsmClassMethodIr({
-    required this.name,
+    required this.key,
     required this.kind,
     required this.isStatic,
     required this.parameters,
     required this.body,
   });
 
-  final String name;
+  final EsmPropertyKeyIr key;
   final EsmClassMethodKindIr kind;
   final bool isStatic;
   final List<EsmParameterIr> parameters;
   final List<EsmStatementIr> body;
+
+  String get name => switch (key) {
+    EsmStaticPropertyKeyIr(:final value) => value,
+    EsmComputedPropertyKeyIr() => throw StateError(
+      'Computed class method keys do not have a static name',
+    ),
+  };
 }
 
 enum EsmClassMethodKindIr { method, getter, setter }

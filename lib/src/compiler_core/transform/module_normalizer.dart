@@ -118,7 +118,7 @@ final class ModuleNormalizerStage
         changed = true;
         methods.add(
           EsmClassMethodIr(
-            name: method.name,
+            key: method.key,
             kind: method.kind,
             isStatic: method.isStatic,
             parameters: method.parameters,

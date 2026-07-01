@@ -108,6 +108,28 @@ final class EsmObjectPatternBindingIr extends EsmIrNode {
   final EsmExpressionIr? defaultValue;
 }
 
+sealed class EsmBindingIr extends EsmIrNode {
+  const EsmBindingIr();
+}
+
+final class EsmIdentifierBindingIr extends EsmBindingIr {
+  const EsmIdentifierBindingIr(this.name);
+
+  final String name;
+}
+
+final class EsmObjectBindingPatternIr extends EsmBindingIr {
+  const EsmObjectBindingPatternIr({required this.bindings});
+
+  final List<EsmObjectPatternBindingIr> bindings;
+}
+
+final class EsmArrayBindingPatternIr extends EsmBindingIr {
+  const EsmArrayBindingPatternIr({required this.elements});
+
+  final List<EsmBindingIr> elements;
+}
+
 sealed class EsmStatementIr extends EsmModuleItemIr {
   const EsmStatementIr();
 }
@@ -145,13 +167,13 @@ final class EsmContinueStatementIr extends EsmStatementIr {
 
 final class EsmVariableDeclarationIr extends EsmStatementIr {
   const EsmVariableDeclarationIr({
-    required this.name,
+    required this.binding,
     required this.initializer,
     required this.mutable,
     this.export = false,
   });
 
-  final String name;
+  final EsmBindingIr binding;
   final EsmExpressionIr? initializer;
   final bool mutable;
   final bool export;

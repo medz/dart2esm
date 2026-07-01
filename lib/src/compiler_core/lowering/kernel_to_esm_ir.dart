@@ -81,7 +81,7 @@ final class KernelToEsmIrLoweringStage
     return [
       if (markerName != null)
         EsmVariableDeclarationIr(
-          name: markerName,
+          binding: EsmIdentifierBindingIr(markerName),
           initializer: EsmCallIr(
             callee: const EsmIdentifierIr('Symbol'),
             arguments: [EsmStringLiteralIr(klass.node.name)],
@@ -824,7 +824,7 @@ final class KernelToEsmIrLoweringStage
   ) {
     final initializer = field.initializer;
     return EsmVariableDeclarationIr(
-      name: member.backingName,
+      binding: EsmIdentifierBindingIr(member.backingName),
       initializer: initializer == null
           ? null
           : _lowerExpression(
@@ -1005,7 +1005,7 @@ final class KernelToEsmIrLoweringStage
     final initializer = field.node.initializer;
     return [
       EsmVariableDeclarationIr(
-        name: field.backingName,
+        binding: EsmIdentifierBindingIr(field.backingName),
         initializer: EsmCallIr(
           callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.lazyField),
           arguments: [
@@ -1106,7 +1106,7 @@ final class KernelToEsmIrLoweringStage
       final initializer = field.node.initializer;
       statements.add(
         EsmVariableDeclarationIr(
-          name: backingName,
+          binding: EsmIdentifierBindingIr(backingName),
           initializer: EsmCallIr(
             callee: helpers.reference(
               runtimeHelpers,
@@ -1501,7 +1501,7 @@ final class KernelToEsmIrLoweringStage
       final self = EsmIdentifierIr(selfName);
       final body = <EsmStatementIr>[
         EsmVariableDeclarationIr(
-          name: selfName,
+          binding: EsmIdentifierBindingIr(selfName),
           initializer: _lowerSuperFactoryAllocation(
             world,
             helpers,
@@ -1657,7 +1657,7 @@ final class KernelToEsmIrLoweringStage
           );
     final body = <EsmStatementIr>[
       EsmVariableDeclarationIr(
-        name: selfName,
+        binding: EsmIdentifierBindingIr(selfName),
         initializer: allocation,
         mutable: false,
       ),
@@ -2059,13 +2059,13 @@ final class KernelToEsmIrLoweringStage
       final initializer = field.node.initializer;
       return [
         EsmVariableDeclarationIr(
-          name: field.name,
+          binding: EsmIdentifierBindingIr(field.name),
           initializer: null,
           mutable: true,
           export: field.export,
         ),
         EsmVariableDeclarationIr(
-          name: field.backingName!,
+          binding: EsmIdentifierBindingIr(field.backingName!),
           initializer: EsmCallIr(
             callee: helpers.reference(
               runtimeHelpers,
@@ -2101,7 +2101,7 @@ final class KernelToEsmIrLoweringStage
     final initializer = field.node.initializer;
     return [
       EsmVariableDeclarationIr(
-        name: field.name,
+        binding: EsmIdentifierBindingIr(field.name),
         initializer: initializer == null
             ? null
             : _lowerExpression(
@@ -2715,7 +2715,7 @@ final class KernelToEsmIrLoweringStage
     final nestedTargets = {...continueSwitchTargets, ...targets};
     return EsmBlockStatementIr([
       EsmVariableDeclarationIr(
-        name: valueName,
+        binding: EsmIdentifierBindingIr(valueName),
         initializer: _lowerExpression(
           world,
           helpers,
@@ -2726,7 +2726,7 @@ final class KernelToEsmIrLoweringStage
         mutable: false,
       ),
       EsmVariableDeclarationIr(
-        name: targetName,
+        binding: EsmIdentifierBindingIr(targetName),
         initializer: const EsmNumberLiteralIr(-1),
         mutable: true,
       ),
@@ -3108,7 +3108,7 @@ final class KernelToEsmIrLoweringStage
       catchLocals[exception] = name;
       statements.add(
         EsmVariableDeclarationIr(
-          name: name,
+          binding: EsmIdentifierBindingIr(name),
           initializer: error,
           mutable: exception.isAssignable,
         ),
@@ -3125,7 +3125,7 @@ final class KernelToEsmIrLoweringStage
       catchLocals[stackTrace] = name;
       statements.add(
         EsmVariableDeclarationIr(
-          name: name,
+          binding: EsmIdentifierBindingIr(name),
           initializer: EsmNullishCoalesceIr(
             left: EsmOptionalPropertyAccessIr(
               receiver: error,
@@ -3184,7 +3184,7 @@ final class KernelToEsmIrLoweringStage
     if (statement.isLate) {
       helpers.require(EsmRuntimeHelper.lazyField);
       return EsmVariableDeclarationIr(
-        name: name,
+        binding: EsmIdentifierBindingIr(name),
         initializer: EsmCallIr(
           callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.lazyField),
           arguments: [
@@ -3208,7 +3208,7 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return EsmVariableDeclarationIr(
-      name: name,
+      binding: EsmIdentifierBindingIr(name),
       initializer: initializer == null
           ? const EsmNullLiteralIr()
           : _lowerExpression(
@@ -3235,7 +3235,7 @@ final class KernelToEsmIrLoweringStage
     );
     locals[statement.variable] = name;
     return EsmVariableDeclarationIr(
-      name: name,
+      binding: EsmIdentifierBindingIr(name),
       initializer: _lowerFunctionNodeExpression(
         world,
         helpers,
@@ -10854,7 +10854,7 @@ final class KernelToEsmIrLoweringStage
         parameters: const [],
         body: [
           EsmVariableDeclarationIr(
-            name: receiverName,
+            binding: EsmIdentifierBindingIr(receiverName),
             initializer: _lowerExpression(
               world,
               helpers,

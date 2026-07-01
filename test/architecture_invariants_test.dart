@@ -221,6 +221,31 @@ void main() {
     expect(lowering, contains('catchParameter: EsmIdentifierParameterIr'));
   });
 
+  test('ESM variable declarations use binding IR', () {
+    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final lowering = _read(
+      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
+    );
+
+    expect(ir, contains('sealed class EsmBindingIr'));
+    expect(ir, contains('final class EsmIdentifierBindingIr'));
+    expect(ir, contains('final class EsmObjectBindingPatternIr'));
+    expect(ir, contains('final class EsmArrayBindingPatternIr'));
+    expect(ir, contains('final EsmBindingIr binding;'));
+    expect(
+      ir,
+      isNot(
+        contains('final String name;\n  final EsmExpressionIr? initializer;'),
+      ),
+    );
+    expect(codegen, contains('_emitBinding(statement.binding)'));
+    expect(codegen, contains('_emitBinding(initializer.binding)'));
+    expect(codegen, isNot(contains('statement.name')));
+    expect(codegen, isNot(contains('initializer.name')));
+    expect(lowering, contains('binding: EsmIdentifierBindingIr'));
+  });
+
   test('ESM object literal properties use property key IR', () {
     final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
     final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');

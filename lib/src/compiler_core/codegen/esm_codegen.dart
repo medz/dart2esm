@@ -142,10 +142,11 @@ final class _EsmIrPrinter {
         final keyword = statement.mutable ? 'let' : 'const';
         final exportPrefix = statement.export ? 'export ' : '';
         final initializer = statement.initializer;
+        final binding = _emitBinding(statement.binding);
         _writeIndented(
           initializer == null
-              ? '$exportPrefix$keyword ${statement.name};'
-              : '$exportPrefix$keyword ${statement.name} = ${_emitExpression(initializer)};',
+              ? '$exportPrefix$keyword $binding;'
+              : '$exportPrefix$keyword $binding = ${_emitExpression(initializer)};',
         );
       case EsmIfStatementIr():
         _emitIfStatement(statement);
@@ -330,9 +331,18 @@ final class _EsmIrPrinter {
 
   String _emitForInitializerBinding(EsmVariableDeclarationIr initializer) {
     final value = initializer.initializer;
-    return value == null
-        ? initializer.name
-        : '${initializer.name} = ${_emitExpression(value)}';
+    final binding = _emitBinding(initializer.binding);
+    return value == null ? binding : '$binding = ${_emitExpression(value)}';
+  }
+
+  String _emitBinding(EsmBindingIr binding) {
+    return switch (binding) {
+      EsmIdentifierBindingIr() => binding.name,
+      EsmObjectBindingPatternIr() =>
+        '{ ${binding.bindings.map(_emitObjectPatternBinding).join(', ')} }',
+      EsmArrayBindingPatternIr() =>
+        '[${binding.elements.map(_emitBinding).join(', ')}]',
+    };
   }
 
   String _emitParameter(EsmParameterIr parameter) {

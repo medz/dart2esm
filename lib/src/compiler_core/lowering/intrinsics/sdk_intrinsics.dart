@@ -4,6 +4,8 @@ import '../../ir/esm_ir.dart';
 import '../../runtime/runtime_helpers.dart';
 import 'dart_collection_intrinsics.dart';
 import 'dart_convert_intrinsics.dart';
+import 'dart_core_iterable_intrinsics.dart';
+import 'dart_internal_intrinsics.dart';
 import 'dart_typed_data_intrinsics.dart';
 
 final class DartSdkIntrinsicRegistry {
@@ -90,7 +92,20 @@ final class DartSdkIntrinsicRegistry {
     required EsmExpressionIr Function(k.Expression argument) lower,
     required EsmExpressionIr Function(EsmExpressionIr value) arrayFrom,
   }) {
-    return lowerDartCollectionStaticInvocation(
+    return lowerDartInternalStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
+          lower: lower,
+          arrayFrom: arrayFrom,
+        ) ??
+        lowerDartCoreIterableStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          lower: lower,
+          arrayFrom: arrayFrom,
+        ) ??
+        lowerDartCollectionStaticInvocation(
           expression: expression,
           helpers: helpers,
           lower: lower,

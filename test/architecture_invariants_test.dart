@@ -186,6 +186,12 @@ void main() {
     final collection = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_collection_intrinsics.dart',
     );
+    final coreIterable = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
+    );
+    final internal = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_internal_intrinsics.dart',
+    );
     final convert = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_convert_intrinsics.dart',
     );
@@ -209,6 +215,7 @@ void main() {
       lowering,
       isNot(contains('_lowerDartCollectionQueueInstanceInvocation')),
     );
+    expect(lowering, isNot(contains('_lowerSdkCollectionStaticInvocation')));
     expect(lowering, isNot(contains('_lowerDartCollectionQueueInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataStaticInvocation')));
@@ -227,6 +234,16 @@ void main() {
         contains('DartSdkStaticInvocationSymbol.collectionListBaseToString'),
       ),
     );
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.internalCheckNotNullable')),
+    );
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.coreIterableToFullString')),
+    );
+    expect(lowering, isNot(contains('_lowerCoreErrorLiteral')));
+    expect(lowering, isNot(contains('_dartDelimitedCollectionToString')));
     expect(lowering, isNot(contains('dart:convert::_Byte')));
     expect(lowering, isNot(contains('dart:typed_data::Endian')));
     expect(lowering, isNot(contains('dart:typed_data::ByteData')));
@@ -244,6 +261,20 @@ void main() {
     expect(
       collection,
       contains('DartSdkStaticInvocationSymbol.collectionListBaseToString'),
+    );
+    expect(coreIterable, contains('lowerDartCoreIterableStaticInvocation'));
+    expect(
+      coreIterable,
+      contains('DartSdkStaticInvocationSymbol.coreIterableToFullString'),
+    );
+    expect(internal, contains('lowerDartInternalStaticInvocation'));
+    expect(
+      internal,
+      contains('DartSdkStaticInvocationSymbol.internalCheckNotNullable'),
+    );
+    expect(
+      internal,
+      contains('DartSdkStaticInvocationSymbol.iterableElementErrorTooMany'),
     );
     expect(convert, contains('dart:convert::_ByteAdapterSink'));
     expect(convert, contains('dart:convert::_ByteCallbackSink'));

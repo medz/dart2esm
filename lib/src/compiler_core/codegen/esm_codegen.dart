@@ -353,6 +353,7 @@ final class _EsmIrPrinter {
   String _emitExpression(EsmExpressionIr expression) {
     return switch (expression) {
       EsmIdentifierIr() => expression.name,
+      EsmImportMetaIr() => 'import.meta',
       EsmStringLiteralIr() => jsonEncode(expression.value),
       EsmStringConcatenationIr() => _emitStringConcatenation(expression),
       EsmAssignmentIr() =>
@@ -460,6 +461,7 @@ final class _EsmIrPrinter {
   String _emitCallCallee(EsmExpressionIr expression) {
     return switch (expression) {
       EsmIdentifierIr() ||
+      EsmImportMetaIr() ||
       EsmPropertyAccessIr() ||
       EsmComputedPropertyAccessIr() ||
       EsmOptionalPropertyAccessIr() ||

@@ -4965,11 +4965,14 @@ final class KernelToEsmIrLoweringStage
         arguments: const [
           EsmNullishCoalesceIr(
             left: EsmOptionalPropertyAccessIr(
-              receiver: EsmIdentifierIr('globalThis.location'),
+              receiver: EsmPropertyAccessIr(
+                receiver: EsmIdentifierIr('globalThis'),
+                property: 'location',
+              ),
               property: 'href',
             ),
             right: EsmPropertyAccessIr(
-              receiver: EsmIdentifierIr('import.meta'),
+              receiver: EsmImportMetaIr(),
               property: 'url',
             ),
           ),

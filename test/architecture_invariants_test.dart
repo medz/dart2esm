@@ -181,6 +181,22 @@ void main() {
     expect(ir, isNot(contains('runtimeHelpers')));
   });
 
+  test('ESM identifier IR is not used for member expressions', () {
+    final dottedIdentifierLiteral = RegExp(
+      r'''EsmIdentifierIr\(\s*['"][^'"]+\.[^'"]*['"]''',
+    );
+
+    for (final file in _dartFiles('lib/src/compiler_core')) {
+      final source = file.readAsStringSync();
+      expect(
+        dottedIdentifierLiteral.firstMatch(source),
+        isNull,
+        reason:
+            '${file.path} must model member/meta access with structured ESM IR',
+      );
+    }
+  });
+
   test('compiler core does not adapt third-party packages by API path', () {
     for (final file in _dartFiles('lib/src/compiler_core')) {
       final nonImportSource = file

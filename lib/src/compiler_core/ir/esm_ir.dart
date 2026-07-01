@@ -246,6 +246,10 @@ final class EsmIdentifierIr extends EsmExpressionIr {
   final String name;
 }
 
+final class EsmImportMetaIr extends EsmExpressionIr {
+  const EsmImportMetaIr();
+}
+
 final class EsmStringLiteralIr extends EsmExpressionIr {
   const EsmStringLiteralIr(this.value);
 

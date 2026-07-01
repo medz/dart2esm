@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dart2esm/src/codegen/esm_codegen.dart';
 import 'package:dart2esm/src/compiler.dart';
 import 'package:dart2esm/src/component.dart';
@@ -646,14 +648,33 @@ export function main() {
     expect(derivedSymbol.procedures, contains(same(loweredMixinMethod)));
   });
 
-  test('compiles switch continue through the compiler components', () {
+  test('compiles switch continue through the compiler components', () async {
     final result = Compiler(
-      options: const CompilerOptions(runMain: true),
+      options: const CompilerOptions(runMain: false),
     ).compile(_componentWithSwitchContinue());
 
     expect(result.completedComponents, compilerComponentOrder);
-    expect(result.code, contains(r'$switchTarget'));
-    expect(result.code, contains(r'continue $switchLoop;'));
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm_compiler_test_',
+    );
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    File('${tempDir.path}/main.mjs').writeAsStringSync(result.code);
+    final consumer = File('${tempDir.path}/consumer.mjs')
+      ..writeAsStringSync('''
+import { main } from './main.mjs';
+console.log(main());
+''');
+    final nodeResult = await Process.run('node', [consumer.path]);
+
+    expect(
+      nodeResult.exitCode,
+      0,
+      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+    );
+    expect(nodeResult.stdout, 'target\n');
+    expect(nodeResult.stderr, isEmpty);
   });
 
   test('rejects unsupported Kernel in the compiler components', () {
@@ -680,15 +701,20 @@ export function main() {
 k.Component _componentWithSwitchContinue() {
   final libraryUri = Uri.parse('package:sample/main.dart');
   final library = k.Library(libraryUri, fileUri: libraryUri);
+  final result = k.VariableDeclaration(
+    'result',
+    initializer: k.StringLiteral('start'),
+  );
   final target = k.SwitchCase(
     [k.IntLiteral(0)],
     [k.TreeNode.noOffset],
-    k.EmptyStatement(),
+    k.ExpressionStatement(k.VariableSet(result, k.StringLiteral('target'))),
   );
   final main = _procedure(
     'main',
     body: k.Block([
-      k.SwitchStatement(k.IntLiteral(0), [
+      result,
+      k.SwitchStatement(k.IntLiteral(1), [
         target,
         k.SwitchCase(
           [k.IntLiteral(1)],
@@ -696,6 +722,7 @@ k.Component _componentWithSwitchContinue() {
           k.Block([k.ContinueSwitchStatement(target)]),
         ),
       ]),
+      k.ReturnStatement(k.VariableGet(result)),
     ]),
   );
   library.addProcedure(main);

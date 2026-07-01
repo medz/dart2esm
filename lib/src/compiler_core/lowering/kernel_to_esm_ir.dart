@@ -11,6 +11,7 @@ import '../ir/esm_ir.dart';
 import '../new_compiler_unsupported.dart';
 import '../runtime/runtime_helpers.dart';
 import '../semantic/semantic_world.dart';
+import 'intrinsics/sdk_intrinsics.dart';
 import 'lowering_context.dart';
 
 final class LoweringResult {
@@ -30,9 +31,11 @@ final class KernelToEsmIrLoweringStage
     implements Dart2EsmCompilerStage<SemanticWorldResult, LoweringResult> {
   const KernelToEsmIrLoweringStage({
     this.runtimeHelpers = const EsmRuntimeHelperRegistry(),
+    this.sdkIntrinsics = const DartSdkIntrinsicRegistry(),
   });
 
   final EsmRuntimeHelperRegistry runtimeHelpers;
+  final DartSdkIntrinsicRegistry sdkIntrinsics;
 
   @override
   Dart2EsmCompilerStageId get stageId => Dart2EsmCompilerStageId.dartLowering;
@@ -4487,9 +4490,9 @@ final class KernelToEsmIrLoweringStage
       return _lowerConstant(world, helpers, constant.tearOffConstant, context);
     }
     if (constant is k.InstanceConstant) {
-      final typedDataConstant = _lowerDartTypedDataInstanceConstant(constant);
-      if (typedDataConstant != null) {
-        return typedDataConstant;
+      final sdkConstant = sdkIntrinsics.lowerInstanceConstant(constant);
+      if (sdkConstant != null) {
+        return sdkConstant;
       }
       final convertConstant = _lowerDartConvertInstanceConstant(
         helpers,
@@ -4835,21 +4838,6 @@ final class KernelToEsmIrLoweringStage
     return kernelReferencePath(constant.classReference) ==
             'dart:core::Object' &&
         constant.fieldValues.isEmpty;
-  }
-
-  EsmExpressionIr? _lowerDartTypedDataInstanceConstant(
-    k.InstanceConstant constant,
-  ) {
-    final classPath = kernelReferencePath(constant.classReference);
-    if (classPath != 'dart:typed_data::Endian') {
-      return null;
-    }
-    for (final value in constant.fieldValues.values) {
-      if (value is k.BoolConstant) {
-        return EsmBooleanLiteralIr(value.value);
-      }
-    }
-    return null;
   }
 
   EsmExpressionIr? _lowerDartMathInstanceConstant(
@@ -7206,15 +7194,15 @@ final class KernelToEsmIrLoweringStage
       thisExpression: thisExpression,
     );
 
-    final byteDataInvocation = _lowerByteDataInstanceInvocation(
-      expression.interfaceTargetReference,
-      name,
-      receiver,
-      positional,
-      lower,
+    final sdkIntrinsic = sdkIntrinsics.lowerInstanceInvocation(
+      reference: expression.interfaceTargetReference,
+      name: name,
+      receiver: receiver,
+      positional: positional,
+      lower: lower,
     );
-    if (byteDataInvocation != null) {
-      return byteDataInvocation;
+    if (sdkIntrinsic != null) {
+      return sdkIntrinsic;
     }
     if (target.startsWith('dart:typed_data::ByteBuffer::@methods::') &&
         positional.length <= 2) {
@@ -7300,88 +7288,6 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
-  }
-
-  EsmExpressionIr? _lowerByteDataInstanceInvocation(
-    k.Reference reference,
-    String name,
-    EsmExpressionIr receiver,
-    List<k.Expression> positional,
-    EsmExpressionIr Function(k.Expression argument) lower,
-  ) {
-    if (!isDartTypedDataClassMember(reference, 'ByteData', name)) {
-      return null;
-    }
-    final nativeMethod = _byteDataNativeMethodName(name);
-    if (nativeMethod == null) {
-      return null;
-    }
-    final isGetter = name.startsWith('get');
-    final is64Bit =
-        name == 'getInt64' ||
-        name == 'getUint64' ||
-        name == 'setInt64' ||
-        name == 'setUint64';
-    final arity = positional.length;
-    if (isGetter) {
-      if (arity < 1 || arity > 2 || (name.endsWith('8') && arity != 1)) {
-        return null;
-      }
-    } else if (arity < 2 || arity > 3 || (name.endsWith('8') && arity != 2)) {
-      return null;
-    }
-
-    final arguments = <EsmExpressionIr>[];
-    for (var index = 0; index < positional.length; index++) {
-      final argument = lower(positional[index]);
-      if (is64Bit && !isGetter && index == 1) {
-        arguments.add(
-          EsmCallIr(
-            callee: const EsmIdentifierIr('BigInt'),
-            arguments: [argument],
-          ),
-        );
-      } else {
-        arguments.add(argument);
-      }
-    }
-    final call = EsmCallIr(
-      callee: EsmPropertyAccessIr(receiver: receiver, property: nativeMethod),
-      arguments: arguments,
-    );
-    if (is64Bit && isGetter) {
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('Number'),
-        arguments: [call],
-      );
-    }
-    return call;
-  }
-
-  String? _byteDataNativeMethodName(String dartMethodName) {
-    return switch (dartMethodName) {
-      'getInt8' ||
-      'getUint8' ||
-      'getInt16' ||
-      'getUint16' ||
-      'getInt32' ||
-      'getUint32' ||
-      'getFloat32' ||
-      'getFloat64' ||
-      'setInt8' ||
-      'setUint8' ||
-      'setInt16' ||
-      'setUint16' ||
-      'setInt32' ||
-      'setUint32' ||
-      'setFloat32' ||
-      'setFloat64' => dartMethodName,
-      'getInt64' => 'getBigInt64',
-      'getUint64' => 'getBigUint64',
-      'setInt64' => 'setBigInt64',
-      'setUint64' => 'setBigUint64',
-      _ => null,
-    };
   }
 
   EsmExpressionIr? _lowerCoreUriInstanceInvocation(
@@ -11035,12 +10941,16 @@ final class KernelToEsmIrLoweringStage
     if (expression.arguments.named.isNotEmpty) {
       return null;
     }
-    final convertConstructor = _lowerDartConvertConstructorInvocation(
-      world,
-      helpers,
-      locals,
-      expression,
-      thisExpression: thisExpression,
+    final convertConstructor = sdkIntrinsics.lowerConstructorInvocation(
+      expression: expression,
+      helpers: helpers,
+      lower: (argument) => _lowerExpression(
+        world,
+        helpers,
+        locals,
+        argument,
+        thisExpression: thisExpression,
+      ),
     );
     if (convertConstructor != null) {
       return convertConstructor;
@@ -11608,52 +11518,6 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
-  }
-
-  EsmExpressionIr? _lowerDartConvertConstructorInvocation(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.ConstructorInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    if (expression.arguments.types.isNotEmpty) {
-      return null;
-    }
-    final path = kernelReferencePath(expression.targetReference);
-    if (!path.startsWith('dart:convert::_Byte') ||
-        expression.arguments.positional.length != 1) {
-      return null;
-    }
-    final helperName = switch (path) {
-      final value
-          when value.startsWith(
-            'dart:convert::_ByteAdapterSink::@constructors::',
-          ) =>
-        '__dartByteConversionSinkFrom',
-      final value
-          when value.startsWith(
-            'dart:convert::_ByteCallbackSink::@constructors::',
-          ) =>
-        '__dartByteConversionSink',
-      _ => null,
-    };
-    if (helperName == null) {
-      return null;
-    }
-    helpers.require(EsmRuntimeHelper.byteConversionSink);
-    return EsmCallIr(
-      callee: EsmIdentifierIr(helperName),
-      arguments: [
-        _lowerExpression(
-          world,
-          helpers,
-          locals,
-          expression.arguments.positional.single,
-          thisExpression: thisExpression,
-        ),
-      ],
-    );
   }
 
   EsmExpressionIr? _lowerCoreTimeConstructorInvocation(

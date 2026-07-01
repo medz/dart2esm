@@ -173,6 +173,39 @@ void main() {
     expect(normalizer, isNot(contains('LoweringResult')));
   });
 
+  test('SDK intrinsic lowering is routed through a registry', () {
+    final lowering = _read(
+      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
+    );
+    final registry = _read(
+      'lib/src/compiler_core/lowering/intrinsics/sdk_intrinsics.dart',
+    );
+    final typedData = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_typed_data_intrinsics.dart',
+    );
+    final convert = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_convert_intrinsics.dart',
+    );
+
+    expect(registry, contains('final class DartSdkIntrinsicRegistry'));
+    expect(registry, contains('lowerInstanceConstant'));
+    expect(registry, contains('lowerInstanceInvocation'));
+    expect(registry, contains('lowerConstructorInvocation'));
+    expect(lowering, contains('final DartSdkIntrinsicRegistry sdkIntrinsics'));
+    expect(lowering, contains('sdkIntrinsics.lowerInstanceConstant'));
+    expect(lowering, contains('sdkIntrinsics.lowerInstanceInvocation'));
+    expect(lowering, contains('sdkIntrinsics.lowerConstructorInvocation'));
+    expect(lowering, isNot(contains('_lowerByteDataInstanceInvocation')));
+    expect(lowering, isNot(contains('_lowerDartConvertConstructorInvocation')));
+    expect(lowering, isNot(contains('_lowerDartTypedDataInstanceConstant')));
+    expect(lowering, isNot(contains('dart:convert::_Byte')));
+    expect(lowering, isNot(contains('dart:typed_data::Endian')));
+    expect(typedData, contains('dart:typed_data::Endian'));
+    expect(typedData, contains('lowerByteDataInstanceInvocation'));
+    expect(convert, contains('dart:convert::_ByteAdapterSink'));
+    expect(convert, contains('dart:convert::_ByteCallbackSink'));
+  });
+
   test('ESM IR is independent from runtime helper registry', () {
     final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
 

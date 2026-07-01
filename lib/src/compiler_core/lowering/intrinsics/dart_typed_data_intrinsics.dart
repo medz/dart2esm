@@ -76,6 +76,65 @@ EsmExpressionIr? lowerByteDataInstanceInvocation({
   return call;
 }
 
+EsmExpressionIr? lowerByteBufferInstanceInvocation({
+  required k.Reference reference,
+  required String name,
+  required EsmExpressionIr receiver,
+  required List<k.Expression> positional,
+  required EsmExpressionIr Function(k.Expression argument) lower,
+}) {
+  if (!isDartTypedDataClassMember(reference, 'ByteBuffer', name) ||
+      positional.length > 2) {
+    return null;
+  }
+  final constructor = name == 'asByteData'
+      ? 'DataView'
+      : _typedDataByteBufferViewConstructorName(name);
+  if (constructor == null) {
+    return null;
+  }
+  final arguments = <EsmExpressionIr>[
+    receiver,
+    positional.isNotEmpty ? lower(positional[0]) : const EsmNumberLiteralIr(0),
+  ];
+  if (positional.length >= 2 && !_isNullLiteral(positional[1])) {
+    arguments.add(lower(positional[1]));
+  }
+  return EsmNewIr(callee: EsmIdentifierIr(constructor), arguments: arguments);
+}
+
+EsmExpressionIr? lowerTypedDataInstanceInvocation({
+  required k.Reference reference,
+  required String name,
+  required k.Arguments arguments,
+  required EsmExpressionIr Function() lowerReceiver,
+  required EsmExpressionIr Function(k.Expression argument) lower,
+}) {
+  if (arguments.named.isNotEmpty || arguments.types.isNotEmpty) {
+    return null;
+  }
+  if (!isDartTypedDataMember(reference, name)) {
+    return null;
+  }
+  final positional = arguments.positional;
+  if (isByteDataInstanceInvocationIntrinsic(reference, name)) {
+    return lowerByteDataInstanceInvocation(
+      reference: reference,
+      name: name,
+      receiver: lowerReceiver(),
+      positional: positional,
+      lower: lower,
+    );
+  }
+  return lowerByteBufferInstanceInvocation(
+    reference: reference,
+    name: name,
+    receiver: lowerReceiver(),
+    positional: positional,
+    lower: lower,
+  );
+}
+
 bool isByteDataInstanceInvocationIntrinsic(k.Reference reference, String name) {
   return isDartTypedDataClassMember(reference, 'ByteData', name) &&
       _byteDataNativeMethodName(name) != null;
@@ -303,6 +362,23 @@ String? _typedDataArrayConstructorName(String dartTypeName) {
     'Uint64List' => 'BigUint64Array',
     'Float32List' => 'Float32Array',
     'Float64List' => 'Float64Array',
+    _ => null,
+  };
+}
+
+String? _typedDataByteBufferViewConstructorName(String methodName) {
+  return switch (methodName) {
+    'asInt8List' => 'Int8Array',
+    'asUint8List' => 'Uint8Array',
+    'asUint8ClampedList' => 'Uint8ClampedArray',
+    'asInt16List' => 'Int16Array',
+    'asUint16List' => 'Uint16Array',
+    'asInt32List' => 'Int32Array',
+    'asUint32List' => 'Uint32Array',
+    'asInt64List' => 'BigInt64Array',
+    'asUint64List' => 'BigUint64Array',
+    'asFloat32List' => 'Float32Array',
+    'asFloat64List' => 'Float64Array',
     _ => null,
   };
 }

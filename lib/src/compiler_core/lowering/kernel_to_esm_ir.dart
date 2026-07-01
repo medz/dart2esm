@@ -7177,7 +7177,6 @@ final class KernelToEsmIrLoweringStage
     if (!isDartTypedDataMember(expression.interfaceTargetReference, name)) {
       return null;
     }
-    final target = kernelReferencePath(expression.interfaceTargetReference);
     final positional = expression.arguments.positional;
     final receiver = _lowerExpression(
       world,
@@ -7214,27 +7213,6 @@ final class KernelToEsmIrLoweringStage
     );
     if (sdkIntrinsic != null) {
       return sdkIntrinsic;
-    }
-    if (target.startsWith('dart:typed_data::ByteBuffer::@methods::') &&
-        positional.length <= 2) {
-      final constructor = name == 'asByteData'
-          ? 'DataView'
-          : _typedDataByteBufferViewConstructorName(name);
-      if (constructor != null) {
-        final arguments = <EsmExpressionIr>[
-          receiver,
-          positional.isNotEmpty
-              ? lower(positional[0])
-              : const EsmNumberLiteralIr(0),
-        ];
-        if (positional.length >= 2 && !_isNullLiteral(positional[1])) {
-          arguments.add(lower(positional[1]));
-        }
-        return EsmNewIr(
-          callee: EsmIdentifierIr(constructor),
-          arguments: arguments,
-        );
-      }
     }
     if (name == 'sublist' && positional.isNotEmpty && positional.length <= 2) {
       return EsmCallIr(
@@ -13745,32 +13723,6 @@ final class KernelToEsmIrLoweringStage
       DartMathStaticInvocationSymbol.random ||
       DartMathStaticInvocationSymbol.randomSecure ||
       DartMathStaticInvocationSymbol.rectangleFromPoints => null,
-    };
-  }
-
-  String? _typedDataByteBufferViewConstructorName(String methodName) {
-    return switch (methodName) {
-      'asInt8List' => 'Int8Array',
-      'asUint8List' => 'Uint8Array',
-      'asUint8ClampedList' => 'Uint8ClampedArray',
-      'asInt16List' => 'Int16Array',
-      'asUint16List' => 'Uint16Array',
-      'asInt32List' => 'Int32Array',
-      'asUint32List' => 'Uint32Array',
-      'asInt64List' => 'BigInt64Array',
-      'asUint64List' => 'BigUint64Array',
-      'asFloat32List' => 'Float32Array',
-      'asFloat64List' => 'Float64Array',
-      _ => null,
-    };
-  }
-
-  bool _isNullLiteral(k.Expression expression) {
-    return switch (expression) {
-      k.NullLiteral() => true,
-      k.ConstantExpression(:final constant) when constant is k.NullConstant =>
-        true,
-      _ => false,
     };
   }
 

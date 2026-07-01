@@ -222,6 +222,10 @@ void main() {
     expect(lowering, isNot(contains('_lowerTypedDataSublistView')));
     expect(
       lowering,
+      isNot(contains('_typedDataByteBufferViewConstructorName')),
+    );
+    expect(
+      lowering,
       isNot(contains('DartSdkStaticInvocationSymbol.collectionNonNulls')),
     );
     expect(
@@ -247,10 +251,14 @@ void main() {
     expect(lowering, isNot(contains('dart:convert::_Byte')));
     expect(lowering, isNot(contains('dart:typed_data::Endian')));
     expect(lowering, isNot(contains('dart:typed_data::ByteData')));
+    expect(lowering, isNot(contains('dart:typed_data::ByteBuffer')));
     expect(typedData, contains('dart:typed_data::Endian'));
     expect(typedData, contains('lowerByteDataInstanceInvocation'));
+    expect(typedData, contains('lowerByteBufferInstanceInvocation'));
+    expect(typedData, contains('lowerTypedDataInstanceInvocation'));
     expect(typedData, contains('lowerTypedDataInstanceGet'));
     expect(typedData, contains('lowerTypedDataStaticInvocation'));
+    expect(typedData, contains("'ByteBuffer'"));
     expect(collection, contains('lowerDartCollectionQueueInstanceInvocation'));
     expect(collection, contains('lowerDartCollectionQueueInstanceGet'));
     expect(collection, contains('lowerDartCollectionStaticInvocation'));

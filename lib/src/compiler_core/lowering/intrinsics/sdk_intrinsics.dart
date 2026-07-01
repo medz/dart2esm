@@ -41,17 +41,11 @@ final class DartSdkIntrinsicRegistry {
     if (collectionQueue != null) {
       return collectionQueue;
     }
-    if (arguments.named.isNotEmpty || arguments.types.isNotEmpty) {
-      return null;
-    }
-    if (!isByteDataInstanceInvocationIntrinsic(reference, name)) {
-      return null;
-    }
-    return lowerByteDataInstanceInvocation(
+    return lowerTypedDataInstanceInvocation(
       reference: reference,
       name: name,
-      receiver: lowerReceiver(),
-      positional: arguments.positional,
+      arguments: arguments,
+      lowerReceiver: lowerReceiver,
       lower: lower,
     );
   }

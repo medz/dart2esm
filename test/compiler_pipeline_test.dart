@@ -224,6 +224,45 @@ export function main() {
     expect(collisionSymbol.name, '__dartPrint_1');
   });
 
+  test('semantic world folds anonymous mixin superclass edges', () {
+    final libraryUri = Uri.parse('package:sample/main.dart');
+    final library = k.Library(libraryUri, fileUri: libraryUri);
+    final base = k.Class(name: 'Base', fileUri: libraryUri);
+    final mixin = k.Class(name: 'Mixin', fileUri: libraryUri);
+    final mixinApplication = k.Class(
+      name: r'_Derived&Base&Mixin',
+      isAnonymousMixin: true,
+      supertype: k.Supertype(base, const []),
+      mixedInType: k.Supertype(mixin, const []),
+      fileUri: libraryUri,
+    );
+    final derived = k.Class(
+      name: 'Derived',
+      supertype: k.Supertype(mixinApplication, const []),
+      fileUri: libraryUri,
+    );
+    final main = _procedure('main', body: k.EmptyStatement());
+    library.addClass(base);
+    library.addClass(mixin);
+    library.addClass(mixinApplication);
+    library.addClass(derived);
+    library.addProcedure(main);
+    final component = k.Component(libraries: [library]);
+    component.setMainMethodAndMode(main.reference, true);
+
+    final semantic = const SemanticWorldStage().build(
+      KernelFrontendResult(component: component, main: main),
+    );
+
+    expect(
+      semantic.world.classes.map((klass) => klass.node),
+      isNot(contains(mixinApplication)),
+    );
+    final derivedSymbol = semantic.world.classSymbolFor(derived);
+    expect(derivedSymbol, isNotNull);
+    expect(derivedSymbol!.jsSuperclass, same(base));
+  });
+
   test(
     'rejects unsupported Kernel without invoking the legacy oracle by default',
     () {

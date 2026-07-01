@@ -233,10 +233,10 @@ final class KernelToEsmIrLoweringStage
     EsmRuntimeHelperUseSet helpers,
     EsmClassSymbol klass,
   ) {
-    final superclass = klass.localSuperclass == null
+    final superclass = klass.jsSuperclass == null
         ? null
-        : world.classSymbolFor(klass.localSuperclass!);
-    if (klass.localSuperclass != null && superclass == null) {
+        : world.classSymbolFor(klass.jsSuperclass!);
+    if (klass.jsSuperclass != null && superclass == null) {
       throw NewCompilerUnsupported(klass.node, 'class inheritance lowering');
     }
     final unnamedConstructors = [
@@ -2558,7 +2558,7 @@ final class KernelToEsmIrLoweringStage
         expression,
         thisExpression: thisExpression,
       ),
-      k.StaticGet() => _lowerStaticGet(world, expression),
+      k.StaticGet() => _lowerStaticGet(world, helpers, expression),
       k.StaticSet() => _lowerStaticSet(
         world,
         helpers,
@@ -4079,9 +4079,10 @@ final class KernelToEsmIrLoweringStage
 
   EsmExpressionIr _lowerStaticGet(
     EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
     k.StaticGet expression,
   ) {
-    final runtimeStaticGet = _lowerRuntimeStaticGet(expression);
+    final runtimeStaticGet = _lowerRuntimeStaticGet(helpers, expression);
     if (runtimeStaticGet != null) {
       return runtimeStaticGet;
     }
@@ -4157,10 +4158,16 @@ final class KernelToEsmIrLoweringStage
         ),
       };
     }
-    throw NewCompilerUnsupported(expression, 'static get lowering');
+    throw NewCompilerUnsupported(
+      expression,
+      'static get lowering ${kernelReferencePath(expression.targetReference)}',
+    );
   }
 
-  EsmExpressionIr? _lowerRuntimeStaticGet(k.StaticGet expression) {
+  EsmExpressionIr? _lowerRuntimeStaticGet(
+    EsmRuntimeHelperUseSet helpers,
+    k.StaticGet expression,
+  ) {
     final mathGet = _lowerMathStaticGet(expression);
     if (mathGet != null) {
       return mathGet;
@@ -4186,6 +4193,25 @@ final class KernelToEsmIrLoweringStage
           property: 'stack',
         ),
         right: EsmStringLiteralIr(''),
+      );
+    }
+    if (target == 'dart:core::Uri::@getters::base') {
+      helpers.add(EsmRuntimeHelper.uri);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.uri),
+        arguments: const [
+          EsmNullishCoalesceIr(
+            left: EsmOptionalPropertyAccessIr(
+              receiver: EsmIdentifierIr('globalThis.location'),
+              property: 'href',
+            ),
+            right: EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr('import.meta'),
+              property: 'url',
+            ),
+          ),
+          EsmBooleanLiteralIr(false),
+        ],
       );
     }
     return null;
@@ -5774,6 +5800,25 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriNormalizePath'),
         arguments: [receiver],
+      );
+    }
+    if (name == 'toFilePath' &&
+        positional.isEmpty &&
+        _hasOnlyNamedArguments(expression.arguments, {'windows'})) {
+      helpers.add(EsmRuntimeHelper.uriToFilePath);
+      final windows =
+          _lowerNamedArgument(
+            world,
+            helpers,
+            locals,
+            expression.arguments,
+            'windows',
+            thisExpression: thisExpression,
+          ) ??
+          const EsmBooleanLiteralIr(false);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartUriToFilePath'),
+        arguments: [receiver, windows],
       );
     }
     return null;
@@ -10389,6 +10434,49 @@ final class KernelToEsmIrLoweringStage
               ),
           ],
         );
+      case DartSdkStaticInvocationSymbol.coreIterableToFullString ||
+              DartSdkStaticInvocationSymbol.coreIterableToShortString
+          when positional.isNotEmpty &&
+              positional.length <= 3 &&
+              expression.arguments.named.isEmpty &&
+              expression.arguments.types.isEmpty:
+        helpers.add(EsmRuntimeHelper.stringify);
+        return _dartDelimitedCollectionToString(
+          positional.length >= 2
+              ? _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  positional[1],
+                  thisExpression: thisExpression,
+                )
+              : const EsmStringLiteralIr('('),
+          _joinMappedIterable(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.first,
+              thisExpression: thisExpression,
+            ),
+            const EsmArrowFunctionIr(
+              parameters: ['value'],
+              body: EsmCallIr(
+                callee: EsmIdentifierIr('__dartStr'),
+                arguments: [EsmIdentifierIr('value')],
+              ),
+            ),
+          ),
+          positional.length >= 3
+              ? _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  positional[2],
+                  thisExpression: thisExpression,
+                )
+              : const EsmStringLiteralIr(')'),
+        );
       case DartSdkStaticInvocationSymbol.collectionListBaseToString
           when positional.length == 1 && expression.arguments.named.isEmpty:
         helpers.add(EsmRuntimeHelper.stringify);
@@ -10483,11 +10571,19 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr body,
     String close,
   ) {
-    return EsmStringConcatenationIr([
+    return _dartDelimitedCollectionToString(
       EsmStringLiteralIr(open),
       body,
       EsmStringLiteralIr(close),
-    ]);
+    );
+  }
+
+  EsmStringConcatenationIr _dartDelimitedCollectionToString(
+    EsmExpressionIr open,
+    EsmExpressionIr body,
+    EsmExpressionIr close,
+  ) {
+    return EsmStringConcatenationIr([open, body, close]);
   }
 
   EsmCallIr _joinMappedIterable(

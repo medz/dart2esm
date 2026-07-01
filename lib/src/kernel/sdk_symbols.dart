@@ -22,6 +22,8 @@ enum DartSdkStaticInvocationSymbol {
   coreIdentical,
   coreIdentityHashCode,
   coreFunctionApply,
+  coreIterableToFullString,
+  coreIterableToShortString,
   collectionNonNulls,
   collectionIndexed,
   collectionFirstOrNull,
@@ -103,6 +105,10 @@ DartSdkStaticInvocationSymbol? dartSdkStaticInvocationSymbol(
       DartSdkStaticInvocationSymbol.coreIdentityHashCode,
     'dart:core::Function::@methods::apply' =>
       DartSdkStaticInvocationSymbol.coreFunctionApply,
+    'dart:core::Iterable::@methods::iterableToFullString' =>
+      DartSdkStaticInvocationSymbol.coreIterableToFullString,
+    'dart:core::Iterable::@methods::iterableToShortString' =>
+      DartSdkStaticInvocationSymbol.coreIterableToShortString,
     'dart:collection::@methods::NullableIterableExtensions|get#nonNulls' =>
       DartSdkStaticInvocationSymbol.collectionNonNulls,
     'dart:collection::@methods::IterableExtensions|get#indexed' =>

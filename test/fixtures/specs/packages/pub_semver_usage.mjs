@@ -787,6 +787,232 @@ class ListEquality {
   }
 }
 
+const $VersionConstraint_interface = Symbol("VersionConstraint");
+class VersionConstraint {
+  static parse(text) {
+    let originalText = text;
+    const skipWhitespace = function() {
+      text = text.trim();
+    };
+    skipWhitespace();
+    if (__dartEquals(text, "any")) {
+      return VersionConstraint.any;
+    }
+    const matchVersion = function() {
+      let version = startVersion.firstMatch(text);
+      if (version === null) {
+        return null;
+      }
+      text = text.substring(version.end);
+      return Version.parse(__dartNullCheck(version[0]));
+    };
+    const matchComparison = function() {
+      let comparison = startComparison.firstMatch(text);
+      if (comparison === null) {
+        return null;
+      }
+      let op = __dartNullCheck(comparison[0]);
+      text = text.substring(comparison.end);
+      skipWhitespace();
+      let version = matchVersion();
+      if (version === null) {
+        throw __dartCoreError("FormatException", `Expected version number after "${__dartStr(op)}" in "${__dartStr(originalText)}", got "${__dartStr(text)}".`);
+      }
+      return (() => {
+        let v = null;
+        const _0_0 = op;
+        const _0_1 = "<=";
+        const _0_3 = "<";
+        const _0_5 = ">=";
+        const _0_7 = ">";
+        label: {
+          if (__dartEquals("<=", _0_0)) {
+            v = new VersionRange({ max: version, includeMax: true });
+            break label;
+          }
+          if (__dartEquals("<", _0_0)) {
+            v = new VersionRange({ max: version, alwaysIncludeMaxPreRelease: true });
+            break label;
+          }
+          if (__dartEquals(">=", _0_0)) {
+            v = new VersionRange({ min: version, includeMin: true });
+            break label;
+          }
+          if (__dartEquals(">", _0_0)) {
+            v = new VersionRange({ min: version });
+            break label;
+          }
+          if (true) {
+            v = (() => {
+              throw __dartCoreError("UnsupportedError", op);
+            })();
+            break label;
+          }
+        }
+        return v;
+      })();
+    };
+    const matchCompatibleWith = function() {
+      if (!(__dartStringStartsWith(text, "^", 0))) {
+        return null;
+      }
+      text = text.substring("^".length);
+      skipWhitespace();
+      let version = matchVersion();
+      if (version === null) {
+        throw __dartCoreError("FormatException", `Expected version number after "${__dartStr("^")}" in "${__dartStr(originalText)}", got "${__dartStr(text)}".`);
+      }
+      if (text.length > 0) {
+        throw __dartCoreError("FormatException", `Cannot include other constraints with "${__dartStr("^")}" constraint in "${__dartStr(originalText)}".`);
+      }
+      return VersionConstraint.compatibleWith(version);
+    };
+    let compatibleWith = matchCompatibleWith();
+    if (!(compatibleWith === null)) {
+      return compatibleWith;
+    }
+    let min = null;
+    let includeMin = false;
+    let max = null;
+    let includeMax = false;
+    label: {
+      for (; ; ) {
+        skipWhitespace();
+        if (text.length === 0) {
+          break label;
+        }
+        let newRange = (matchVersion() ?? matchComparison());
+        if (newRange === null) {
+          throw __dartCoreError("FormatException", `Could not parse version "${__dartStr(originalText)}". Unknown text at "${__dartStr(text)}".`);
+        }
+        if (!(newRange.min === null)) {
+          if ((min === null || __dartNullCheck(newRange.min)[">"](min))) {
+            min = newRange.min;
+            includeMin = newRange.includeMin;
+          } else {
+            if ((__dartEquals(newRange.min, min) && !(newRange.includeMin))) {
+              includeMin = false;
+            }
+          }
+        }
+        if (!(newRange.max === null)) {
+          if ((max === null || __dartNullCheck(newRange.max)["<"](max))) {
+            max = newRange.max;
+            includeMax = newRange.includeMax;
+          } else {
+            if ((__dartEquals(newRange.max, max) && !(newRange.includeMax))) {
+              includeMax = false;
+            }
+          }
+        }
+      }
+    }
+    if ((min === null && max === null)) {
+      throw __dartConst("[\"InstanceConstant\",\"InstanceConstant(const FormatException{FormatException.message: \\\"Cannot parse an empty string.\\\", FormatException.source: null, FormatException.offset: null})\"]", () => __dartCoreError("FormatException", "Cannot parse an empty string."));
+    }
+    if ((!(min === null) && !(max === null))) {
+      if (min[">"](max)) {
+        return VersionConstraint.empty;
+      }
+      if (__dartEquals(min, max)) {
+        if ((includeMin && includeMax)) {
+          return min;
+        }
+        return VersionConstraint.empty;
+      }
+    }
+    return new VersionRange({ min: min, includeMin: includeMin, max: max, includeMax: includeMax });
+  }
+  static compatibleWith(version) {
+    return new CompatibleWithVersionRange(version);
+  }
+  static intersection(constraints) {
+    let constraint = new VersionRange();
+    let _sync_for_iterator = __dartIterator(constraints);
+    for (; _sync_for_iterator.moveNext(); ) {
+      let other = _sync_for_iterator.current;
+      constraint = __dartAs(constraint.intersect(other), (value) => value instanceof VersionRange, "VersionRange");
+    }
+    return constraint;
+  }
+  static unionOf(constraints) {
+    let flattened = __dartListOf(Array.from(constraints).flatMap((value) => Array.from((function(constraint) {
+      if (constraint.isEmpty) {
+        return Array(0).fill(null);
+      }
+      if (constraint instanceof VersionUnion) {
+        return constraint.ranges;
+      }
+      if (constraint instanceof VersionRange) {
+        return [constraint];
+      }
+      throw __dartCoreError("ArgumentError", `Unknown VersionConstraint type ${__dartStr(constraint)}.`);
+    })(value))), true);
+    if (Array.from(flattened).length === 0) {
+      return VersionConstraint.empty;
+    }
+    if (Array.from(flattened).some(function(constraint) {
+      return constraint.isAny;
+    })) {
+      return VersionConstraint.any;
+    }
+    flattened.sort(__dartCompare);
+    let merged = Array(0).fill(null);
+    let _sync_for_iterator = __dartIterator(flattened);
+    for (; _sync_for_iterator.moveNext(); ) {
+      let constraint = _sync_for_iterator.current;
+      if ((Array.from(merged).length === 0 || (!(Array.from(merged).at(-1).allowsAny(constraint)) && !(areAdjacent(Array.from(merged).at(-1), constraint))))) {
+        __dartListAdd(merged, constraint);
+      } else {
+        merged[merged.length - 1] = __dartAs(Array.from(merged).at(-1).union(constraint), (value) => value instanceof VersionRange, "VersionRange");
+      }
+    }
+    if (__dartEquals(merged.length, 1)) {
+      return __dartIterableSingle(merged);
+    }
+    return VersionUnion.fromRanges(merged);
+  }
+  get isEmpty() {
+    throw new TypeError("Abstract member VersionConstraint.isEmpty");
+  }
+  get isAny() {
+    throw new TypeError("Abstract member VersionConstraint.isAny");
+  }
+  allows(version) {
+    throw new TypeError("Abstract member VersionConstraint.allows");
+  }
+  allowsAll(other) {
+    throw new TypeError("Abstract member VersionConstraint.allowsAll");
+  }
+  allowsAny(other) {
+    throw new TypeError("Abstract member VersionConstraint.allowsAny");
+  }
+  intersect(other) {
+    throw new TypeError("Abstract member VersionConstraint.intersect");
+  }
+  union(other) {
+    throw new TypeError("Abstract member VersionConstraint.union");
+  }
+  difference(other) {
+    throw new TypeError("Abstract member VersionConstraint.difference");
+  }
+}
+
+const $VersionConstraint_any = __dartLazyField("VersionConstraint.any", () => new VersionRange(), true);
+Object.defineProperty(VersionConstraint, "any", { get: function() {
+  return $VersionConstraint_any.get();
+}, set: function(value) {
+  $VersionConstraint_any.set(value);
+}, enumerable: true });
+const $VersionConstraint_empty = __dartLazyField("VersionConstraint.empty", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _EmptyVersion{})\"]", () => Object.freeze(Object.assign(Object.create(_EmptyVersion.prototype), {  }))), true);
+Object.defineProperty(VersionConstraint, "empty", { get: function() {
+  return $VersionConstraint_empty.get();
+}, set: function(value) {
+  $VersionConstraint_empty.set(value);
+}, enumerable: true });
+Object.defineProperty(VersionConstraint, Symbol.hasInstance, { value: function(value) {
+  return value != null && value[$VersionConstraint_interface] === true;
+} });
 class VersionUnion {
   constructor() {
     throw new TypeError("Class VersionUnion has no unnamed constructor");
@@ -1348,232 +1574,6 @@ class CompatibleWithVersionRange extends VersionRange {
   }
 }
 
-const $VersionConstraint_interface = Symbol("VersionConstraint");
-class VersionConstraint {
-  static parse(text) {
-    let originalText = text;
-    const skipWhitespace = function() {
-      text = text.trim();
-    };
-    skipWhitespace();
-    if (__dartEquals(text, "any")) {
-      return VersionConstraint.any;
-    }
-    const matchVersion = function() {
-      let version = startVersion.firstMatch(text);
-      if (version === null) {
-        return null;
-      }
-      text = text.substring(version.end);
-      return Version.parse(__dartNullCheck(version[0]));
-    };
-    const matchComparison = function() {
-      let comparison = startComparison.firstMatch(text);
-      if (comparison === null) {
-        return null;
-      }
-      let op = __dartNullCheck(comparison[0]);
-      text = text.substring(comparison.end);
-      skipWhitespace();
-      let version = matchVersion();
-      if (version === null) {
-        throw __dartCoreError("FormatException", `Expected version number after "${__dartStr(op)}" in "${__dartStr(originalText)}", got "${__dartStr(text)}".`);
-      }
-      return (() => {
-        let v = null;
-        const _0_0 = op;
-        const _0_1 = "<=";
-        const _0_3 = "<";
-        const _0_5 = ">=";
-        const _0_7 = ">";
-        label: {
-          if (__dartEquals("<=", _0_0)) {
-            v = new VersionRange({ max: version, includeMax: true });
-            break label;
-          }
-          if (__dartEquals("<", _0_0)) {
-            v = new VersionRange({ max: version, alwaysIncludeMaxPreRelease: true });
-            break label;
-          }
-          if (__dartEquals(">=", _0_0)) {
-            v = new VersionRange({ min: version, includeMin: true });
-            break label;
-          }
-          if (__dartEquals(">", _0_0)) {
-            v = new VersionRange({ min: version });
-            break label;
-          }
-          if (true) {
-            v = (() => {
-              throw __dartCoreError("UnsupportedError", op);
-            })();
-            break label;
-          }
-        }
-        return v;
-      })();
-    };
-    const matchCompatibleWith = function() {
-      if (!(__dartStringStartsWith(text, "^", 0))) {
-        return null;
-      }
-      text = text.substring("^".length);
-      skipWhitespace();
-      let version = matchVersion();
-      if (version === null) {
-        throw __dartCoreError("FormatException", `Expected version number after "${__dartStr("^")}" in "${__dartStr(originalText)}", got "${__dartStr(text)}".`);
-      }
-      if (text.length > 0) {
-        throw __dartCoreError("FormatException", `Cannot include other constraints with "${__dartStr("^")}" constraint in "${__dartStr(originalText)}".`);
-      }
-      return VersionConstraint.compatibleWith(version);
-    };
-    let compatibleWith = matchCompatibleWith();
-    if (!(compatibleWith === null)) {
-      return compatibleWith;
-    }
-    let min = null;
-    let includeMin = false;
-    let max = null;
-    let includeMax = false;
-    label: {
-      for (; ; ) {
-        skipWhitespace();
-        if (text.length === 0) {
-          break label;
-        }
-        let newRange = (matchVersion() ?? matchComparison());
-        if (newRange === null) {
-          throw __dartCoreError("FormatException", `Could not parse version "${__dartStr(originalText)}". Unknown text at "${__dartStr(text)}".`);
-        }
-        if (!(newRange.min === null)) {
-          if ((min === null || __dartNullCheck(newRange.min)[">"](min))) {
-            min = newRange.min;
-            includeMin = newRange.includeMin;
-          } else {
-            if ((__dartEquals(newRange.min, min) && !(newRange.includeMin))) {
-              includeMin = false;
-            }
-          }
-        }
-        if (!(newRange.max === null)) {
-          if ((max === null || __dartNullCheck(newRange.max)["<"](max))) {
-            max = newRange.max;
-            includeMax = newRange.includeMax;
-          } else {
-            if ((__dartEquals(newRange.max, max) && !(newRange.includeMax))) {
-              includeMax = false;
-            }
-          }
-        }
-      }
-    }
-    if ((min === null && max === null)) {
-      throw __dartConst("[\"InstanceConstant\",\"InstanceConstant(const FormatException{FormatException.message: \\\"Cannot parse an empty string.\\\", FormatException.source: null, FormatException.offset: null})\"]", () => __dartCoreError("FormatException", "Cannot parse an empty string."));
-    }
-    if ((!(min === null) && !(max === null))) {
-      if (min[">"](max)) {
-        return VersionConstraint.empty;
-      }
-      if (__dartEquals(min, max)) {
-        if ((includeMin && includeMax)) {
-          return min;
-        }
-        return VersionConstraint.empty;
-      }
-    }
-    return new VersionRange({ min: min, includeMin: includeMin, max: max, includeMax: includeMax });
-  }
-  static compatibleWith(version) {
-    return new CompatibleWithVersionRange(version);
-  }
-  static intersection(constraints) {
-    let constraint = new VersionRange();
-    let _sync_for_iterator = __dartIterator(constraints);
-    for (; _sync_for_iterator.moveNext(); ) {
-      let other = _sync_for_iterator.current;
-      constraint = __dartAs(constraint.intersect(other), (value) => value instanceof VersionRange, "VersionRange");
-    }
-    return constraint;
-  }
-  static unionOf(constraints) {
-    let flattened = __dartListOf(Array.from(constraints).flatMap((value) => Array.from((function(constraint) {
-      if (constraint.isEmpty) {
-        return Array(0).fill(null);
-      }
-      if (constraint instanceof VersionUnion) {
-        return constraint.ranges;
-      }
-      if (constraint instanceof VersionRange) {
-        return [constraint];
-      }
-      throw __dartCoreError("ArgumentError", `Unknown VersionConstraint type ${__dartStr(constraint)}.`);
-    })(value))), true);
-    if (Array.from(flattened).length === 0) {
-      return VersionConstraint.empty;
-    }
-    if (Array.from(flattened).some(function(constraint) {
-      return constraint.isAny;
-    })) {
-      return VersionConstraint.any;
-    }
-    flattened.sort(__dartCompare);
-    let merged = Array(0).fill(null);
-    let _sync_for_iterator = __dartIterator(flattened);
-    for (; _sync_for_iterator.moveNext(); ) {
-      let constraint = _sync_for_iterator.current;
-      if ((Array.from(merged).length === 0 || (!(Array.from(merged).at(-1).allowsAny(constraint)) && !(areAdjacent(Array.from(merged).at(-1), constraint))))) {
-        __dartListAdd(merged, constraint);
-      } else {
-        merged[merged.length - 1] = __dartAs(Array.from(merged).at(-1).union(constraint), (value) => value instanceof VersionRange, "VersionRange");
-      }
-    }
-    if (__dartEquals(merged.length, 1)) {
-      return __dartIterableSingle(merged);
-    }
-    return VersionUnion.fromRanges(merged);
-  }
-  get isEmpty() {
-    throw new TypeError("Abstract member VersionConstraint.isEmpty");
-  }
-  get isAny() {
-    throw new TypeError("Abstract member VersionConstraint.isAny");
-  }
-  allows(version) {
-    throw new TypeError("Abstract member VersionConstraint.allows");
-  }
-  allowsAll(other) {
-    throw new TypeError("Abstract member VersionConstraint.allowsAll");
-  }
-  allowsAny(other) {
-    throw new TypeError("Abstract member VersionConstraint.allowsAny");
-  }
-  intersect(other) {
-    throw new TypeError("Abstract member VersionConstraint.intersect");
-  }
-  union(other) {
-    throw new TypeError("Abstract member VersionConstraint.union");
-  }
-  difference(other) {
-    throw new TypeError("Abstract member VersionConstraint.difference");
-  }
-}
-
-const $VersionConstraint_any = __dartLazyField("VersionConstraint.any", () => new VersionRange(), true);
-Object.defineProperty(VersionConstraint, "any", { get: function() {
-  return $VersionConstraint_any.get();
-}, set: function(value) {
-  $VersionConstraint_any.set(value);
-}, enumerable: true });
-const $VersionConstraint_empty = __dartLazyField("VersionConstraint.empty", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _EmptyVersion{})\"]", () => Object.freeze(Object.assign(Object.create(_EmptyVersion.prototype), {  }))), true);
-Object.defineProperty(VersionConstraint, "empty", { get: function() {
-  return $VersionConstraint_empty.get();
-}, set: function(value) {
-  $VersionConstraint_empty.set(value);
-}, enumerable: true });
-Object.defineProperty(VersionConstraint, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$VersionConstraint_interface] === true;
-} });
 class _EmptyVersion {
   constructor() {
     Object.defineProperty(this, $VersionConstraint_interface, { value: true });

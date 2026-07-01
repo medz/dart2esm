@@ -1,6 +1,7 @@
 import 'package:kernel/kernel.dart' as k;
 
 import '../../kernel/kernel_references.dart';
+import '../../module/class_runtime_plan.dart';
 import '../../names/js_names.dart';
 import '../../program/program_model.dart';
 import '../compiler_stage.dart';
@@ -186,7 +187,7 @@ final class EsmClassSymbol {
     required this.name,
     required this.export,
     required this.interfaceMarkerName,
-    required this.localSuperclass,
+    required this.jsSuperclass,
     required List<EsmConstructorSymbol> constructors,
     required List<EsmInstanceFieldSymbol> fields,
     required List<EsmStaticFieldSymbol> staticFields,
@@ -202,7 +203,7 @@ final class EsmClassSymbol {
   final String name;
   final bool export;
   final String? interfaceMarkerName;
-  final k.Class? localSuperclass;
+  final k.Class? jsSuperclass;
   final List<EsmConstructorSymbol> constructors;
   final List<EsmInstanceFieldSymbol> fields;
   final List<EsmStaticFieldSymbol> staticFields;
@@ -379,15 +380,21 @@ final class SemanticWorldStage
       generatedGlobalNames: generatedGlobalNames,
     );
     final classes = <EsmClassSymbol>[];
-    for (final library in model.module.libraries) {
-      for (final klass in library.classes) {
-        if (!_isTopLevelClass(klass.node)) {
-          continue;
-        }
-        classes.add(
-          _buildClassSymbol(allocator, klass.node, export: klass.export),
-        );
+    for (final klass in model.module.classes) {
+      if (!_isTopLevelClass(klass.node)) {
+        continue;
       }
+      classes.add(
+        _buildClassSymbol(
+          allocator,
+          klass.node,
+          export: klass.export,
+          jsSuperclass: _emittableJsSuperclass(
+            model.module.classRuntime,
+            klass.node,
+          ),
+        ),
+      );
     }
     final extensionTypes = <EsmExtensionTypeSymbol>[];
     for (final library in model.module.libraries) {
@@ -461,12 +468,12 @@ final class SemanticWorldStage
     JsNameAllocator allocator,
     k.Class klass, {
     required bool export,
+    required k.Class? jsSuperclass,
   }) {
     final usedNames = <String>{};
     final usedStaticNames = <String>{};
     final accessorNames = <String, String>{};
     final staticAccessorNames = <String, String>{};
-    final localSuperclass = klass.supertype?.className.node;
     return EsmClassSymbol(
       node: klass,
       name: allocator.freshGlobal(klass.name),
@@ -474,11 +481,7 @@ final class SemanticWorldStage
       interfaceMarkerName: klass.isAbstract || klass.isInterface
           ? allocator.freshGlobal('\$${klass.name}_interface')
           : null,
-      localSuperclass:
-          localSuperclass is k.Class &&
-              localSuperclass.enclosingLibrary == klass.enclosingLibrary
-          ? localSuperclass
-          : null,
+      jsSuperclass: jsSuperclass,
       constructors: [
         for (final constructor in klass.constructors)
           if (!constructor.isExternal && !constructor.isSynthetic)
@@ -577,6 +580,21 @@ final class SemanticWorldStage
   }
 
   bool _isTopLevelClass(k.Class klass) => !klass.isAnonymousMixin;
+
+  k.Class? _emittableJsSuperclass(
+    EsmClassRuntimePlan classRuntime,
+    k.Class klass,
+  ) {
+    final visiting = <k.Class>{};
+    var superclass = classRuntime.jsSuperclassFor(klass);
+    while (superclass != null && !_isTopLevelClass(superclass)) {
+      if (!visiting.add(superclass)) {
+        throw NewCompilerUnsupported(klass, 'cyclic anonymous mixin hierarchy');
+      }
+      superclass = classRuntime.jsSuperclassFor(superclass);
+    }
+    return superclass;
+  }
 
   bool _isTopLevelField(k.Field field) {
     return field.isStatic && !field.isExternal && !field.isExtensionTypeMember;

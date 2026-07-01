@@ -367,6 +367,12 @@ void main() {
     );
     expect(
       dartSdkStaticInvocationSymbol(
+        _reference('dart:core::Iterable::@methods::iterableToFullString'),
+      ),
+      DartSdkStaticInvocationSymbol.coreIterableToFullString,
+    );
+    expect(
+      dartSdkStaticInvocationSymbol(
         _reference(
           'dart:collection::@methods::NullableIterableExtensions|get#nonNulls',
         ),

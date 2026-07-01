@@ -65,6 +65,18 @@ final class DartSdkStaticInvocationEmitter {
               : 'null';
           return '__dartFunctionApply(${positionalArgs[0]}, ${positionalArgs[1]}, $namedArguments)';
         }
+      case DartSdkStaticInvocationSymbol.coreIterableToFullString:
+      case DartSdkStaticInvocationSymbol.coreIterableToShortString:
+        if (positionalArgs.isNotEmpty && positionalArgs.length <= 3) {
+          helpers.add('__dartStr');
+          final leftDelimiter = positionalArgs.length >= 2
+              ? positionalArgs[1]
+              : '"("';
+          final rightDelimiter = positionalArgs.length >= 3
+              ? positionalArgs[2]
+              : '")"';
+          return '($leftDelimiter + Array.from(${positionalArgs[0]}, (value) => __dartStr(value)).join(", ") + $rightDelimiter)';
+        }
       case DartSdkStaticInvocationSymbol.collectionNonNulls:
         if (positionalArgs.length == 1) {
           return 'Array.from(${positionalArgs.single}).filter((value) => value != null)';

@@ -100,6 +100,27 @@ void main() {
     expect(helpers, contains('__dartCoreError'));
   });
 
+  test('emits core Iterable toString helpers through helper runtime', () {
+    final helpers = EsmRuntimeHelperUseSet();
+    final emitter = DartSdkStaticInvocationEmitter(
+      helpers: helpers,
+      emitNamedArgument: _emitNamedArgument,
+      namedArgument: _namedArgument,
+    );
+
+    final output = emitter.emit(
+      _invocation('dart:core::Iterable::@methods::iterableToFullString'),
+      ['values', '"<"', '">"'],
+      'values, "<", ">"',
+    );
+
+    expect(
+      output,
+      '("<" + Array.from(values, (value) => __dartStr(value)).join(", ") + ">")',
+    );
+    expect(helpers, contains('__dartStr'));
+  });
+
   test('emits collection MapBase toString through helper runtime', () {
     final helpers = EsmRuntimeHelperUseSet();
     final emitter = DartSdkStaticInvocationEmitter(

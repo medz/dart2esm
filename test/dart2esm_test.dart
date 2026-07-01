@@ -1695,6 +1695,104 @@ void main() {
   });
 
   test(
+    'compiles core Iterable static toString helpers through the new core',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-iterable-static-string-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
+void main() {
+  final values = [1, 2, 3];
+  print(
+    'iterable \${Iterable.iterableToFullString(values, '<', '>')} '
+    '\${Iterable.iterableToShortString(values)}',
+  );
+}
+''');
+      final output = File(p.join(tempDir.path, 'main.mjs'));
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+          allowLegacyOracle: false,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+      final code = output.readAsStringSync();
+      expect(code, contains('Array.from(values'));
+      expect(code, isNot(contains('iterableToFullString')));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
+
+  test('compiles core Uri.base static getter through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-uri-base-static-get-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  print('uriBase \${Uri.base.scheme.isNotEmpty}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartUriParse'));
+    expect(code, contains('import.meta.url'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
+  test('compiles core Uri.toFilePath through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-uri-to-file-path-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  final uri = Uri.file('/tmp/dart2esm space.txt');
+  print('uriFile \${uri.toFilePath().endsWith('dart2esm space.txt')}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartUriToFilePath'));
+    expect(code, isNot(contains('toFilePath')));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
+  test(
     'compiles package libraries through the new core without adapters',
     () async {
       final source = File(

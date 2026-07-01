@@ -69,6 +69,7 @@ enum EsmRuntimeHelper {
   typeCast,
   unmodifiableViews,
   uri,
+  uriToFilePath,
   weakReference,
 }
 
@@ -254,6 +255,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartUriReplace',
     '__dartUriResolve',
     '__dartUriSplitQueryString',
+    '__dartUriToFilePath',
     '__dartWeakReference',
   };
 
@@ -327,6 +329,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.typeCast => '__dartAs',
       EsmRuntimeHelper.unmodifiableViews => '__dartUnmodifiableListView',
       EsmRuntimeHelper.uri => '__dartUriParse',
+      EsmRuntimeHelper.uriToFilePath => '__dartUriToFilePath',
       EsmRuntimeHelper.weakReference => '__dartWeakReference',
     };
   }
@@ -2301,6 +2304,19 @@ function __dartUriBuild(scheme, authority, path, queryParameters = null) {
   return __dartUriParse(url.toString());
 }
 '''),
+      EsmRuntimeHelper.uriToFilePath => EsmRawModuleItemIr(r'''
+function __dartUriToFilePath(uri, windows = false) {
+  if (uri.scheme !== "" && uri.scheme !== "file") {
+    throw __dartCoreError("UnsupportedError", "Cannot extract a file path from a non-file URI");
+  }
+  let path = decodeURIComponent(uri.path);
+  if (windows) {
+    if (/^\/[a-zA-Z]:/.test(path)) path = path.slice(1);
+    path = path.replace(/\//g, "\\");
+  }
+  return path;
+}
+'''),
       EsmRuntimeHelper.weakReference => EsmRawModuleItemIr('''
 function __dartWeakReference(target) {
   const ref = typeof WeakRef === "function" ? new WeakRef(target) : { deref() { return target; } };
@@ -2473,6 +2489,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.typeCast:
       case EsmRuntimeHelper.unmodifiableViews:
         break;
+      case EsmRuntimeHelper.uriToFilePath:
+        _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.uri:
         _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.setAddAll:

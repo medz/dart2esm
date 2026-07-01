@@ -1,4 +1,4 @@
-import 'package:dart2esm/src/runtime/runtime_helpers.dart';
+import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
 import 'package:test/test.dart';
 
 void main() {

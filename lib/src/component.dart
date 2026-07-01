@@ -1,11 +1,4 @@
-enum CompilerComponentId {
-  parser,
-  semantic,
-  lowerer,
-  transformer,
-  runtime,
-  codegen,
-}
+enum CompilerComponentId { parser, semantic, lowerer, transformer, codegen }
 
 enum CompilerComponentCapability {
   kernelAccess,
@@ -73,12 +66,6 @@ const compilerComponentContracts = [
     ownerDirectory: 'transformer',
     input: 'LowererReturn',
     output: 'TransformerReturn',
-  ),
-  CompilerComponentContract(
-    id: CompilerComponentId.runtime,
-    ownerDirectory: 'runtime',
-    input: 'TransformerReturn',
-    output: 'RuntimeLinkerReturn',
     capabilities: {
       CompilerComponentCapability.runtimeHelperReference,
       CompilerComponentCapability.runtimeHelperDeclaration,

@@ -1,5 +1,5 @@
-import '../runtime/runtime_helpers.dart';
-import '../semantic/semantic_world.dart';
+import '../transformer/helpers/runtime_helpers.dart';
+import '../semantic/semantic.dart';
 
 final class DartLoweringContext {
   DartLoweringContext({required this.semantic, required this.runtimeHelpers})

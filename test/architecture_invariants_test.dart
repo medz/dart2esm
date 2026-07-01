@@ -23,7 +23,6 @@ void main() {
       'semantic',
       'lowering',
       'transformer',
-      'runtime',
       'codegen',
     ]) {
       expect(
@@ -45,6 +44,7 @@ void main() {
       'names',
       'optimizer',
       'program',
+      'runtime',
       'world',
     ]) {
       expect(
@@ -53,16 +53,44 @@ void main() {
         reason: removedTopLevel,
       );
     }
+
+    expect(File('lib/src/semantic/semantic_world.dart').existsSync(), isFalse);
+    expect(Directory('lib/src/transformer/helpers').existsSync(), isTrue);
+  });
+
+  test('lowerer is split into reviewable compiler concerns', () {
+    final entrypoint = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+    final lowererParts = [
+      'class_lowering.dart',
+      'extension_type_lowering.dart',
+      'member_lowering.dart',
+      'statement_lowering.dart',
+      'expression_lowering.dart',
+      'invocation_lowering.dart',
+      'member_access_lowering.dart',
+      'type_lowering.dart',
+      'static_lowering.dart',
+      'lowering_support.dart',
+    ];
+
+    for (final part in lowererParts) {
+      expect(entrypoint, contains("part '$part';"), reason: part);
+      expect(File('lib/src/lowering/$part').existsSync(), isTrue);
+    }
+    expect(entrypoint, isNot(contains('_lowerInstanceInvocation(')));
+    expect(entrypoint.split('\n'), hasLength(lessThan(140)));
   });
 
   test('compiler components have explicit Oxc-style return boundaries', () {
     final compiler = _read('lib/src/compiler.dart');
     final components = _read('lib/src/component.dart');
     final parser = _read('lib/src/parser/kernel_parser.dart');
-    final semantic = _read('lib/src/semantic/semantic_world.dart');
+    final semantic = _read('lib/src/semantic/semantic_builder.dart');
     final lowerer = _read('lib/src/lowering/kernel_to_esm_ast.dart');
     final transformer = _read('lib/src/transformer/module_transformer.dart');
-    final runtime = _read('lib/src/runtime/runtime_linker.dart');
+    final helperLoader = _read(
+      'lib/src/transformer/helpers/helper_loader.dart',
+    );
     final codegen = _read('lib/src/codegen/esm_codegen.dart');
 
     expect(components, contains('enum CompilerComponentId'));
@@ -77,7 +105,8 @@ void main() {
     expect(lowerer, contains('LowererReturn lower('));
     expect(lowerer, contains('SemanticBuilderReturn semanticReturn'));
     expect(transformer, contains('TransformerReturn transform(LowererReturn'));
-    expect(runtime, contains('RuntimeLinkerReturn link(TransformerReturn'));
+    expect(transformer, contains('final HelperLoader helperLoader'));
+    expect(helperLoader, contains('HelperLoaderReturn load({'));
     expect(codegen, contains('CodegenReturn generate(EsmModule'));
     expect(compiler, contains('final class CompilerReturn'));
     expect(compiler, contains('final ParserReturn kernel'));
@@ -85,8 +114,10 @@ void main() {
     expect(compiler, contains('final SemanticBuilderReturn? semantic'));
     expect(compiler, contains('final LowererReturn? lowering'));
     expect(compiler, contains('final TransformerReturn? transform'));
-    expect(compiler, contains('final RuntimeLinkerReturn? runtime'));
+    expect(compiler, isNot(contains('RuntimeLinkerReturn')));
+    expect(compiler, isNot(contains('RuntimeLinker')));
     expect(compiler, contains('final CodegenReturn? codegen'));
+    expect(transformer, contains('final List<EsmRuntimeHelper> linkedHelpers'));
     expect(transformer, contains('invalidatesSemantic'));
     expect(compiler, isNot(contains('File(')));
     expect(compiler, isNot(contains('Directory(')));
@@ -101,7 +132,7 @@ void main() {
         contract.ownerDirectory: contract,
     };
 
-    expect(contractsByOwnerDirectory.keys, hasLength(6));
+    expect(contractsByOwnerDirectory.keys, hasLength(5));
     for (final contract in compilerComponentContracts) {
       final owner = Directory(
         p.join(compilerCoreRoot, contract.ownerDirectory),
@@ -175,9 +206,13 @@ void main() {
     expect(codegen, contains('CodegenReturn generate(EsmModule'));
     expect(codegen, contains('EsmModule'));
     expect(codegen, isNot(contains("package:kernel/kernel.dart")));
-    expect(codegen, isNot(contains('runtime/runtime_helpers.dart')));
-    expect(codegen, isNot(contains('runtime/runtime_linker.dart')));
+    expect(
+      codegen,
+      isNot(contains('transformer/helpers/runtime_helpers.dart')),
+    );
+    expect(codegen, isNot(contains('transformer/helpers/helper_loader.dart')));
     expect(codegen, isNot(contains('RuntimeLinkerReturn')));
+    expect(codegen, isNot(contains('HelperLoaderReturn')));
     expect(codegen, isNot(contains('esmRuntimeHelperSource')));
     expect(codegen, isNot(contains('buildEsmProgramModel')));
     expect(codegen, isNot(contains('emitEsm(')));
@@ -186,7 +221,7 @@ void main() {
   });
 
   test('lowering constructs ESM AST before transformer normalization', () {
-    final lowering = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+    final lowering = _loweringSource();
     final transformer = _read('lib/src/transformer/module_transformer.dart');
 
     expect(
@@ -205,11 +240,13 @@ void main() {
       transformer,
       contains('get runtimeHelpers => lowering.runtimeHelpers'),
     );
+    expect(transformer, contains('helperLoader.load('));
+    expect(transformer, contains('linkedHelpers: loaded.helpers'));
     expect(transformer, isNot(contains('ModuleBuildResult')));
   });
 
   test('SDK intrinsic lowering is routed through a registry', () {
-    final lowering = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+    final lowering = _loweringSource();
     final registry = _read('lib/src/lowering/intrinsics/sdk_intrinsics.dart');
     final typedData = _read(
       'lib/src/lowering/intrinsics/dart_typed_data_intrinsics.dart',
@@ -597,7 +634,7 @@ void main() {
   test('ESM catch parameter uses binding AST', () {
     final ir = _read('lib/src/ast/esm_ast.dart');
     final codegen = _read('lib/src/codegen/esm_codegen.dart');
-    final lowering = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+    final lowering = _loweringSource();
 
     expect(ir, contains('final EsmParameter? catchParameter;'));
     expect(ir, isNot(contains('final String? catchParameter;')));
@@ -609,7 +646,7 @@ void main() {
   test('ESM variable declarations use binding AST', () {
     final ir = _read('lib/src/ast/esm_ast.dart');
     final codegen = _read('lib/src/codegen/esm_codegen.dart');
-    final lowering = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+    final lowering = _loweringSource();
 
     expect(ir, contains('sealed class EsmBinding'));
     expect(ir, contains('final class EsmIdentifierBinding'));
@@ -655,7 +692,7 @@ void main() {
   test('ESM object literal properties use property key AST', () {
     final ir = _read('lib/src/ast/esm_ast.dart');
     final codegen = _read('lib/src/codegen/esm_codegen.dart');
-    final lowering = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+    final lowering = _loweringSource();
 
     expect(ir, contains('sealed class EsmPropertyKey'));
     expect(ir, contains('final class EsmStaticPropertyKey'));
@@ -674,7 +711,7 @@ void main() {
   test('ESM class methods use property key AST', () {
     final ir = _read('lib/src/ast/esm_ast.dart');
     final codegen = _read('lib/src/codegen/esm_codegen.dart');
-    final lowering = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+    final lowering = _loweringSource();
     final transformer = _read('lib/src/transformer/module_transformer.dart');
 
     expect(
@@ -735,7 +772,7 @@ void main() {
   );
 
   test('semantic accepts name reservations without runtime dependency', () {
-    final semantic = _read('lib/src/semantic/semantic_world.dart');
+    final semantic = _read('lib/src/semantic/semantic_builder.dart');
     final compiler = _read('lib/src/compiler.dart');
 
     expect(semantic, contains('generatedGlobalNames'));
@@ -744,22 +781,30 @@ void main() {
     expect(compiler, contains('EsmRuntimeHelperRegistry.generatedGlobalNames'));
   });
 
-  test('runtime helpers are owned by compiler components', () {
-    final runtime = _read('lib/src/runtime/runtime_helpers.dart');
-    final linker = _read('lib/src/runtime/runtime_linker.dart');
-    final lowering = _read('lib/src/lowering/kernel_to_esm_ast.dart');
+  test('runtime helpers are loaded by the transformer helper loader', () {
+    final runtimeHelpers = _read(
+      'lib/src/transformer/helpers/runtime_helpers.dart',
+    );
+    final helperLoader = _read(
+      'lib/src/transformer/helpers/helper_loader.dart',
+    );
+    final lowering = _loweringSource();
     final loweringContext = _read('lib/src/lowering/lowering_context.dart');
     final coreFiles = _dartFiles('lib/src');
 
-    expect(runtime, contains('enum EsmRuntimeHelper'));
-    expect(runtime, contains('final class EsmRuntimeHelperRegistry'));
-    expect(runtime, contains('bool require(EsmRuntimeHelper helper)'));
-    expect(runtime, contains('EsmIdentifier reference('));
-    expect(runtime, contains('__dartPrint'));
-    expect(linker, contains('final class RuntimeLinker'));
-    expect(linker, contains('runtimeHelpers.declaration'));
-    expect(linker, contains('transform.runtimeHelpers'));
-    expect(linker, isNot(contains('moduleBuild')));
+    expect(runtimeHelpers, contains('enum EsmRuntimeHelper'));
+    expect(runtimeHelpers, contains('final class EsmRuntimeHelperRegistry'));
+    expect(runtimeHelpers, contains('bool require(EsmRuntimeHelper helper)'));
+    expect(runtimeHelpers, contains('EsmIdentifier reference('));
+    expect(runtimeHelpers, contains('__dartPrint'));
+    expect(helperLoader, contains('final class HelperLoader'));
+    expect(helperLoader, contains('runtimeHelpers.declaration'));
+    expect(
+      helperLoader,
+      contains('required Iterable<EsmRuntimeHelper> helpers'),
+    );
+    expect(helperLoader, isNot(contains('TransformerReturn')));
+    expect(helperLoader, isNot(contains('moduleBuild')));
     expect(loweringContext, contains('final class DartLoweringContext'));
     expect(loweringContext, contains('EsmRuntimeHelperUseSet'));
     expect(loweringContext, contains('runtimeHelperUses'));
@@ -779,7 +824,7 @@ void main() {
     }
   });
 
-  test('legacy backend entrypoints are deleted from the architecture', () {
+  test('removed backend entrypoints stay deleted from the architecture', () {
     expect(Directory('lib/src/backend').existsSync(), isFalse);
     expect(File('lib/src/legacy_oracle.dart').existsSync(), isFalse);
 
@@ -795,7 +840,7 @@ void main() {
     }
   });
 
-  test('compiler exposes no legacy backend oracle entrypoint', () {
+  test('compiler exposes no removed backend oracle entrypoint', () {
     final cli = _read('lib/src/app/cli.dart');
     final compiler = _read('lib/src/app/compiler.dart');
     final compilerCore = _read('lib/src/compiler.dart');
@@ -821,6 +866,22 @@ List<File> _dartFiles(String relativeDirectory) {
       .where((file) => file.path.endsWith('.dart'))
       .toList()
     ..sort((left, right) => left.path.compareTo(right.path));
+}
+
+String _loweringSource() {
+  return [
+    'lib/src/lowering/kernel_to_esm_ast.dart',
+    'lib/src/lowering/class_lowering.dart',
+    'lib/src/lowering/extension_type_lowering.dart',
+    'lib/src/lowering/member_lowering.dart',
+    'lib/src/lowering/statement_lowering.dart',
+    'lib/src/lowering/expression_lowering.dart',
+    'lib/src/lowering/invocation_lowering.dart',
+    'lib/src/lowering/member_access_lowering.dart',
+    'lib/src/lowering/type_lowering.dart',
+    'lib/src/lowering/static_lowering.dart',
+    'lib/src/lowering/lowering_support.dart',
+  ].map(_read).join('\n');
 }
 
 String _sliceBetween(String source, String start, String end) {

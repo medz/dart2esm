@@ -1,5 +1,7 @@
 import '../ast/esm_ast.dart';
 import '../lowering/kernel_to_esm_ast.dart';
+import 'helpers/helper_loader.dart';
+import 'helpers/runtime_helpers.dart';
 
 final class TransformerReturn {
   const TransformerReturn({
@@ -7,28 +9,38 @@ final class TransformerReturn {
     required this.module,
     required this.changed,
     required this.invalidatesSemantic,
+    required this.linkedHelpers,
   });
 
   final LowererReturn lowering;
   final EsmModule module;
   final bool changed;
   final bool invalidatesSemantic;
+  final List<EsmRuntimeHelper> linkedHelpers;
 
   get runtimeHelpers => lowering.runtimeHelpers;
 }
 
 final class Transformer {
-  const Transformer();
+  const Transformer({this.helperLoader = const HelperLoader()});
+
+  final HelperLoader helperLoader;
 
   TransformerReturn transform(LowererReturn lowering) {
     final normalized = _normalizeModuleItems(lowering.module.items);
+    final module = normalized.changed
+        ? EsmModule(items: normalized.items)
+        : lowering.module;
+    final loaded = helperLoader.load(
+      module: module,
+      helpers: lowering.runtimeHelpers,
+    );
     return TransformerReturn(
       lowering: lowering,
-      module: normalized.changed
-          ? EsmModule(items: normalized.items)
-          : lowering.module,
+      module: loaded.module,
       changed: normalized.changed,
       invalidatesSemantic: false,
+      linkedHelpers: loaded.helpers,
     );
   }
 

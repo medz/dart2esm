@@ -1,7 +1,7 @@
 import 'package:kernel/kernel.dart' as k;
 
 import '../../ast/esm_ast.dart';
-import '../../runtime/runtime_helpers.dart';
+import '../../transformer/helpers/runtime_helpers.dart';
 import 'dart_collection_intrinsics.dart';
 import 'dart_convert_intrinsics.dart';
 import 'dart_core_enum_intrinsics.dart';

@@ -2,7 +2,7 @@ import 'package:kernel/kernel.dart' as k;
 
 import '../../foundation/kernel/kernel_references.dart';
 import '../../ast/esm_ast.dart';
-import '../../runtime/runtime_helpers.dart';
+import '../../transformer/helpers/runtime_helpers.dart';
 
 EsmExpression? lowerDartCoreNumberStaticInvocation({
   required k.StaticInvocation expression,

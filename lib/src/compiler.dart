@@ -4,9 +4,8 @@ import 'codegen/esm_codegen.dart';
 import 'component.dart';
 import 'parser/kernel_parser.dart';
 import 'lowering/kernel_to_esm_ast.dart';
-import 'runtime/runtime_helpers.dart';
-import 'runtime/runtime_linker.dart';
-import 'semantic/semantic_world.dart';
+import 'transformer/helpers/runtime_helpers.dart';
+import 'semantic/semantic_builder.dart';
 import 'transformer/module_transformer.dart';
 
 final class CompilerOptions {
@@ -24,7 +23,6 @@ final class CompilerReturn {
     this.semantic,
     this.lowering,
     this.transform,
-    this.runtime,
     this.codegen,
   }) : completedComponents = List.unmodifiable(completedComponents);
 
@@ -35,7 +33,6 @@ final class CompilerReturn {
   final SemanticBuilderReturn? semantic;
   final LowererReturn? lowering;
   final TransformerReturn? transform;
-  final RuntimeLinkerReturn? runtime;
   final CodegenReturn? codegen;
 }
 
@@ -48,7 +45,6 @@ final class Compiler {
     ),
     this.lowering = const Lowerer(),
     this.transformer = const Transformer(),
-    this.runtime = const RuntimeLinker(),
     this.codegen = const Codegen(),
   });
 
@@ -57,7 +53,6 @@ final class Compiler {
   final SemanticBuilder semantic;
   final Lowerer lowering;
   final Transformer transformer;
-  final RuntimeLinker runtime;
   final Codegen codegen;
 
   CompilerReturn compile(k.Component component) {
@@ -70,9 +65,7 @@ final class Compiler {
     completedComponents.add(CompilerComponentId.lowerer);
     final transformed = transformer.transform(lowered);
     completedComponents.add(CompilerComponentId.transformer);
-    final linked = runtime.link(transformed);
-    completedComponents.add(CompilerComponentId.runtime);
-    final codegenResult = codegen.generate(linked.module);
+    final codegenResult = codegen.generate(transformed.module);
     completedComponents.add(CompilerComponentId.codegen);
     return CompilerReturn(
       code: codegenResult.code,
@@ -82,7 +75,6 @@ final class Compiler {
       semantic: semanticResult,
       lowering: lowered,
       transform: transformed,
-      runtime: linked,
       codegen: codegenResult,
     );
   }

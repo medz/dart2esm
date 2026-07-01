@@ -3,7 +3,7 @@ import 'package:kernel/kernel.dart' as k;
 import '../../foundation/kernel/kernel_references.dart';
 import '../../foundation/kernel/sdk_symbols.dart';
 import '../../ast/esm_ast.dart';
-import '../../runtime/runtime_helpers.dart';
+import '../../transformer/helpers/runtime_helpers.dart';
 
 EsmExpression? lowerDartCoreUriStaticGet({
   required k.StaticGet expression,

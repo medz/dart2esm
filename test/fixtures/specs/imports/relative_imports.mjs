@@ -26,6 +26,7 @@ function __dartStr(value) {
 
 class Greeter {
   constructor(prefix) {
+    this.prefix = null;
     this.prefix = prefix;
   }
   say(name) {
@@ -33,18 +34,17 @@ class Greeter {
   }
 }
 
-const helperOffset = 5;
 let helperCounter = 0;
+function add(left, right) {
+  helperCounter = helperCounter + 1;
+  return left + right + 5;
+}
+
 export function main() {
   __dartPrint(`add ${__dartStr(add(2, 3))}`);
   const greeter = new Greeter("hello");
   __dartPrint(greeter.say("esm"));
   __dartPrint(`counter ${__dartStr(helperCounter)}`);
-}
-
-function add(left, right) {
-  helperCounter = helperCounter + 1;
-  return left + right + 5;
 }
 
 main();

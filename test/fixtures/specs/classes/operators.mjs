@@ -51,6 +51,8 @@ function __dartStr(value) {
 
 export class Vec {
   constructor(x, y) {
+    this.x = null;
+    this.y = null;
     this.x = x;
     this.y = y;
   }

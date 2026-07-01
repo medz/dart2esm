@@ -24,20 +24,9 @@ function __dartStr(value) {
   return String(value);
 }
 
-export class BarrelThing {
-  label() {
-    return "barrel:5";
-  }
-}
-
-class _PrivateBarrelThing {
-  label() {
-    return "private:6";
-  }
-}
-
 export class LeafThing {
   constructor(name) {
+    this.name = null;
     this.name = name;
   }
   label() {
@@ -51,17 +40,16 @@ class HiddenLeafThing {
   }
 }
 
-const barrelValue = 5;
-const _privateBarrelValue = 6;
+export class BarrelThing {
+  label() {
+    return "barrel:5";
+  }
+}
+
 export const leafValue = 3;
-const hiddenLeafValue = 4;
 export function main() {
   const leaf = new LeafThing("api");
   __dartPrint(`${__dartStr(leaf.label())} ${__dartStr(new BarrelThing().label())} ${__dartStr(4)} ${__dartStr(new HiddenLeafThing().label())}`);
-}
-
-function privateBarrelLabel() {
-  return new _PrivateBarrelThing().label();
 }
 
 main();

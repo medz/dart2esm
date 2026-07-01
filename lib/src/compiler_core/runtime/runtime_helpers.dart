@@ -8,6 +8,7 @@ enum EsmRuntimeHelper {
   constMap,
   constSet,
   constValue,
+  customHashMap,
   doubleParse,
   doubleValue,
   dynamicCall,
@@ -51,6 +52,7 @@ enum EsmRuntimeHelper {
   safeToString,
   setAddAll,
   setOps,
+  splayTree,
   stringFactory,
   stringOps,
   stringify,
@@ -74,6 +76,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartConstMap',
     '__dartConstSet',
     '__dartConstValues',
+    '__dartCustomHashMap',
     '__dartDoubleParse',
     '__dartDoubleTryParse',
     '__dartDoubleValue',
@@ -128,6 +131,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartListReplaceRange',
     '__dartListRetainWhere',
     '__dartListSetAll',
+    '__dartListSetRange',
     '__dartListShuffle',
     '__dartListWriteIterable',
     '__dartUnmodifiableList',
@@ -184,6 +188,12 @@ final class EsmRuntimeHelperRegistry {
     '__dartSetRetainAll',
     '__dartSetRetainWhere',
     '__dartSetUnion',
+    '__dartSplaySortMap',
+    '__dartSplaySortSet',
+    '__dartSplayTreeMap',
+    '__dartSplayTreeMapFromEntries',
+    '__dartSplayTreeSet',
+    '__dartSplayTreeSetFrom',
     '__dartStringCodeUnits',
     '__dartStringFromCharCodes',
     '__dartStringReplaceFirst',
@@ -218,6 +228,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.constMap => '__dartConstMap',
       EsmRuntimeHelper.constSet => '__dartConstSet',
       EsmRuntimeHelper.constValue => '__dartConst',
+      EsmRuntimeHelper.customHashMap => '__dartCustomHashMap',
       EsmRuntimeHelper.doubleParse => '__dartDoubleParse',
       EsmRuntimeHelper.doubleValue => '__dartDoubleValue',
       EsmRuntimeHelper.dynamicCall => '__dartDynamicCall',
@@ -261,6 +272,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.safeToString => '__dartSafeToString',
       EsmRuntimeHelper.setAddAll => '__dartSetAddAll',
       EsmRuntimeHelper.setOps => '__dartSetLookup',
+      EsmRuntimeHelper.splayTree => '__dartSplayTreeSet',
       EsmRuntimeHelper.stringFactory => '__dartStringFromCharCodes',
       EsmRuntimeHelper.stringOps => '__dartStringReplaceFirst',
       EsmRuntimeHelper.stringify => '__dartStr',
@@ -893,6 +905,20 @@ function __dartMapFromIterables(keys, values) {
       EsmRuntimeHelper.mapGet => EsmRawModuleItemIr('''
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
+  if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
+  if (typeof map.__dartMapIsValidKey === "function" && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+  if (typeof map.__dartMapEquals === "function") {
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
   for (const candidate of map.keys()) {
     if (__dartEquals(candidate, key)) return candidate;
@@ -905,10 +931,21 @@ function __dartMapGet(map, key) {
   return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
 '''),
+      EsmRuntimeHelper.customHashMap => EsmRawModuleItemIr('''
+function __dartCustomHashMap(equals = null, hashCode = null, isValidKey = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  Object.defineProperty(map, "__dartMapEquals", { value: equals });
+  Object.defineProperty(map, "__dartMapHashCode", { value: hashCode });
+  Object.defineProperty(map, "__dartMapIsValidKey", { value: isValidKey });
+  return map;
+}
+'''),
       EsmRuntimeHelper.mapSet => EsmRawModuleItemIr('''
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
   return value;
 }
 '''),
@@ -1045,6 +1082,13 @@ function __dartSafeToString(value) {
 '''),
       EsmRuntimeHelper.setAddAll => EsmRawModuleItemIr('''
 function __dartSetContains(set, needle) {
+  if (typeof set.__dartSplayIsValidKey === "function" && !set.__dartSplayIsValidKey(needle)) return false;
+  if (set.__dartSplayCompare !== undefined) {
+    for (const value of set) {
+      if (__dartCompare(value, needle, set.__dartSplayCompare) === 0) return true;
+    }
+    return false;
+  }
   if (!set.__dartEqualitySet) return set.has(needle);
   for (const value of set) {
     if (__dartEquals(value, needle)) return true;
@@ -1054,6 +1098,7 @@ function __dartSetContains(set, needle) {
 function __dartSetAdd(set, value) {
   if (__dartSetContains(set, value)) return false;
   set.add(value);
+  if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
   return true;
 }
 function __dartSetFrom(values) {
@@ -1130,6 +1175,42 @@ function __dartSetDifference(set, other) {
     if (!__dartSetContains(other, value)) __dartSetAdd(result, value);
   }
   return result;
+}
+'''),
+      EsmRuntimeHelper.splayTree => EsmRawModuleItemIr('''
+function __dartSplayTreeSet(compare = null, isValidKey = null) {
+  const set = new Set();
+  Object.defineProperty(set, "__dartEqualitySet", { value: true });
+  Object.defineProperty(set, "__dartSplayCompare", { value: compare });
+  Object.defineProperty(set, "__dartSplayIsValidKey", { value: isValidKey });
+  return set;
+}
+function __dartSplaySortSet(set) {
+  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
+  set.clear();
+  for (const value of values) set.add(value);
+}
+function __dartSplayTreeSetFrom(values, compare = null, isValidKey = null) {
+  const set = __dartSplayTreeSet(compare, isValidKey);
+  for (const value of values) __dartSetAdd(set, value);
+  return set;
+}
+function __dartSplayTreeMap(compare = null, isValidKey = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  Object.defineProperty(map, "__dartSplayCompare", { value: compare });
+  Object.defineProperty(map, "__dartSplayIsValidKey", { value: isValidKey });
+  return map;
+}
+function __dartSplaySortMap(map) {
+  const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
+  map.clear();
+  for (const [key, value] of entries) map.set(key, value);
+}
+function __dartSplayTreeMapFromEntries(entries, compare = null, isValidKey = null) {
+  const map = __dartSplayTreeMap(compare, isValidKey);
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return map;
 }
 '''),
       EsmRuntimeHelper.stringFactory => EsmRawModuleItemIr('''
@@ -1301,6 +1382,14 @@ function __dartListCopyRange(target, at, source, start = 0, end = null) {
 function __dartListWriteIterable(target, at, source) {
   let index = Number(at);
   for (const value of source) target[index++] = value;
+  return null;
+}
+function __dartListSetRange(target, start, end, source, skipCount = 0) {
+  const from = Number(skipCount);
+  const count = Number(end) - Number(start);
+  const values = Array.from(source).slice(from, from + count);
+  let index = Number(start);
+  for (const value of values) target[index++] = value;
   return null;
 }
 '''),
@@ -1776,6 +1865,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.compare:
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
+      case EsmRuntimeHelper.customHashMap:
       case EsmRuntimeHelper.doubleParse:
       case EsmRuntimeHelper.doubleValue:
       case EsmRuntimeHelper.dynamicCall:
@@ -1881,6 +1971,15 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.setOps:
         _helpers.add(EsmRuntimeHelper.setAddAll);
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.splayTree:
+        _helpers.add(EsmRuntimeHelper.compare);
+        _helpers.add(EsmRuntimeHelper.setAddAll);
+        _helpers.add(EsmRuntimeHelper.mapAddAll);
+        _helpers.add(EsmRuntimeHelper.mapSet);
+        _helpers.add(EsmRuntimeHelper.mapGet);
         _helpers.add(EsmRuntimeHelper.equals);
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);

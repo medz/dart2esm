@@ -78,6 +78,13 @@ function __dartIsRecord(value) {
 }
 
 function __dartSetContains(set, needle) {
+  if (typeof set.__dartSplayIsValidKey === "function" && !set.__dartSplayIsValidKey(needle)) return false;
+  if (set.__dartSplayCompare !== undefined) {
+    for (const value of set) {
+      if (__dartCompare(value, needle, set.__dartSplayCompare) === 0) return true;
+    }
+    return false;
+  }
   if (!set.__dartEqualitySet) return set.has(needle);
   for (const value of set) {
     if (__dartEquals(value, needle)) return true;
@@ -87,6 +94,7 @@ function __dartSetContains(set, needle) {
 function __dartSetAdd(set, value) {
   if (__dartSetContains(set, value)) return false;
   set.add(value);
+  if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
   return true;
 }
 function __dartSetFrom(values) {
@@ -129,13 +137,13 @@ export function main() {
   const orderedAgain = __dartObjectHash([1, "a"]);
   const fromIterable = __dartObjectHash(Array.from([1, "a"]));
   const reversed = __dartObjectHash(Array.from(["a", 1]));
-  const unorderedA = __dartObjectHashUnordered(Array.from((function() {
+  const unorderedA = __dartObjectHashUnordered(Array.from((() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "a");
     __dartSetAdd(v, "b");
     return v;
   })()));
-  const unorderedB = __dartObjectHashUnordered(Array.from((function() {
+  const unorderedB = __dartObjectHashUnordered(Array.from((() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "b");
     __dartSetAdd(v, "a");

@@ -26,6 +26,7 @@ function __dartStr(value) {
 
 export class Box {
   constructor(value) {
+    this.value = null;
     this.value = value;
   }
   bump(amount) {
@@ -42,9 +43,9 @@ export function describe(maybe) {
   const second = (maybe?.bump(2) ?? -2);
   let assigned = maybe;
   (assigned === null ? assigned = new Box(7) : null);
-  const cascaded = (function() {
+  const cascaded = (() => {
     const v = new Box(1);
-    return (function() {
+    return (() => {
       v.value = 3;
       v.bump(4);
       return v;

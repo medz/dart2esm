@@ -219,6 +219,14 @@ function __dartListWriteIterable(target, at, source) {
   for (const value of source) target[index++] = value;
   return null;
 }
+function __dartListSetRange(target, start, end, source, skipCount = 0) {
+  const from = Number(skipCount);
+  const count = Number(end) - Number(start);
+  const values = Array.from(source).slice(from, from + count);
+  let index = Number(start);
+  for (const value of values) target[index++] = value;
+  return null;
+}
 
 function __dartListIndexOf(list, needle, start = 0) {
   const values = Array.from(list);
@@ -293,6 +301,20 @@ function __dartMapFromIterables(keys, values) {
 
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
+  if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
+  if (typeof map.__dartMapIsValidKey === "function" && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+  if (typeof map.__dartMapEquals === "function") {
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
   for (const candidate of map.keys()) {
     if (__dartEquals(candidate, key)) return candidate;
@@ -376,6 +398,7 @@ function __dartMapClear(map) {
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
   return value;
 }
 
@@ -489,6 +512,13 @@ function __dartRecord(positional, named) {
 }
 
 function __dartSetContains(set, needle) {
+  if (typeof set.__dartSplayIsValidKey === "function" && !set.__dartSplayIsValidKey(needle)) return false;
+  if (set.__dartSplayCompare !== undefined) {
+    for (const value of set) {
+      if (__dartCompare(value, needle, set.__dartSplayCompare) === 0) return true;
+    }
+    return false;
+  }
   if (!set.__dartEqualitySet) return set.has(needle);
   for (const value of set) {
     if (__dartEquals(value, needle)) return true;
@@ -498,6 +528,7 @@ function __dartSetContains(set, needle) {
 function __dartSetAdd(set, value) {
   if (__dartSetContains(set, value)) return false;
   set.add(value);
+  if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
   return true;
 }
 function __dartSetFrom(values) {
@@ -597,6 +628,7 @@ function __dartStr(value) {
 
 export class EqBox {
   constructor(value) {
+    this.value = null;
     this.value = value;
   }
   "=="(other) {
@@ -626,7 +658,7 @@ export function main() {
   const iterableEmpty = [];
   __dartPrint(`iterableFactory ${__dartStr(Array.from(iterableGenerated).join(","))} ${__dartStr(Array.from(iterableGeneratedDefault).join(","))} ${__dartStr(Array.from(iterableEmpty).length === 0)}`);
   const castList = [1, 2];
-  const castSet = (function() {
+  const castSet = (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, 1);
     __dartSetAdd(v, 2);
@@ -722,7 +754,7 @@ export function main() {
     return value >= 6;
   });
   __dartPrint(`list bulk ${__dartStr(Array.from(mutable).join(","))}`);
-  const names = (function() {
+  const names = (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "ada");
     __dartSetAdd(v, "bob");
@@ -733,7 +765,7 @@ export function main() {
   __dartPrint(`set ${__dartStr(Array.from(names).length)} ${__dartStr(__dartSetContains(names, "ada"))} ${__dartStr(__dartSetContains(names, "bob"))}`);
   __dartPrint(`set lookup ${__dartStr(__dartSetLookup(names, "ada"))} ${__dartStr(__dartSetLookup(names, "missing"))}`);
   __dartPrint(`set join ${__dartStr(Array.from(names).join("/"))}`);
-  const setBulk = (function() {
+  const setBulk = (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "a");
     __dartSetAdd(v, "b");
@@ -744,7 +776,7 @@ export function main() {
   __dartSetRemoveAll(setBulk, ["b", "x"]);
   __dartSetRetainAll(setBulk, ["a", "z"]);
   __dartPrint(`set bulk ${__dartStr(hasAll)} ${__dartStr(Array.from(setBulk).join(","))}`);
-  const setWhere = (function() {
+  const setWhere = (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, 1);
     __dartSetAdd(v, 2);
@@ -759,26 +791,26 @@ export function main() {
     return value > 2;
   });
   __dartPrint(`set where ${__dartStr(Array.from(setWhere).join(","))}`);
-  const setUnion = __dartSetUnion(names, (function() {
+  const setUnion = __dartSetUnion(names, (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "ada");
     __dartSetAdd(v, "zoe");
     return v;
   })());
-  const setIntersection = __dartSetIntersection(setUnion, (function() {
+  const setIntersection = __dartSetIntersection(setUnion, (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "ada");
     __dartSetAdd(v, "missing");
     return v;
   })());
-  const setDifference = __dartSetDifference(setUnion, (function() {
+  const setDifference = __dartSetDifference(setUnion, (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "cy");
     return v;
   })());
   const castNames = names;
   __dartPrint(`set algebra ${__dartStr(Array.from(setUnion).join(","))} ${__dartStr(Array.from(setIntersection).join(","))} ${__dartStr(Array.from(setDifference).join(","))} ${__dartStr(__dartSetContains(castNames, "ada"))}`);
-  const eqSet = (function() {
+  const eqSet = (() => {
     const v = __dartSetFrom([]);
     return v;
   })();
@@ -787,19 +819,19 @@ export function main() {
   __dartSetAddAll(eqSet, [new EqBox(2), new EqBox(2)]);
   const containsBox = __dartSetContains(eqSet, new EqBox(1));
   const removedBox = __dartSetRemove(eqSet, new EqBox(2));
-  const eqUnion = __dartSetUnion(eqSet, (function() {
+  const eqUnion = __dartSetUnion(eqSet, (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, new EqBox(1));
     __dartSetAdd(v, new EqBox(3));
     return v;
   })());
-  const eqIntersection = __dartSetIntersection(eqUnion, (function() {
+  const eqIntersection = __dartSetIntersection(eqUnion, (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, new EqBox(1));
     __dartSetAdd(v, new EqBox(4));
     return v;
   })());
-  const eqDifference = __dartSetDifference(eqUnion, (function() {
+  const eqDifference = __dartSetDifference(eqUnion, (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, new EqBox(1));
     return v;

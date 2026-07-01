@@ -59,11 +59,15 @@ function __dartStr(value) {
 
 export class Box {
   constructor(value) {
+    this.value = null;
+    this.label = null;
     this.value = value;
     this.label = "box";
   }
   static named(value) {
     const $self = Object.create(this.prototype);
+    $self.value = null;
+    $self.label = null;
     $self.value = value;
     $self.label = "named";
     return $self;
@@ -78,6 +82,8 @@ export class Box {
 
 export class Options {
   constructor(value, { label = "options" } = {}) {
+    this.value = null;
+    this.label = null;
     this.value = value;
     this.label = label;
   }
@@ -88,6 +94,7 @@ export class Options {
 
 export class Holder {
   constructor(value) {
+    this.value = null;
     this.value = value;
   }
   describe() {

@@ -51,18 +51,21 @@ function __dartStr(value) {
 
 export class ParseIssue {
   constructor(message) {
+    this.message = null;
     this.message = message;
   }
 }
 
 export class NotFound {
   constructor(path) {
+    this.path = null;
     this.path = path;
   }
 }
 
 export class UnknownIssue {
   constructor(code) {
+    this.code = null;
     this.code = code;
   }
 }

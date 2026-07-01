@@ -166,13 +166,18 @@ export function main() {
   test('semantic world reserves pipeline-provided generated global names', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
-    final main = _procedure('main', body: k.EmptyStatement());
     final helperCollision = k.Procedure(
       k.Name('__dartPrint', library),
       k.ProcedureKind.Method,
       k.FunctionNode(k.EmptyStatement()),
       fileUri: Uri.parse('memory:__dartPrint.dart'),
       isStatic: true,
+    );
+    final main = _procedure(
+      'main',
+      body: k.ExpressionStatement(
+        k.StaticInvocation(helperCollision, k.Arguments([])),
+      ),
     );
     library.addProcedure(helperCollision);
     library.addProcedure(main);

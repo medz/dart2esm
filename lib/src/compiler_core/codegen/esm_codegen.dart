@@ -349,6 +349,7 @@ final class _EsmIrPrinter {
       EsmArrowFunctionIr() =>
         '(${expression.parameters.join(', ')}) => ${_emitExpression(expression.body)}',
       EsmFunctionExpressionIr() => _emitFunctionExpression(expression),
+      EsmArrowBlockFunctionIr() => _emitArrowBlockFunction(expression),
       EsmCallIr() =>
         '${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmNewIr() =>
@@ -391,6 +392,19 @@ final class _EsmIrPrinter {
     }
     final body = bodyPrinter._buffer.toString().trimRight();
     return 'function($parameters) {\n$body\n${'  ' * _indent}}';
+  }
+
+  String _emitArrowBlockFunction(EsmArrowBlockFunctionIr expression) {
+    final parameters = expression.parameters.map(_emitParameter).join(', ');
+    if (expression.body.isEmpty) {
+      return '($parameters) => {}';
+    }
+    final bodyPrinter = _EsmIrPrinter().._indent = _indent + 1;
+    for (final statement in expression.body) {
+      bodyPrinter._emitStatement(statement);
+    }
+    final body = bodyPrinter._buffer.toString().trimRight();
+    return '($parameters) => {\n$body\n${'  ' * _indent}}';
   }
 
   String _emitObjectPropertyName(String name) {

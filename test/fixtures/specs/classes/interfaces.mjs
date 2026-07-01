@@ -39,6 +39,7 @@ Object.defineProperty(NamedThing, Symbol.hasInstance, { value: function(value) {
 } });
 export class Person {
   constructor(name) {
+    this.name = null;
     this.name = name;
     Object.defineProperty(this, $NamedThing_interface, { value: true });
   }

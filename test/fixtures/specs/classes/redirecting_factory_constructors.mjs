@@ -58,12 +58,16 @@ Object.defineProperty(Shape, Symbol.hasInstance, { value: function(value) {
 } });
 export class Square {
   constructor(size) {
+    this.size = null;
+    this.label = null;
     this.size = size;
     this.label = "square";
     Object.defineProperty(this, $Shape_interface, { value: true });
   }
   static named(size) {
     const $self = Object.create(this.prototype);
+    $self.size = null;
+    $self.label = null;
     $self.size = size;
     $self.label = "named";
     Object.defineProperty($self, $Shape_interface, { value: true });
@@ -71,6 +75,8 @@ export class Square {
   }
   static withDefault(size = 8) {
     const $self = Object.create(this.prototype);
+    $self.size = null;
+    $self.label = null;
     $self.size = size;
     $self.label = "default";
     Object.defineProperty($self, $Shape_interface, { value: true });
@@ -78,6 +84,8 @@ export class Square {
   }
   static options({ size = 9, label = "options" } = {}) {
     const $self = Object.create(this.prototype);
+    $self.size = null;
+    $self.label = null;
     $self.size = size;
     $self.label = label;
     Object.defineProperty($self, $Shape_interface, { value: true });
@@ -103,11 +111,13 @@ Object.defineProperty(Widget, Symbol.hasInstance, { value: function(value) {
 } });
 export class Button {
   constructor() {
+    this.label = null;
     this.label = "button";
     Object.defineProperty(this, $Widget_interface, { value: true });
   }
   static named(label) {
     const $self = Object.create(this.prototype);
+    $self.label = null;
     $self.label = label;
     Object.defineProperty($self, $Widget_interface, { value: true });
     return $self;

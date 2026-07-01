@@ -1626,6 +1626,65 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles dart:collection fixture through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'libraries', 'collection.dart'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-dart-collection-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'collection.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartSplayTreeSet'));
+    expect(code, contains('__dartSplayTreeMap'));
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
+  test(
+    'compiles package libraries through the new core without adapters',
+    () async {
+      final source = File(
+        p.join(fixtureDir.path, 'packages', 'collection_usage.dart'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-package-libraries-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'collection_usage.mjs'));
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+          allowLegacyOracle: false,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+      final code = output.readAsStringSync();
+      expect(
+        code,
+        isNot(contains('package:collection/src/iterable_extensions.dart')),
+      );
+      await _expectSameDartAndNodeOutput(source, output);
+    },
+  );
+
   test('compiles strings and URI fixture through the new core', () async {
     final source = File(
       p.join(fixtureDir.path, 'libraries', 'strings_numbers.dart'),

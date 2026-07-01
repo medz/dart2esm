@@ -69,6 +69,20 @@ function __dartMapFromIterables(keys, values) {
 
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
+  if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
+  if (typeof map.__dartMapIsValidKey === "function" && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+  if (typeof map.__dartMapEquals === "function") {
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
   for (const candidate of map.keys()) {
     if (__dartEquals(candidate, key)) return candidate;
@@ -84,6 +98,7 @@ function __dartMapGet(map, key) {
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
   return value;
 }
 
@@ -150,6 +165,8 @@ function __dartAs(value, test, typeName) {
 
 export class Pair {
   constructor(left, right) {
+    this.left = null;
+    this.right = null;
     this.left = left;
     this.right = right;
   }
@@ -158,13 +175,13 @@ export class Pair {
 export function classify(value) {
   const _0_0 = value;
   let n;
-  if (((typeof _0_0 === "number" && (function() {
+  if (((typeof _0_0 === "number" && (() => {
     const v = n = _0_0;
     return true;
   })()) && Math.trunc(n) % 2 === 0)) {
     return `even ${__dartStr(n)}`;
   }
-  return (function() {
+  return (() => {
     let v;
     const _1_0 = value;
     let _1_2;
@@ -180,20 +197,20 @@ export function classify(value) {
       }
       let a;
       let b;
-      if ((((((((__dartIsRecord(_1_0) && _1_0[__dartRecordShape].length === 2) && _1_0[__dartRecordShape][0] === "$1") && _1_0[__dartRecordShape][1] === "$2") && true) && true) && (typeof ((_1_2_isSet ? _1_2 : (function() {
+      if ((((((((__dartIsRecord(_1_0) && _1_0[__dartRecordShape].length === 2) && _1_0[__dartRecordShape][0] === "$1") && _1_0[__dartRecordShape][1] === "$2") && true) && true) && (typeof ((_1_2_isSet ? _1_2 : (() => {
         const v_1 = _1_2_isSet = true;
         return _1_2 = _1_0.$1;
-      })())) === "number" && (function() {
-        const v_1 = a = __dartAs((_1_2_isSet ? _1_2 : (function() {
+      })())) === "number" && (() => {
+        const v_1 = a = __dartAs((_1_2_isSet ? _1_2 : (() => {
           const v_2 = _1_2_isSet = true;
           return _1_2 = _1_0.$1;
         })()), (value) => typeof value === "number", "int");
         return true;
-      })())) && typeof ((_1_3_isSet ? _1_3 : (function() {
+      })())) && typeof ((_1_3_isSet ? _1_3 : (() => {
         const v_1 = _1_3_isSet = true;
         return _1_3 = _1_0.$2;
       })())) === "number")) {
-        b = __dartAs((_1_3_isSet ? _1_3 : (function() {
+        b = __dartAs((_1_3_isSet ? _1_3 : (() => {
           const v_1 = _1_3_isSet = true;
           return _1_3 = _1_0.$2;
         })()), (value) => typeof value === "number", "int");
@@ -210,7 +227,7 @@ export function classify(value) {
 }
 
 export function shape(value) {
-  return (function() {
+  return (() => {
     let v;
     const _0_0 = value;
     const _0_3 = 2;
@@ -230,20 +247,20 @@ export function shape(value) {
     label: {
       let first;
       let second;
-      if (((((Array.isArray(_0_0) || (ArrayBuffer.isView(_0_0) && !(_0_0 instanceof DataView))) && __dartEquals(_0_0.length, 2)) && (typeof ((_0_6_isSet ? _0_6 : (function() {
+      if (((((Array.isArray(_0_0) || (ArrayBuffer.isView(_0_0) && !(_0_0 instanceof DataView))) && __dartEquals(_0_0.length, 2)) && (typeof ((_0_6_isSet ? _0_6 : (() => {
         const v_1 = _0_6_isSet = true;
         return _0_6 = _0_0[0];
-      })())) === "number" && (function() {
-        const v_1 = first = __dartAs((_0_6_isSet ? _0_6 : (function() {
+      })())) === "number" && (() => {
+        const v_1 = first = __dartAs((_0_6_isSet ? _0_6 : (() => {
           const v_2 = _0_6_isSet = true;
           return _0_6 = _0_0[0];
         })()), (value) => typeof value === "number", "int");
         return true;
-      })())) && typeof ((_0_7_isSet ? _0_7 : (function() {
+      })())) && typeof ((_0_7_isSet ? _0_7 : (() => {
         const v_1 = _0_7_isSet = true;
         return _0_7 = _0_0[1];
       })())) === "number")) {
-        second = __dartAs((_0_7_isSet ? _0_7 : (function() {
+        second = __dartAs((_0_7_isSet ? _0_7 : (() => {
           const v_1 = _0_7_isSet = true;
           return _0_7 = _0_0[1];
         })()), (value) => typeof value === "number", "int");
@@ -252,26 +269,26 @@ export function shape(value) {
       }
       let name;
       let age;
-      if (((((_0_0 instanceof Map && (!((_0_11_isSet ? _0_11 : (function() {
+      if (((((_0_0 instanceof Map && (!((_0_11_isSet ? _0_11 : (() => {
         const v_1 = _0_11_isSet = true;
         return _0_11 = __dartMapGet(_0_0, "name");
-      })()) === null) || (true && __dartMapContainsKey(_0_0, "name")))) && (typeof ((_0_11_isSet ? _0_11 : (function() {
+      })()) === null) || (true && __dartMapContainsKey(_0_0, "name")))) && (typeof ((_0_11_isSet ? _0_11 : (() => {
         const v_1 = _0_11_isSet = true;
         return _0_11 = __dartMapGet(_0_0, "name");
-      })())) === "string" && (function() {
-        const v_1 = name = __dartAs((_0_11_isSet ? _0_11 : (function() {
+      })())) === "string" && (() => {
+        const v_1 = name = __dartAs((_0_11_isSet ? _0_11 : (() => {
           const v_2 = _0_11_isSet = true;
           return _0_11 = __dartMapGet(_0_0, "name");
         })()), (value) => typeof value === "string", "String");
         return true;
-      })())) && (!((_0_14_isSet ? _0_14 : (function() {
+      })())) && (!((_0_14_isSet ? _0_14 : (() => {
         const v_1 = _0_14_isSet = true;
         return _0_14 = __dartMapGet(_0_0, "age");
-      })()) === null) || (true && __dartMapContainsKey(_0_0, "age")))) && typeof ((_0_14_isSet ? _0_14 : (function() {
+      })()) === null) || (true && __dartMapContainsKey(_0_0, "age")))) && typeof ((_0_14_isSet ? _0_14 : (() => {
         const v_1 = _0_14_isSet = true;
         return _0_14 = __dartMapGet(_0_0, "age");
       })())) === "number")) {
-        age = __dartAs((_0_14_isSet ? _0_14 : (function() {
+        age = __dartAs((_0_14_isSet ? _0_14 : (() => {
           const v_1 = _0_14_isSet = true;
           return _0_14 = __dartMapGet(_0_0, "age");
         })()), (value) => typeof value === "number", "int");
@@ -280,10 +297,10 @@ export function shape(value) {
       }
       let left;
       let right;
-      if ((((_0_0 instanceof Pair && (function() {
+      if ((((_0_0 instanceof Pair && (() => {
         const v_1 = left = _0_0.left;
         return true;
-      })()) && (function() {
+      })()) && (() => {
         const v_1 = right = _0_0.right;
         return true;
       })()) && left < right)) {

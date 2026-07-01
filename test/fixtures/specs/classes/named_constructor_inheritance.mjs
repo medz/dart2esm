@@ -26,6 +26,7 @@ function __dartStr(value) {
 
 export class Animal {
   constructor(name) {
+    this.name = null;
     this.name = name;
   }
   describe() {
@@ -36,11 +37,15 @@ export class Animal {
 export class Dog extends Animal {
   constructor(age, name) {
     super(name);
+    this.age = null;
+    this.label = null;
     this.age = age;
     this.label = "dog";
   }
   static named(name, age) {
     const $self = Reflect.construct(Animal, [name], this);
+    $self.age = null;
+    $self.label = null;
     $self.age = age;
     $self.label = "named dog";
     $self.label = `${__dartStr($self.label)}!`;
@@ -57,6 +62,7 @@ export class Cat extends Animal {
   }
   static named(name) {
     const $self = Reflect.construct(Animal, [name], this);
+    $self.lives = null;
     $self.lives = 9;
     return $self;
   }

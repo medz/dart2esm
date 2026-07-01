@@ -60,6 +60,7 @@ function __dartStr(value) {
 
 export class Accumulator {
   constructor(value) {
+    this.value = null;
     this.value = value;
   }
   static bump(amount) {

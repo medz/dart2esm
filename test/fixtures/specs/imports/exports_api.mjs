@@ -26,6 +26,7 @@ function __dartStr(value) {
 
 export class ExportedThing {
   constructor(name) {
+    this.name = null;
     this.name = name;
   }
   label() {
@@ -40,7 +41,6 @@ class HiddenThing {
 }
 
 export const exportedValue = 7;
-const hiddenValue = 9;
 export function main() {
   const thing = new ExportedThing("api");
   __dartPrint(`${__dartStr(thing.label())} ${__dartStr(9)} ${__dartStr(new HiddenThing().label())}`);

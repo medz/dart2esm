@@ -82,6 +82,20 @@ function __dartMapFromIterables(keys, values) {
 
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
 function __dartMapKey(map, key) {
+  if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
+  if (typeof map.__dartMapIsValidKey === "function" && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+  if (typeof map.__dartMapEquals === "function") {
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
   if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
   for (const candidate of map.keys()) {
     if (__dartEquals(candidate, key)) return candidate;
@@ -97,6 +111,7 @@ function __dartMapGet(map, key) {
 function __dartMapSet(map, key, value) {
   const actualKey = __dartMapKey(map, key);
   map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
   return value;
 }
 
@@ -135,6 +150,13 @@ function __dartRecord(positional, named) {
 }
 
 function __dartSetContains(set, needle) {
+  if (typeof set.__dartSplayIsValidKey === "function" && !set.__dartSplayIsValidKey(needle)) return false;
+  if (set.__dartSplayCompare !== undefined) {
+    for (const value of set) {
+      if (__dartCompare(value, needle, set.__dartSplayCompare) === 0) return true;
+    }
+    return false;
+  }
   if (!set.__dartEqualitySet) return set.has(needle);
   for (const value of set) {
     if (__dartEquals(value, needle)) return true;
@@ -144,6 +166,7 @@ function __dartSetContains(set, needle) {
 function __dartSetAdd(set, value) {
   if (__dartSetContains(set, value)) return false;
   set.add(value);
+  if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
   return true;
 }
 function __dartSetFrom(values) {

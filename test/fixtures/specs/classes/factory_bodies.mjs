@@ -68,6 +68,7 @@ export class Token {
   }
   static _(value) {
     const $self = Object.create(this.prototype);
+    $self.value = null;
     $self.value = value;
     return $self;
   }

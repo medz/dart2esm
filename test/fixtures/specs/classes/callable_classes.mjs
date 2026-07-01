@@ -42,6 +42,7 @@ function __dartStr(value) {
 
 export class Adder {
   constructor(base) {
+    this.base = null;
     this.base = base;
   }
   call(value) {

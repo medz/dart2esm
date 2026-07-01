@@ -68,6 +68,17 @@ void main() {
     expect(ir, isNot(contains('runtimeHelpers')));
   });
 
+  test('compiler core does not adapt third-party packages by API path', () {
+    for (final file in _dartFiles('lib/src/compiler_core')) {
+      final nonImportSource = file
+          .readAsLinesSync()
+          .where((line) => !line.trimLeft().startsWith('import '))
+          .join('\n');
+      expect(nonImportSource, isNot(contains("'package:")), reason: file.path);
+      expect(nonImportSource, isNot(contains('"package:')), reason: file.path);
+    }
+  });
+
   test(
     'semantic world accepts name reservations without runtime dependency',
     () {

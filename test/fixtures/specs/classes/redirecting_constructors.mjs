@@ -26,6 +26,9 @@ function __dartStr(value) {
 
 export class Point {
   constructor(x, y) {
+    this.x = null;
+    this.y = null;
+    this.label = null;
     this.x = x;
     this.y = y;
     this.label = "point";
@@ -35,6 +38,9 @@ export class Point {
   }
   static named(x, y, label) {
     const $self = Object.create(this.prototype);
+    $self.x = null;
+    $self.y = null;
+    $self.label = null;
     $self.x = x;
     $self.y = y;
     $self.label = label;
@@ -54,6 +60,9 @@ export class Pair {
   }
   static named(left, right, label) {
     const $self = Object.create(this.prototype);
+    $self.left = null;
+    $self.right = null;
+    $self.label = null;
     $self.left = left;
     $self.right = right;
     $self.label = label;
@@ -76,6 +85,8 @@ export class Range {
   }
   static between(start, end) {
     const $self = Object.create(this.prototype);
+    $self.start = null;
+    $self.end = null;
     $self.start = start;
     $self.end = end;
     return $self;
@@ -91,6 +102,9 @@ export class Options {
   }
   static named({ count, label = "default", enabled = true } = {}) {
     const $self = Object.create(this.prototype);
+    $self.count = null;
+    $self.label = null;
+    $self.enabled = null;
     $self.count = count;
     $self.label = label;
     $self.enabled = enabled;
@@ -116,6 +130,8 @@ export class Animal {
   }
   static named(name) {
     const $self = Object.create(this.prototype);
+    $self.name = null;
+    $self.source = null;
     $self.name = name;
     $self.source = "animal";
     return $self;
@@ -134,6 +150,8 @@ export class Dog extends Animal {
   }
   static full(name, age, label) {
     const $self = Animal.named.call(this, name);
+    $self.age = null;
+    $self.label = null;
     $self.age = age;
     $self.label = label;
     $self.label = `${__dartStr($self.label)}!`;
@@ -153,6 +171,7 @@ export class Puppy extends Dog {
   }
   static full(name, age, toy) {
     const $self = Dog.named.call(this, name, age);
+    $self.toy = null;
     $self.toy = toy;
     return $self;
   }
@@ -167,6 +186,7 @@ export class ColoredPoint extends Point {
   }
   static zero(color) {
     const $self = Point.zero.call(this);
+    $self.color = null;
     $self.color = color;
     return $self;
   }
@@ -178,6 +198,7 @@ export class ColoredPoint extends Point {
 export class WrappedPair extends Pair {
   constructor(wrapper) {
     super();
+    this.wrapper = null;
     this.wrapper = wrapper;
   }
   describe() {

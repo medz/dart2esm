@@ -34,11 +34,15 @@ function __dartStr(value) {
 
 export class Point {
   constructor(x, y) {
+    this.x = null;
+    this.y = null;
     this.x = x;
     this.y = y;
   }
   static origin() {
     const $self = Object.create(this.prototype);
+    $self.x = null;
+    $self.y = null;
     $self.x = 0;
     $self.y = 0;
     return $self;
@@ -53,6 +57,7 @@ export class Point {
 
 export class Adder {
   constructor(base) {
+    this.base = null;
     this.base = base;
   }
   call(value) {
@@ -62,6 +67,7 @@ export class Adder {
 
 export class Positive {
   constructor(value) {
+    this.value = null;
     this.value = value;
   }
 }

@@ -26,12 +26,18 @@ function __dartStr(value) {
 
 export class Point {
   constructor(x, y) {
+    this.x = null;
+    this.y = null;
+    this.label = null;
     this.x = x;
     this.y = y;
     this.label = "point";
   }
   static origin() {
     const $self = Object.create(this.prototype);
+    $self.x = null;
+    $self.y = null;
+    $self.label = null;
     $self.x = 0;
     $self.y = 0;
     $self.label = "origin";
@@ -40,6 +46,9 @@ export class Point {
   }
   static square(size) {
     const $self = Object.create(this.prototype);
+    $self.x = null;
+    $self.y = null;
+    $self.label = null;
     $self.x = size;
     $self.y = size;
     $self.label = "square";
@@ -56,6 +65,7 @@ export class Token {
   }
   static named(value) {
     const $self = Object.create(this.prototype);
+    $self.value = null;
     $self.value = value;
     return $self;
   }

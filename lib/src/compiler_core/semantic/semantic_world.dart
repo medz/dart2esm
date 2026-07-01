@@ -2,6 +2,7 @@ import 'package:kernel/kernel.dart' as k;
 
 import '../../kernel/kernel_references.dart';
 import '../../names/js_names.dart';
+import '../../program/program_model.dart';
 import '../compiler_stage.dart';
 import '../frontend/kernel_frontend.dart';
 import '../new_compiler_unsupported.dart';
@@ -373,78 +374,64 @@ final class SemanticWorldStage
   }
 
   SemanticWorldResult build(KernelFrontendResult kernel) {
-    final mainLibrary = kernel.main.enclosingLibrary;
-    final exportedReferences = mainLibrary.additionalExports.toSet();
+    final model = buildEsmProgramModel(kernel.component);
     final allocator = JsNameAllocator(
       generatedGlobalNames: generatedGlobalNames,
     );
-    final libraries = _compilableLibraries(kernel.component, mainLibrary);
     final classes = <EsmClassSymbol>[];
-    for (final library in libraries) {
+    for (final library in model.module.libraries) {
       for (final klass in library.classes) {
-        if (!_isTopLevelClass(klass)) {
+        if (!_isTopLevelClass(klass.node)) {
           continue;
         }
         classes.add(
-          _buildClassSymbol(
-            allocator,
-            klass,
-            export: _exportsClass(mainLibrary, exportedReferences, klass),
-          ),
+          _buildClassSymbol(allocator, klass.node, export: klass.export),
         );
       }
     }
     final extensionTypes = <EsmExtensionTypeSymbol>[];
-    for (final library in libraries) {
-      for (final extensionType in library.extensionTypeDeclarations) {
+    for (final library in model.module.libraries) {
+      for (final extensionType in library.extensionTypes) {
         extensionTypes.add(
           _buildExtensionTypeSymbol(
             allocator,
-            extensionType,
-            export: _exportsExtensionType(
-              mainLibrary,
-              exportedReferences,
-              extensionType,
-            ),
+            extensionType.node,
+            export: extensionType.export,
           ),
         );
       }
     }
     final fields = <EsmFieldSymbol>[];
-    for (final library in libraries) {
+    for (final library in model.module.libraries) {
       for (final field in library.fields) {
-        if (!_isTopLevelField(field)) {
+        if (!_isTopLevelField(field.node)) {
           continue;
         }
         fields.add(
           EsmFieldSymbol(
-            node: field,
-            name: allocator.freshGlobal(field.name.text),
-            backingName: field.isLate
-                ? allocator.freshGlobal('\$static_${field.name.text}')
+            node: field.node,
+            name: allocator.freshGlobal(field.node.name.text),
+            backingName: field.node.isLate
+                ? allocator.freshGlobal('\$static_${field.node.name.text}')
                 : null,
-            export: _exportsField(mainLibrary, exportedReferences, field),
-            mutable: field.hasSetter,
+            export: field.export,
+            mutable: field.node.hasSetter,
           ),
         );
       }
     }
     final procedures = <EsmProcedureSymbol>[];
-    for (final library in libraries) {
+    for (final library in model.module.libraries) {
       for (final procedure in library.procedures) {
-        final kind = _topLevelProcedureKind(procedure);
+        final kind = _topLevelProcedureKind(procedure.node);
         if (kind == null) {
           continue;
         }
         procedures.add(
           EsmProcedureSymbol(
-            node: procedure,
-            name: allocator.freshGlobal(procedure.name.text),
-            export: _exportsProcedure(
-              mainLibrary,
-              exportedReferences,
-              procedure,
-            ),
+            node: procedure.node,
+            name: allocator.freshGlobal(procedure.node.name.text),
+            export: procedure.export,
             kind: kind,
           ),
         );
@@ -461,24 +448,13 @@ final class SemanticWorldStage
       kernel: kernel,
       world: EsmSemanticWorld(
         component: kernel.component,
-        main: kernel.main,
+        main: model.main,
         classes: classes,
         extensionTypes: extensionTypes,
         fields: fields,
         procedures: procedures,
       ),
     );
-  }
-
-  List<k.Library> _compilableLibraries(
-    k.Component component,
-    k.Library mainLibrary,
-  ) {
-    return [
-      for (final library in component.libraries)
-        if (library == mainLibrary || library.importUri.scheme == 'file')
-          library,
-    ];
   }
 
   EsmClassSymbol _buildClassSymbol(
@@ -714,53 +690,5 @@ final class SemanticWorldStage
       suffix++;
     }
     return candidate;
-  }
-
-  bool _isPublic(String name) => !name.startsWith('_');
-
-  bool _exportsClass(
-    k.Library mainLibrary,
-    Set<k.Reference> exportedReferences,
-    k.Class klass,
-  ) {
-    if (klass.enclosingLibrary == mainLibrary) {
-      return _isPublic(klass.name);
-    }
-    return exportedReferences.contains(klass.reference);
-  }
-
-  bool _exportsExtensionType(
-    k.Library mainLibrary,
-    Set<k.Reference> exportedReferences,
-    k.ExtensionTypeDeclaration extensionType,
-  ) {
-    if (extensionType.enclosingLibrary == mainLibrary) {
-      return _isPublic(extensionType.name);
-    }
-    return exportedReferences.contains(extensionType.reference) &&
-        _isPublic(extensionType.name);
-  }
-
-  bool _exportsField(
-    k.Library mainLibrary,
-    Set<k.Reference> exportedReferences,
-    k.Field field,
-  ) {
-    if (field.enclosingLibrary == mainLibrary) {
-      return _isPublic(field.name.text);
-    }
-    return exportedReferences.contains(field.getterReference) ||
-        exportedReferences.contains(field.fieldReference);
-  }
-
-  bool _exportsProcedure(
-    k.Library mainLibrary,
-    Set<k.Reference> exportedReferences,
-    k.Procedure procedure,
-  ) {
-    if (procedure.enclosingLibrary == mainLibrary) {
-      return _isPublic(procedure.name.text);
-    }
-    return exportedReferences.contains(procedure.reference);
   }
 }

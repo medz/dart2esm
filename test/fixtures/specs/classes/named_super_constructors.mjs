@@ -30,6 +30,8 @@ export class Animal {
   }
   static named(name) {
     const $self = Object.create(this.prototype);
+    $self.name = null;
+    $self.source = null;
     $self.name = name;
     $self.source = "named animal";
     $self.source = `${__dartStr($self.source)}!`;
@@ -46,6 +48,8 @@ export class Dog extends Animal {
   }
   static named(name, age) {
     const $self = Animal.named.call(this, name);
+    $self.age = null;
+    $self.label = null;
     $self.age = age;
     $self.label = "dog";
     $self.label = `${__dartStr($self.label)}!`;
@@ -59,6 +63,7 @@ export class Dog extends Animal {
 export class Cat extends Animal {
   constructor(name, color) {
     const $self = Animal.named.call(new.target, name);
+    $self.color = null;
     $self.color = color;
     $self.color = `${__dartStr($self.color)}!`;
     return $self;
@@ -74,6 +79,7 @@ export class Puppy extends Dog {
   }
   static named(name, age, toy) {
     const $self = Dog.named.call(this, name, age);
+    $self.toy = null;
     $self.toy = toy;
     return $self;
   }

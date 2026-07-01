@@ -30,6 +30,9 @@ export class Pair {
   }
   static named(left, right, label) {
     const $self = Object.create(this.prototype);
+    $self.left = null;
+    $self.right = null;
+    $self.label = null;
     $self.left = left;
     $self.right = right;
     $self.label = label;
@@ -46,6 +49,7 @@ export class Animal {
   }
   static named(name) {
     const $self = Object.create(this.prototype);
+    $self.name = null;
     $self.name = name;
     return $self;
   }
@@ -60,6 +64,8 @@ export class Dog extends Animal {
   }
   static named(name, age) {
     const $self = Animal.named.call(this, name);
+    $self.age = null;
+    $self.label = null;
     $self.age = age;
     $self.label = "dog";
     $self.label = `${__dartStr($self.label)}!`;

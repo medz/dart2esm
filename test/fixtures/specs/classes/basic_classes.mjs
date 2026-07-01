@@ -26,6 +26,7 @@ function __dartStr(value) {
 
 export class Counter {
   constructor(value) {
+    this.value = null;
     this.value = value;
   }
   add(amount) {

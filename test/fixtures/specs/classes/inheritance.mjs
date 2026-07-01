@@ -26,6 +26,7 @@ function __dartStr(value) {
 
 export class Animal {
   constructor(name) {
+    this.name = null;
     this.name = name;
   }
   get label() {
@@ -42,6 +43,7 @@ export class Animal {
 export class Dog extends Animal {
   constructor(name, age) {
     super(name);
+    this.age = null;
     this.age = age;
   }
   describe() {

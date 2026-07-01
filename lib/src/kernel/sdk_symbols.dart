@@ -425,8 +425,7 @@ bool isDartCoreCollectionMember(k.Reference reference, String name) {
   final path = kernelReferencePath(reference);
   if (!path.startsWith('dart:core::') &&
       !path.startsWith('dart:_') &&
-      !path.startsWith('dart:collection::') &&
-      !path.startsWith('package:collection/')) {
+      !path.startsWith('dart:collection::')) {
     return false;
   }
   if (!kernelPathHasMember(path, name)) {
@@ -447,8 +446,10 @@ bool isDartCoreCollectionMember(k.Reference reference, String name) {
       path.startsWith('dart:_compact_hash::') ||
       path.contains('::SplayTreeSet::') ||
       path.contains('::_SplayTreeSet::') ||
+      path.contains('::_SplayTreeSet') ||
       path.contains('::SplayTreeMap::') ||
       path.contains('::_SplayTreeMap::') ||
+      path.contains('::_SplayTreeMap') ||
       path.contains('::_SplayTree::') ||
       path.startsWith('dart:collection::Queue::') ||
       path.startsWith('dart:collection::ListQueue::') ||
@@ -470,7 +471,8 @@ bool isDartCoreSetMember(k.Reference reference, String name) {
       path.contains('::_Set::') ||
       path.startsWith('dart:_compact_hash::') ||
       path.contains('::SplayTreeSet::') ||
-      path.contains('::_SplayTreeSet::');
+      path.contains('::_SplayTreeSet::') ||
+      path.contains('::_SplayTreeSet');
 }
 
 bool isDartCoreMapMember(k.Reference reference, String name) {
@@ -478,7 +480,8 @@ bool isDartCoreMapMember(k.Reference reference, String name) {
   return isDartCoreMember(reference, 'Map', name) ||
       path.contains('::_Map::') ||
       path.contains('::SplayTreeMap::') ||
-      path.contains('::_SplayTreeMap::');
+      path.contains('::_SplayTreeMap::') ||
+      path.contains('::_SplayTreeMap');
 }
 
 bool isDartAsyncStreamMember(k.Reference reference, String name) {

@@ -99,7 +99,7 @@ export function main() {
   __dartPrint(`mixed ${__dartStr(mixed.$1)} ${__dartStr(mixed.label)}`);
   __dartPrint(`record ${__dartStr(mixed)}`);
   __dartPrint(`equals ${__dartStr(__dartEquals(mixed, __dartRecord([3], { label: "v3" })))}`);
-  const ordered = (function() {
+  const ordered = (() => {
     const v = 1;
     return __dartRecord([], { a: 2, z: v });
   })();

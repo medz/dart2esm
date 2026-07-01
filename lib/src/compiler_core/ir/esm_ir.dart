@@ -346,6 +346,13 @@ final class EsmFunctionExpressionIr extends EsmExpressionIr {
   final List<EsmStatementIr> body;
 }
 
+final class EsmArrowBlockFunctionIr extends EsmExpressionIr {
+  const EsmArrowBlockFunctionIr({required this.parameters, required this.body});
+
+  final List<EsmParameterIr> parameters;
+  final List<EsmStatementIr> body;
+}
+
 final class EsmCallIr extends EsmExpressionIr {
   const EsmCallIr({required this.callee, required this.arguments});
 

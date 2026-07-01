@@ -189,6 +189,9 @@ void main() {
     final coreEnum = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_enum_intrinsics.dart',
     );
+    final coreError = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_error_intrinsics.dart',
+    );
     final coreIterable = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
     );
@@ -262,6 +265,9 @@ void main() {
     expect(lowering, isNot(contains('_lowerCoreIdentityHashCode')));
     expect(lowering, isNot(contains('_lowerCorePrint')));
     expect(lowering, isNot(contains('_lowerCoreEnumStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreErrorStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerArgumentErrorStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerRangeErrorStaticInvocation')));
     expect(lowering, isNot(contains('_jsMathStaticFunctionName')));
     expect(lowering, isNot(contains('_jsMathStaticFunctionArity')));
     expect(
@@ -307,6 +313,18 @@ void main() {
       isNot(contains('dart:core::String::@factories::fromCharCodes')),
     );
     expect(lowering, isNot(contains('dart:core::RegExp::@methods::escape')));
+    expect(
+      lowering,
+      isNot(contains('dart:core::ArgumentError::@methods::checkNotNull')),
+    );
+    expect(
+      lowering,
+      isNot(contains('dart:core::RangeError::@methods::checkValidRange')),
+    );
+    expect(
+      lowering,
+      isNot(contains('dart:core::Error::@methods::safeToString')),
+    );
     expect(lowering, isNot(contains('DartDeveloperStaticGetSymbol')));
     expect(lowering, isNot(contains('DartDeveloperStaticInvocationSymbol')));
     expect(lowering, isNot(contains('DartMathStaticGetSymbol')));
@@ -395,6 +413,16 @@ void main() {
       coreEnum,
       contains('DartSdkStaticInvocationSymbol.coreEnumAsNameMap'),
     );
+    expect(coreError, contains('lowerDartCoreErrorStaticInvocation'));
+    expect(
+      coreError,
+      contains('dart:core::ArgumentError::@methods::checkNotNull'),
+    );
+    expect(
+      coreError,
+      contains('dart:core::RangeError::@methods::checkValidRange'),
+    );
+    expect(coreError, contains('dart:core::Error::@methods::safeToString'));
     expect(coreIterable, contains('lowerDartCoreIterableStaticInvocation'));
     expect(
       coreIterable,

@@ -1365,6 +1365,18 @@ void main() {
   final numberCompare = parsed.compareTo(fallback);
   final textCompare = 'b'.compareTo('a');
   final stableHash = parsed.hashCode == 42.hashCode;
+  var modInverseFailed = false;
+  try {
+    6.modInverse(9);
+  } on Exception {
+    modInverseFailed = true;
+  }
+  var modPowFailed = false;
+  try {
+    5.modPow(-1, 7);
+  } on RangeError {
+    modPowFailed = true;
+  }
   print('numbers \$parsed \$fallback \$even \$odd '
       '\$numberCompare \$textCompare \$stableHash '
       '\$parsedDouble \$maybeDouble \$parsedNum '
@@ -1372,7 +1384,14 @@ void main() {
       '\${numeric.floor()} \${numeric.ceil()} \${numeric.truncate()} '
       '\${numeric.clamp(-3, 2)} \${numeric.remainder(2)} '
       '\${nan.isNaN} \${infinite.isInfinite} \${finite.isFinite} '
-      '\${negativeZero.isNegative} \${5.gcd(15)} \${(-12).gcd(18)}');
+      '\${negativeZero.isNegative} \${5.gcd(15)} \${(-12).gcd(18)} '
+      '\${5.modInverse(7)} \${5.modPow(3, 7)} '
+      '\${(-31).toRadixString(16)} '
+      '\${3.7.roundToDouble()} \${3.7.floorToDouble()} '
+      '\${3.2.ceilToDouble()} \${3.2.truncateToDouble()} '
+      '\${0x0f0f & 0x00ff} \${0x0f0f | 0x1000} '
+      '\${0x0f0f ^ 0x00ff} \${3 << 4} \${16 >> 2} \${16 >>> 2} '
+      '\$modInverseFailed \$modPowFailed');
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1399,6 +1418,8 @@ void main() {
     expect(code, contains('Number.isFinite'));
     expect(code, contains('Object.is'));
     expect(code, contains('__dartIntGcd'));
+    expect(code, contains('__dartIntModInverse'));
+    expect(code, contains('__dartIntModPow'));
     await _expectSameDartAndNodeOutput(input, output);
   });
 
@@ -1412,6 +1433,7 @@ void main() {
 void main() {
   final fromSet = List<int>.of({1, 2, 3});
   final generated = List<int>.generate(4, (index) => index * index);
+  final mixedValues = <Object?>[1, 'two', null, 3, 'four'];
   final fixed = List<int>.filled(2, 7);
   fixed[0] = 8;
   var fixedAddFailed = false;
@@ -1425,6 +1447,7 @@ void main() {
   final fixedCopy = [1, 2, 3].toList(growable: false);
   fixedCopy[1] = 5;
   final cast = List.castFrom<int, num>([1, 2]);
+  final boxes = [EqBox(1), EqBox(2), EqBox(1)];
   final copyTarget = [0, 0, 0, 0];
   List.copyRange(copyTarget, 1, [7, 8, 9], 0, 2);
   final writeTarget = [0, 0, 0];
@@ -1447,7 +1470,34 @@ void main() {
       '\${generated.any((value) => value > 8)} '
       '\${generated.every((value) => value >= 0)} '
       '\${generated.reduce((total, value) => total + value)} '
-      '\${generated.elementAt(2)}');
+      '\${generated.elementAt(2)} '
+      '\${generated.takeWhile((value) => value < 8).join('|')} '
+      '\${generated.skipWhile((value) => value < 4).join('|')} '
+      '\${generated.followedBy([16]).join('|')} '
+      '\${generated.expand((value) => [value, value + 1]).take(4).join('|')} '
+      '\${generated.indexWhere((value) => value == 4)} '
+      '\${generated.lastIndexWhere((value) => value < 9)} '
+      '\${generated.getRange(1, 3).join('|')} '
+      '\${boxes.indexOf(EqBox(1))} \${boxes.indexOf(EqBox(1), 1)} '
+      '\${boxes.lastIndexOf(EqBox(1))} \${boxes.lastIndexOf(EqBox(1), 1)} '
+      '\${generated.firstWhere((value) => value > 3)} '
+      '\${generated.lastWhere((value) => value.isEven)} '
+      '\${generated.singleWhere((value) => value == 4)} '
+      '\${generated.firstWhere((value) => value > 99, orElse: () => -1)} '
+      '\${mixedValues.whereType<int>().join('|')} '
+      '\${generated.cast<num>().map((value) => value + 1).join('|')}');
+}
+
+class EqBox {
+  EqBox(this.value);
+
+  final int value;
+
+  @override
+  bool operator ==(Object other) => other is EqBox && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
 }
 ''');
     final output = File(p.join(tempDir.path, 'main.mjs'));
@@ -1469,6 +1519,13 @@ void main() {
     expect(code, contains('__dartListGenerate'));
     expect(code, contains('__dartListCopyRange'));
     expect(code, contains('__dartUnmodifiableList'));
+    expect(code, contains('__dartIterableTakeWhile'));
+    expect(code, contains('__dartIterableSkipWhile'));
+    expect(code, contains('__dartListIndexOf'));
+    expect(code, contains('__dartListIndexWhere'));
+    expect(code, contains('__dartIterableFirstWhere'));
+    expect(code, contains('__dartIterableLastWhere'));
+    expect(code, contains('__dartIterableSingleWhere'));
     await _expectSameDartAndNodeOutput(input, output);
   });
 
@@ -1539,6 +1596,62 @@ void main() {
     expect(code, contains('__dartMapFromIterable'));
     expect(code, contains('__dartMapFromIterables'));
     await _expectSameDartAndNodeOutput(input, output);
+  });
+
+  test('compiles collections fixture through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'libraries', 'collections.dart'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-collections-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'collections.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartListShuffle'));
+    expect(code, contains('__dartMapPutIfAbsent'));
+    expect(code, contains('__dartSetUnion'));
+    await _expectSameDartAndNodeOutput(source, output);
+  });
+
+  test('compiles strings and URI fixture through the new core', () async {
+    final source = File(
+      p.join(fixtureDir.path, 'libraries', 'strings_numbers.dart'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-strings-uri-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'strings_numbers.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartUriParse'));
+    expect(code, contains('__dartUriBuild'));
+    expect(code, contains('__dartLatin1Codec'));
+    await _expectSameDartAndNodeOutput(source, output);
   });
 
   test('compiles core String factories through the new core', () async {

@@ -45,32 +45,11 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
-const __dartMapMissingKey = Symbol("dart.mapMissingKey");
-function __dartMapKey(map, key) {
-  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
-  for (const candidate of map.keys()) {
-    if (__dartEquals(candidate, key)) return candidate;
-  }
-  return __dartMapMissingKey;
-}
-function __dartMapGet(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
-  const actualKey = __dartMapKey(map, key);
-  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
-}
-function __dartMapSet(map, key, value) {
-  const actualKey = __dartMapKey(map, key);
-  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
-  return value;
-}
 function __dartMapAddAll(map, entries) {
   for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
 }
-function __dartMapContainsKey(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
-  return __dartMapKey(map, key) !== __dartMapMissingKey;
-}
+
 function __dartMapFromEntries(entries) {
   const map = new Map();
   Object.defineProperty(map, "__dartEqualityMap", { value: true });
@@ -99,6 +78,26 @@ function __dartMapFromIterables(keys, values) {
     __dartMapSet(map, keyList[index], valueList[index]);
   }
   return map;
+}
+
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
 }
 
 function __dartPrint(value) {

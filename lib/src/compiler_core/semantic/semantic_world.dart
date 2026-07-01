@@ -326,12 +326,14 @@ final class EsmFieldSymbol {
   const EsmFieldSymbol({
     required this.node,
     required this.name,
+    required this.backingName,
     required this.export,
     required this.mutable,
   });
 
   final k.Field node;
   final String name;
+  final String? backingName;
   final bool export;
   final bool mutable;
 }
@@ -418,6 +420,9 @@ final class SemanticWorldStage
           EsmFieldSymbol(
             node: field,
             name: allocator.freshGlobal(field.name.text),
+            backingName: field.isLate
+                ? allocator.freshGlobal('\$static_${field.name.text}')
+                : null,
             export: _exportsField(mainLibrary, exportedReferences, field),
             mutable: field.hasSetter,
           ),

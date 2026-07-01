@@ -33,6 +33,10 @@ function __dartHashValue(value) {
   if (value == null) return 0;
   if (typeof value === "boolean") return value ? 1231 : 1237;
   if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value) & 0x1fffffff : 0;
+  if (value.__dartType === "double") {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.trunc(number) & 0x1fffffff : 0;
+  }
   if (typeof value === "string") {
     let hash = 0;
     for (let i = 0; i < value.length; i++) hash = __dartCombineHash(hash, value.charCodeAt(i));

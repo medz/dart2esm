@@ -86,7 +86,7 @@ Object.defineProperty(Accumulator, "total", { get: function() {
 }, set: function(value) {
   $Accumulator_total.set(value);
 }, enumerable: true });
-const $Accumulator_readonly = __dartLazyField("Accumulator.readonly", () => init("readonly", 40), false);
+const $Accumulator_readonly = __dartLazyField("Accumulator.readonly", () => init("readonly", 40), "once");
 Object.defineProperty(Accumulator, "readonly", { get: function() {
   return $Accumulator_readonly.get();
 }, set: function(value) {

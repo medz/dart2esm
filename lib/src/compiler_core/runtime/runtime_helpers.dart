@@ -9,27 +9,35 @@ enum EsmRuntimeHelper {
   constSet,
   constValue,
   doubleParse,
+  doubleValue,
   dynamicCall,
   dynamicGet,
   dynamicInvoke,
   dynamicSet,
+  encoding,
   equals,
   enumAsNameMap,
   enumByName,
   extensionTypeRep,
   functionApply,
   intGcd,
+  intModular,
   intParse,
+  iterableSearch,
+  iterableWindow,
   iterator,
   lazyField,
   listAdd,
   listAddAll,
   listFactory,
+  listMutation,
   listRangeOps,
+  listSearch,
   mapAddAll,
   mapContainsKey,
   mapFactories,
   mapGet,
+  mapOps,
   mapSet,
   mathPoint,
   mathRandom,
@@ -42,6 +50,7 @@ enum EsmRuntimeHelper {
   record,
   safeToString,
   setAddAll,
+  setOps,
   stringFactory,
   stringOps,
   stringify,
@@ -49,6 +58,7 @@ enum EsmRuntimeHelper {
   throwWithStackTrace,
   type,
   typeCast,
+  uri,
 }
 
 final class EsmRuntimeHelperRegistry {
@@ -66,6 +76,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartConstValues',
     '__dartDoubleParse',
     '__dartDoubleTryParse',
+    '__dartDoubleValue',
     '__dartDynamicCall',
     '__dartDynamicGet',
     '__dartDynamicInvoke',
@@ -76,29 +87,69 @@ final class EsmRuntimeHelperRegistry {
     '__dartExtensionTypeRep',
     '__dartFunctionApply',
     '__dartIntGcd',
+    '__dartIntModInverse',
+    '__dartIntModPow',
     '__dartFormatException',
     '__dartIntParse',
     '__dartIntTryParse',
+    '__dartIterableFirstWhere',
+    '__dartIterableFirstOrNull',
+    '__dartIterableLastWhere',
+    '__dartIterableLastOrNull',
+    '__dartIterableSingle',
+    '__dartIterableSingleWhere',
+    '__dartIterableSingleOrNull',
+    '__dartIterableElementAtOrNull',
+    '__dartIterableSkipWhile',
+    '__dartIterableTakeWhile',
     '__dartIterator',
     '__dartLazyField',
+    '__dartLatin1Codec',
     '__dartFixedList',
     '__dartListCopyRange',
     '__dartListAdd',
     '__dartListAddAll',
+    '__dartListAsMap',
+    '__dartListFillRange',
     '__dartListFilled',
     '__dartListGenerate',
+    '__dartListIndexOf',
+    '__dartListIndexWhere',
+    '__dartListLastIndexOf',
+    '__dartListLastIndexWhere',
+    '__dartListInsert',
+    '__dartListInsertAll',
     '__dartListOf',
+    '__dartListRemove',
+    '__dartListRemoveAt',
+    '__dartListRemoveLast',
+    '__dartListRemoveRange',
+    '__dartListRemoveWhere',
+    '__dartListReplaceRange',
+    '__dartListRetainWhere',
+    '__dartListSetAll',
+    '__dartListShuffle',
     '__dartListWriteIterable',
     '__dartUnmodifiableList',
     '__dartMapAddAll',
+    '__dartMapAddEntries',
+    '__dartMapClear',
     '__dartMapContainsKey',
+    '__dartMapContainsValue',
     '__dartMapFromIterable',
     '__dartMapFromIterables',
     '__dartMapFromEntries',
     '__dartMapGet',
     '__dartMapKey',
+    '__dartMapMap',
     '__dartMapMissingKey',
+    '__dartMapForEach',
+    '__dartMapPutIfAbsent',
+    '__dartMapRemove',
+    '__dartMapRemoveWhere',
     '__dartMapSet',
+    '__dartMapUpdate',
+    '__dartMapUpdateAll',
     '__dartPoint',
     '__dartRandom',
     '__dartRectangle',
@@ -122,7 +173,17 @@ final class EsmRuntimeHelperRegistry {
     '__dartSetAddAll',
     '__dartSetAdd',
     '__dartSetContains',
+    '__dartSetContainsAll',
+    '__dartSetDifference',
     '__dartSetFrom',
+    '__dartSetIntersection',
+    '__dartSetLookup',
+    '__dartSetRemove',
+    '__dartSetRemoveAll',
+    '__dartSetRemoveWhere',
+    '__dartSetRetainAll',
+    '__dartSetRetainWhere',
+    '__dartSetUnion',
     '__dartStringCodeUnits',
     '__dartStringFromCharCodes',
     '__dartStringReplaceFirst',
@@ -133,6 +194,19 @@ final class EsmRuntimeHelperRegistry {
     '__dartThrowWithStackTrace',
     '__dartType',
     '__dartTypeCache',
+    '__dartUtf8Codec',
+    '__dartUri',
+    '__dartUriBuild',
+    '__dartUriDataFromBytes',
+    '__dartUriDataFromString',
+    '__dartUriDecodeQueryComponent',
+    '__dartUriEncodeQueryComponent',
+    '__dartUriFile',
+    '__dartUriNormalizePath',
+    '__dartUriParse',
+    '__dartUriReplace',
+    '__dartUriResolve',
+    '__dartUriSplitQueryString',
   };
 
   String name(EsmRuntimeHelper helper) {
@@ -145,28 +219,36 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.constSet => '__dartConstSet',
       EsmRuntimeHelper.constValue => '__dartConst',
       EsmRuntimeHelper.doubleParse => '__dartDoubleParse',
+      EsmRuntimeHelper.doubleValue => '__dartDoubleValue',
       EsmRuntimeHelper.dynamicCall => '__dartDynamicCall',
       EsmRuntimeHelper.dynamicGet => '__dartDynamicGet',
       EsmRuntimeHelper.dynamicInvoke => '__dartDynamicInvoke',
       EsmRuntimeHelper.dynamicSet => '__dartDynamicSet',
+      EsmRuntimeHelper.encoding => '__dartLatin1Codec',
       EsmRuntimeHelper.equals => '__dartEquals',
       EsmRuntimeHelper.enumAsNameMap => '__dartEnumAsNameMap',
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
       EsmRuntimeHelper.extensionTypeRep => '__dartExtensionTypeRep',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.intGcd => '__dartIntGcd',
+      EsmRuntimeHelper.intModular => '__dartIntModInverse',
       EsmRuntimeHelper.intParse => '__dartIntParse',
+      EsmRuntimeHelper.iterableSearch => '__dartIterableFirstWhere',
+      EsmRuntimeHelper.iterableWindow => '__dartIterableTakeWhile',
       EsmRuntimeHelper.iterator => '__dartIterator',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
       EsmRuntimeHelper.listAdd => '__dartListAdd',
       EsmRuntimeHelper.listAddAll => '__dartListAddAll',
       EsmRuntimeHelper.listFactory => '__dartListOf',
+      EsmRuntimeHelper.listMutation => '__dartListShuffle',
       EsmRuntimeHelper.listRangeOps => '__dartListCopyRange',
+      EsmRuntimeHelper.listSearch => '__dartListIndexOf',
       EsmRuntimeHelper.mapAddAll => '__dartMapAddAll',
       EsmRuntimeHelper.mapContainsKey => '__dartMapContainsKey',
       EsmRuntimeHelper.mapFactories => '__dartMapFromIterable',
       EsmRuntimeHelper.mapGet => '__dartMapGet',
+      EsmRuntimeHelper.mapOps => '__dartMapAddEntries',
       EsmRuntimeHelper.mapSet => '__dartMapSet',
       EsmRuntimeHelper.mathPoint => '__dartPoint',
       EsmRuntimeHelper.mathRandom => '__dartRandom',
@@ -178,6 +260,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
       EsmRuntimeHelper.safeToString => '__dartSafeToString',
       EsmRuntimeHelper.setAddAll => '__dartSetAddAll',
+      EsmRuntimeHelper.setOps => '__dartSetLookup',
       EsmRuntimeHelper.stringFactory => '__dartStringFromCharCodes',
       EsmRuntimeHelper.stringOps => '__dartStringReplaceFirst',
       EsmRuntimeHelper.stringify => '__dartStr',
@@ -185,6 +268,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.throwWithStackTrace => '__dartThrowWithStackTrace',
       EsmRuntimeHelper.type => '__dartType',
       EsmRuntimeHelper.typeCast => '__dartAs',
+      EsmRuntimeHelper.uri => '__dartUriParse',
     };
   }
 
@@ -297,6 +381,22 @@ function __dartNumParse(source) {
   return value;
 }
 '''),
+      EsmRuntimeHelper.doubleValue => EsmRawModuleItemIr('''
+function __dartDoubleValue(value) {
+  const number = Number(value);
+  return Object.freeze({
+    __dartType: "double",
+    valueOf() { return number; },
+    toString() {
+      if (Number.isNaN(number)) return "NaN";
+      if (number === Infinity) return "Infinity";
+      if (number === -Infinity) return "-Infinity";
+      if (Object.is(number, -0)) return "-0.0";
+      return Number.isInteger(number) ? number.toString() + ".0" : number.toString();
+    },
+  });
+}
+'''),
       EsmRuntimeHelper.constSet => EsmRawModuleItemIr('''
 function __dartConstSet(values) {
   const set = __dartSetFrom(values);
@@ -398,6 +498,30 @@ function __dartDynamicInvoke(receiver, name, positionalArguments, namedArguments
   const member = receiver[name];
   if (typeof member === "function") return member.apply(receiver, args);
   throw new TypeError("Object has no method " + name);
+}
+'''),
+      EsmRuntimeHelper.encoding => EsmRawModuleItemIr('''
+function __dartLatin1Codec(allowInvalid = false) {
+  return Object.freeze({
+    name: "latin1",
+    encode(source) {
+      return Array.from(String(source), (char) => char.charCodeAt(0) & 255);
+    },
+    decode(bytes) {
+      return String.fromCharCode.apply(null, Array.from(bytes, (byte) => Number(byte) & 255));
+    },
+  });
+}
+function __dartUtf8Codec(allowMalformed = false) {
+  return Object.freeze({
+    name: "utf8",
+    encode(source) {
+      return Array.from(new TextEncoder().encode(String(source)));
+    },
+    decode(bytes) {
+      return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255)));
+    },
+  });
 }
 '''),
       EsmRuntimeHelper.enumAsNameMap => EsmRawModuleItemIr('''
@@ -566,6 +690,39 @@ function __dartIntGcd(left, right) {
   return a;
 }
 '''),
+      EsmRuntimeHelper.intModular => EsmRawModuleItemIr('''
+function __dartIntModInverse(value, modulus) {
+  let a = ((Math.trunc(Number(value)) % Math.trunc(Number(modulus))) + Math.trunc(Number(modulus))) % Math.trunc(Number(modulus));
+  let m = Math.trunc(Number(modulus));
+  if (m <= 0) throw __dartCoreError("RangeError", "Modulus must be positive");
+  let x0 = 0;
+  let x1 = 1;
+  let b = m;
+  while (a > 1 && b !== 0) {
+    const q = Math.trunc(a / b);
+    [a, b] = [b, a % b];
+    [x0, x1] = [x1 - q * x0, x0];
+  }
+  if (a !== 1) {
+    throw __dartCoreError("Exception", "Not coprime");
+  }
+  return ((x1 % m) + m) % m;
+}
+function __dartIntModPow(value, exponent, modulus) {
+  let e = Math.trunc(Number(exponent));
+  const m = Math.trunc(Number(modulus));
+  if (e < 0) throw __dartCoreError("RangeError", "Exponent must be non-negative");
+  if (m <= 0) throw __dartCoreError("RangeError", "Modulus must be positive");
+  let base = ((Math.trunc(Number(value)) % m) + m) % m;
+  let result = 1 % m;
+  while (e > 0) {
+    if ((e & 1) === 1) result = (result * base) % m;
+    e = Math.floor(e / 2);
+    base = (base * base) % m;
+  }
+  return result;
+}
+'''),
       EsmRuntimeHelper.intParse => EsmRawModuleItemIr(r'''
 function __dartFormatException(message) {
   const error = new Error(String(message));
@@ -594,6 +751,94 @@ function __dartIntParse(source, radix = null) {
   return value;
 }
 '''),
+      EsmRuntimeHelper.iterableWindow => EsmRawModuleItemIr('''
+function __dartIterableTakeWhile(iterable, test) {
+  const values = [];
+  for (const value of iterable) {
+    if (!test(value)) break;
+    values.push(value);
+  }
+  return values;
+}
+function __dartIterableSkipWhile(iterable, test) {
+  const values = [];
+  let skipping = true;
+  for (const value of iterable) {
+    if (skipping && test(value)) continue;
+    skipping = false;
+    values.push(value);
+  }
+  return values;
+}
+'''),
+      EsmRuntimeHelper.iterableSearch => EsmRawModuleItemIr('''
+function __dartIterableFirstWhere(iterable, test, orElse = null) {
+  for (const value of iterable) {
+    if (test(value)) return value;
+  }
+  if (typeof orElse === "function") return orElse();
+  throw new Error("No element");
+}
+function __dartIterableFirstOrNull(iterable) {
+  for (const value of iterable) return value;
+  return null;
+}
+function __dartIterableLastWhere(iterable, test, orElse = null) {
+  let found = false;
+  let result;
+  for (const value of iterable) {
+    if (test(value)) {
+      found = true;
+      result = value;
+    }
+  }
+  if (found) return result;
+  if (typeof orElse === "function") return orElse();
+  throw new Error("No element");
+}
+function __dartIterableLastOrNull(iterable) {
+  let found = false;
+  let result;
+  for (const value of iterable) {
+    found = true;
+    result = value;
+  }
+  return found ? result : null;
+}
+function __dartIterableSingle(iterable) {
+  const values = Array.from(iterable);
+  if (values.length !== 1) throw new Error(values.length === 0 ? "No element" : "Too many elements");
+  return values[0];
+}
+function __dartIterableSingleWhere(iterable, test, orElse = null) {
+  let found = false;
+  let result;
+  for (const value of iterable) {
+    if (!test(value)) continue;
+    if (found) throw new Error("Too many elements");
+    found = true;
+    result = value;
+  }
+  if (found) return result;
+  if (typeof orElse === "function") return orElse();
+  throw new Error("No element");
+}
+function __dartIterableSingleOrNull(iterable) {
+  let found = false;
+  let result;
+  for (const value of iterable) {
+    if (found) return null;
+    found = true;
+    result = value;
+  }
+  return found ? result : null;
+}
+function __dartIterableElementAtOrNull(iterable, index) {
+  const values = Array.from(iterable);
+  const offset = Number(index);
+  return offset >= 0 && offset < values.length ? values[offset] : null;
+}
+'''),
       EsmRuntimeHelper.iterator => EsmRawModuleItemIr('''
 function __dartIterator(iterable) {
   const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
@@ -615,34 +860,6 @@ function __dartIterator(iterable) {
 }
 '''),
       EsmRuntimeHelper.mapFactories => EsmRawModuleItemIr('''
-'''),
-      EsmRuntimeHelper.mapGet => EsmRawModuleItemIr('''
-const __dartMapMissingKey = Symbol("dart.mapMissingKey");
-function __dartMapKey(map, key) {
-  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
-  for (const candidate of map.keys()) {
-    if (__dartEquals(candidate, key)) return candidate;
-  }
-  return __dartMapMissingKey;
-}
-function __dartMapGet(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
-  const actualKey = __dartMapKey(map, key);
-  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
-}
-function __dartMapSet(map, key, value) {
-  const actualKey = __dartMapKey(map, key);
-  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
-  return value;
-}
-function __dartMapAddAll(map, entries) {
-  for (const [key, value] of entries) __dartMapSet(map, key, value);
-  return null;
-}
-function __dartMapContainsKey(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
-  return __dartMapKey(map, key) !== __dartMapMissingKey;
-}
 function __dartMapFromEntries(entries) {
   const map = new Map();
   Object.defineProperty(map, "__dartEqualityMap", { value: true });
@@ -671,6 +888,109 @@ function __dartMapFromIterables(keys, values) {
     __dartMapSet(map, keyList[index], valueList[index]);
   }
   return map;
+}
+'''),
+      EsmRuntimeHelper.mapGet => EsmRawModuleItemIr('''
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+'''),
+      EsmRuntimeHelper.mapSet => EsmRawModuleItemIr('''
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
+'''),
+      EsmRuntimeHelper.mapAddAll => EsmRawModuleItemIr('''
+function __dartMapAddAll(map, entries) {
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return null;
+}
+'''),
+      EsmRuntimeHelper.mapContainsKey => EsmRawModuleItemIr('''
+function __dartMapContainsKey(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
+  return __dartMapKey(map, key) !== __dartMapMissingKey;
+}
+'''),
+      EsmRuntimeHelper.mapOps => EsmRawModuleItemIr('''
+function __dartMapAddEntries(map, entries) {
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return null;
+}
+function __dartMapContainsValue(map, value) {
+  for (const candidate of map.values()) {
+    if (__dartEquals(candidate, value)) return true;
+  }
+  return false;
+}
+function __dartMapPutIfAbsent(map, key, ifAbsent) {
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey !== __dartMapMissingKey) return map.get(actualKey);
+  const value = ifAbsent();
+  __dartMapSet(map, key, value);
+  return value;
+}
+function __dartMapUpdate(map, key, update, ifAbsent = null) {
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey !== __dartMapMissingKey) {
+    const value = update(map.get(actualKey));
+    map.set(actualKey, value);
+    return value;
+  }
+  if (typeof ifAbsent === "function") {
+    const value = ifAbsent();
+    __dartMapSet(map, key, value);
+    return value;
+  }
+  throw new Error("Key not found");
+}
+function __dartMapForEach(map, action) {
+  for (const [key, value] of map) action(key, value);
+  return null;
+}
+function __dartMapMap(map, transform) {
+  const result = new Map();
+  Object.defineProperty(result, "__dartEqualityMap", { value: true });
+  for (const [key, value] of map) {
+    const entry = transform(key, value);
+    __dartMapSet(result, entry[0], entry[1]);
+  }
+  return result;
+}
+function __dartMapRemove(map, key) {
+  const actualKey = __dartMapKey(map, key);
+  if (actualKey === __dartMapMissingKey) return null;
+  const value = map.get(actualKey);
+  map.delete(actualKey);
+  return value;
+}
+function __dartMapUpdateAll(map, update) {
+  for (const [key, value] of Array.from(map)) {
+    map.set(key, update(key, value));
+  }
+  return null;
+}
+function __dartMapRemoveWhere(map, test) {
+  for (const [key, value] of Array.from(map)) {
+    if (test(key, value)) map.delete(key);
+  }
+  return null;
+}
+function __dartMapClear(map) {
+  map.clear();
+  return null;
 }
 '''),
       EsmRuntimeHelper.recordShape => const EsmRawModuleItemIr(
@@ -745,6 +1065,71 @@ function __dartSetFrom(values) {
 function __dartSetAddAll(set, values) {
   for (const value of values) __dartSetAdd(set, value);
   return null;
+}
+'''),
+      EsmRuntimeHelper.setOps => EsmRawModuleItemIr('''
+function __dartSetLookup(set, needle) {
+  for (const value of set) {
+    if (__dartEquals(value, needle)) return value;
+  }
+  return null;
+}
+function __dartSetRemove(set, value) {
+  for (const candidate of set) {
+    if (__dartEquals(candidate, value)) {
+      set.delete(candidate);
+      return true;
+    }
+  }
+  return false;
+}
+function __dartSetContainsAll(set, values) {
+  for (const value of values) {
+    if (!__dartSetContains(set, value)) return false;
+  }
+  return true;
+}
+function __dartSetRemoveAll(set, values) {
+  for (const value of values) __dartSetRemove(set, value);
+  return null;
+}
+function __dartSetRetainAll(set, values) {
+  const keep = Array.from(values);
+  for (const value of Array.from(set)) {
+    if (!keep.some((candidate) => __dartEquals(candidate, value))) set.delete(value);
+  }
+  return null;
+}
+function __dartSetRemoveWhere(set, test) {
+  for (const value of Array.from(set)) {
+    if (test(value)) set.delete(value);
+  }
+  return null;
+}
+function __dartSetRetainWhere(set, test) {
+  for (const value of Array.from(set)) {
+    if (!test(value)) set.delete(value);
+  }
+  return null;
+}
+function __dartSetUnion(set, other) {
+  const result = __dartSetFrom(set);
+  __dartSetAddAll(result, other);
+  return result;
+}
+function __dartSetIntersection(set, other) {
+  const result = __dartSetFrom([]);
+  for (const value of set) {
+    if (__dartSetContains(other, value)) __dartSetAdd(result, value);
+  }
+  return result;
+}
+function __dartSetDifference(set, other) {
+  const result = __dartSetFrom([]);
+  for (const value of set) {
+    if (!__dartSetContains(other, value)) __dartSetAdd(result, value);
+  }
+  return result;
 }
 '''),
       EsmRuntimeHelper.stringFactory => EsmRawModuleItemIr('''
@@ -840,6 +1225,72 @@ function __dartUnmodifiableList(values) {
   return Object.freeze(Array.from(values));
 }
 '''),
+      EsmRuntimeHelper.listMutation => EsmRawModuleItemIr('''
+function __dartListShuffle(list, random = null) {
+  for (let index = list.length - 1; index > 0; index--) {
+    const nextInt = random == null ? Math.floor(Math.random() * (index + 1)) : Number(random.nextInt(index + 1));
+    [list[index], list[nextInt]] = [list[nextInt], list[index]];
+  }
+  return null;
+}
+function __dartListRemoveAt(list, index) {
+  return list.splice(Number(index), 1)[0];
+}
+function __dartListInsert(list, index, value) {
+  list.splice(Number(index), 0, value);
+  return null;
+}
+function __dartListRemove(list, value) {
+  for (let index = 0; index < list.length; index++) {
+    if (__dartEquals(list[index], value)) {
+      list.splice(index, 1);
+      return true;
+    }
+  }
+  return false;
+}
+function __dartListRemoveLast(list) {
+  return list.pop();
+}
+function __dartListInsertAll(list, index, values) {
+  list.splice(Number(index), 0, ...Array.from(values));
+  return null;
+}
+function __dartListSetAll(list, index, values) {
+  let cursor = Number(index);
+  for (const value of values) list[cursor++] = value;
+  return null;
+}
+function __dartListFillRange(list, start, end, fill = null) {
+  list.fill(fill, Number(start), Number(end));
+  return null;
+}
+function __dartListReplaceRange(list, start, end, values) {
+  list.splice(Number(start), Number(end) - Number(start), ...Array.from(values));
+  return null;
+}
+function __dartListRemoveRange(list, start, end) {
+  list.splice(Number(start), Number(end) - Number(start));
+  return null;
+}
+function __dartListRemoveWhere(list, test) {
+  for (let index = list.length - 1; index >= 0; index--) {
+    if (test(list[index])) list.splice(index, 1);
+  }
+  return null;
+}
+function __dartListRetainWhere(list, test) {
+  for (let index = list.length - 1; index >= 0; index--) {
+    if (!test(list[index])) list.splice(index, 1);
+  }
+  return null;
+}
+function __dartListAsMap(list) {
+  const map = new Map();
+  for (let index = 0; index < list.length; index++) map.set(index, list[index]);
+  return map;
+}
+'''),
       EsmRuntimeHelper.listRangeOps => EsmRawModuleItemIr('''
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
   const values = Array.from(source).slice(Number(start), end == null ? undefined : Number(end));
@@ -853,11 +1304,37 @@ function __dartListWriteIterable(target, at, source) {
   return null;
 }
 '''),
-      EsmRuntimeHelper.mapSet => EsmRawModuleItemIr('''
-'''),
-      EsmRuntimeHelper.mapAddAll => EsmRawModuleItemIr('''
-'''),
-      EsmRuntimeHelper.mapContainsKey => EsmRawModuleItemIr('''
+      EsmRuntimeHelper.listSearch => EsmRawModuleItemIr('''
+function __dartListIndexOf(list, needle, start = 0) {
+  const values = Array.from(list);
+  for (let index = Math.max(0, Number(start)); index < values.length; index++) {
+    if (__dartEquals(values[index], needle)) return index;
+  }
+  return -1;
+}
+function __dartListLastIndexOf(list, needle, start = null) {
+  const values = Array.from(list);
+  let index = start == null ? values.length - 1 : Math.min(Number(start), values.length - 1);
+  for (; index >= 0; index--) {
+    if (__dartEquals(values[index], needle)) return index;
+  }
+  return -1;
+}
+function __dartListIndexWhere(list, test, start = 0) {
+  const values = Array.from(list);
+  for (let index = Math.max(0, Number(start)); index < values.length; index++) {
+    if (test(values[index])) return index;
+  }
+  return -1;
+}
+function __dartListLastIndexWhere(list, test, start = null) {
+  const values = Array.from(list);
+  let index = start == null ? values.length - 1 : Math.min(Number(start), values.length - 1);
+  for (; index >= 0; index--) {
+    if (test(values[index])) return index;
+  }
+  return -1;
+}
 '''),
       EsmRuntimeHelper.nullCheck => EsmRawModuleItemIr('''
 function __dartNullCheck(value) {
@@ -880,6 +1357,10 @@ function __dartHashValue(value) {
   if (value == null) return 0;
   if (typeof value === "boolean") return value ? 1231 : 1237;
   if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value) & 0x1fffffff : 0;
+  if (value.__dartType === "double") {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.trunc(number) & 0x1fffffff : 0;
+  }
   if (typeof value === "string") {
     let hash = 0;
     for (let i = 0; i < value.length; i++) hash = __dartCombineHash(hash, value.charCodeAt(i));
@@ -984,6 +1465,272 @@ function __dartType(name) {
   return value;
 }
 '''),
+      EsmRuntimeHelper.uri => EsmRawModuleItemIr(r'''
+function __dartBase64Encode(bytes, urlSafe = false) {
+  const values = Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255));
+  let encoded;
+  if (typeof Buffer !== "undefined") {
+    encoded = Buffer.from(values).toString("base64");
+  } else {
+    let binary = "";
+    for (const byte of values) binary += String.fromCharCode(byte);
+    encoded = btoa(binary);
+  }
+  return urlSafe ? encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") : encoded;
+}
+function __dartUriParse(source, tryParse = false) {
+  const text = String(source);
+  let url;
+  let isRelative = false;
+  let isProtocolRelative = false;
+  try {
+    if (text.startsWith("//")) {
+      url = new URL("dart:" + text);
+      isProtocolRelative = true;
+    } else {
+      url = new URL(text);
+    }
+  } catch (_) {
+    try {
+      url = new URL(text, "dart://relative");
+      isRelative = true;
+    } catch (_) {
+      if (tryParse) return null;
+      throw __dartCoreError("FormatException", "Invalid URI");
+    }
+  }
+  const relativePath = isRelative ? text.split(/[?#]/, 1)[0] : url.pathname;
+  const userInfo = isRelative ? "" : [url.username, url.password].filter((part) => part !== "").join(":");
+  const defaultPort = url.protocol === "http:" ? 80 : url.protocol === "https:" ? 443 : 0;
+  function queryParameters(all = false) {
+    const map = new Map();
+    for (const [key, value] of url.searchParams) {
+      if (all) {
+        const values = map.get(key) ?? [];
+        values.push(value);
+        map.set(key, values);
+      } else {
+        map.set(key, value);
+      }
+    }
+    return map;
+  }
+  return Object.freeze({
+    __dartType: "Uri",
+    get scheme() { return isRelative || isProtocolRelative ? "" : url.protocol.slice(0, -1); },
+    get host() { return isRelative ? "" : url.hostname; },
+    get authority() { return isRelative ? "" : (userInfo === "" ? url.host : userInfo + "@" + url.host); },
+    get userInfo() { return userInfo; },
+    get port() { return isRelative ? 0 : (url.port === "" ? defaultPort : Number(url.port)); },
+    get path() { return relativePath; },
+    get pathSegments() { return relativePath.split("/").filter((segment) => segment !== "").map(decodeURIComponent); },
+    get query() { return url.search.startsWith("?") ? url.search.slice(1) : ""; },
+    get queryParameters() { return queryParameters(false); },
+    get queryParametersAll() { return queryParameters(true); },
+    get fragment() { return url.hash.startsWith("#") ? url.hash.slice(1) : ""; },
+    get hasScheme() { return !isRelative && url.protocol !== ""; },
+    get hasAuthority() { return !isRelative && url.host !== ""; },
+    get hasPort() { return !isRelative && url.port !== ""; },
+    get hasQuery() { return url.search !== ""; },
+    get hasFragment() { return url.hash !== ""; },
+    get isAbsolute() { return !isRelative && !isProtocolRelative && url.protocol !== "" && url.hash === ""; },
+    toString() { return text; },
+  });
+}
+function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }
+function __dartUriEncodeQueryComponent(value, encoding = null) {
+  const text = String(value);
+  if (encoding == null || typeof encoding.encode !== "function") return encodeURIComponent(text).replace(/%20/g, "+");
+  let result = "";
+  for (const byte of encoding.encode(text)) {
+    const value = Number(byte) & 255;
+    if (value === 0x20) { result += "+"; continue; }
+    const char = String.fromCharCode(value);
+    result += /[A-Za-z0-9\-._~]/.test(char) ? char : "%" + value.toString(16).toUpperCase().padStart(2, "0");
+  }
+  return result;
+}
+function __dartUriDecodeQueryComponent(value, encoding = null) {
+  const text = String(value).replace(/\+/g, " ");
+  if (encoding == null || typeof encoding.decode !== "function") return decodeURIComponent(text);
+  const bytes = [];
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === "%" && i + 2 < text.length) {
+      const hex = text.slice(i + 1, i + 3);
+      if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+        bytes.push(parseInt(hex, 16));
+        i += 2;
+        continue;
+      }
+    }
+    bytes.push(char.charCodeAt(0));
+  }
+  return encoding.decode(bytes);
+}
+function __dartUriSplitQueryString(query, encoding = null) {
+  const map = new Map();
+  for (const element of String(query).split("&")) {
+    const index = element.indexOf("=");
+    if (index === -1) {
+      if (element !== "") map.set(__dartUriDecodeQueryComponent(element, encoding), "");
+      continue;
+    }
+    if (index === 0) continue;
+    const key = element.slice(0, index);
+    const value = element.slice(index + 1);
+    map.set(__dartUriDecodeQueryComponent(key, encoding), __dartUriDecodeQueryComponent(value, encoding));
+  }
+  return map;
+}
+function __dartUriBuildQuery(queryParameters) {
+  const parts = [];
+  for (const [key, value] of queryParameters) {
+    const encodedKey = __dartUriEncodeQueryComponent(key);
+    if (value == null) {
+      parts.push(encodedKey);
+    } else if (typeof value !== "string" && typeof value[Symbol.iterator] === "function") {
+      for (const item of value) parts.push(encodedKey + "=" + __dartUriEncodeQueryComponent(item));
+    } else {
+      parts.push(encodedKey + "=" + __dartUriEncodeQueryComponent(value));
+    }
+  }
+  return parts.join("&");
+}
+function __dartUri(options = {}) {
+  const scheme = options.scheme == null ? "" : String(options.scheme);
+  const userInfo = options.userInfo == null ? "" : String(options.userInfo);
+  const host = options.host == null ? "" : String(options.host);
+  const port = options.port == null ? null : Number(options.port);
+  let path = "";
+  if (options.pathSegments != null) {
+    path = Array.from(options.pathSegments, (segment) => encodeURIComponent(String(segment))).join("/");
+  } else if (options.path != null) {
+    path = __dartUriEncodePath(options.path);
+  }
+  const authority = host === ""
+    ? ""
+    : (userInfo === "" ? "" : userInfo + "@") + host + (port == null ? "" : ":" + port);
+  let text = scheme === "" ? "" : scheme + ":";
+  if (authority !== "") text += "//" + authority;
+  if (path !== "") {
+    if (authority !== "" && !path.startsWith("/")) text += "/";
+    text += path;
+  }
+  if (options.queryParameters != null) {
+    const query = __dartUriBuildQuery(options.queryParameters);
+    if (query !== "") text += "?" + query;
+  } else if (options.query != null) {
+    text += "?" + String(options.query);
+  }
+  if (options.fragment != null) {
+    text += "#" + encodeURIComponent(String(options.fragment));
+  }
+  return __dartUriParse(text, false);
+}
+function __dartUriFile(path, windows = false, directory = false) {
+  let text = String(path);
+  if (windows) text = text.replace(/\\/g, "/");
+  if (directory && text !== "" && !text.endsWith("/") && !(windows && /^[a-zA-Z]:$/.test(text))) text += "/";
+  const isAbsolute = windows ? (/^[a-zA-Z]:\//.test(text) || text.startsWith("//")) : text.startsWith("/");
+  const encoded = __dartUriEncodePath(text);
+  if (!isAbsolute) return __dartUriParse(encoded, false);
+  const filePath = windows && /^[a-zA-Z]:\//.test(encoded) ? "/" + encoded : encoded;
+  return __dartUriParse("file://" + filePath, false);
+}
+function __dartUriDataParameters(parameters) {
+  if (parameters == null) return "";
+  let result = "";
+  for (const [key, value] of parameters) {
+    result += ";" + encodeURIComponent(String(key)) + "=" + encodeURIComponent(String(value));
+  }
+  return result;
+}
+function __dartUriDataMediaType(mimeType) {
+  if (mimeType == null || String(mimeType).toLowerCase() === "text/plain") return "";
+  return String(mimeType);
+}
+function __dartUriPercentEncodeBytes(bytes) {
+  let result = "";
+  for (const byte of bytes) {
+    const value = Number(byte) & 255;
+    const char = String.fromCharCode(value);
+    result += /[A-Za-z0-9\-._~]/.test(char) ? char : "%" + value.toString(16).toUpperCase().padStart(2, "0");
+  }
+  return result;
+}
+function __dartUriDataFromString(content, mimeType = null, encoding = null, parameters = null, base64 = false) {
+  const text = String(content);
+  let metadata = __dartUriDataMediaType(mimeType);
+  if (encoding != null) metadata += ";charset=utf-8";
+  metadata += __dartUriDataParameters(parameters);
+  if (base64) {
+    const bytes = new TextEncoder().encode(text);
+    return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(bytes), false);
+  }
+  return __dartUriParse("data:" + metadata + "," + encodeURIComponent(text), false);
+}
+function __dartUriDataFromBytes(bytes, mimeType = null, parameters = null, percentEncoded = false) {
+  const byteList = Array.from(bytes, (byte) => Number(byte) & 255);
+  let metadata = mimeType == null ? "application/octet-stream" : __dartUriDataMediaType(mimeType);
+  metadata += __dartUriDataParameters(parameters);
+  if (percentEncoded) {
+    return __dartUriParse("data:" + metadata + "," + __dartUriPercentEncodeBytes(byteList), false);
+  }
+  return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(byteList), false);
+}
+function __dartUriAssignQueryParameters(url, queryParameters) {
+  const search = new URLSearchParams();
+  for (const [key, value] of queryParameters) {
+    if (value == null) continue;
+    if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {
+      for (const item of value) search.append(String(key), String(item));
+    } else {
+      search.append(String(key), String(value));
+    }
+  }
+  url.search = search.toString();
+}
+function __dartUriResolve(uri, reference) {
+  return __dartUriParse(new URL(String(reference), String(uri)).toString());
+}
+function __dartUriNormalizePath(uri) {
+  return __dartUriParse(new URL(String(uri)).toString());
+}
+function __dartUriReplace(uri, options = {}) {
+  const url = new URL(String(uri));
+  if ("scheme" in options && options.scheme != null) url.protocol = String(options.scheme) + ":";
+  if ("userInfo" in options && options.userInfo != null) {
+    const parts = String(options.userInfo).split(":");
+    url.username = parts[0] ?? "";
+    url.password = parts.slice(1).join(":");
+  }
+  if ("host" in options && options.host != null) url.hostname = String(options.host);
+  if ("port" in options && options.port != null) url.port = String(options.port);
+  if ("pathSegments" in options && options.pathSegments != null) {
+    url.pathname = Array.from(options.pathSegments, (segment) => encodeURIComponent(String(segment))).join("/");
+  } else if ("path" in options && options.path != null) {
+    url.pathname = String(options.path);
+  }
+  if ("queryParameters" in options) {
+    if (options.queryParameters != null) __dartUriAssignQueryParameters(url, options.queryParameters);
+  } else if ("query" in options) {
+    if (options.query != null) url.search = String(options.query);
+  }
+  if (options.__removeFragment === true) url.hash = "";
+  else if ("fragment" in options && options.fragment != null) url.hash = String(options.fragment);
+  return __dartUriParse(url.toString());
+}
+function __dartUriBuild(scheme, authority, path, queryParameters = null) {
+  const url = new URL(String(scheme) + "://" + String(authority));
+  const rawPath = String(path);
+  url.pathname = rawPath.startsWith("/") ? rawPath : "/" + rawPath;
+  if (queryParameters != null) {
+    __dartUriAssignQueryParameters(url, queryParameters);
+  }
+  return __dartUriParse(url.toString());
+}
+'''),
       EsmRuntimeHelper.typeCast => EsmFunctionIr(
         name: name(helper),
         export: false,
@@ -1030,22 +1777,29 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
       case EsmRuntimeHelper.doubleParse:
+      case EsmRuntimeHelper.doubleValue:
       case EsmRuntimeHelper.dynamicCall:
       case EsmRuntimeHelper.dynamicGet:
       case EsmRuntimeHelper.dynamicInvoke:
       case EsmRuntimeHelper.dynamicSet:
       case EsmRuntimeHelper.enumAsNameMap:
       case EsmRuntimeHelper.enumByName:
+      case EsmRuntimeHelper.encoding:
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.listFactory:
       case EsmRuntimeHelper.listRangeOps:
       case EsmRuntimeHelper.intGcd:
+      case EsmRuntimeHelper.iterableSearch:
+      case EsmRuntimeHelper.iterableWindow:
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:
       case EsmRuntimeHelper.stringFactory:
       case EsmRuntimeHelper.stringOps:
         break;
       case EsmRuntimeHelper.constMap:
+        _helpers.add(EsmRuntimeHelper.mapFactories);
+        _helpers.add(EsmRuntimeHelper.mapAddAll);
+        _helpers.add(EsmRuntimeHelper.mapSet);
         _helpers.add(EsmRuntimeHelper.mapGet);
         _helpers.add(EsmRuntimeHelper.equals);
         _helpers.add(EsmRuntimeHelper.recordShape);
@@ -1055,6 +1809,8 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.equals);
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.intModular:
+        _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.equals:
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);
@@ -1070,8 +1826,17 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.listAdd:
       case EsmRuntimeHelper.listAddAll:
       case EsmRuntimeHelper.nullCheck:
+        break;
       case EsmRuntimeHelper.print:
         _helpers.add(EsmRuntimeHelper.stringify);
+      case EsmRuntimeHelper.listMutation:
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.listSearch:
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mapAddAll:
       case EsmRuntimeHelper.mapSet:
         _helpers.add(EsmRuntimeHelper.mapGet);
@@ -1079,8 +1844,20 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mapContainsKey:
-      case EsmRuntimeHelper.mapFactories:
       case EsmRuntimeHelper.mapGet:
+        _helpers.add(EsmRuntimeHelper.mapGet);
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.mapFactories:
+        _helpers.add(EsmRuntimeHelper.mapAddAll);
+        _helpers.add(EsmRuntimeHelper.mapSet);
+        _helpers.add(EsmRuntimeHelper.mapGet);
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.mapOps:
+        _helpers.add(EsmRuntimeHelper.mapSet);
         _helpers.add(EsmRuntimeHelper.mapGet);
         _helpers.add(EsmRuntimeHelper.equals);
         _helpers.add(EsmRuntimeHelper.recordShape);
@@ -1096,7 +1873,14 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.type:
       case EsmRuntimeHelper.typeCast:
         break;
+      case EsmRuntimeHelper.uri:
+        _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.setAddAll:
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.recordShape);
+        _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.setOps:
+        _helpers.add(EsmRuntimeHelper.setAddAll);
         _helpers.add(EsmRuntimeHelper.equals);
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);

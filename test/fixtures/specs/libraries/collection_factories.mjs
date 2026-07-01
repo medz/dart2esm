@@ -110,36 +110,16 @@ function __dartUnmodifiableList(values) {
   return Object.freeze(Array.from(values));
 }
 
-
-
-
-
-const __dartMapMissingKey = Symbol("dart.mapMissingKey");
-function __dartMapKey(map, key) {
-  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
-  for (const candidate of map.keys()) {
-    if (__dartEquals(candidate, key)) return candidate;
-  }
-  return __dartMapMissingKey;
-}
-function __dartMapGet(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
-  const actualKey = __dartMapKey(map, key);
-  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
-}
-function __dartMapSet(map, key, value) {
-  const actualKey = __dartMapKey(map, key);
-  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
-  return value;
-}
 function __dartMapAddAll(map, entries) {
   for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
 }
+
 function __dartMapContainsKey(map, key) {
   if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
   return __dartMapKey(map, key) !== __dartMapMissingKey;
 }
+
 function __dartMapFromEntries(entries) {
   const map = new Map();
   Object.defineProperty(map, "__dartEqualityMap", { value: true });
@@ -170,7 +150,25 @@ function __dartMapFromIterables(keys, values) {
   return map;
 }
 
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
 
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  return value;
+}
 
 const __dartIdentityHashes = new WeakMap();
 let __dartNextIdentityHash = 1;
@@ -186,6 +184,10 @@ function __dartHashValue(value) {
   if (value == null) return 0;
   if (typeof value === "boolean") return value ? 1231 : 1237;
   if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value) & 0x1fffffff : 0;
+  if (value.__dartType === "double") {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.trunc(number) & 0x1fffffff : 0;
+  }
   if (typeof value === "string") {
     let hash = 0;
     for (let i = 0; i < value.length; i++) hash = __dartCombineHash(hash, value.charCodeAt(i));

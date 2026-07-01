@@ -87,48 +87,6 @@ function __dartMapGet(map, key) {
   const actualKey = __dartMapKey(map, key);
   return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
-function __dartMapSet(map, key, value) {
-  const actualKey = __dartMapKey(map, key);
-  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
-  return value;
-}
-function __dartMapAddAll(map, entries) {
-  for (const [key, value] of entries) __dartMapSet(map, key, value);
-  return null;
-}
-function __dartMapContainsKey(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map.containsKey === "function") return map.containsKey(key);
-  return __dartMapKey(map, key) !== __dartMapMissingKey;
-}
-function __dartMapFromEntries(entries) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  __dartMapAddAll(map, entries);
-  return map;
-}
-function __dartMapFromIterable(iterable, key = null, value = null) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (const element of iterable) {
-    __dartMapSet(
-      map,
-      typeof key === "function" ? key(element) : element,
-      typeof value === "function" ? value(element) : element,
-    );
-  }
-  return map;
-}
-function __dartMapFromIterables(keys, values) {
-  const keyList = Array.from(keys);
-  const valueList = Array.from(values);
-  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (let index = 0; index < keyList.length; index++) {
-    __dartMapSet(map, keyList[index], valueList[index]);
-  }
-  return map;
-}
 
 function __dartNullCheck(value) {
   if (value == null) throw new TypeError("Null check operator used on a null value");

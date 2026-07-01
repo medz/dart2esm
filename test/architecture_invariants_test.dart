@@ -189,6 +189,9 @@ void main() {
     final coreIterable = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
     );
+    final coreRuntime = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_runtime_intrinsics.dart',
+    );
     final coreText = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_text_intrinsics.dart',
     );
@@ -250,6 +253,11 @@ void main() {
     expect(lowering, isNot(contains('_lowerDeveloperStaticInvocation')));
     expect(lowering, isNot(contains('_lowerMathStaticGet')));
     expect(lowering, isNot(contains('_lowerMathStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreObjectStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreFunctionApply')));
+    expect(lowering, isNot(contains('_lowerCoreIdentical')));
+    expect(lowering, isNot(contains('_lowerCoreIdentityHashCode')));
+    expect(lowering, isNot(contains('_lowerCorePrint')));
     expect(lowering, isNot(contains('_jsMathStaticFunctionName')));
     expect(lowering, isNot(contains('_jsMathStaticFunctionArity')));
     expect(
@@ -299,6 +307,15 @@ void main() {
     expect(lowering, isNot(contains('DartDeveloperStaticInvocationSymbol')));
     expect(lowering, isNot(contains('DartMathStaticGetSymbol')));
     expect(lowering, isNot(contains('DartMathStaticInvocationSymbol')));
+    expect(lowering, isNot(contains('DartCoreObjectStaticInvocationSymbol')));
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.corePrint')),
+    );
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.coreFunctionApply')),
+    );
     expect(typedDataInvocation, isNot(contains('__dartListSetAll')));
     expect(typedDataInvocation, isNot(contains('__dartListSetRange')));
     expect(typedDataInvocation, isNot(contains('__dartListFillRange')));
@@ -367,6 +384,24 @@ void main() {
     expect(
       coreIterable,
       contains('DartSdkStaticInvocationSymbol.coreIterableToFullString'),
+    );
+    expect(coreRuntime, contains('lowerDartCoreRuntimeStaticInvocation'));
+    expect(
+      coreRuntime,
+      contains('DartCoreObjectStaticInvocationSymbol.hashAllUnordered'),
+    );
+    expect(coreRuntime, contains('DartSdkStaticInvocationSymbol.corePrint'));
+    expect(
+      coreRuntime,
+      contains('DartSdkStaticInvocationSymbol.coreFunctionApply'),
+    );
+    expect(
+      coreRuntime,
+      contains('DartSdkStaticInvocationSymbol.coreIdentical'),
+    );
+    expect(
+      coreRuntime,
+      contains('DartSdkStaticInvocationSymbol.coreIdentityHashCode'),
     );
     expect(internal, contains('lowerDartInternalStaticInvocation'));
     expect(

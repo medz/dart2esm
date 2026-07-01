@@ -12282,16 +12282,6 @@ final class KernelToEsmIrLoweringStage
     if (coreNumberStatic != null) {
       return coreNumberStatic;
     }
-    final coreObjectStatic = _lowerCoreObjectStaticInvocation(
-      world,
-      helpers,
-      locals,
-      expression,
-      thisExpression: thisExpression,
-    );
-    if (coreObjectStatic != null) {
-      return coreObjectStatic;
-    }
     final webStatic = _lowerWebStaticInvocation(
       world,
       helpers,
@@ -12302,44 +12292,8 @@ final class KernelToEsmIrLoweringStage
     if (webStatic != null) {
       return webStatic;
     }
-    if (_isCoreFunctionApply(expression.targetReference)) {
-      return _lowerCoreFunctionApply(
-        world,
-        helpers,
-        locals,
-        expression,
-        thisExpression: thisExpression,
-      );
-    }
-    if (_isCoreIdentical(expression.targetReference)) {
-      return _lowerCoreIdentical(
-        world,
-        helpers,
-        locals,
-        expression,
-        thisExpression: thisExpression,
-      );
-    }
-    if (_isCoreIdentityHashCode(expression.targetReference)) {
-      return _lowerCoreIdentityHashCode(
-        world,
-        helpers,
-        locals,
-        expression,
-        thisExpression: thisExpression,
-      );
-    }
     if (_isCoreGrowableListLiteral(expression.targetReference)) {
       return _lowerCoreGrowableListLiteral(
-        world,
-        helpers,
-        locals,
-        expression,
-        thisExpression: thisExpression,
-      );
-    }
-    if (_isCorePrint(expression.targetReference)) {
-      return _lowerCorePrint(
         world,
         helpers,
         locals,
@@ -13341,84 +13295,6 @@ final class KernelToEsmIrLoweringStage
     );
   }
 
-  EsmExpressionIr? _lowerCoreObjectStaticInvocation(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    if (expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
-      return null;
-    }
-    final positional = expression.arguments.positional;
-    switch (dartCoreObjectStaticInvocationSymbol(expression.targetReference)) {
-      case DartCoreObjectStaticInvocationSymbol.hash
-          when positional.length >= 2:
-        helpers.require(EsmRuntimeHelper.objectHash);
-        return EsmCallIr(
-          callee: helpers.reference(
-            runtimeHelpers,
-            EsmRuntimeHelper.objectHash,
-          ),
-          arguments: [
-            EsmArrayLiteralIr([
-              for (final argument in positional)
-                _lowerExpression(
-                  world,
-                  helpers,
-                  locals,
-                  argument,
-                  thisExpression: thisExpression,
-                ),
-            ]),
-          ],
-        );
-      case DartCoreObjectStaticInvocationSymbol.hashAll
-          when positional.length == 1:
-        helpers.require(EsmRuntimeHelper.objectHash);
-        return EsmCallIr(
-          callee: helpers.reference(
-            runtimeHelpers,
-            EsmRuntimeHelper.objectHash,
-          ),
-          arguments: [
-            _arrayFrom(
-              helpers,
-              _lowerExpression(
-                world,
-                helpers,
-                locals,
-                positional.single,
-                thisExpression: thisExpression,
-              ),
-            ),
-          ],
-        );
-      case DartCoreObjectStaticInvocationSymbol.hashAllUnordered
-          when positional.length == 1:
-        helpers.require(EsmRuntimeHelper.objectHash);
-        return EsmCallIr(
-          callee: const EsmIdentifierIr('__dartObjectHashUnordered'),
-          arguments: [
-            _arrayFrom(
-              helpers,
-              _lowerExpression(
-                world,
-                helpers,
-                locals,
-                positional.single,
-                thisExpression: thisExpression,
-              ),
-            ),
-          ],
-        );
-      default:
-        return null;
-    }
-  }
-
   EsmCallIr _arrayFrom(EsmRuntimeHelperUseSet helpers, EsmExpressionIr value) {
     helpers.require(EsmRuntimeHelper.iterableToArray);
     return EsmCallIr(
@@ -13685,93 +13561,6 @@ final class KernelToEsmIrLoweringStage
     );
   }
 
-  EsmExpressionIr _lowerCoreIdentical(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    if (expression.arguments.positional.length != 2 ||
-        expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
-      throw NewCompilerUnsupported(expression, 'identical argument shape');
-    }
-    return EsmCallIr(
-      callee: const EsmPropertyAccessIr(
-        receiver: EsmIdentifierIr('Object'),
-        property: 'is',
-      ),
-      arguments: [
-        for (final argument in expression.arguments.positional)
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            argument,
-            thisExpression: thisExpression,
-          ),
-      ],
-    );
-  }
-
-  EsmExpressionIr _lowerCoreIdentityHashCode(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    if (expression.arguments.positional.length != 1 ||
-        expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
-      throw NewCompilerUnsupported(
-        expression,
-        'identityHashCode argument shape',
-      );
-    }
-    helpers.require(EsmRuntimeHelper.objectHash);
-    return EsmCallIr(
-      callee: const EsmIdentifierIr('__dartHashValue'),
-      arguments: [
-        _lowerExpression(
-          world,
-          helpers,
-          locals,
-          expression.arguments.positional.single,
-          thisExpression: thisExpression,
-        ),
-      ],
-    );
-  }
-
-  EsmExpressionIr _lowerCorePrint(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    if (expression.arguments.positional.length != 1 ||
-        expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
-      throw NewCompilerUnsupported(expression, 'print argument shape');
-    }
-    helpers.require(EsmRuntimeHelper.print);
-    final argument = expression.arguments.positional.single;
-    final loweredArgument = _lowerExpression(
-      world,
-      helpers,
-      locals,
-      argument,
-      thisExpression: thisExpression,
-    );
-    return EsmCallIr(
-      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.print),
-      arguments: [loweredArgument],
-    );
-  }
-
   EsmExpressionIr _lowerCoreGrowableListLiteral(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -13798,55 +13587,6 @@ final class KernelToEsmIrLoweringStage
     return reference.toStringInternal().startsWith(
       'dart:core::_GrowableList::@factories::dart:core::_literal',
     );
-  }
-
-  EsmExpressionIr _lowerCoreFunctionApply(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    final positional = expression.arguments.positional;
-    if (positional.length < 2 ||
-        positional.length > 3 ||
-        expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
-      throw NewCompilerUnsupported(expression, 'Function.apply argument shape');
-    }
-    helpers.require(EsmRuntimeHelper.functionApply);
-    return EsmCallIr(
-      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.functionApply),
-      arguments: [
-        for (final argument in positional)
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            argument,
-            thisExpression: thisExpression,
-          ),
-        if (positional.length == 2) const EsmNullLiteralIr(),
-      ],
-    );
-  }
-
-  bool _isCoreFunctionApply(k.Reference reference) {
-    return reference.toStringInternal() ==
-        'dart:core::Function::@methods::apply';
-  }
-
-  bool _isCoreIdentical(k.Reference reference) {
-    return reference.toStringInternal() == 'dart:core::@methods::identical';
-  }
-
-  bool _isCoreIdentityHashCode(k.Reference reference) {
-    return reference.toStringInternal() ==
-        'dart:core::@methods::identityHashCode';
-  }
-
-  bool _isCorePrint(k.Reference reference) {
-    return reference.toStringInternal() == 'dart:core::@methods::print';
   }
 
   String _instanceMemberName(EsmSemanticWorld world, k.Member member) {

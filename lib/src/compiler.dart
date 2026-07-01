@@ -32,10 +32,7 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
     final component = kernel.loadComponentFromBytes(kernelBytes);
 
     final pipelineResult = Dart2EsmCompilerPipeline(
-      options: Dart2EsmPipelineOptions(
-        runMain: options.runMain,
-        allowLegacyOracle: options.allowLegacyOracle,
-      ),
+      options: Dart2EsmPipelineOptions(runMain: options.runMain),
     ).compile(component);
     output.parent.createSync(recursive: true);
     output.writeAsStringSync(pipelineResult.code);
@@ -54,7 +51,6 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
         'Kernel libraries: ${component.libraries.length}; main: ${component.mainMethod?.name.text ?? 'none'}.',
         ...pipelineResult.diagnostics,
       ],
-      compilerPath: pipelineResult.path,
       esmMetrics: esmMetrics,
       dart2jsMetrics: dart2jsMetrics,
     );
@@ -253,7 +249,6 @@ final class Dart2EsmOptions {
     this.packagesPath,
     this.environmentDefines = const [],
     this.runMain = true,
-    this.allowLegacyOracle = false,
     this.collectMetrics = false,
     this.compareDart2JsMetrics = false,
   });
@@ -264,7 +259,6 @@ final class Dart2EsmOptions {
   final String? packagesPath;
   final List<String> environmentDefines;
   final bool runMain;
-  final bool allowLegacyOracle;
   final bool collectMetrics;
   final bool compareDart2JsMetrics;
 }
@@ -273,14 +267,12 @@ final class Dart2EsmResult {
   const Dart2EsmResult({
     required this.success,
     required this.diagnostics,
-    this.compilerPath,
     this.esmMetrics,
     this.dart2jsMetrics,
   });
 
   final bool success;
   final List<String> diagnostics;
-  final Dart2EsmCompilerPath? compilerPath;
   final CodeSizeMetrics? esmMetrics;
   final CodeSizeMetrics? dart2jsMetrics;
 }

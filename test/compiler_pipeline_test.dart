@@ -17,10 +17,6 @@ import 'package:test/test.dart';
 void main() {
   test('compiler core exposes the ordered stage contract', () {
     expect(
-      const Dart2EsmPipelineOptions(runMain: true).allowLegacyOracle,
-      isFalse,
-    );
-    expect(
       dart2EsmCompilerStageOrder,
       dart2EsmCompilerStageContracts
           .map((contract) => contract.stageId)
@@ -98,9 +94,7 @@ void main() {
       options: const Dart2EsmPipelineOptions(runMain: true),
     ).compile(component);
 
-    expect(result.path, Dart2EsmCompilerPath.newCore);
     expect(result.completedStages, dart2EsmCompilerStageOrder);
-    expect(result.usedLegacyOracle, isFalse);
     expect(result.kernel.component, same(component));
     expect(result.semantic?.world.main, same(main));
     expect(result.lowering?.items, hasLength(3));
@@ -607,13 +601,9 @@ export function main() {
     component.setMainMethodAndMode(main.reference, true);
 
     final result = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(
-        runMain: false,
-        allowLegacyOracle: false,
-      ),
+      options: const Dart2EsmPipelineOptions(runMain: false),
     ).compile(component);
 
-    expect(result.path, Dart2EsmCompilerPath.newCore);
     final collisionSymbol = result.semantic!.world.symbolForRequired(
       helperCollision,
     );
@@ -679,52 +669,16 @@ export function main() {
       options: const Dart2EsmPipelineOptions(runMain: true),
     ).compile(_componentWithSwitchContinue());
 
-    expect(result.path, Dart2EsmCompilerPath.newCore);
-    expect(result.usedLegacyOracle, isFalse);
     expect(result.completedStages, dart2EsmCompilerStageOrder);
     expect(result.code, contains(r'$switchTarget'));
     expect(result.code, contains(r'continue $switchLoop;'));
   });
 
-  test(
-    'rejects unsupported Kernel without invoking the legacy oracle by default',
-    () {
-      final component = _componentWithYieldStatement();
-
-      final pipeline = Dart2EsmCompilerPipeline(
-        options: const Dart2EsmPipelineOptions(runMain: true),
-      );
-
-      expect(
-        () => pipeline.compile(component),
-        throwsA(isA<NewCompilerUnsupported>()),
-      );
-    },
-  );
-
-  test('can explicitly invoke the legacy oracle for unsupported Kernel', () {
-    final component = _componentWithYieldStatement();
-
-    final result = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(
-        runMain: true,
-        allowLegacyOracle: true,
-      ),
-    ).compile(component);
-
-    expect(result.path, Dart2EsmCompilerPath.legacyOracle);
-    expect(result.usedLegacyOracle, isTrue);
-    expect(result.legacyOracle?.reason, contains('YieldStatement'));
-  });
-
-  test('can reject unsupported Kernel without invoking the legacy oracle', () {
+  test('rejects unsupported Kernel in the compiler core', () {
     final component = _componentWithYieldStatement();
 
     final pipeline = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(
-        runMain: true,
-        allowLegacyOracle: false,
-      ),
+      options: const Dart2EsmPipelineOptions(runMain: true),
     );
 
     expect(

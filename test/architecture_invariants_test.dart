@@ -122,7 +122,7 @@ void main() {
         source,
         isNot(contains('backend/esm_backend.dart')),
         reason:
-            '${contract.stageId} must not call legacy backend in ${file.path}',
+            '${contract.stageId} must not call the old backend in ${file.path}',
       );
     }
   });
@@ -716,7 +716,7 @@ void main() {
     },
   );
 
-  test('runtime helpers are owned by compiler core, not legacy backend', () {
+  test('runtime helpers are owned by compiler core', () {
     final runtime = _read('lib/src/compiler_core/runtime/runtime_helpers.dart');
     final linker = _read('lib/src/compiler_core/runtime/runtime_linker.dart');
     final lowering = _read(
@@ -755,39 +755,34 @@ void main() {
     }
   });
 
-  test('legacy backend is isolated behind an oracle boundary', () {
-    final coreFiles = _dartFiles('lib/src/compiler_core');
-    final legacyOracle = p.join(
-      Directory.current.path,
-      'lib/src/compiler_core/legacy_oracle.dart',
+  test('old backend entrypoints are deleted from the architecture', () {
+    expect(Directory('lib/src/backend').existsSync(), isFalse);
+    expect(
+      File('lib/src/compiler_core/legacy_oracle.dart').existsSync(),
+      isFalse,
     );
 
-    for (final file in coreFiles) {
+    for (final file in _dartFiles('lib/src')) {
       final source = file.readAsStringSync();
-      if (file.path == legacyOracle) {
-        expect(source, contains("../backend/esm_backend.dart"));
-      } else {
-        expect(
-          source,
-          isNot(contains('backend/esm_backend.dart')),
-          reason: file.path,
-        );
-        expect(source, isNot(contains('emitEsm(')), reason: file.path);
-        expect(source, isNot(contains('emitEsmModel(')), reason: file.path);
-      }
+      expect(
+        source,
+        isNot(contains('backend/esm_backend.dart')),
+        reason: file.path,
+      );
+      expect(source, isNot(contains('emitEsm(')), reason: file.path);
+      expect(source, isNot(contains('emitEsmModel(')), reason: file.path);
     }
   });
 
-  test('legacy oracle is never enabled by default', () {
+  test('compiler exposes no old backend oracle entrypoint', () {
     final cli = _read('lib/src/cli.dart');
     final compiler = _read('lib/src/compiler.dart');
     final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
 
-    expect(compiler, contains('this.allowLegacyOracle = false'));
-    expect(pipeline, contains('this.allowLegacyOracle = false'));
-    expect(cli, contains("'legacy-oracle'"));
-    expect(cli, contains("allowLegacyOracle: results['legacy-oracle']"));
-    expect(cli, isNot(contains('allowLegacyOracle: true')));
+    expect(compiler, isNot(contains('allowLegacyOracle')));
+    expect(pipeline, isNot(contains('allowLegacyOracle')));
+    expect(cli, isNot(contains('legacy-oracle')));
+    expect(cli, isNot(contains('allowLegacyOracle')));
   });
 }
 

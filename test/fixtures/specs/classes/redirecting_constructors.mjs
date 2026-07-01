@@ -26,24 +26,24 @@ function __dartStr(value) {
 
 export class Point {
   constructor(x, y) {
-    this.x = null;
-    this.y = null;
-    this.label = null;
-    this.x = x;
-    this.y = y;
-    this.label = "point";
+    Object.defineProperty(this, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "x", { value: x, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: y, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: "point", writable: true, enumerable: true, configurable: true });
   }
   static zero() {
     return Reflect.construct(Point, [0, 0], this);
   }
   static named(x, y, label) {
     const $self = Object.create(this.prototype);
-    $self.x = null;
-    $self.y = null;
-    $self.label = null;
-    $self.x = x;
-    $self.y = y;
-    $self.label = label;
+    Object.defineProperty($self, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "x", { value: x, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: y, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: label, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   static alias(value) {
@@ -60,12 +60,12 @@ export class Pair {
   }
   static named(left, right, label) {
     const $self = Object.create(this.prototype);
-    $self.left = null;
-    $self.right = null;
-    $self.label = null;
-    $self.left = left;
-    $self.right = right;
-    $self.label = label;
+    Object.defineProperty($self, "left", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "right", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "left", { value: left, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "right", { value: right, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: label, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   static mirror(value) {
@@ -85,10 +85,10 @@ export class Range {
   }
   static between(start, end) {
     const $self = Object.create(this.prototype);
-    $self.start = null;
-    $self.end = null;
-    $self.start = start;
-    $self.end = end;
+    Object.defineProperty($self, "start", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "end", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "start", { value: start, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "end", { value: end, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {
@@ -102,12 +102,12 @@ export class Options {
   }
   static named({ count, label = "default", enabled = true } = {}) {
     const $self = Object.create(this.prototype);
-    $self.count = null;
-    $self.label = null;
-    $self.enabled = null;
-    $self.count = count;
-    $self.label = label;
-    $self.enabled = enabled;
+    Object.defineProperty($self, "count", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "enabled", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "count", { value: count, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: label, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "enabled", { value: enabled, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   static defaults() {
@@ -130,10 +130,10 @@ export class Animal {
   }
   static named(name) {
     const $self = Object.create(this.prototype);
-    $self.name = null;
-    $self.source = null;
-    $self.name = name;
-    $self.source = "animal";
+    Object.defineProperty($self, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "source", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "name", { value: name, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "source", { value: "animal", writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {
@@ -150,10 +150,10 @@ export class Dog extends Animal {
   }
   static full(name, age, label) {
     const $self = Animal.named.call(this, name);
-    $self.age = null;
-    $self.label = null;
-    $self.age = age;
-    $self.label = label;
+    Object.defineProperty($self, "age", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "age", { value: age, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: label, writable: true, enumerable: true, configurable: true });
     $self.label = `${__dartStr($self.label)}!`;
     return $self;
   }
@@ -171,8 +171,8 @@ export class Puppy extends Dog {
   }
   static full(name, age, toy) {
     const $self = Dog.named.call(this, name, age);
-    $self.toy = null;
-    $self.toy = toy;
+    Object.defineProperty($self, "toy", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "toy", { value: toy, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {
@@ -186,8 +186,8 @@ export class ColoredPoint extends Point {
   }
   static zero(color) {
     const $self = Point.zero.call(this);
-    $self.color = null;
-    $self.color = color;
+    Object.defineProperty($self, "color", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "color", { value: color, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {
@@ -198,8 +198,8 @@ export class ColoredPoint extends Point {
 export class WrappedPair extends Pair {
   constructor(wrapper) {
     super();
-    this.wrapper = null;
-    this.wrapper = wrapper;
+    Object.defineProperty(this, "wrapper", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "wrapper", { value: wrapper, writable: true, enumerable: true, configurable: true });
   }
   describe() {
     return `${__dartStr(super.describe())} ${__dartStr(this.wrapper)}`;

@@ -107,8 +107,8 @@ function __dartWeakReference(target) {
 
 export class PlainToken {
   constructor(name) {
-    this.name = null;
-    this.name = name;
+    Object.defineProperty(this, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "name", { value: name, writable: true, enumerable: true, configurable: true });
   }
   toString() {
     return this.name;
@@ -131,7 +131,7 @@ export function describeWeak(token) {
 export function describeFinalizer(token) {
   const observed = Array(0).fill(null);
   const detachKey = {  };
-  const finalizer = __dartFinalizer(function(value) {
+  const finalizer = __dartFinalizer((value) => {
     __dartListAdd(observed, value);
   });
   finalizer.attach(token, "collected", { detach: detachKey });

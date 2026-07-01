@@ -26,8 +26,8 @@ function __dartStr(value) {
 
 export class Counter {
   constructor(value) {
-    this.value = null;
-    this.value = value;
+    Object.defineProperty(this, "value", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "value", { value: value, writable: true, enumerable: true, configurable: true });
   }
   add(amount) {
     this.value = this.value + amount;

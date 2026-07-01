@@ -35,12 +35,12 @@ export class NamedThing {
 }
 
 Object.defineProperty(NamedThing, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$NamedThing_interface] === true;
+  return value != null && (NamedThing.prototype.isPrototypeOf(value) || value[$NamedThing_interface] === true);
 } });
 export class Person {
   constructor(name) {
-    this.name = null;
-    this.name = name;
+    Object.defineProperty(this, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "name", { value: name, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $NamedThing_interface, { value: true });
   }
   describe() {

@@ -88,6 +88,42 @@ function __dartUnmodifiableList(values) {
   return Object.freeze(Array.from(values));
 }
 
+function __dartListLikeGet(list, index) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list) || typeof list === "string") return list[index];
+  const op = list == null ? null : list["[]"];
+  return typeof op === "function" ? op.call(list, index) : list[index];
+}
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
+}
+function __dartListMixinFirst(list) {
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinLast(list) {
+  return __dartListLikeGet(list, list.length - 1);
+}
+function __dartListMixinSingle(list) {
+  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinInsert(list, index, value) {
+  index = Number(index);
+  const length = Number(list.length);
+  list.length = length + 1;
+  for (let i = length; i > index; i--) {
+    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
+  }
+  __dartListLikeSet(list, index, value);
+  return null;
+}
+
 function __dartMapAddAll(map, entries) {
   for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
@@ -614,7 +650,7 @@ export function main() {
   __dartPrint(`cleared ${__dartStr(buffer.isEmpty)} ${__dartStr(buffer.toString())}`);
   const textRunes = __dartListOf(Array.from(String("A😀B"), (char) => char.codePointAt(0)), true);
   const constructedRunes = Array.from(String("Hi 😀"), (char) => char.codePointAt(0));
-  __dartPrint(`runes ${__dartStr(textRunes.length)} ${__dartStr((textRunes[1]).toString(16))} ${__dartStr(__dartStringFromCharCodes(constructedRunes))} ${__dartStr(String.fromCodePoint(128512))}`);
+  __dartPrint(`runes ${__dartStr(textRunes.length)} ${__dartStr((__dartListLikeGet(textRunes, 1)).toString(16))} ${__dartStr(__dartStringFromCharCodes(constructedRunes))} ${__dartStr(String.fromCodePoint(128512))}`);
   const expando = __dartExpando("count");
   const expandoKey = new PlainObject();
   expando.set(expandoKey, 7);

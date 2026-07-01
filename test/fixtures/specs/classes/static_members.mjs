@@ -60,8 +60,8 @@ function __dartStr(value) {
 
 export class Accumulator {
   constructor(value) {
-    this.value = null;
-    this.value = value;
+    Object.defineProperty(this, "value", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "value", { value: value, writable: true, enumerable: true, configurable: true });
   }
   static bump(amount) {
     Accumulator.total = Accumulator.total + amount + 3;

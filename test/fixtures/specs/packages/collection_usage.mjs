@@ -123,6 +123,42 @@ function __dartListAdd(list, value) {
   return null;
 }
 
+function __dartListLikeGet(list, index) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list) || typeof list === "string") return list[index];
+  const op = list == null ? null : list["[]"];
+  return typeof op === "function" ? op.call(list, index) : list[index];
+}
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
+}
+function __dartListMixinFirst(list) {
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinLast(list) {
+  return __dartListLikeGet(list, list.length - 1);
+}
+function __dartListMixinSingle(list) {
+  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinInsert(list, index, value) {
+  index = Number(index);
+  const length = Number(list.length);
+  list.length = length + 1;
+  for (let i = length; i > index; i--) {
+    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
+  }
+  __dartListLikeSet(list, index, value);
+  return null;
+}
+
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
   const values = Array.from(source).slice(Number(start), end == null ? undefined : Number(end));
   let index = Number(at);
@@ -386,7 +422,7 @@ class Equality {
 }
 
 Object.defineProperty(Equality, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$Equality_interface] === true;
+  return value != null && (Equality.prototype.isPrototypeOf(value) || value[$Equality_interface] === true);
 } });
 class DefaultEquality {
   constructor() {
@@ -405,8 +441,8 @@ class DefaultEquality {
 
 class IterableEquality {
   constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
-    this._elementEquality = null;
-    this._elementEquality = elementEquality;
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   equals(elements1, elements2) {
@@ -426,7 +462,7 @@ class IterableEquality {
       if (!(hasNext)) {
         return true;
       }
-      if (!(this._elementEquality.equals(it1.current, it2.current))) {
+      if (!(this._elementEquality_package_collection_src_equality_dart.equals(it1.current, it2.current))) {
         return false;
       }
     }
@@ -439,14 +475,14 @@ class IterableEquality {
     let _sync_for_iterator = __dartIterator(elements);
     for (; _sync_for_iterator.moveNext(); ) {
       let element = _sync_for_iterator.current;
-      let c = this._elementEquality.hash(element);
+      let c = this._elementEquality_package_collection_src_equality_dart.hash(element);
       hash = hash + c & 2147483647;
-      hash = hash + hash << 10 & 2147483647;
+      hash = hash + (hash << 10) & 2147483647;
       hash = hash ^ hash >> 6;
     }
-    hash = hash + hash << 3 & 2147483647;
+    hash = hash + (hash << 3) & 2147483647;
     hash = hash ^ hash >> 11;
-    hash = hash + hash << 15 & 2147483647;
+    hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
   isValidKey(o) {
@@ -456,8 +492,8 @@ class IterableEquality {
 
 class ListEquality {
   constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
-    this._elementEquality = null;
-    this._elementEquality = elementEquality;
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   equals(list1, list2) {
@@ -472,7 +508,7 @@ class ListEquality {
       return false;
     }
     for (let i = 0; i < length; i = i + 1) {
-      if (!(this._elementEquality.equals(list1[i], list2[i]))) {
+      if (!(this._elementEquality_package_collection_src_equality_dart.equals(__dartListLikeGet(list1, i), __dartListLikeGet(list2, i)))) {
         return false;
       }
     }
@@ -484,14 +520,14 @@ class ListEquality {
     }
     let hash = 0;
     for (let i = 0; i < list.length; i = i + 1) {
-      let c = this._elementEquality.hash(list[i]);
+      let c = this._elementEquality_package_collection_src_equality_dart.hash(__dartListLikeGet(list, i));
       hash = hash + c & 2147483647;
-      hash = hash + hash << 10 & 2147483647;
+      hash = hash + (hash << 10) & 2147483647;
       hash = hash ^ hash >> 6;
     }
-    hash = hash + hash << 3 & 2147483647;
+    hash = hash + (hash << 3) & 2147483647;
     hash = hash ^ hash >> 11;
-    hash = hash + hash << 15 & 2147483647;
+    hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
   isValidKey(o) {
@@ -502,8 +538,8 @@ class ListEquality {
 const $_UnorderedEquality_interface = Symbol("_UnorderedEquality");
 class _UnorderedEquality {
   constructor(_elementEquality) {
-    this._elementEquality = null;
-    this._elementEquality = _elementEquality;
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: _elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   equals(elements1, elements2) {
@@ -513,22 +549,22 @@ class _UnorderedEquality {
     if ((elements1 === null || elements2 === null)) {
       return false;
     }
-    let counts = __dartCustomHashMap(__dartAs(function() {
-      const $receiver = this._elementEquality;
+    let counts = __dartCustomHashMap(__dartAs((function() {
+      const $receiver = this._elementEquality_package_collection_src_equality_dart;
       return function(e1, e2) {
         return $receiver.equals(e1, e2);
       };
-    }(), (value) => typeof value === "function", "FunctionType(bool Function(_UnorderedEquality.E%, _UnorderedEquality.E%))"), __dartAs(function() {
-      const $receiver = this._elementEquality;
+    })(), (value) => typeof value === "function", "FunctionType(bool Function(_UnorderedEquality.E%, _UnorderedEquality.E%))"), __dartAs((function() {
+      const $receiver = this._elementEquality_package_collection_src_equality_dart;
       return function(e) {
         return $receiver.hash(e);
       };
-    }(), (value) => typeof value === "function", "FunctionType(int Function(_UnorderedEquality.E%))"), function() {
-      const $receiver = this._elementEquality;
+    })(), (value) => typeof value === "function", "FunctionType(int Function(_UnorderedEquality.E%))"), (function() {
+      const $receiver = this._elementEquality_package_collection_src_equality_dart;
       return function(o) {
         return $receiver.isValidKey(o);
       };
-    }());
+    })());
     let length = 0;
     let _sync_for_iterator = __dartIterator(elements1);
     for (; _sync_for_iterator.moveNext(); ) {
@@ -557,18 +593,18 @@ class _UnorderedEquality {
     let _sync_for_iterator = __dartIterator(elements);
     for (; _sync_for_iterator.moveNext(); ) {
       let element = _sync_for_iterator.current;
-      let c = this._elementEquality.hash(element);
+      let c = this._elementEquality_package_collection_src_equality_dart.hash(element);
       hash = hash + c & 2147483647;
     }
-    hash = hash + hash << 3 & 2147483647;
+    hash = hash + (hash << 3) & 2147483647;
     hash = hash ^ hash >> 11;
-    hash = hash + hash << 15 & 2147483647;
+    hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
 }
 
 Object.defineProperty(_UnorderedEquality, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$_UnorderedEquality_interface] === true;
+  return value != null && (_UnorderedEquality.prototype.isPrototypeOf(value) || value[$_UnorderedEquality_interface] === true);
 } });
 class UnorderedIterableEquality extends _UnorderedEquality {
   constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
@@ -590,27 +626,27 @@ class SetEquality extends _UnorderedEquality {
 
 class _MapEntry {
   constructor(equality, key, value) {
-    this.equality = null;
-    this.key = null;
-    this.value = null;
-    this.equality = equality;
-    this.key = key;
-    this.value = value;
+    Object.defineProperty(this, "equality", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "key", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "value", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "equality", { value: equality, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "key", { value: key, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "value", { value: value, writable: true, enumerable: true, configurable: true });
   }
   get hashCode() {
-    return 3 * this.equality._keyEquality.hash(this.key) + 7 * this.equality._valueEquality.hash(this.value) & 2147483647;
+    return 3 * this.equality._keyEquality_package_collection_src_equality_dart.hash(this.key) + 7 * this.equality._valueEquality_package_collection_src_equality_dart.hash(this.value) & 2147483647;
   }
   "=="(other) {
-    return ((other instanceof _MapEntry && this.equality._keyEquality.equals(this.key, other.key)) && this.equality._valueEquality.equals(this.value, other.value));
+    return ((other instanceof _MapEntry && this.equality._keyEquality_package_collection_src_equality_dart.equals(this.key, other.key)) && this.equality._valueEquality_package_collection_src_equality_dart.equals(this.value, other.value));
   }
 }
 
 class MapEquality {
   constructor({ keys = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))), values = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) } = {}) {
-    this._keyEquality = null;
-    this._valueEquality = null;
-    this._keyEquality = keys;
-    this._valueEquality = values;
+    Object.defineProperty(this, "_keyEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_valueEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_keyEquality_package_collection_src_equality_dart", { value: keys, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_valueEquality_package_collection_src_equality_dart", { value: values, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   equals(map1, map2) {
@@ -652,16 +688,16 @@ class MapEquality {
     let _sync_for_iterator = __dartIterator(Array.from(map.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
-      let keyHash = this._keyEquality.hash(key);
-      let valueHash = this._valueEquality.hash((() => {
+      let keyHash = this._keyEquality_package_collection_src_equality_dart.hash(key);
+      let valueHash = this._valueEquality_package_collection_src_equality_dart.hash((() => {
         let v = __dartMapGet(map, key);
         return (v === null ? __dartAs(v, (value) => true, "TypeParameterType(MapEquality.V%)") : v);
       })());
       hash = hash + 3 * keyHash + 7 * valueHash & 2147483647;
     }
-    hash = hash + hash << 3 & 2147483647;
+    hash = hash + (hash << 3) & 2147483647;
     hash = hash ^ hash >> 11;
-    hash = hash + hash << 15 & 2147483647;
+    hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
   isValidKey(o) {
@@ -671,18 +707,18 @@ class MapEquality {
 
 class DeepCollectionEquality {
   constructor(base = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
-    this._base = null;
-    this._unordered = null;
-    this._base = base;
-    this._unordered = false;
+    Object.defineProperty(this, "_base_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_unordered_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_base_package_collection_src_equality_dart", { value: base, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_unordered_package_collection_src_equality_dart", { value: false, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   static unordered(base = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
     const $self = Object.create(this.prototype);
-    $self._base = null;
-    $self._unordered = null;
-    $self._base = base;
-    $self._unordered = true;
+    Object.defineProperty($self, "_base_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_unordered_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_base_package_collection_src_equality_dart", { value: base, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_unordered_package_collection_src_equality_dart", { value: true, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, $Equality_interface, { value: true });
     return $self;
   }
@@ -693,7 +729,7 @@ class DeepCollectionEquality {
     if (e1 instanceof Map) {
       return (e2 instanceof Map && new MapEquality({ keys: this, values: this }).equals(e1, e2));
     }
-    if (!(this._unordered)) {
+    if (!(this._unordered_package_collection_src_equality_dart)) {
       if ((Array.isArray(e1) || (ArrayBuffer.isView(e1) && !(e1 instanceof DataView)))) {
         return ((Array.isArray(e2) || (ArrayBuffer.isView(e2) && !(e2 instanceof DataView))) && new ListEquality(this).equals(e1, e2));
       }
@@ -708,7 +744,7 @@ class DeepCollectionEquality {
         return ((((e2 != null && typeof e2 !== "string") && !(e2 instanceof Map)) && typeof e2[Symbol.iterator] === "function") && new UnorderedIterableEquality(this).equals(e1, e2));
       }
     }
-    return this._base.equals(e1, e2);
+    return this._base_package_collection_src_equality_dart.equals(e1, e2);
   }
   hash(o) {
     if (o instanceof Set) {
@@ -717,7 +753,7 @@ class DeepCollectionEquality {
     if (o instanceof Map) {
       return new MapEquality({ keys: this, values: this }).hash(o);
     }
-    if (!(this._unordered)) {
+    if (!(this._unordered_package_collection_src_equality_dart)) {
       if ((Array.isArray(o) || (ArrayBuffer.isView(o) && !(o instanceof DataView)))) {
         return new ListEquality(this).hash(o);
       }
@@ -729,10 +765,10 @@ class DeepCollectionEquality {
         return new UnorderedIterableEquality(this).hash(o);
       }
     }
-    return this._base.hash(o);
+    return this._base_package_collection_src_equality_dart.hash(o);
   }
   isValidKey(o) {
-    return (((((o != null && typeof o !== "string") && !(o instanceof Map)) && typeof o[Symbol.iterator] === "function") || o instanceof Map) || this._base.isValidKey(o));
+    return (((((o != null && typeof o !== "string") && !(o instanceof Map)) && typeof o[Symbol.iterator] === "function") || o instanceof Map) || this._base_package_collection_src_equality_dart.isValidKey(o));
   }
 }
 
@@ -789,26 +825,26 @@ class PriorityQueue {
 }
 
 Object.defineProperty(PriorityQueue, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$PriorityQueue_interface] === true;
+  return value != null && (PriorityQueue.prototype.isPrototypeOf(value) || value[$PriorityQueue_interface] === true);
 } });
 class HeapPriorityQueue {
   constructor(comparison = null) {
-    this.comparison = null;
-    this._queue = Array(7).fill(null);
-    this._length = 0;
-    this._modificationCount = 0;
-    this.comparison = (comparison ?? defaultCompare);
+    Object.defineProperty(this, "comparison", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_queue_package_collection_src_priority_queue_dart", { value: Array(7).fill(null), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_length_package_collection_src_priority_queue_dart", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_modificationCount_package_collection_src_priority_queue_dart", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "comparison", { value: (comparison ?? defaultCompare), writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $PriorityQueue_interface, { value: true });
   }
-  _elementAt(index) {
-    return (this._queue[index] ?? (() => {
+  _elementAt_package_collection_src_priority_queue_dart(index) {
+    return (__dartListLikeGet(this._queue_package_collection_src_priority_queue_dart, index) ?? (() => {
       let v = null;
       return (v === null ? __dartAs(v, (value) => true, "TypeParameterType(HeapPriorityQueue.E%)") : v);
     })());
   }
   add(element) {
-    this._modificationCount = this._modificationCount + 1;
-    this._add(element);
+    this._modificationCount_package_collection_src_priority_queue_dart = this._modificationCount_package_collection_src_priority_queue_dart + 1;
+    this._add_package_collection_src_priority_queue_dart(element);
   }
   addAll(elements) {
     let modified = 0;
@@ -816,44 +852,44 @@ class HeapPriorityQueue {
     for (; _sync_for_iterator.moveNext(); ) {
       let element = _sync_for_iterator.current;
       modified = 1;
-      this._add(element);
+      this._add_package_collection_src_priority_queue_dart(element);
     }
-    this._modificationCount = this._modificationCount + modified;
+    this._modificationCount_package_collection_src_priority_queue_dart = this._modificationCount_package_collection_src_priority_queue_dart + modified;
   }
   clear() {
-    this._modificationCount = this._modificationCount + 1;
-    this._queue = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
-    this._length = 0;
+    this._modificationCount_package_collection_src_priority_queue_dart = this._modificationCount_package_collection_src_priority_queue_dart + 1;
+    this._queue_package_collection_src_priority_queue_dart = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
+    this._length_package_collection_src_priority_queue_dart = 0;
   }
   contains(object) {
-    return this._locate(object) >= 0;
+    return this._locate_package_collection_src_priority_queue_dart(object) >= 0;
   }
   get unorderedElements() {
     return new _UnorderedElementsIterable(this);
   }
   get first() {
-    if (__dartEquals(this._length, 0)) {
+    if (__dartEquals(this._length_package_collection_src_priority_queue_dart, 0)) {
       throw __dartCoreError("StateError", "No element");
     }
-    return this._elementAt(0);
+    return this._elementAt_package_collection_src_priority_queue_dart(0);
   }
   get isEmpty() {
-    return __dartEquals(this._length, 0);
+    return __dartEquals(this._length_package_collection_src_priority_queue_dart, 0);
   }
   get isNotEmpty() {
-    return !(__dartEquals(this._length, 0));
+    return !(__dartEquals(this._length_package_collection_src_priority_queue_dart, 0));
   }
   get length() {
-    return this._length;
+    return this._length_package_collection_src_priority_queue_dart;
   }
   remove(element) {
-    let index = this._locate(element);
+    let index = this._locate_package_collection_src_priority_queue_dart(element);
     if (index < 0) {
       return false;
     }
-    this._modificationCount = this._modificationCount + 1;
-    let last = this._removeLast();
-    if (index < this._length) {
+    this._modificationCount_package_collection_src_priority_queue_dart = this._modificationCount_package_collection_src_priority_queue_dart + 1;
+    let last = this._removeLast_package_collection_src_priority_queue_dart();
+    if (index < this._length_package_collection_src_priority_queue_dart) {
       let comp = (() => {
         const v = last;
         return (() => {
@@ -862,36 +898,36 @@ class HeapPriorityQueue {
         })();
       })();
       if (comp <= 0) {
-        this._bubbleUp(last, index);
+        this._bubbleUp_package_collection_src_priority_queue_dart(last, index);
       } else {
-        this._bubbleDown(last, index);
+        this._bubbleDown_package_collection_src_priority_queue_dart(last, index);
       }
     }
     return true;
   }
   removeAll() {
-    this._modificationCount = this._modificationCount + 1;
-    let result = this._queue;
-    let length = this._length;
-    this._queue = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
-    this._length = 0;
+    this._modificationCount_package_collection_src_priority_queue_dart = this._modificationCount_package_collection_src_priority_queue_dart + 1;
+    let result = this._queue_package_collection_src_priority_queue_dart;
+    let length = this._length_package_collection_src_priority_queue_dart;
+    this._queue_package_collection_src_priority_queue_dart = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
+    this._length_package_collection_src_priority_queue_dart = 0;
     return Array.from(result).slice(0, length);
   }
   removeFirst() {
-    if (__dartEquals(this._length, 0)) {
+    if (__dartEquals(this._length_package_collection_src_priority_queue_dart, 0)) {
       throw __dartCoreError("StateError", "No element");
     }
-    this._modificationCount = this._modificationCount + 1;
-    let result = this._elementAt(0);
-    let last = this._removeLast();
-    if (this._length > 0) {
-      this._bubbleDown(last, 0);
+    this._modificationCount_package_collection_src_priority_queue_dart = this._modificationCount_package_collection_src_priority_queue_dart + 1;
+    let result = this._elementAt_package_collection_src_priority_queue_dart(0);
+    let last = this._removeLast_package_collection_src_priority_queue_dart();
+    if (this._length_package_collection_src_priority_queue_dart > 0) {
+      this._bubbleDown_package_collection_src_priority_queue_dart(last, 0);
     }
     return result;
   }
   toList() {
     return (() => {
-      const v = this._toUnorderedList();
+      const v = this._toUnorderedList_package_collection_src_priority_queue_dart();
       return (() => {
         v.sort((left, right) => __dartCompare(left, right, this.comparison));
         return v;
@@ -900,47 +936,47 @@ class HeapPriorityQueue {
   }
   toSet() {
     let set = __dartSplayTreeSet(this.comparison, null);
-    for (let i = 0; i < this._length; i = i + 1) {
-      __dartSetAdd(set, this._elementAt(i));
+    for (let i = 0; i < this._length_package_collection_src_priority_queue_dart; i = i + 1) {
+      __dartSetAdd(set, this._elementAt_package_collection_src_priority_queue_dart(i));
     }
     return set;
   }
   toUnorderedList() {
-    return this._toUnorderedList();
+    return this._toUnorderedList_package_collection_src_priority_queue_dart();
   }
-  _toUnorderedList() {
+  _toUnorderedList_package_collection_src_priority_queue_dart() {
     return (() => {
       const v = Array(0).fill(null);
-      for (let i = 0; i < this._length; i = i + 1) {
-        __dartListAdd(v, this._elementAt(i));
+      for (let i = 0; i < this._length_package_collection_src_priority_queue_dart; i = i + 1) {
+        __dartListAdd(v, this._elementAt_package_collection_src_priority_queue_dart(i));
       }
       return v;
     })();
   }
   toString() {
-    return String(Array.from(this._queue).slice(0, this._length));
+    return String(Array.from(this._queue_package_collection_src_priority_queue_dart).slice(0, this._length_package_collection_src_priority_queue_dart));
   }
-  _add(element) {
-    if (__dartEquals(this._length, this._queue.length)) {
-      this._grow();
+  _add_package_collection_src_priority_queue_dart(element) {
+    if (__dartEquals(this._length_package_collection_src_priority_queue_dart, this._queue_package_collection_src_priority_queue_dart.length)) {
+      this._grow_package_collection_src_priority_queue_dart();
     }
-    this._bubbleUp(element, (() => {
-      const v = this._length;
+    this._bubbleUp_package_collection_src_priority_queue_dart(element, (() => {
+      const v = this._length_package_collection_src_priority_queue_dart;
       return (() => {
-        const v_1 = this._length = v + 1;
+        const v_1 = this._length_package_collection_src_priority_queue_dart = v + 1;
         return v;
       })();
     })());
   }
-  _locate(object) {
-    if (__dartEquals(this._length, 0)) {
+  _locate_package_collection_src_priority_queue_dart(object) {
+    if (__dartEquals(this._length_package_collection_src_priority_queue_dart, 0)) {
       return -1;
     }
     let position = 1;
     do {
       label: {
         let index = position - 1;
-        let element = this._elementAt(index);
+        let element = this._elementAt_package_collection_src_priority_queue_dart(index);
         let comp = (() => {
           const v = element;
           return (() => {
@@ -953,7 +989,7 @@ class HeapPriorityQueue {
             return index;
           }
           let leftChildPosition = position * 2;
-          if (leftChildPosition <= this._length) {
+          if (leftChildPosition <= this._length_package_collection_src_priority_queue_dart) {
             position = leftChildPosition;
             break label;
           }
@@ -963,23 +999,23 @@ class HeapPriorityQueue {
             position = position >> 1;
           }
           position = position + 1;
-        } while (position > this._length);
+        } while (position > this._length_package_collection_src_priority_queue_dart);
       }
     } while (!(__dartEquals(position, 1)));
     return -1;
   }
-  _removeLast() {
-    let newLength = this._length - 1;
-    let last = this._elementAt(newLength);
-    this._queue[newLength] = null;
-    this._length = newLength;
+  _removeLast_package_collection_src_priority_queue_dart() {
+    let newLength = this._length_package_collection_src_priority_queue_dart - 1;
+    let last = this._elementAt_package_collection_src_priority_queue_dart(newLength);
+    __dartListLikeSet(this._queue_package_collection_src_priority_queue_dart, newLength, null);
+    this._length_package_collection_src_priority_queue_dart = newLength;
     return last;
   }
-  _bubbleUp(element, index) {
+  _bubbleUp_package_collection_src_priority_queue_dart(element, index) {
     label: {
       while (index > 0) {
-        let parentIndex = Math.trunc(index - 1 / 2);
-        let parent = this._elementAt(parentIndex);
+        let parentIndex = Math.trunc((index - 1) / 2);
+        let parent = this._elementAt_package_collection_src_priority_queue_dart(parentIndex);
         if ((() => {
           const v = element;
           return (() => {
@@ -989,18 +1025,18 @@ class HeapPriorityQueue {
         })() > 0) {
           break label;
         }
-        this._queue[index] = parent;
+        __dartListLikeSet(this._queue_package_collection_src_priority_queue_dart, index, parent);
         index = parentIndex;
       }
     }
-    this._queue[index] = element;
+    __dartListLikeSet(this._queue_package_collection_src_priority_queue_dart, index, element);
   }
-  _bubbleDown(element, index) {
+  _bubbleDown_package_collection_src_priority_queue_dart(element, index) {
     let rightChildIndex = index * 2 + 2;
-    while (rightChildIndex < this._length) {
+    while (rightChildIndex < this._length_package_collection_src_priority_queue_dart) {
       let leftChildIndex = rightChildIndex - 1;
-      let leftChild = this._elementAt(leftChildIndex);
-      let rightChild = this._elementAt(rightChildIndex);
+      let leftChild = this._elementAt_package_collection_src_priority_queue_dart(leftChildIndex);
+      let rightChild = this._elementAt_package_collection_src_priority_queue_dart(rightChildIndex);
       let comp = (() => {
         const v = leftChild;
         return (() => {
@@ -1025,16 +1061,16 @@ class HeapPriorityQueue {
         })();
       })();
       if (comp <= 0) {
-        this._queue[index] = element;
+        __dartListLikeSet(this._queue_package_collection_src_priority_queue_dart, index, element);
         return;
       }
-      this._queue[index] = minChild;
+      __dartListLikeSet(this._queue_package_collection_src_priority_queue_dart, index, minChild);
       index = minChildIndex;
       rightChildIndex = index * 2 + 2;
     }
     let leftChildIndex_1 = rightChildIndex - 1;
-    if (leftChildIndex_1 < this._length) {
-      let child = this._elementAt(leftChildIndex_1);
+    if (leftChildIndex_1 < this._length_package_collection_src_priority_queue_dart) {
+      let child = this._elementAt_package_collection_src_priority_queue_dart(leftChildIndex_1);
       let comp_1 = (() => {
         const v = element;
         return (() => {
@@ -1043,66 +1079,66 @@ class HeapPriorityQueue {
         })();
       })();
       if (comp_1 > 0) {
-        this._queue[index] = child;
+        __dartListLikeSet(this._queue_package_collection_src_priority_queue_dart, index, child);
         index = leftChildIndex_1;
       }
     }
-    this._queue[index] = element;
+    __dartListLikeSet(this._queue_package_collection_src_priority_queue_dart, index, element);
   }
-  _grow() {
-    let newCapacity = this._queue.length * 2 + 1;
+  _grow_package_collection_src_priority_queue_dart() {
+    let newCapacity = this._queue_package_collection_src_priority_queue_dart.length * 2 + 1;
     if (newCapacity < 7) {
       newCapacity = 7;
     }
     let newQueue = Array(newCapacity).fill(null);
-    __dartListSetRange(newQueue, 0, this._length, this._queue);
-    this._queue = newQueue;
+    __dartListSetRange(newQueue, 0, this._length_package_collection_src_priority_queue_dart, this._queue_package_collection_src_priority_queue_dart);
+    this._queue_package_collection_src_priority_queue_dart = newQueue;
   }
 }
 
 const $HeapPriorityQueue__initialCapacity = __dartLazyField("HeapPriorityQueue._initialCapacity", () => 7, false);
-Object.defineProperty(HeapPriorityQueue, "_initialCapacity", { get: function() {
+Object.defineProperty(HeapPriorityQueue, "_initialCapacity_package_collection_src_priority_queue_dart", { get: function() {
   return $HeapPriorityQueue__initialCapacity.get();
 }, set: function(value) {
   $HeapPriorityQueue__initialCapacity.set(value);
 }, enumerable: true });
 class _UnorderedElementsIterable {
   constructor(_queue) {
-    this._queue = null;
-    this._queue = _queue;
+    Object.defineProperty(this, "_queue_package_collection_src_priority_queue_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_queue_package_collection_src_priority_queue_dart", { value: _queue, writable: true, enumerable: true, configurable: true });
   }
   get iterator() {
-    return new _UnorderedElementsIterator(this._queue);
+    return new _UnorderedElementsIterator(this._queue_package_collection_src_priority_queue_dart);
   }
 }
 
 class _UnorderedElementsIterator {
   constructor(_queue) {
-    this._queue = null;
-    this._initialModificationCount = null;
-    this._current = null;
-    this._index = -1;
-    this._queue = _queue;
-    this._initialModificationCount = _queue._modificationCount;
+    Object.defineProperty(this, "_queue_package_collection_src_priority_queue_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_initialModificationCount_package_collection_src_priority_queue_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_current_package_collection_src_priority_queue_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_index_package_collection_src_priority_queue_dart", { value: -1, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_queue_package_collection_src_priority_queue_dart", { value: _queue, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_initialModificationCount_package_collection_src_priority_queue_dart", { value: _queue._modificationCount_package_collection_src_priority_queue_dart, writable: true, enumerable: true, configurable: true });
   }
   moveNext() {
-    if (!(__dartEquals(this._initialModificationCount, this._queue._modificationCount))) {
-      throw __dartCoreError("ConcurrentModificationError", this._queue);
+    if (!(__dartEquals(this._initialModificationCount_package_collection_src_priority_queue_dart, this._queue_package_collection_src_priority_queue_dart._modificationCount_package_collection_src_priority_queue_dart))) {
+      throw __dartCoreError("ConcurrentModificationError", this._queue_package_collection_src_priority_queue_dart);
     }
-    let nextIndex = this._index + 1;
-    if ((0 <= nextIndex && nextIndex < this._queue.length)) {
-      this._current = this._queue._queue[nextIndex];
-      this._index = nextIndex;
+    let nextIndex = this._index_package_collection_src_priority_queue_dart + 1;
+    if ((0 <= nextIndex && nextIndex < this._queue_package_collection_src_priority_queue_dart.length)) {
+      this._current_package_collection_src_priority_queue_dart = __dartListLikeGet(this._queue_package_collection_src_priority_queue_dart._queue_package_collection_src_priority_queue_dart, nextIndex);
+      this._index_package_collection_src_priority_queue_dart = nextIndex;
       return true;
     }
-    this._current = null;
-    this._index = -2;
+    this._current_package_collection_src_priority_queue_dart = null;
+    this._index_package_collection_src_priority_queue_dart = -2;
     return false;
   }
   get current() {
-    return (this._index < 0 ? (() => {
+    return (this._index_package_collection_src_priority_queue_dart < 0 ? (() => {
       throw __dartCoreError("StateError", "No element");
-    })() : (this._current ?? (() => {
+    })() : (this._current_package_collection_src_priority_queue_dart ?? (() => {
       let v = null;
       return (v === null ? __dartAs(v, (value) => true, "TypeParameterType(_UnorderedElementsIterator.E%)") : v);
     })()));
@@ -1148,13 +1184,13 @@ function IterableExtension_firstWhereOrNull(_this, test) {
 
 export function main() {
   const numbers = [1, 2, 3, 4, 5];
-  const firstEven = IterableExtension_firstWhereOrNull(numbers, function(value) {
+  const firstEven = IterableExtension_firstWhereOrNull(numbers, (value) => {
     return Math.trunc(value) % 2 === 0;
   });
-  const groups = groupBy(["aa", "b", "cc", "d"], function(value) {
+  const groups = groupBy(["aa", "b", "cc", "d"], (value) => {
     return value.length;
   });
-  const deepEqual = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DeepCollectionEquality{DeepCollectionEquality._base: const DefaultEquality<Never>{}, DeepCollectionEquality._unordered: false})\"]", () => Object.freeze(Object.assign(Object.create(DeepCollectionEquality.prototype), { _base: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))), _unordered: false }))).equals(__dartMapFromEntries([["a", [1, 2]]]), __dartMapFromEntries([["a", [1, 2]]]));
+  const deepEqual = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DeepCollectionEquality{DeepCollectionEquality._base: const DefaultEquality<Never>{}, DeepCollectionEquality._unordered: false})\"]", () => Object.freeze(Object.assign(Object.create(DeepCollectionEquality.prototype), { _base_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))), _unordered_package_collection_src_equality_dart: false }))).equals(__dartMapFromEntries([["a", [1, 2]]]), __dartMapFromEntries([["a", [1, 2]]]));
   const queue = (() => {
     const v = new HeapPriorityQueue();
     return (() => {

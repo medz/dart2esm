@@ -51,10 +51,10 @@ function __dartStr(value) {
 
 export class Vec {
   constructor(x, y) {
-    this.x = null;
-    this.y = null;
-    this.x = x;
-    this.y = y;
+    Object.defineProperty(this, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "x", { value: x, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: y, writable: true, enumerable: true, configurable: true });
   }
   "+"(other) {
     return new Vec(this.x + other.x, this.y + other.y);

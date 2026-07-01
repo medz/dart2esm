@@ -26,8 +26,8 @@ function __dartStr(value) {
 
 export class PartThing {
   constructor(name) {
-    this.name = null;
-    this.name = name;
+    Object.defineProperty(this, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "name", { value: name, writable: true, enumerable: true, configurable: true });
   }
   label() {
     return `${__dartStr(this.name)}:${__dartStr(11)}`;

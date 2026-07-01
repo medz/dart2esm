@@ -85,6 +85,22 @@ final class EsmSemanticWorld {
   final List<EsmExtensionTypeSymbol> extensionTypes;
   final List<EsmFieldSymbol> fields;
   final List<EsmProcedureSymbol> procedures;
+  late final Set<String> globalBindingNames = Set.unmodifiable({
+    for (final klass in classes) ...[
+      klass.name,
+      if (klass.interfaceMarkerName case final markerName?) markerName,
+    ],
+    for (final extensionType in extensionTypes) ...[
+      extensionType.name,
+      extensionType.representationName,
+      for (final member in extensionType.members) member.backingName,
+    ],
+    for (final field in fields) ...[
+      field.name,
+      if (field.backingName case final backingName?) backingName,
+    ],
+    for (final procedure in procedures) procedure.name,
+  });
   final Map<k.Class, EsmClassSymbol> _classSymbols;
   final Map<k.ExtensionTypeDeclaration, EsmExtensionTypeSymbol>
   _extensionTypeSymbols;
@@ -396,6 +412,8 @@ final class SemanticWorldStage
             model.module.classRuntime,
             klass.node,
           ),
+          requiresInterfaceMarker: model.module.classRuntime
+              .isInterfaceBaseClass(klass.node),
           interfaceMarkerClasses: model.module.classRuntime
               .interfaceMarkersFor(klass.node)
               .toList(growable: false),
@@ -475,6 +493,7 @@ final class SemanticWorldStage
     k.Class klass, {
     required bool export,
     required k.Class? jsSuperclass,
+    required bool requiresInterfaceMarker,
     required List<k.Class> interfaceMarkerClasses,
   }) {
     final usedNames = <String>{};
@@ -486,7 +505,10 @@ final class SemanticWorldStage
       name: allocator.freshGlobal(klass.name),
       export: export,
       interfaceMarkerName:
-          klass.isAbstract || klass.isInterface || klass.isMixinDeclaration
+          requiresInterfaceMarker ||
+              klass.isAbstract ||
+              klass.isInterface ||
+              klass.isMixinDeclaration
           ? allocator.freshGlobal('\$${klass.name}_interface')
           : null,
       jsSuperclass: jsSuperclass,

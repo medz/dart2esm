@@ -54,40 +54,40 @@ export class Shape {
 }
 
 Object.defineProperty(Shape, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$Shape_interface] === true;
+  return value != null && (Shape.prototype.isPrototypeOf(value) || value[$Shape_interface] === true);
 } });
 export class Square {
   constructor(size) {
-    this.size = null;
-    this.label = null;
-    this.size = size;
-    this.label = "square";
+    Object.defineProperty(this, "size", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "size", { value: size, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: "square", writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Shape_interface, { value: true });
   }
   static named(size) {
     const $self = Object.create(this.prototype);
-    $self.size = null;
-    $self.label = null;
-    $self.size = size;
-    $self.label = "named";
+    Object.defineProperty($self, "size", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "size", { value: size, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: "named", writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, $Shape_interface, { value: true });
     return $self;
   }
   static withDefault(size = 8) {
     const $self = Object.create(this.prototype);
-    $self.size = null;
-    $self.label = null;
-    $self.size = size;
-    $self.label = "default";
+    Object.defineProperty($self, "size", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "size", { value: size, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: "default", writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, $Shape_interface, { value: true });
     return $self;
   }
   static options({ size = 9, label = "options" } = {}) {
     const $self = Object.create(this.prototype);
-    $self.size = null;
-    $self.label = null;
-    $self.size = size;
-    $self.label = label;
+    Object.defineProperty($self, "size", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "size", { value: size, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: label, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, $Shape_interface, { value: true });
     return $self;
   }
@@ -107,18 +107,18 @@ export class Widget {
 }
 
 Object.defineProperty(Widget, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$Widget_interface] === true;
+  return value != null && (Widget.prototype.isPrototypeOf(value) || value[$Widget_interface] === true);
 } });
 export class Button {
   constructor() {
-    this.label = null;
-    this.label = "button";
+    Object.defineProperty(this, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: "button", writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Widget_interface, { value: true });
   }
   static named(label) {
     const $self = Object.create(this.prototype);
-    $self.label = null;
-    $self.label = label;
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: label, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, $Widget_interface, { value: true });
     return $self;
   }

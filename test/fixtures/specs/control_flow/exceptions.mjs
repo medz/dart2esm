@@ -51,22 +51,22 @@ function __dartStr(value) {
 
 export class ParseIssue {
   constructor(message) {
-    this.message = null;
-    this.message = message;
+    Object.defineProperty(this, "message", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "message", { value: message, writable: true, enumerable: true, configurable: true });
   }
 }
 
 export class NotFound {
   constructor(path) {
-    this.path = null;
-    this.path = path;
+    Object.defineProperty(this, "path", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "path", { value: path, writable: true, enumerable: true, configurable: true });
   }
 }
 
 export class UnknownIssue {
   constructor(code) {
-    this.code = null;
-    this.code = code;
+    Object.defineProperty(this, "code", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "code", { value: code, writable: true, enumerable: true, configurable: true });
   }
 }
 

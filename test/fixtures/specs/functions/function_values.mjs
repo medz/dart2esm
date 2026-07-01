@@ -34,17 +34,17 @@ export function applyTwice(callback, value) {
 
 export function main() {
   const base = 3;
-  const addBase = function(value) {
+  const addBase = (value) => {
     return value + base;
   };
-  const multiply = function(value) {
+  const multiply = (value) => {
     return value * 2;
   };
   const top = addOne;
   __dartPrint(addBase(4));
   __dartPrint(multiply(5));
   __dartPrint(applyTwice(top, 1));
-  __dartPrint(applyTwice(function(value) {
+  __dartPrint(applyTwice((value) => {
     return value + base;
   }, 2));
 }

@@ -112,20 +112,20 @@ export function init(name, value) {
 
 export function localLate() {
   const log = Array(0).fill(null);
-  const initLocal = function() {
+  const initLocal = () => {
     __dartListAdd(log, "init local");
     return 3;
   };
-  const _lazy_initializer = function() {
+  const _lazy_initializer = () => {
     return initLocal();
   };
   const lazy = __dartLazyField("lazy", () => _lazy_initializer(), true);
   const assigned = __dartLazyField("assigned", null, true);
   const once = __dartLazyField("once", null, "once");
-  const readAssigned = function() {
+  const readAssigned = () => {
     return String(assigned.get());
   };
-  const writeOnce = function(value) {
+  const writeOnce = (value) => {
     once.set(value);
   };
   let uninitializedBlocked = false;

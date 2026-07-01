@@ -168,8 +168,8 @@ export function invokeDescribe($function, positional, named) {
 }
 
 export function main() {
-  const local = function(value, { add = 0 } = {}) {
-    return value + add;
+  const local = (value, { add: add_1 = 0 } = {}) => {
+    return value + add_1;
   };
   __dartPrint(`positional ${__dartStr(__dartFunctionApply(add, [2, 3], null))}`);
   __dartPrint(`named ${__dartStr(__dartFunctionApply(describe, ["ada"], __dartMapFromEntries([[__dartSymbol("count", "count"), 3], [__dartSymbol("loud", "loud"), true]])))}`);

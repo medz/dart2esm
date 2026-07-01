@@ -26,8 +26,8 @@ function __dartStr(value) {
 
 export class Animal {
   constructor(name) {
-    this.name = null;
-    this.name = name;
+    Object.defineProperty(this, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "name", { value: name, writable: true, enumerable: true, configurable: true });
   }
   describe() {
     return `animal ${__dartStr(this.name)}`;
@@ -37,17 +37,17 @@ export class Animal {
 export class Dog extends Animal {
   constructor(age, name) {
     super(name);
-    this.age = null;
-    this.label = null;
-    this.age = age;
-    this.label = "dog";
+    Object.defineProperty(this, "age", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "age", { value: age, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: "dog", writable: true, enumerable: true, configurable: true });
   }
   static named(name, age) {
     const $self = Reflect.construct(Animal, [name], this);
-    $self.age = null;
-    $self.label = null;
-    $self.age = age;
-    $self.label = "named dog";
+    Object.defineProperty($self, "age", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "age", { value: age, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: "named dog", writable: true, enumerable: true, configurable: true });
     $self.label = `${__dartStr($self.label)}!`;
     return $self;
   }
@@ -62,8 +62,8 @@ export class Cat extends Animal {
   }
   static named(name) {
     const $self = Reflect.construct(Animal, [name], this);
-    $self.lives = null;
-    $self.lives = 9;
+    Object.defineProperty($self, "lives", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "lives", { value: 9, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {

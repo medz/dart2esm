@@ -271,40 +271,137 @@ final class KernelToEsmIrLoweringStage
         ? _lowerFactoryConstructor(world, helpers, unnamedFactories.single)
         : namedConstructors.isNotEmpty
         ? _lowerMissingUnnamedConstructor(klass)
-        : interfaceMarkers.isNotEmpty
-        ? EsmClassConstructorIr(
-            parameters: const [],
-            body: _lowerInterfaceMarkerDefinitions(
-              const EsmThisIr(),
-              interfaceMarkers,
-            ),
+        : klass.fields.isNotEmpty || interfaceMarkers.isNotEmpty
+        ? _lowerImplicitDefaultConstructor(
+            world,
+            helpers,
+            klass,
+            interfaceMarkers: interfaceMarkers,
           )
         : null;
+    final methods = [
+      for (final constructor in namedConstructors)
+        _lowerNamedConstructor(
+          world,
+          helpers,
+          constructor,
+          interfaceMarkers: interfaceMarkers,
+        ),
+      for (final procedure in klass.staticProcedures)
+        if (procedure.node.kind != k.ProcedureKind.Factory ||
+            procedure.node.name.text.isNotEmpty)
+          _lowerClassProcedure(
+            world,
+            helpers,
+            klass,
+            procedure,
+            isStatic: true,
+          ),
+      for (final procedure in klass.procedures)
+        _lowerClassProcedure(world, helpers, klass, procedure),
+    ];
+    methods.addAll(_lowerInheritedAccessorBridges(world, klass, methods));
     return EsmClassIr(
       name: klass.name,
       export: klass.export,
       superclass: superclass?.name,
       constructor: constructor,
-      methods: [
-        for (final constructor in namedConstructors)
-          _lowerNamedConstructor(
+      methods: methods,
+    );
+  }
+
+  List<EsmClassMethodIr> _lowerInheritedAccessorBridges(
+    EsmSemanticWorld world,
+    EsmClassSymbol klass,
+    List<EsmClassMethodIr> methods,
+  ) {
+    final instanceMethods = methods.where((method) => !method.isStatic);
+    final ownMethods = {
+      for (final method in instanceMethods)
+        if (method.kind == EsmClassMethodKindIr.method) method.name,
+    };
+    final ownGetters = {
+      for (final method in instanceMethods)
+        if (method.kind == EsmClassMethodKindIr.getter) method.name,
+    };
+    final ownSetters = {
+      for (final method in instanceMethods)
+        if (method.kind == EsmClassMethodKindIr.setter) method.name,
+    };
+    final bridges = <EsmClassMethodIr>[];
+    for (final name in ownSetters) {
+      if (!ownMethods.contains(name) &&
+          !ownGetters.contains(name) &&
+          _hasInheritedInstanceAccessor(
             world,
-            helpers,
-            constructor,
-            interfaceMarkers: interfaceMarkers,
+            klass,
+            name,
+            EsmProcedureKind.getter,
+          )) {
+        bridges.add(_lowerInheritedGetterBridge(name));
+      }
+    }
+    for (final name in ownGetters) {
+      if (!ownMethods.contains(name) &&
+          !ownSetters.contains(name) &&
+          _hasInheritedInstanceAccessor(
+            world,
+            klass,
+            name,
+            EsmProcedureKind.setter,
+          )) {
+        bridges.add(_lowerInheritedSetterBridge(name));
+      }
+    }
+    return bridges;
+  }
+
+  bool _hasInheritedInstanceAccessor(
+    EsmSemanticWorld world,
+    EsmClassSymbol klass,
+    String name,
+    EsmProcedureKind kind,
+  ) {
+    final seen = <k.Class>{};
+    var superclassNode = klass.jsSuperclass;
+    while (superclassNode != null && seen.add(superclassNode)) {
+      final superclass = world.classSymbolFor(superclassNode);
+      if (superclass == null) {
+        return false;
+      }
+      if (superclass.procedures.any(
+        (procedure) => procedure.name == name && procedure.kind == kind,
+      )) {
+        return true;
+      }
+      superclassNode = superclass.jsSuperclass;
+    }
+    return false;
+  }
+
+  EsmClassMethodIr _lowerInheritedGetterBridge(String name) {
+    return EsmClassMethodIr(
+      name: name,
+      kind: EsmClassMethodKindIr.getter,
+      isStatic: false,
+      parameters: const [],
+      body: [EsmReturnStatementIr(_memberAccess(const EsmSuperIr(), name))],
+    );
+  }
+
+  EsmClassMethodIr _lowerInheritedSetterBridge(String name) {
+    return EsmClassMethodIr(
+      name: name,
+      kind: EsmClassMethodKindIr.setter,
+      isStatic: false,
+      parameters: const [EsmIdentifierParameterIr(name: 'value')],
+      body: [
+        EsmExpressionStatementIr(
+          EsmAssignmentIr(
+            target: _memberAccess(const EsmSuperIr(), name),
+            value: const EsmIdentifierIr('value'),
           ),
-        for (final procedure in klass.staticProcedures)
-          if (procedure.node.kind != k.ProcedureKind.Factory ||
-              procedure.node.name.text.isNotEmpty)
-            _lowerClassProcedure(
-              world,
-              helpers,
-              klass,
-              procedure,
-              isStatic: true,
-            ),
-        for (final procedure in klass.procedures)
-          _lowerClassProcedure(world, helpers, klass, procedure),
+        ),
       ],
     );
   }
@@ -926,24 +1023,92 @@ final class KernelToEsmIrLoweringStage
     return [
       for (final field in klass.fields)
         if (!field.node.isLate)
-          EsmExpressionStatementIr(
-            EsmAssignmentIr(
-              target: EsmPropertyAccessIr(
-                receiver: receiver,
-                property: field.name,
-              ),
-              value: field.node.initializer == null
-                  ? const EsmNullLiteralIr()
-                  : _lowerExpression(
-                      world,
-                      helpers,
-                      locals,
-                      field.node.initializer!,
-                      thisExpression: receiver,
-                    ),
-            ),
+          _lowerOwnDataPropertyDefinition(
+            receiver,
+            field.name,
+            field.node.initializer == null
+                ? const EsmNullLiteralIr()
+                : _lowerExpression(
+                    world,
+                    helpers,
+                    locals,
+                    field.node.initializer!,
+                    thisExpression: receiver,
+                  ),
           ),
     ];
+  }
+
+  EsmExpressionStatementIr _lowerOwnDataPropertyDefinition(
+    EsmExpressionIr receiver,
+    String property,
+    EsmExpressionIr value,
+  ) {
+    return EsmExpressionStatementIr(
+      EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr('Object'),
+          property: 'defineProperty',
+        ),
+        arguments: [
+          receiver,
+          EsmStringLiteralIr(property),
+          EsmObjectLiteralIr([
+            EsmObjectLiteralPropertyIr(name: 'value', value: value),
+            const EsmObjectLiteralPropertyIr(
+              name: 'writable',
+              value: EsmBooleanLiteralIr(true),
+            ),
+            const EsmObjectLiteralPropertyIr(
+              name: 'enumerable',
+              value: EsmBooleanLiteralIr(true),
+            ),
+            const EsmObjectLiteralPropertyIr(
+              name: 'configurable',
+              value: EsmBooleanLiteralIr(true),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  EsmClassConstructorIr _lowerImplicitDefaultConstructor(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    EsmClassSymbol klass, {
+    List<String> interfaceMarkers = const [],
+  }) {
+    final locals = <k.VariableDeclaration, String>{};
+    final usedNames = <String>{};
+    return EsmClassConstructorIr(
+      parameters: const [],
+      body: [
+        if (klass.jsSuperclass != null)
+          const EsmExpressionStatementIr(
+            EsmCallIr(callee: EsmSuperIr(), arguments: []),
+          ),
+        ..._lowerLateInstanceFieldDefinitions(
+          world,
+          helpers,
+          locals,
+          klass,
+          const EsmThisIr(),
+          usedNames,
+        ),
+        ..._lowerInstanceFieldInitializers(
+          world,
+          helpers,
+          locals,
+          klass,
+          const EsmThisIr(),
+        ),
+        ..._lowerInterfaceMarkerDefinitions(
+          const EsmThisIr(),
+          interfaceMarkers,
+        ),
+      ],
+    );
   }
 
   EsmExpressionStatementIr _lowerInterfaceHasInstance(
@@ -1154,7 +1319,8 @@ final class KernelToEsmIrLoweringStage
         if (initializer is! k.SuperInitializer) initializer,
     ];
     if (factorySuperInitializers case [final superInitializer]) {
-      final selfName = _freshIn(usedParameters, r'$self');
+      final selfName = _freshLocalName(world, usedParameters, r'$self');
+      usedParameters.add(selfName);
       final self = EsmIdentifierIr(selfName);
       final body = <EsmStatementIr>[
         EsmVariableDeclarationIr(
@@ -1539,19 +1705,15 @@ final class KernelToEsmIrLoweringStage
   ) {
     return switch (initializer) {
       k.FieldInitializer() => [
-        EsmExpressionStatementIr(
-          EsmAssignmentIr(
-            target: EsmPropertyAccessIr(
-              receiver: receiver,
-              property: _instanceFieldName(world, initializer.field),
-            ),
-            value: _lowerExpression(
-              world,
-              helpers,
-              locals,
-              initializer.value,
-              thisExpression: receiver,
-            ),
+        _lowerOwnDataPropertyDefinition(
+          receiver,
+          _instanceFieldName(world, initializer.field),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            initializer.value,
+            thisExpression: receiver,
           ),
         ),
       ],
@@ -1845,7 +2007,7 @@ final class KernelToEsmIrLoweringStage
     k.VariableDeclaration parameter,
   ) {
     final original = parameter.name ?? 'arg';
-    final name = _freshIn(usedParameters, original);
+    final name = _freshParameterName(world, usedParameters, original);
     locals[parameter] = name;
     final initializer = parameter.initializer;
     return EsmIdentifierParameterIr(
@@ -1864,7 +2026,7 @@ final class KernelToEsmIrLoweringStage
     k.VariableDeclaration parameter,
   ) {
     final original = parameter.name ?? 'arg';
-    final name = _freshIn(usedParameters, original);
+    final name = _freshParameterName(world, usedParameters, original);
     locals[parameter] = name;
     final initializer = parameter.initializer;
     return EsmObjectPatternBindingIr(
@@ -2386,7 +2548,7 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr thisExpression,
     String? rethrowName,
   ) {
-    final errorName = _freshIn(locals.values.toSet(), r'$error');
+    final errorName = _freshLocalName(world, locals.values, r'$error');
     return EsmTryStatementIr(
       body: _lowerStatementList(
         world,
@@ -2500,7 +2662,12 @@ final class KernelToEsmIrLoweringStage
     final error = EsmIdentifierIr(errorName);
     final exception = catchClause.exception;
     if (exception != null) {
-      final name = _freshIn(catchLocals.values.toSet(), exception.name ?? 'e');
+      final name = _freshLocalName(
+        world,
+        catchLocals.values,
+        exception.name ?? 'e',
+        reservedNames: [errorName],
+      );
       catchLocals[exception] = name;
       statements.add(
         EsmVariableDeclarationIr(
@@ -2512,9 +2679,11 @@ final class KernelToEsmIrLoweringStage
     }
     final stackTrace = catchClause.stackTrace;
     if (stackTrace != null) {
-      final name = _freshIn(
-        catchLocals.values.toSet(),
+      final name = _freshLocalName(
+        world,
+        catchLocals.values,
         stackTrace.name ?? 'stack',
+        reservedNames: [errorName],
       );
       catchLocals[stackTrace] = name;
       statements.add(
@@ -2571,7 +2740,7 @@ final class KernelToEsmIrLoweringStage
     k.VariableDeclaration statement, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    final name = _freshIn(locals.values.toSet(), statement.name ?? 'v');
+    final name = _freshLocalName(world, locals.values, statement.name ?? 'v');
     locals[statement] = name;
     final initializer = statement.initializer;
     if (statement.isLate) {
@@ -2621,8 +2790,9 @@ final class KernelToEsmIrLoweringStage
     Map<k.VariableDeclaration, String> locals,
     k.FunctionDeclaration statement,
   ) {
-    final name = _freshIn(
-      locals.values.toSet(),
+    final name = _freshLocalName(
+      world,
+      locals.values,
       statement.variable.name ?? 'f',
     );
     locals[statement.variable] = name;
@@ -3413,7 +3583,7 @@ final class KernelToEsmIrLoweringStage
     }
     final locals = Map<k.VariableDeclaration, String>.of(outerLocals);
     final usedParameters = <String>{};
-    return EsmFunctionExpressionIr(
+    return EsmArrowBlockFunctionIr(
       parameters: _bindParameters(
         world,
         helpers,
@@ -4980,6 +5150,10 @@ final class KernelToEsmIrLoweringStage
       expression.interfaceTargetReference,
       memberName,
     );
+    final isListMember = isDartCoreListMember(
+      expression.interfaceTargetReference,
+      memberName,
+    );
     final collectionInvocation = _lowerCoreCollectionInstanceInvocation(
       world,
       helpers,
@@ -5245,6 +5419,13 @@ final class KernelToEsmIrLoweringStage
           arguments: [receiver, property],
         );
       }
+      if (isListMember) {
+        helpers.add(EsmRuntimeHelper.listMixin);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartListLikeGet'),
+          arguments: [receiver, property],
+        );
+      }
       return EsmComputedPropertyAccessIr(
         receiver: receiver,
         property: property,
@@ -5276,6 +5457,29 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (memberName == '[]=' && expression.arguments.positional.length == 2) {
+      if (isListMember) {
+        helpers.add(EsmRuntimeHelper.listMixin);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartListLikeSet'),
+          arguments: [
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+            for (final argument in expression.arguments.positional)
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                argument,
+                thisExpression: thisExpression,
+              ),
+          ],
+        );
+      }
       return EsmAssignmentIr(
         target: EsmComputedPropertyAccessIr(
           receiver: _lowerExpression(
@@ -9670,7 +9874,7 @@ final class KernelToEsmIrLoweringStage
     if (function.asyncMarker != k.AsyncMarker.Sync) {
       throw NewCompilerUnsupported(expression, 'instance tear-off target');
     }
-    const receiverName = r'$receiver';
+    final receiverName = _freshLocalName(world, const [], r'$receiver');
     final forwardingLocals = <k.VariableDeclaration, String>{};
     final usedParameters = {receiverName};
     final parameters = _bindParameters(
@@ -9702,7 +9906,7 @@ final class KernelToEsmIrLoweringStage
                 EsmReturnStatementIr(
                   EsmCallIr(
                     callee: EsmPropertyAccessIr(
-                      receiver: const EsmIdentifierIr(receiverName),
+                      receiver: EsmIdentifierIr(receiverName),
                       property: symbol.name,
                     ),
                     arguments: _forwardingArguments(function, forwardingLocals),
@@ -13386,6 +13590,29 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return EsmIdentifierIr(name);
+  }
+
+  String _freshParameterName(
+    EsmSemanticWorld world,
+    Set<String> usedParameters,
+    String original,
+  ) {
+    final name = _freshLocalName(world, usedParameters, original);
+    usedParameters.add(name);
+    return name;
+  }
+
+  String _freshLocalName(
+    EsmSemanticWorld world,
+    Iterable<String> usedNames,
+    String original, {
+    Iterable<String> reservedNames = const [],
+  }) {
+    return _freshIn({
+      ...world.globalBindingNames,
+      ...reservedNames,
+      ...usedNames,
+    }, original);
   }
 
   String _freshIn(Set<String> usedNames, String original) {

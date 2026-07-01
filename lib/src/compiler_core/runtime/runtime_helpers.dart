@@ -541,6 +541,7 @@ function __dartDynamicInvoke(receiver, name, positionalArguments, namedArguments
     if (receiver instanceof Map) {
       return receiver.has(key) ? receiver.get(key) : null;
     }
+    if (typeof receiver["[]"] === "function") return receiver["[]"](key);
     return receiver[key];
   }
   if (name === "[]=") {
@@ -550,6 +551,7 @@ function __dartDynamicInvoke(receiver, name, positionalArguments, namedArguments
       receiver.set(key, value);
       return value;
     }
+    if (typeof receiver["[]="] === "function") return receiver["[]="](key, value);
     receiver[key] = value;
     return value;
   }
@@ -572,16 +574,24 @@ function __dartDynamicInvoke(receiver, name, positionalArguments, namedArguments
     if (name === "contains") return receiver.has(args[0]);
     if (name === "remove") return receiver.delete(args[0]);
   }
-  if (Array.isArray(receiver)) {
-    if (name === "add") {
+  const listLike = receiver != null && typeof receiver["[]"] === "function" && typeof receiver.length === "number";
+  if (Array.isArray(receiver) || listLike) {
+    if (name === "join") return __dartIterableJoin(receiver, args[0] ?? "");
+    if (name === "contains") {
+      if (Array.isArray(receiver)) return receiver.includes(args[0]);
+      for (let index = 0; index < receiver.length; index++) {
+        if (__dartEquals(receiver["[]"](index), args[0])) return true;
+      }
+      return false;
+    }
+    if (Array.isArray(receiver) && name === "add") {
       receiver.push(args[0]);
       return null;
     }
-    if (name === "addAll") {
+    if (Array.isArray(receiver) && name === "addAll") {
       receiver.push(...Array.from(args[0]));
       return null;
     }
-    if (name === "contains") return receiver.includes(args[0]);
   }
   if (typeof receiver === "string" && name === "contains") {
     return receiver.includes(args[0]);
@@ -2490,7 +2500,6 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.doubleValue:
       case EsmRuntimeHelper.dynamicCall:
       case EsmRuntimeHelper.dynamicGet:
-      case EsmRuntimeHelper.dynamicInvoke:
       case EsmRuntimeHelper.dynamicSet:
       case EsmRuntimeHelper.enumAsNameMap:
       case EsmRuntimeHelper.enumByName:
@@ -2544,6 +2553,10 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.objectRuntimeType:
         _helpers.add(EsmRuntimeHelper.type);
+      case EsmRuntimeHelper.dynamicInvoke:
+        _helpers.add(EsmRuntimeHelper.iterableJoin);
+        _helpers.add(EsmRuntimeHelper.listMixin);
+        _helpers.add(EsmRuntimeHelper.equals);
       case EsmRuntimeHelper.functionApply:
       case EsmRuntimeHelper.intParse:
       case EsmRuntimeHelper.iterableJoin:

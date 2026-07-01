@@ -62,21 +62,21 @@ function __dartStr(value) {
 export class Token {
   constructor(value) {
     if (value < 0) {
-      return Token._(-value);
+      return Token.__file____Users_seven_workspace_dart2esm_test_fixtures_specs_classes_factory_bodies_dart(-value);
     }
-    return Token._(value);
+    return Token.__file____Users_seven_workspace_dart2esm_test_fixtures_specs_classes_factory_bodies_dart(value);
   }
-  static _(value) {
+  static __file____Users_seven_workspace_dart2esm_test_fixtures_specs_classes_factory_bodies_dart(value) {
     const $self = Object.create(this.prototype);
-    $self.value = null;
-    $self.value = value;
+    Object.defineProperty($self, "value", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "value", { value: value, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   static parse(text) {
-    return Token._(__dartIntParse(text));
+    return Token.__file____Users_seven_workspace_dart2esm_test_fixtures_specs_classes_factory_bodies_dart(__dartIntParse(text));
   }
   static zero() {
-    return Token._(0);
+    return Token.__file____Users_seven_workspace_dart2esm_test_fixtures_specs_classes_factory_bodies_dart(0);
   }
 }
 

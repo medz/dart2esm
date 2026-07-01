@@ -5254,6 +5254,7 @@ class MemoryDirectory extends _MemoryDirectory_MemoryFileSystemEntity_DirectoryA
   constructor(fileSystem, path) {
     super(fileSystem, path);
     Object.defineProperty(this, $Directory_interface, { value: true });
+    Object.defineProperty(this, $DirectoryAddOnsMixin_interface, { value: true });
     Object.defineProperty(this, $FileSystemEntity_interface, { value: true });
   }
   get expectedType() {

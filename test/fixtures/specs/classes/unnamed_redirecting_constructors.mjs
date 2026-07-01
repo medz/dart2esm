@@ -30,12 +30,12 @@ export class Pair {
   }
   static named(left, right, label) {
     const $self = Object.create(this.prototype);
-    $self.left = null;
-    $self.right = null;
-    $self.label = null;
-    $self.left = left;
-    $self.right = right;
-    $self.label = label;
+    Object.defineProperty($self, "left", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "right", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "left", { value: left, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "right", { value: right, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: label, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {
@@ -49,8 +49,8 @@ export class Animal {
   }
   static named(name) {
     const $self = Object.create(this.prototype);
-    $self.name = null;
-    $self.name = name;
+    Object.defineProperty($self, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "name", { value: name, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {
@@ -64,10 +64,10 @@ export class Dog extends Animal {
   }
   static named(name, age) {
     const $self = Animal.named.call(this, name);
-    $self.age = null;
-    $self.label = null;
-    $self.age = age;
-    $self.label = "dog";
+    Object.defineProperty($self, "age", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "age", { value: age, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: "dog", writable: true, enumerable: true, configurable: true });
     $self.label = `${__dartStr($self.label)}!`;
     return $self;
   }

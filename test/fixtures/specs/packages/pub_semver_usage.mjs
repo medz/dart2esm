@@ -229,6 +229,42 @@ function __dartUnmodifiableList(values) {
   return Object.freeze(Array.from(values));
 }
 
+function __dartListLikeGet(list, index) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list) || typeof list === "string") return list[index];
+  const op = list == null ? null : list["[]"];
+  return typeof op === "function" ? op.call(list, index) : list[index];
+}
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
+}
+function __dartListMixinFirst(list) {
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinLast(list) {
+  return __dartListLikeGet(list, list.length - 1);
+}
+function __dartListMixinSingle(list) {
+  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinInsert(list, index, value) {
+  index = Number(index);
+  const length = Number(list.length);
+  list.length = length + 1;
+  for (let i = length; i > index; i--) {
+    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
+  }
+  __dartListLikeSet(list, index, value);
+  return null;
+}
+
 function __dartNullCheck(value) {
   if (value == null) throw new TypeError("Null check operator used on a null value");
   return value;
@@ -674,7 +710,7 @@ class Equality {
 }
 
 Object.defineProperty(Equality, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$Equality_interface] === true;
+  return value != null && (Equality.prototype.isPrototypeOf(value) || value[$Equality_interface] === true);
 } });
 class DefaultEquality {
   constructor() {
@@ -693,8 +729,8 @@ class DefaultEquality {
 
 class IterableEquality {
   constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
-    this._elementEquality = null;
-    this._elementEquality = elementEquality;
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   equals(elements1, elements2) {
@@ -714,7 +750,7 @@ class IterableEquality {
       if (!(hasNext)) {
         return true;
       }
-      if (!(this._elementEquality.equals(it1.current, it2.current))) {
+      if (!(this._elementEquality_package_collection_src_equality_dart.equals(it1.current, it2.current))) {
         return false;
       }
     }
@@ -727,14 +763,14 @@ class IterableEquality {
     let _sync_for_iterator = __dartIterator(elements);
     for (; _sync_for_iterator.moveNext(); ) {
       let element = _sync_for_iterator.current;
-      let c = this._elementEquality.hash(element);
+      let c = this._elementEquality_package_collection_src_equality_dart.hash(element);
       hash = hash + c & 2147483647;
-      hash = hash + hash << 10 & 2147483647;
+      hash = hash + (hash << 10) & 2147483647;
       hash = hash ^ hash >> 6;
     }
-    hash = hash + hash << 3 & 2147483647;
+    hash = hash + (hash << 3) & 2147483647;
     hash = hash ^ hash >> 11;
-    hash = hash + hash << 15 & 2147483647;
+    hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
   isValidKey(o) {
@@ -744,8 +780,8 @@ class IterableEquality {
 
 class ListEquality {
   constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
-    this._elementEquality = null;
-    this._elementEquality = elementEquality;
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
   equals(list1, list2) {
@@ -760,7 +796,7 @@ class ListEquality {
       return false;
     }
     for (let i = 0; i < length; i = i + 1) {
-      if (!(this._elementEquality.equals(list1[i], list2[i]))) {
+      if (!(this._elementEquality_package_collection_src_equality_dart.equals(__dartListLikeGet(list1, i), __dartListLikeGet(list2, i)))) {
         return false;
       }
     }
@@ -772,14 +808,14 @@ class ListEquality {
     }
     let hash = 0;
     for (let i = 0; i < list.length; i = i + 1) {
-      let c = this._elementEquality.hash(list[i]);
+      let c = this._elementEquality_package_collection_src_equality_dart.hash(__dartListLikeGet(list, i));
       hash = hash + c & 2147483647;
-      hash = hash + hash << 10 & 2147483647;
+      hash = hash + (hash << 10) & 2147483647;
       hash = hash ^ hash >> 6;
     }
-    hash = hash + hash << 3 & 2147483647;
+    hash = hash + (hash << 3) & 2147483647;
     hash = hash ^ hash >> 11;
-    hash = hash + hash << 15 & 2147483647;
+    hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
   isValidKey(o) {
@@ -791,14 +827,14 @@ const $VersionConstraint_interface = Symbol("VersionConstraint");
 class VersionConstraint {
   static parse(text) {
     let originalText = text;
-    const skipWhitespace = function() {
+    const skipWhitespace = () => {
       text = text.trim();
     };
     skipWhitespace();
     if (__dartEquals(text, "any")) {
       return VersionConstraint.any;
     }
-    const matchVersion = function() {
+    const matchVersion = () => {
       let version = startVersion.firstMatch(text);
       if (version === null) {
         return null;
@@ -806,7 +842,7 @@ class VersionConstraint {
       text = text.substring(version.end);
       return Version.parse(__dartNullCheck(version[0]));
     };
-    const matchComparison = function() {
+    const matchComparison = () => {
       let comparison = startComparison.firstMatch(text);
       if (comparison === null) {
         return null;
@@ -852,7 +888,7 @@ class VersionConstraint {
         return v;
       })();
     };
-    const matchCompatibleWith = function() {
+    const matchCompatibleWith = () => {
       if (!(__dartStringStartsWith(text, "^", 0))) {
         return null;
       }
@@ -936,7 +972,7 @@ class VersionConstraint {
     return constraint;
   }
   static unionOf(constraints) {
-    let flattened = __dartListOf(Array.from(constraints).flatMap((value) => Array.from((function(constraint) {
+    let flattened = __dartListOf(Array.from(constraints).flatMap((value) => Array.from(((constraint) => {
       if (constraint.isEmpty) {
         return Array(0).fill(null);
       }
@@ -951,7 +987,7 @@ class VersionConstraint {
     if (Array.from(flattened).length === 0) {
       return VersionConstraint.empty;
     }
-    if (Array.from(flattened).some(function(constraint) {
+    if (Array.from(flattened).some((constraint) => {
       return constraint.isAny;
     })) {
       return VersionConstraint.any;
@@ -964,7 +1000,7 @@ class VersionConstraint {
       if ((Array.from(merged).length === 0 || (!(Array.from(merged).at(-1).allowsAny(constraint)) && !(areAdjacent(Array.from(merged).at(-1), constraint))))) {
         __dartListAdd(merged, constraint);
       } else {
-        merged[merged.length - 1] = __dartAs(Array.from(merged).at(-1).union(constraint), (value) => value instanceof VersionRange, "VersionRange");
+        __dartListLikeSet(merged, merged.length - 1, __dartAs(Array.from(merged).at(-1).union(constraint), (value) => value instanceof VersionRange, "VersionRange"));
       }
     }
     if (__dartEquals(merged.length, 1)) {
@@ -1011,7 +1047,7 @@ Object.defineProperty(VersionConstraint, "empty", { get: function() {
   $VersionConstraint_empty.set(value);
 }, enumerable: true });
 Object.defineProperty(VersionConstraint, Symbol.hasInstance, { value: function(value) {
-  return value != null && value[$VersionConstraint_interface] === true;
+  return value != null && (VersionConstraint.prototype.isPrototypeOf(value) || value[$VersionConstraint_interface] === true);
 } });
 class VersionUnion {
   constructor() {
@@ -1019,8 +1055,8 @@ class VersionUnion {
   }
   static fromRanges(ranges) {
     const $self = Object.create(this.prototype);
-    $self.ranges = null;
-    $self.ranges = ranges;
+    Object.defineProperty($self, "ranges", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "ranges", { value: ranges, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, $VersionConstraint_interface, { value: true });
     return $self;
   }
@@ -1031,13 +1067,13 @@ class VersionUnion {
     return false;
   }
   allows(version) {
-    return Array.from(this.ranges).some(function(constraint) {
+    return Array.from(this.ranges).some((constraint) => {
       return constraint.allows(version);
     });
   }
   allowsAll(other) {
     let ourRanges = __dartIterator(this.ranges);
-    let theirRanges = __dartIterator(this._rangesFor(other));
+    let theirRanges = __dartIterator(this._rangesFor_package_pub_semver_src_version_union_dart(other));
     let ourRangesMoved = ourRanges.moveNext();
     let theirRangesMoved = theirRanges.moveNext();
     while ((ourRangesMoved && theirRangesMoved)) {
@@ -1051,7 +1087,7 @@ class VersionUnion {
   }
   allowsAny(other) {
     let ourRanges = __dartIterator(this.ranges);
-    let theirRanges = __dartIterator(this._rangesFor(other));
+    let theirRanges = __dartIterator(this._rangesFor_package_pub_semver_src_version_union_dart(other));
     let ourRangesMoved = ourRanges.moveNext();
     let theirRangesMoved = theirRanges.moveNext();
     while ((ourRangesMoved && theirRangesMoved)) {
@@ -1068,7 +1104,7 @@ class VersionUnion {
   }
   intersect(other) {
     let ourRanges = __dartIterator(this.ranges);
-    let theirRanges = __dartIterator(this._rangesFor(other));
+    let theirRanges = __dartIterator(this._rangesFor_package_pub_semver_src_version_union_dart(other));
     let newRanges = Array(0).fill(null);
     let ourRangesMoved = ourRanges.moveNext();
     let theirRangesMoved = theirRanges.moveNext();
@@ -1093,12 +1129,12 @@ class VersionUnion {
   }
   difference(other) {
     let ourRanges = __dartIterator(this.ranges);
-    let theirRanges = __dartIterator(this._rangesFor(other));
+    let theirRanges = __dartIterator(this._rangesFor_package_pub_semver_src_version_union_dart(other));
     let newRanges = Array(0).fill(null);
     ourRanges.moveNext();
     theirRanges.moveNext();
     let current = ourRanges.current;
-    const theirNextRange = function() {
+    const theirNextRange = () => {
       if (theirRanges.moveNext()) {
         return true;
       }
@@ -1108,7 +1144,7 @@ class VersionUnion {
       }
       return false;
     };
-    const ourNextRange = function({ includeCurrent = true } = {}) {
+    const ourNextRange = ({ includeCurrent = true } = {}) => {
       if (includeCurrent) {
         __dartListAdd(newRanges, current);
       }
@@ -1169,7 +1205,7 @@ class VersionUnion {
     }
     return VersionUnion.fromRanges(newRanges);
   }
-  _rangesFor(constraint) {
+  _rangesFor_package_pub_semver_src_version_union_dart(constraint) {
     if (constraint.isEmpty) {
       return Array(0).fill(null);
     }
@@ -1185,16 +1221,17 @@ class VersionUnion {
     return VersionConstraint.unionOf([this, other]);
   }
   "=="(other) {
-    return (other instanceof VersionUnion && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(ListEquality.prototype), { _elementEquality: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.ranges, other.ranges));
+    return (other instanceof VersionUnion && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(ListEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.ranges, other.ranges));
   }
   get hashCode() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(ListEquality.prototype), { _elementEquality: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.ranges);
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(ListEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.ranges);
   }
   toString() {
     return Array.from(this.ranges).join(" or ");
   }
 }
 
+const $VersionRange_interface = Symbol("VersionRange");
 class VersionRange {
   constructor({ min = null, max = null, includeMin = false, includeMax = false, alwaysIncludeMaxPreRelease = false } = {}) {
     if (((!(min === null) && !(max === null)) && min[">"](max))) {
@@ -1203,18 +1240,18 @@ class VersionRange {
     if ((((((!(alwaysIncludeMaxPreRelease) && !(includeMax)) && !(max === null)) && !(max.isPreRelease)) && Array.from(max.build).length === 0) && ((min === null || !(min.isPreRelease)) || !(equalsWithoutPreRelease(min, max))))) {
       max = max.firstPreRelease;
     }
-    return VersionRange._(min, max, includeMin, includeMax);
+    return VersionRange.__package_pub_semver_src_version_range_dart(min, max, includeMin, includeMax);
   }
-  static _(min, max, includeMin, includeMax) {
+  static __package_pub_semver_src_version_range_dart(min, max, includeMin, includeMax) {
     const $self = Object.create(this.prototype);
-    $self.min = null;
-    $self.max = null;
-    $self.includeMin = null;
-    $self.includeMax = null;
-    $self.min = min;
-    $self.max = max;
-    $self.includeMin = includeMin;
-    $self.includeMax = includeMax;
+    Object.defineProperty($self, "min", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "max", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "includeMin", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "includeMax", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "min", { value: min, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "max", { value: max, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "includeMin", { value: includeMin, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "includeMax", { value: includeMax, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, $VersionConstraint_interface, { value: true });
     return $self;
   }
@@ -1260,12 +1297,12 @@ class VersionRange {
       return this.allows(other);
     }
     if (other instanceof VersionUnion) {
-      return Array.from(other.ranges).every(function() {
+      return Array.from(other.ranges).every((function() {
         const $receiver = this;
         return function(other) {
           return $receiver.allowsAll(other);
         };
-      }());
+      })());
     }
     if (other instanceof VersionRange) {
       return (!(allowsLower(other, this)) && !(allowsHigher(other, this)));
@@ -1280,12 +1317,12 @@ class VersionRange {
       return this.allows(other);
     }
     if (other instanceof VersionUnion) {
-      return Array.from(other.ranges).some(function() {
+      return Array.from(other.ranges).some((function() {
         const $receiver = this;
         return function(other) {
           return $receiver.allowsAny(other);
         };
-      }());
+      })());
     }
     if (other instanceof VersionRange) {
       return (!(strictlyLower(other, this)) && !(strictlyHigher(other, this)));
@@ -1480,7 +1517,7 @@ class VersionRange {
   compareTo(other) {
     if (this.min === null) {
       if (other.min === null) {
-        return this._compareMax(other);
+        return this._compareMax_package_pub_semver_src_version_range_dart(other);
       }
       return -1;
     } else {
@@ -1495,9 +1532,9 @@ class VersionRange {
     if (!(__dartEquals(this.includeMin, other.includeMin))) {
       return (this.includeMin ? -1 : 1);
     }
-    return this._compareMax(other);
+    return this._compareMax_package_pub_semver_src_version_range_dart(other);
   }
-  _compareMax(other) {
+  _compareMax_package_pub_semver_src_version_range_dart(other) {
     if (this.max === null) {
       if (other.max === null) {
         return 0;
@@ -1564,9 +1601,12 @@ class VersionRange {
   }
 }
 
+Object.defineProperty(VersionRange, Symbol.hasInstance, { value: function(value) {
+  return value != null && (VersionRange.prototype.isPrototypeOf(value) || value[$VersionRange_interface] === true);
+} });
 class CompatibleWithVersionRange extends VersionRange {
   constructor(version) {
-    const $self = VersionRange._.call(new.target, version, version.nextBreaking.firstPreRelease, true, false);
+    const $self = VersionRange.__package_pub_semver_src_version_range_dart.call(new.target, version, version.nextBreaking.firstPreRelease, true, false);
     return $self;
   }
   toString() {
@@ -1616,22 +1656,22 @@ class Version {
     if (!(build === null)) {
       text = text + `+${__dartStr(build)}`;
     }
-    return Version._(major, minor, patch, pre, build, text);
+    return Version.__package_pub_semver_src_version_dart(major, minor, patch, pre, build, text);
   }
-  static _(major, minor, patch, preRelease, build, _text) {
+  static __package_pub_semver_src_version_dart(major, minor, patch, preRelease, build, _text) {
     const $self = Object.create(this.prototype);
-    $self.major = null;
-    $self.minor = null;
-    $self.patch = null;
-    $self.preRelease = null;
-    $self.build = null;
-    $self._text = null;
-    $self.major = major;
-    $self.minor = minor;
-    $self.patch = patch;
-    $self._text = _text;
-    $self.preRelease = ((preRelease === null || preRelease.length === 0) ? Array(0).fill(null) : Version._splitParts(preRelease));
-    $self.build = ((build === null || build.length === 0) ? Array(0).fill(null) : Version._splitParts(build));
+    Object.defineProperty($self, "major", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "minor", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "patch", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "preRelease", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "build", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_text_package_pub_semver_src_version_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "major", { value: major, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "minor", { value: minor, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "patch", { value: patch, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_text_package_pub_semver_src_version_dart", { value: _text, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "preRelease", { value: ((preRelease === null || preRelease.length === 0) ? Array(0).fill(null) : Version._splitParts_package_pub_semver_src_version_dart(preRelease)), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "build", { value: ((build === null || build.length === 0) ? Array(0).fill(null) : Version._splitParts_package_pub_semver_src_version_dart(build)), writable: true, enumerable: true, configurable: true });
     if ($self.major < 0) {
       throw __dartCoreError("ArgumentError", "Major version must be non-negative.");
     }
@@ -1642,6 +1682,7 @@ class Version {
       throw __dartCoreError("ArgumentError", "Patch version must be non-negative.");
     }
     Object.defineProperty($self, $VersionConstraint_interface, { value: true });
+    Object.defineProperty($self, $VersionRange_interface, { value: true });
     return $self;
   }
   static get none() {
@@ -1676,7 +1717,7 @@ class Version {
       let patch = __dartIntParse(__dartNullCheck(match[3]));
       let preRelease = match[5];
       let build = match[8];
-      return Version._(major, minor, patch, preRelease, build, text);
+      return Version.__package_pub_semver_src_version_dart(major, minor, patch, preRelease, build, text);
     } catch ($error) {
       if (__dartIsCoreError($error, "FormatException")) {
         throw __dartCoreError("FormatException", `Could not parse "${__dartStr(text)}".`);
@@ -1696,8 +1737,8 @@ class Version {
     }
     return primary;
   }
-  static _splitParts(text) {
-    return __dartListOf(Array.from(text.split("."), function(part) {
+  static _splitParts_package_pub_semver_src_version_dart(text) {
+    return __dartListOf(Array.from(text.split("."), (part) => {
       return (__dartIntTryParse(part) ?? part);
     }), true);
   }
@@ -1714,10 +1755,10 @@ class Version {
     return true;
   }
   "=="(other) {
-    return (((((other instanceof Version && __dartEquals(this.major, other.major)) && __dartEquals(this.minor, other.minor)) && __dartEquals(this.patch, other.patch)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.preRelease, other.preRelease)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.build, other.build));
+    return (((((other instanceof Version && __dartEquals(this.major, other.major)) && __dartEquals(this.minor, other.minor)) && __dartEquals(this.patch, other.patch)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.preRelease, other.preRelease)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.build, other.build));
   }
   get hashCode() {
-    return this.major ^ this.minor ^ this.patch ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.preRelease) ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.build);
+    return this.major ^ this.minor ^ this.patch ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.preRelease) ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.build);
   }
   "<"(other) {
     return this.compareTo(other) < 0;
@@ -1744,25 +1785,25 @@ class Version {
     if (((this.isPreRelease && __dartEquals(this.minor, 0)) && __dartEquals(this.patch, 0))) {
       return new Version(this.major, this.minor, this.patch);
     }
-    return this._incrementMajor();
+    return this._incrementMajor_package_pub_semver_src_version_dart();
   }
   get nextMinor() {
     if ((this.isPreRelease && __dartEquals(this.patch, 0))) {
       return new Version(this.major, this.minor, this.patch);
     }
-    return this._incrementMinor();
+    return this._incrementMinor_package_pub_semver_src_version_dart();
   }
   get nextPatch() {
     if (this.isPreRelease) {
       return new Version(this.major, this.minor, this.patch);
     }
-    return this._incrementPatch();
+    return this._incrementPatch_package_pub_semver_src_version_dart();
   }
   get nextBreaking() {
     if (__dartEquals(this.major, 0)) {
-      return this._incrementMinor();
+      return this._incrementMinor_package_pub_semver_src_version_dart();
     }
-    return this._incrementMajor();
+    return this._incrementMajor_package_pub_semver_src_version_dart();
   }
   get firstPreRelease() {
     return new Version(this.major, this.minor, this.patch, { pre: "0" });
@@ -1770,13 +1811,13 @@ class Version {
   get isFirstPreRelease() {
     return (__dartEquals(this.preRelease.length, 1) && __dartEquals(Array.from(this.preRelease)[0], 0));
   }
-  _incrementMajor() {
+  _incrementMajor_package_pub_semver_src_version_dart() {
     return new Version(this.major + 1, 0, 0);
   }
-  _incrementMinor() {
+  _incrementMinor_package_pub_semver_src_version_dart() {
     return new Version(this.major, this.minor + 1, 0);
   }
-  _incrementPatch() {
+  _incrementPatch_package_pub_semver_src_version_dart() {
     return new Version(this.major, this.minor, this.patch + 1);
   }
   allows(other) {
@@ -1825,7 +1866,7 @@ class Version {
       if ((!(other.isPreRelease) && this.isPreRelease)) {
         return -1;
       }
-      let comparison = this._compareLists(this.preRelease, other.preRelease);
+      let comparison = this._compareLists_package_pub_semver_src_version_dart(this.preRelease, other.preRelease);
       if (!(__dartEquals(comparison, 0))) {
         return comparison;
       }
@@ -1835,22 +1876,22 @@ class Version {
       if ((Array.from(other.build).length === 0 && Array.from(this.build).length > 0)) {
         return 1;
       }
-      return this._compareLists(this.build, other.build);
+      return this._compareLists_package_pub_semver_src_version_dart(this.build, other.build);
     } else {
       return -other.compareTo(this);
     }
   }
   toString() {
-    return this._text;
+    return this._text_package_pub_semver_src_version_dart;
   }
   get canonicalizedVersion() {
     return new Version(this.major, this.minor, this.patch, { pre: (Array.from(this.preRelease).length > 0 ? Array.from(this.preRelease).join(".") : null), build: (Array.from(this.build).length > 0 ? Array.from(this.build).join(".") : null) }).toString();
   }
-  _compareLists(a, b) {
+  _compareLists_package_pub_semver_src_version_dart(a, b) {
     for (let i = 0; i < Math.max(a.length, b.length); i = i + 1) {
       label: {
-        let aPart = (i < a.length ? a[i] : null);
-        let bPart = (i < b.length ? b[i] : null);
+        let aPart = (i < a.length ? __dartListLikeGet(a, i) : null);
+        let bPart = (i < b.length ? __dartListLikeGet(b, i) : null);
         if (__dartEquals(aPart, bPart)) {
           break label;
         }
@@ -1877,7 +1918,7 @@ class Version {
     }
     return 0;
   }
-  _compareMax(other) {
+  _compareMax_package_pub_semver_src_version_range_dart(other) {
     return (() => {
       throw __dartCoreError("NoSuchMethodError", this);
     })();

@@ -326,8 +326,7 @@ final class _EsmIrPrinter {
       EsmStringConcatenationIr() => _emitStringConcatenation(expression),
       EsmAssignmentIr() =>
         '${_emitExpression(expression.target)} = ${_emitExpression(expression.value)}',
-      EsmBinaryIr() =>
-        '${_emitExpression(expression.left)} ${expression.operator} ${_emitExpression(expression.right)}',
+      EsmBinaryIr() => _emitBinaryExpression(expression),
       EsmUnaryIr() =>
         expression.operator == '!'
             ? '!${_emitUnaryOperand(expression.operand)}'
@@ -366,6 +365,65 @@ final class _EsmIrPrinter {
       EsmNewTargetIr() => 'new.target',
       EsmSuperIr() => 'super',
     };
+  }
+
+  String _emitBinaryExpression(EsmBinaryIr expression) {
+    final left = _emitBinaryOperand(
+      expression.left,
+      expression.operator,
+      isRight: false,
+    );
+    final right = _emitBinaryOperand(
+      expression.right,
+      expression.operator,
+      isRight: true,
+    );
+    return '$left ${expression.operator} $right';
+  }
+
+  String _emitBinaryOperand(
+    EsmExpressionIr operand,
+    String parentOperator, {
+    required bool isRight,
+  }) {
+    final text = _emitExpression(operand);
+    if (operand case EsmBinaryIr(:final operator)) {
+      final operandPrecedence = _binaryPrecedence(operator);
+      final parentPrecedence = _binaryPrecedence(parentOperator);
+      if (operandPrecedence < parentPrecedence ||
+          (isRight &&
+              operandPrecedence == parentPrecedence &&
+              !_canFlattenRightBinary(parentOperator, operator))) {
+        return '($text)';
+      }
+    }
+    return text;
+  }
+
+  int _binaryPrecedence(String operator) {
+    return switch (operator) {
+      '*' || '/' || '%' => 12,
+      '+' || '-' => 11,
+      '<<' || '>>' || '>>>' => 10,
+      '<' || '<=' || '>' || '>=' || 'instanceof' || 'in' => 9,
+      '==' || '!=' || '===' || '!==' => 8,
+      '&' => 7,
+      '^' => 6,
+      '|' => 5,
+      '&&' => 4,
+      '||' => 3,
+      _ => 0,
+    };
+  }
+
+  bool _canFlattenRightBinary(String parentOperator, String childOperator) {
+    return parentOperator == childOperator &&
+        (parentOperator == '*' ||
+            parentOperator == '&&' ||
+            parentOperator == '||' ||
+            parentOperator == '&' ||
+            parentOperator == '^' ||
+            parentOperator == '|');
   }
 
   String _emitCallCallee(EsmExpressionIr expression) {

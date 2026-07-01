@@ -191,7 +191,7 @@ export function main() {
     return v;
   })()));
   __dartPrint(flags(__dartMapFromEntries([["a", 1]])));
-  __dartPrint(flags(function() {
+  __dartPrint(flags(() => {
     return 1;
   }));
   __dartPrint(flags(__dartRecord([1], { label: "one" })));

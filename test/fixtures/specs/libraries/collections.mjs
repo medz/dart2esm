@@ -7,6 +7,28 @@ function __dartCompare(left, right, compare = null) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+function __dartCoreError(typeName, message) {
+  const text = message == null ? "" : String(message);
+  const display = text === "" ? typeName : typeName + ": " + text;
+  const error = new Error(text);
+  error.name = typeName;
+  Object.defineProperty(error, "__dartCoreErrorType", { value: typeName });
+  Object.defineProperty(error, "toString", { value() { return display; } });
+  return error;
+}
+function __dartIsCoreError(value, typeName) {
+  const actual = value == null ? null : value.__dartCoreErrorType;
+  if (actual != null) {
+    if (actual === typeName) return true;
+    if (typeName === "Exception" && actual === "FormatException") return true;
+    if (typeName === "RangeError" && actual === "IndexError") return true;
+    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
+    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
+  }
+  if (typeName === "TypeError" && value instanceof TypeError) return true;
+  return typeName === "Error" && value instanceof Error;
+}
+
 function __dartEquals(left, right) {
   if (left === right) return true;
   if (left == null || right == null) return false;
@@ -141,6 +163,42 @@ function __dartListGenerate(length, generator, growable = true) {
 }
 function __dartUnmodifiableList(values) {
   return Object.freeze(Array.from(values));
+}
+
+function __dartListLikeGet(list, index) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list) || typeof list === "string") return list[index];
+  const op = list == null ? null : list["[]"];
+  return typeof op === "function" ? op.call(list, index) : list[index];
+}
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
+}
+function __dartListMixinFirst(list) {
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinLast(list) {
+  return __dartListLikeGet(list, list.length - 1);
+}
+function __dartListMixinSingle(list) {
+  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinInsert(list, index, value) {
+  index = Number(index);
+  const length = Number(list.length);
+  list.length = length + 1;
+  for (let i = length; i > index; i--) {
+    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
+  }
+  __dartListLikeSet(list, index, value);
+  return null;
 }
 
 function __dartListShuffle(list, random = null) {
@@ -628,8 +686,8 @@ function __dartStr(value) {
 
 export class EqBox {
   constructor(value) {
-    this.value = null;
-    this.value = value;
+    Object.defineProperty(this, "value", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "value", { value: value, writable: true, enumerable: true, configurable: true });
   }
   "=="(other) {
     return (other instanceof EqBox && __dartEquals(other.value, this.value));
@@ -641,17 +699,17 @@ export class EqBox {
 
 export function main() {
   const values = __dartListFilled(3, 1, true);
-  values[1] = 2;
+  __dartListLikeSet(values, 1, 2);
   __dartListAdd(values, 4);
   __dartListAddAll(values, [5, 6]);
   __dartPrint(`list ${__dartStr(values.length)} ${__dartStr(Array.from(values)[0])} ${__dartStr(Array.from(values).at(-1))}`);
   __dartPrint(`list contains ${__dartStr(values.includes(3))} ${__dartStr(values.includes(4))}`);
   __dartPrint(`list join ${__dartStr(Array.from(values).join(","))}`);
-  const generated = __dartListGenerate(4, function(index) {
+  const generated = __dartListGenerate(4, (index) => {
     return index * index;
   }, true);
   __dartPrint(`generated ${__dartStr(Array.from(generated).join(":"))}`);
-  const iterableGenerated = __dartListGenerate(3, function(index) {
+  const iterableGenerated = __dartListGenerate(3, (index) => {
     return index + 1;
   }, false);
   const iterableGeneratedDefault = __dartListGenerate(3, (index) => index, false);
@@ -670,59 +728,59 @@ export function main() {
   const writeTarget = [0, 0, 0];
   __dartListWriteIterable(writeTarget, 0, [4, 5]);
   __dartPrint(`staticCollections ${__dartStr(Array.from(castList).join(","))} ${__dartStr(Array.from(castSet).join(","))} ${__dartStr(__dartMapGet(castMap, "a"))} ${__dartStr(Array.from(copyTarget).join(","))} ${__dartStr(Array.from(writeTarget).join(","))}`);
-  const filtered = __dartListOf(Array.from(Array.from(values).filter(function(value) {
+  const filtered = __dartListOf(Array.from(Array.from(values).filter((value) => {
     return __dartEquals(value % 2, 0);
-  }), function(value) {
+  }), (value) => {
     return value * 10;
   }), true);
   __dartPrint(`filtered ${__dartStr(Array.from(filtered).join("|"))}`);
-  __dartPrint(`fold ${__dartStr(Array.from(values).reduce(function(total, value) {
+  __dartPrint(`fold ${__dartStr(Array.from(values).reduce((total, value) => {
     return total + value;
-  }, 0))} ${__dartStr(Array.from(values).some(function(value) {
+  }, 0))} ${__dartStr(Array.from(values).some((value) => {
     return value > 5;
-  }))} ${__dartStr(Array.from(values).every(function(value) {
+  }))} ${__dartStr(Array.from(values).every((value) => {
     return value > 0;
   }))}`);
-  __dartPrint(`iter ${__dartStr(Array.from(Array.from(Array.from(values).slice(2)).slice(0, 3)).join(","))} ${__dartStr(Array.from(values)[2])} ${__dartStr(Array.from(values).reduce(function(total, value) {
+  __dartPrint(`iter ${__dartStr(Array.from(Array.from(Array.from(values).slice(2)).slice(0, 3)).join(","))} ${__dartStr(Array.from(values)[2])} ${__dartStr(Array.from(values).reduce((total, value) => {
     return total + value;
   }))}`);
-  __dartPrint(`iterMore ${__dartStr(Array.from(__dartIterableTakeWhile(values, function(value) {
+  __dartPrint(`iterMore ${__dartStr(Array.from(__dartIterableTakeWhile(values, (value) => {
     return value < 4;
-  })).join(","))} ${__dartStr(Array.from(__dartIterableSkipWhile(values, function(value) {
+  })).join(","))} ${__dartStr(Array.from(__dartIterableSkipWhile(values, (value) => {
     return value < 4;
-  })).join(","))} ${__dartStr(Array.from(Array.from(values).concat(Array.from([7]))).join(","))} ${__dartStr(Array.from(Array.from(Array.from(values).flatMap((value) => Array.from((function(value) {
+  })).join(","))} ${__dartStr(Array.from(Array.from(values).concat(Array.from([7]))).join(","))} ${__dartStr(Array.from(Array.from(Array.from(values).flatMap((value) => Array.from(((value) => {
     return [value, value * 10];
   })(value)))).slice(0, 4)).join(","))}`);
-  __dartPrint(`listQuery ${__dartStr(__dartListIndexWhere(values, function(value) {
+  __dartPrint(`listQuery ${__dartStr(__dartListIndexWhere(values, (value) => {
     return __dartEquals(value, 4);
-  }))} ${__dartStr(__dartListLastIndexWhere(values, function(value) {
+  }))} ${__dartStr(__dartListLastIndexWhere(values, (value) => {
     return __dartEquals(value, 1);
   }))} ${__dartStr(Array.from(Array.from(values).slice(1, 4)).join(","))}`);
   const boxes = [new EqBox(1), new EqBox(2), new EqBox(1)];
   __dartPrint(`listEquality ${__dartStr(__dartListIndexOf(boxes, new EqBox(1)))} ${__dartStr(__dartListIndexOf(boxes, new EqBox(1), 1))} ${__dartStr(__dartListLastIndexOf(boxes, new EqBox(1)))} ${__dartStr(__dartListLastIndexOf(boxes, new EqBox(1), 1))}`);
-  __dartPrint(`where ${__dartStr(__dartIterableFirstWhere(values, function(value) {
+  __dartPrint(`where ${__dartStr(__dartIterableFirstWhere(values, (value) => {
     return value > 3;
-  }))} ${__dartStr(__dartIterableLastWhere(values, function(value) {
+  }))} ${__dartStr(__dartIterableLastWhere(values, (value) => {
     return Math.trunc(value) % 2 !== 0;
-  }))} ${__dartStr(__dartIterableSingleWhere(values, function(value) {
+  }))} ${__dartStr(__dartIterableSingleWhere(values, (value) => {
     return __dartEquals(value, 4);
-  }))} ${__dartStr(__dartIterableFirstWhere(values, function(value) {
+  }))} ${__dartStr(__dartIterableFirstWhere(values, (value) => {
     return value > 99;
-  }, function() {
+  }, () => {
     return -1;
   }))}`);
   const mixedValues = [1, "two", null, 3, "four"];
-  __dartPrint(`typed ${__dartStr(Array.from(Array.from(mixedValues).filter((value) => typeof value === "number")).join(","))} ${__dartStr(Array.from(Array.from(mixedValues).filter((value) => value != null)).join("|"))} ${__dartStr(Array.from(Array.from(values, function(value) {
+  __dartPrint(`typed ${__dartStr(Array.from(Array.from(mixedValues).filter((value) => typeof value === "number")).join(","))} ${__dartStr(Array.from(Array.from(mixedValues).filter((value) => value != null)).join("|"))} ${__dartStr(Array.from(Array.from(values, (value) => {
     return value + 1;
   })).join(","))}`);
-  __dartPrint(`indexed ${__dartStr(Array.from(Array.from(Array.from(Array.from(values).map((value, index) => __dartRecord([index, value], {  })), function(entry) {
+  __dartPrint(`indexed ${__dartStr(Array.from(Array.from(Array.from(Array.from(values).map((value, index) => __dartRecord([index, value], {  })), (entry) => {
     return `${__dartStr(entry.$1)}:${__dartStr(entry.$2)}`;
   })).slice(0, 3)).join("|"))}`);
   const singleValue = [42];
   const emptyValues = Array(0).fill(null);
   __dartPrint(`nullableQuery ${__dartStr(__dartIterableSingle(singleValue))} ${__dartStr(__dartIterableSingleOrNull(singleValue))} ${__dartStr(__dartIterableSingleOrNull(values))} ${__dartStr(__dartIterableFirstOrNull(emptyValues))} ${__dartStr(__dartIterableFirstOrNull(values))} ${__dartStr(__dartIterableLastOrNull(emptyValues))} ${__dartStr(__dartIterableLastOrNull(values))} ${__dartStr(__dartIterableSingleOrNull(emptyValues))} ${__dartStr(__dartIterableElementAtOrNull(values, 2))} ${__dartStr(__dartIterableElementAtOrNull(values, 99))}`);
   let visited = 0;
-  Array.from(values).forEach(function(value) {
+  Array.from(values).forEach((value) => {
     visited = visited + value;
   });
   __dartPrint(`forEach ${__dartStr(visited)}`);
@@ -733,7 +791,7 @@ export function main() {
   const removed = __dartListRemoveAt(mutable, 1);
   __dartListInsert(mutable, 1, 9);
   __dartPrint(`mutable ${__dartStr(Array.from(mutable).join(","))} ${__dartStr(removed)} ${__dartStr(Array.from(mutable.slice(1)).join(","))} ${__dartStr(Array.from(Array.from(mutable).reverse()).join(","))}`);
-  __dartPrint(`shuffle ${__dartStr(shuffled.length)} ${__dartStr(Array.from(__dartSetFrom(shuffled)).length)} ${__dartStr(Array.from(shuffled).every(function(value) {
+  __dartPrint(`shuffle ${__dartStr(shuffled.length)} ${__dartStr(Array.from(__dartSetFrom(shuffled)).length)} ${__dartStr(Array.from(shuffled).every((value) => {
     return (value >= 1 && value <= 5);
   }))}`);
   const indexed = __dartListAsMap(mutable);
@@ -747,10 +805,10 @@ export function main() {
   __dartListFillRange(mutable, 1, 2, 6);
   __dartListReplaceRange(mutable, 2, 3, [10, 11]);
   __dartListRemoveRange(mutable, 0, 1);
-  __dartListRemoveWhere(mutable, function(value) {
+  __dartListRemoveWhere(mutable, (value) => {
     return value > 10;
   });
-  __dartListRetainWhere(mutable, function(value) {
+  __dartListRetainWhere(mutable, (value) => {
     return value >= 6;
   });
   __dartPrint(`list bulk ${__dartStr(Array.from(mutable).join(","))}`);
@@ -784,10 +842,10 @@ export function main() {
     __dartSetAdd(v, 4);
     return v;
   })();
-  __dartSetRemoveWhere(setWhere, function(value) {
+  __dartSetRemoveWhere(setWhere, (value) => {
     return Math.trunc(value) % 2 !== 0;
   });
-  __dartSetRetainWhere(setWhere, function(value) {
+  __dartSetRetainWhere(setWhere, (value) => {
     return value > 2;
   });
   __dartPrint(`set where ${__dartStr(Array.from(setWhere).join(","))}`);
@@ -845,25 +903,25 @@ export function main() {
   __dartPrint(`map iter ${__dartStr(Array.from(Array.from(counts.keys())).join(","))} ${__dartStr(Array.from(Array.from(counts.values())).join(","))}`);
   const countKeys = Array.from(counts.keys());
   __dartPrint(`map views ${__dartStr(Array.from(Array.from(__dartMapFromEntries([]).keys())).length === 0)} ${__dartStr(Array.from(countKeys).length > 0)} ${__dartStr(Array.from(countKeys).length)} ${__dartStr(Array.from(countKeys)[0])} ${__dartStr(Array.from(Array.from(counts.values())).at(-1))} ${__dartStr(Array.from(countKeys).join("|"))}`);
-  const three = __dartMapPutIfAbsent(counts, "three", function() {
+  const three = __dartMapPutIfAbsent(counts, "three", () => {
     return 3;
   });
-  __dartMapUpdate(counts, "two", function(value) {
+  __dartMapUpdate(counts, "two", (value) => {
     return value * 10;
   });
-  __dartMapUpdate(counts, "missing", function(value) {
+  __dartMapUpdate(counts, "missing", (value) => {
     return value;
-  }, function() {
+  }, () => {
     return 4;
   });
   const mapPairs = Array(0).fill(null);
-  __dartMapForEach(counts, function(key, value) {
+  __dartMapForEach(counts, (key, value) => {
     __dartListAdd(mapPairs, `${__dartStr(key)}=${__dartStr(value)}`);
   });
   __dartPrint(`map ops ${__dartStr(three)} ${__dartStr(__dartMapGet(counts, "two"))} ${__dartStr(__dartMapGet(counts, "missing"))} ${__dartStr(Array.from(mapPairs).join("|"))}`);
   const transformSource = __dartMapFromEntries([["a", 1], ["b", 2]]);
   __dartMapAddEntries(transformSource, [["c", 3]]);
-  const transformed = __dartMapMap(transformSource, function(key, value) {
+  const transformed = __dartMapMap(transformSource, (key, value) => {
     return [`${__dartStr(key)}${__dartStr(value)}`, value + 10];
   });
   const transformedCast = transformSource;
@@ -873,13 +931,13 @@ export function main() {
   __dartMapSet(eqMap, new EqBox(1), "uno");
   const eqContains = __dartMapContainsKey(eqMap, new EqBox(1));
   const eqRead = __dartMapGet(eqMap, new EqBox(1));
-  const eqExisting = __dartMapPutIfAbsent(eqMap, new EqBox(1), function() {
+  const eqExisting = __dartMapPutIfAbsent(eqMap, new EqBox(1), () => {
     return "new";
   });
-  const eqMissing = __dartMapPutIfAbsent(eqMap, new EqBox(2), function() {
+  const eqMissing = __dartMapPutIfAbsent(eqMap, new EqBox(2), () => {
     return "two";
   });
-  const eqUpdated = __dartMapUpdate(eqMap, new EqBox(2), function(value) {
+  const eqUpdated = __dartMapUpdate(eqMap, new EqBox(2), (value) => {
     return `${__dartStr(value)}!`;
   });
   const eqRemoved = __dartMapRemove(eqMap, new EqBox(1));
@@ -890,13 +948,13 @@ export function main() {
   __dartPrint(`mapEquality ${__dartStr(eqContains)} ${__dartStr(eqRead)} ${__dartStr(eqExisting)} ${__dartStr(eqMissing)} ${__dartStr(eqUpdated)} ${__dartStr(eqRemoved)} ${__dartStr(__dartMapGet(eqMap, new EqBox(2)))} ${__dartStr(__dartMapGet(eqMap, new EqBox(3)))} ${__dartStr(eqMap.size)} ${__dartStr(__dartMapContainsKey(identityMap, new EqBox(1)))} ${__dartStr(identityMap.size)}`);
   __dartMapRemove(counts, "one");
   __dartPrint(`map removed ${__dartStr(counts.size)} ${__dartStr(__dartMapGet(counts, "one"))}`);
-  __dartMapUpdateAll(counts, function(key, value) {
+  __dartMapUpdateAll(counts, (key, value) => {
     return value + key.length;
   });
-  __dartMapRemoveWhere(counts, function(key, value) {
+  __dartMapRemoveWhere(counts, (key, value) => {
     return Math.trunc(value) % 2 === 0;
   });
-  const entries = Array.from(Array.from(counts.entries()), function(entry) {
+  const entries = Array.from(Array.from(counts.entries()), (entry) => {
     return `${__dartStr(entry[0])}:${__dartStr(entry[1])}`;
   });
   __dartPrint(`map more ${__dartStr(__dartMapContainsValue(counts, 27))} ${__dartStr(Array.from(entries).join("|"))}`);

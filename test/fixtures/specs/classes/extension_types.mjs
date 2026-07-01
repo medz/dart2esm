@@ -64,8 +64,8 @@ function __dartAs(value, test, typeName) {
 }
 
 export class UserId {
-  constructor(value) {
-    this.value = $UserId_new(value);
+  constructor(value_1) {
+    this.value = $UserId_new(value_1);
   }
   static get defaultValue() {
     return $UserId_defaultValue;
@@ -125,8 +125,8 @@ function $UserId__(_this, amount) {
   return $UserId_new(__dartAs(_this, (value) => typeof value === "number", "int") + amount);
 }
 
-function $UserId_new(value) {
-  const _this = value;
+function $UserId_new(value_1) {
+  const _this = value_1;
   return _this;
 }
 
@@ -134,8 +134,8 @@ function $UserId_zero() {
   return $UserId_new(0);
 }
 
-export function hide(value) {
-  return value;
+export function hide(value_1) {
+  return value_1;
 }
 
 export function main() {

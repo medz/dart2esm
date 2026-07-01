@@ -27,7 +27,7 @@ function __dartStr(value) {
 export function trace(value) {
   null;
   const inspected = value;
-  const timed = (function() {
+  const timed = (() => {
     return `timed:${__dartStr(inspected)}`;
   })();
   null;

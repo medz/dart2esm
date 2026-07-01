@@ -34,17 +34,17 @@ function __dartStr(value) {
 
 export class Point {
   constructor(x, y) {
-    this.x = null;
-    this.y = null;
-    this.x = x;
-    this.y = y;
+    Object.defineProperty(this, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "x", { value: x, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: y, writable: true, enumerable: true, configurable: true });
   }
   static origin() {
     const $self = Object.create(this.prototype);
-    $self.x = null;
-    $self.y = null;
-    $self.x = 0;
-    $self.y = 0;
+    Object.defineProperty($self, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "x", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: 0, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   get sum() {
@@ -57,8 +57,8 @@ export class Point {
 
 export class Adder {
   constructor(base) {
-    this.base = null;
-    this.base = base;
+    Object.defineProperty(this, "base", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "base", { value: base, writable: true, enumerable: true, configurable: true });
   }
   call(value) {
     return this.base + value;
@@ -67,8 +67,8 @@ export class Adder {
 
 export class Positive {
   constructor(value) {
-    this.value = null;
-    this.value = value;
+    Object.defineProperty(this, "value", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "value", { value: value, writable: true, enumerable: true, configurable: true });
   }
 }
 

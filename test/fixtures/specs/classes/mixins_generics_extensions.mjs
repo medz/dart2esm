@@ -69,6 +69,7 @@ export class User extends _User_Object_Named {
   constructor(name) {
     super();
     this.name = name;
+    Object.defineProperty(this, $Named_interface, { value: true });
   }
 }
 

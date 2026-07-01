@@ -30,10 +30,10 @@ export class Animal {
   }
   static named(name) {
     const $self = Object.create(this.prototype);
-    $self.name = null;
-    $self.source = null;
-    $self.name = name;
-    $self.source = "named animal";
+    Object.defineProperty($self, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "source", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "name", { value: name, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "source", { value: "named animal", writable: true, enumerable: true, configurable: true });
     $self.source = `${__dartStr($self.source)}!`;
     return $self;
   }
@@ -48,10 +48,10 @@ export class Dog extends Animal {
   }
   static named(name, age) {
     const $self = Animal.named.call(this, name);
-    $self.age = null;
-    $self.label = null;
-    $self.age = age;
-    $self.label = "dog";
+    Object.defineProperty($self, "age", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "age", { value: age, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: "dog", writable: true, enumerable: true, configurable: true });
     $self.label = `${__dartStr($self.label)}!`;
     return $self;
   }
@@ -63,8 +63,8 @@ export class Dog extends Animal {
 export class Cat extends Animal {
   constructor(name, color) {
     const $self = Animal.named.call(new.target, name);
-    $self.color = null;
-    $self.color = color;
+    Object.defineProperty($self, "color", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "color", { value: color, writable: true, enumerable: true, configurable: true });
     $self.color = `${__dartStr($self.color)}!`;
     return $self;
   }
@@ -79,8 +79,8 @@ export class Puppy extends Dog {
   }
   static named(name, age, toy) {
     const $self = Dog.named.call(this, name, age);
-    $self.toy = null;
-    $self.toy = toy;
+    Object.defineProperty($self, "toy", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "toy", { value: toy, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {

@@ -26,8 +26,8 @@ function __dartStr(value) {
 
 class Greeter {
   constructor(prefix) {
-    this.prefix = null;
-    this.prefix = prefix;
+    Object.defineProperty(this, "prefix", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "prefix", { value: prefix, writable: true, enumerable: true, configurable: true });
   }
   say(name) {
     return `${__dartStr(this.prefix)} ${__dartStr(name)} ${__dartStr(add(1, 1))}`;

@@ -26,32 +26,32 @@ function __dartStr(value) {
 
 export class Point {
   constructor(x, y) {
-    this.x = null;
-    this.y = null;
-    this.label = null;
-    this.x = x;
-    this.y = y;
-    this.label = "point";
+    Object.defineProperty(this, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "x", { value: x, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "y", { value: y, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "label", { value: "point", writable: true, enumerable: true, configurable: true });
   }
   static origin() {
     const $self = Object.create(this.prototype);
-    $self.x = null;
-    $self.y = null;
-    $self.label = null;
-    $self.x = 0;
-    $self.y = 0;
-    $self.label = "origin";
+    Object.defineProperty($self, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "x", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: "origin", writable: true, enumerable: true, configurable: true });
     $self.label = `${__dartStr($self.label)}!`;
     return $self;
   }
   static square(size) {
     const $self = Object.create(this.prototype);
-    $self.x = null;
-    $self.y = null;
-    $self.label = null;
-    $self.x = size;
-    $self.y = size;
-    $self.label = "square";
+    Object.defineProperty($self, "x", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "x", { value: size, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "y", { value: size, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "label", { value: "square", writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {
@@ -65,8 +65,8 @@ export class Token {
   }
   static named(value) {
     const $self = Object.create(this.prototype);
-    $self.value = null;
-    $self.value = value;
+    Object.defineProperty($self, "value", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "value", { value: value, writable: true, enumerable: true, configurable: true });
     return $self;
   }
   describe() {

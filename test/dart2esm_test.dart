@@ -316,6 +316,205 @@ void main() {
     );
   });
 
+  test('preserves inherited accessor pairs in JS classes', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-inherited-accessors-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+class Base {
+  int _value = 1;
+
+  int get value => _value;
+  set value(int next) {
+    _value = next;
+  }
+}
+
+class SetterOnly extends Base {
+  set value(int next) {
+    super.value = next + 1;
+  }
+}
+
+class GetterOnly extends Base {
+  int get value => super.value + 10;
+}
+
+void main() {
+  final setterOnly = SetterOnly();
+  setterOnly.value = 4;
+  final getterOnly = GetterOnly();
+  getterOnly.value = 5;
+  print('accessors \${setterOnly.value} \${getterOnly.value}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    await _expectNodeOutput(output, 'accessors 5 15\n');
+  });
+
+  test('captures this lexically in Dart closures', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-closure-this-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+class Holder {
+  int value;
+
+  Holder(this.value);
+
+  int readWithClosure() {
+    int local = 2;
+    final read = () => value + local;
+    return read();
+  }
+}
+
+void main() {
+  print('closure \${Holder(5).readWithClosure()}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    await _expectNodeOutput(output, 'closure 7\n');
+  });
+
+  test('defines instance fields over inherited abstract getters', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-field-over-getter-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+abstract class ValueEvent {
+  String? get anchor;
+}
+
+class MappingStartEvent extends ValueEvent {
+  final String? anchor;
+
+  MappingStartEvent({this.anchor});
+}
+
+void main() {
+  final event = MappingStartEvent(anchor: 'root');
+  print('field \${event.anchor}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    await _expectNodeOutput(output, 'field root\n');
+  });
+
+  test('supports concrete classes used as implemented interfaces', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-concrete-interface-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+class ConcreteInterface {
+  int get value => 0;
+}
+
+class ImplementsConcrete implements ConcreteInterface {
+  @override
+  final int value;
+
+  ImplementsConcrete(this.value);
+}
+
+void main() {
+  final value = ImplementsConcrete(7);
+  final casted = value as ConcreteInterface;
+  print('concrete \${value is ConcreteInterface} \${casted.value}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    await _expectNodeOutput(output, 'concrete true 7\n');
+  });
+
+  test('initializes fields in implicit default constructors', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-implicit-field-constructor-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+class Collector {
+  final items = <int>[1, 2];
+}
+
+void main() {
+  final collector = Collector();
+  print('implicit \${collector.items.length} \${collector.items.first}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    await _expectNodeOutput(output, 'implicit 2 1\n');
+  });
+
   test('compiles basic classes through the new core', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-class-core-',
@@ -1729,6 +1928,62 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
+  test('dispatches List index operators through list-like helpers', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-list-like-index-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+import 'dart:collection';
+
+class Items<E> extends ListBase<E> {
+  Items(this._items);
+
+  final List<E> _items;
+
+  @override
+  int get length => _items.length;
+
+  @override
+  set length(int value) {
+    throw 'unused';
+  }
+
+  @override
+  E operator [](int index) => _items[index];
+
+  @override
+  void operator []=(int index, E value) {
+    _items[index] = value;
+  }
+}
+
+void main() {
+  List<int> values = Items<int>([3, 4]);
+  values[1] = 9;
+  print('listLike \${values[0]} \${values[1]}');
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartListLikeGet'));
+    expect(code, contains('__dartListLikeSet'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
   test(
     'compiles mixin application super constructors through the new core',
     () async {
@@ -2667,6 +2922,44 @@ void main() {
     await _expectLocalImportSurface(fixtureDir, tempDir);
   });
 
+  test('local bindings avoid module global names', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-global-hygiene-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final helper = File(p.join(tempDir.path, 'helper.dart'))
+      ..writeAsStringSync('''
+String url(String value) => 'global \$value';
+''');
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+import 'helper.dart' as p;
+
+void main() {
+  final url = p.url('ok');
+  print(url);
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('function url(value)'));
+    expect(code, contains('const url_1 = url("ok");'));
+    await _expectSameDartAndNodeOutput(input, output);
+    expect(helper.existsSync(), isTrue);
+  });
+
   test('can emit an ESM module without running main', () async {
     final fixture = _GoldenFixture(
       root: fixtureDir,
@@ -3456,10 +3749,8 @@ const _legacyOracleFixtureIds = {
   'packages/glob_usage',
   'packages/http_parser_usage',
   'packages/mime_usage',
-  'packages/path_usage',
   'packages/source_span_usage',
   'packages/typed_data_usage',
-  'packages/yaml_usage',
 };
 
 Future<void> _expectNodeOutput(File output, String stdout) async {

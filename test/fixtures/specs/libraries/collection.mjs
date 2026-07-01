@@ -331,17 +331,17 @@ export function main() {
   linked.unshift("a");
   __dartPrint(`linkedQueue ${__dartStr(linked.length)} ${__dartStr(__dartListRemove(linked, "b"))} ${__dartStr(Array.from(linked).join(","))}`);
   const copied = Array.from([1, 2, 3, 4]);
-  __dartListRemoveWhere(copied, function(value) {
+  __dartListRemoveWhere(copied, (value) => {
     return Math.trunc(value) % 2 !== 0;
   });
-  __dartListRetainWhere(copied, function(value) {
+  __dartListRetainWhere(copied, (value) => {
     return value > 2;
   });
   __dartListAddAll(copied, Array.from([5, 6]));
   __dartPrint(`listQueue ${__dartStr(copied[0])} ${__dartStr(copied.at(-1))} ${__dartStr(Array.from(copied).length > 0)} ${__dartStr(Array.from(copied).join(","))}`);
-  __dartPrint(`queueIter ${__dartStr(Array.from(copied)[1])} ${__dartStr(Array.from(__dartListOf(copied, true)).join("|"))} ${__dartStr(Array.from(copied).some(function(value) {
+  __dartPrint(`queueIter ${__dartStr(Array.from(copied)[1])} ${__dartStr(Array.from(__dartListOf(copied, true)).join("|"))} ${__dartStr(Array.from(copied).some((value) => {
     return __dartEquals(value, 5);
-  }))} ${__dartStr(Array.from(copied).every(function(value) {
+  }))} ${__dartStr(Array.from(copied).every((value) => {
     return value > 0;
   }))}`);
   copied.length = 0;

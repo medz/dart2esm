@@ -391,26 +391,26 @@ export function main() {
   const mixed = "a1 b22";
   __dartPrint(`stringPattern ${__dartStr(__dartStringContains(mixed, digits, 0))} ${__dartStr(__dartStringContains(mixed, digits, 2))} ${__dartStr(__dartStringStartsWith(mixed, __dartRegExp("a\\d", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), 0))} ${__dartStr(__dartStringIndexOf(mixed, digits, 2))} ${__dartStr(__dartStringLastIndexOf(mixed, digits, null))} ${__dartStr(__dartStringLastIndexOf(mixed, digits, 2))}`);
   __dartPrint(`stringReplace ${__dartStr(Array.from(__dartStringSplit(mixed, digits)).join("|"))} ${__dartStr(__dartStringReplaceAll(mixed, digits, "#"))} ${__dartStr(__dartStringReplaceFirstPattern(mixed, digits, "#", 0))}`);
-  __dartPrint(`mapped ${__dartStr(__dartStringReplaceAllMapped(mixed, digits, function(match) {
+  __dartPrint(`mapped ${__dartStr(__dartStringReplaceAllMapped(mixed, digits, (match) => {
     return `[${__dartStr(match.group(0))}:${__dartStr(match.start)}]`;
-  }))} ${__dartStr(__dartStringReplaceFirstMapped(mixed, digits, function(match) {
+  }))} ${__dartStr(__dartStringReplaceFirstMapped(mixed, digits, (match) => {
     return `[${__dartStr(match[0])}]`;
   }, 2))}`);
-  __dartPrint(`splitMap ${__dartStr(__dartStringSplitMapJoin(mixed, digits, function(match) {
+  __dartPrint(`splitMap ${__dartStr(__dartStringSplitMapJoin(mixed, digits, (match) => {
     return `<${__dartStr(match[0])}>`;
-  }, function(part) {
+  }, (part) => {
     return part.toUpperCase();
   }))}`);
-  __dartPrint(`stringMapped ${__dartStr(__dartStringReplaceAllMapped("aa bb aa", "aa", function(match) {
+  __dartPrint(`stringMapped ${__dartStr(__dartStringReplaceAllMapped("aa bb aa", "aa", (match) => {
     return `${__dartStr(match.start)}:${__dartStr(match.group(0))}`;
-  }))} ${__dartStr(__dartStringSplitMapJoin("aa bb aa", "bb", function(match) {
+  }))} ${__dartStr(__dartStringSplitMapJoin("aa bb aa", "bb", (match) => {
     return `<${__dartStr(match.group(0))}>`;
-  }, function(part) {
+  }, (part) => {
     return part.trim();
   }))}`);
   const stringPatternMatches = __dartPatternAllMatches("aa", "aa bb aa", 1);
   const stringPrefix = __dartNullCheck(__dartPatternMatchAsPrefix("bb", "aa bb aa", 3));
-  __dartPrint(`stringPatternDirect ${__dartStr(Array.from(Array.from(stringPatternMatches, function(match) {
+  __dartPrint(`stringPatternDirect ${__dartStr(Array.from(Array.from(stringPatternMatches, (match) => {
     return match.start;
   })).join(","))} ${__dartStr(stringPrefix.group(0))} ${__dartStr(stringPrefix.start)} ${__dartStr(stringPrefix.end)}`);
   const prefix = __dartNullCheck(__dartPatternMatchAsPrefix(digits, mixed, 1));

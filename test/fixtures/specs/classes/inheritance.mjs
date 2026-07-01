@@ -26,8 +26,8 @@ function __dartStr(value) {
 
 export class Animal {
   constructor(name) {
-    this.name = null;
-    this.name = name;
+    Object.defineProperty(this, "name", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "name", { value: name, writable: true, enumerable: true, configurable: true });
   }
   get label() {
     return `animal ${__dartStr(this.name)}`;
@@ -43,8 +43,8 @@ export class Animal {
 export class Dog extends Animal {
   constructor(name, age) {
     super(name);
-    this.age = null;
-    this.age = age;
+    Object.defineProperty(this, "age", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "age", { value: age, writable: true, enumerable: true, configurable: true });
   }
   describe() {
     return `${__dartStr(super.describe())} dog ${__dartStr(this.age)}`;

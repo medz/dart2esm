@@ -16,6 +16,10 @@ import 'package:test/test.dart';
 void main() {
   test('compiler core exposes the ordered stage contract', () {
     expect(
+      const Dart2EsmPipelineOptions(runMain: true).allowLegacyOracle,
+      isFalse,
+    );
+    expect(
       dart2EsmCompilerStageOrder,
       dart2EsmCompilerStageContracts
           .map((contract) => contract.stageId)
@@ -220,30 +224,39 @@ export function main() {
     expect(collisionSymbol.name, '__dartPrint_1');
   });
 
+  test(
+    'rejects unsupported Kernel without invoking the legacy oracle by default',
+    () {
+      final component = _componentWithSwitchContinue();
+
+      final pipeline = Dart2EsmCompilerPipeline(
+        options: const Dart2EsmPipelineOptions(runMain: true),
+      );
+
+      expect(
+        () => pipeline.compile(component),
+        throwsA(isA<NewCompilerUnsupported>()),
+      );
+    },
+  );
+
+  test('can explicitly invoke the legacy oracle for unsupported Kernel', () {
+    final component = _componentWithSwitchContinue();
+
+    final result = Dart2EsmCompilerPipeline(
+      options: const Dart2EsmPipelineOptions(
+        runMain: true,
+        allowLegacyOracle: true,
+      ),
+    ).compile(component);
+
+    expect(result.path, Dart2EsmCompilerPath.legacyOracle);
+    expect(result.usedLegacyOracle, isTrue);
+    expect(result.legacyOracle?.reason, contains('ContinueSwitchStatement'));
+  });
+
   test('can reject unsupported Kernel without invoking the legacy oracle', () {
-    final libraryUri = Uri.parse('package:sample/main.dart');
-    final library = k.Library(libraryUri, fileUri: libraryUri);
-    final target = k.SwitchCase(
-      [k.IntLiteral(0)],
-      [k.TreeNode.noOffset],
-      k.EmptyStatement(),
-    );
-    final main = _procedure(
-      'main',
-      body: k.Block([
-        k.SwitchStatement(k.IntLiteral(0), [
-          target,
-          k.SwitchCase(
-            [k.IntLiteral(1)],
-            [k.TreeNode.noOffset],
-            k.Block([k.ContinueSwitchStatement(target)]),
-          ),
-        ]),
-      ]),
-    );
-    library.addProcedure(main);
-    final component = k.Component(libraries: [library]);
-    component.setMainMethodAndMode(main.reference, true);
+    final component = _componentWithSwitchContinue();
 
     final pipeline = Dart2EsmCompilerPipeline(
       options: const Dart2EsmPipelineOptions(
@@ -268,6 +281,33 @@ export function main() {
       throwsA(isA<UnsupportedKernelNode>()),
     );
   });
+}
+
+k.Component _componentWithSwitchContinue() {
+  final libraryUri = Uri.parse('package:sample/main.dart');
+  final library = k.Library(libraryUri, fileUri: libraryUri);
+  final target = k.SwitchCase(
+    [k.IntLiteral(0)],
+    [k.TreeNode.noOffset],
+    k.EmptyStatement(),
+  );
+  final main = _procedure(
+    'main',
+    body: k.Block([
+      k.SwitchStatement(k.IntLiteral(0), [
+        target,
+        k.SwitchCase(
+          [k.IntLiteral(1)],
+          [k.TreeNode.noOffset],
+          k.Block([k.ContinueSwitchStatement(target)]),
+        ),
+      ]),
+    ]),
+  );
+  library.addProcedure(main);
+  final component = k.Component(libraries: [library]);
+  component.setMainMethodAndMode(main.reference, true);
+  return component;
 }
 
 k.Procedure _procedure(

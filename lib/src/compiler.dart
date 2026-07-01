@@ -253,7 +253,7 @@ final class Dart2EsmOptions {
     this.packagesPath,
     this.environmentDefines = const [],
     this.runMain = true,
-    this.allowLegacyOracle = true,
+    this.allowLegacyOracle = false,
     this.collectMetrics = false,
     this.compareDart2JsMetrics = false,
   });

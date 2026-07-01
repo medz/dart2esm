@@ -61,6 +61,7 @@ Future<int> runDart2Esm(
         packagesPath: results['packages'] as String?,
         environmentDefines: results['define'] as List<String>,
         runMain: results['run-main'] as bool,
+        allowLegacyOracle: results['legacy-oracle'] as bool,
         collectMetrics: printMetrics,
         compareDart2JsMetrics: results['compare-dart2js'] as bool,
       ),
@@ -123,6 +124,13 @@ ArgParser _buildParser() {
       defaultsTo: false,
       negatable: false,
       help: 'Also compile with dart compile js -O2 and print size ratios.',
+    )
+    ..addFlag(
+      'legacy-oracle',
+      defaultsTo: false,
+      negatable: false,
+      help:
+          'Temporarily allow the legacy backend oracle when new core rejects input.',
     )
     ..addFlag('version', negatable: false, help: 'Print the dart2esm version.')
     ..addFlag(

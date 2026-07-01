@@ -2202,6 +2202,40 @@ void main() {
     );
   });
 
+  test('CLI --legacy-oracle explicitly enables the temporary oracle', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(
+        p.join(fixtureDir.path, 'control_flow', 'switch_continue.dart'),
+      ),
+      expectedEsm: File(
+        p.join(fixtureDir.path, 'control_flow', 'switch_continue.mjs'),
+      ),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-legacy-oracle-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'switch_continue.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [fixture.source.path, '-o', output.path, '--legacy-oracle'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.success);
+    expect(output.readAsStringSync(), fixture.expectedCode);
+    expect(
+      File(p.join(tempDir.path, 'stdout.log')).readAsStringSync(),
+      isEmpty,
+    );
+  });
+
   test('compile options pass environment defines to CFE', () async {
     final fixture = File(
       p.join(fixtureDir.path, 'libraries', 'environment.dart'),
@@ -2613,14 +2647,22 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
   addTearDown(() => tempDir.deleteSync(recursive: true));
 
   final output = File(p.join(tempDir.path, '${fixture.name}.mjs'));
+  final usesLegacyOracle = _usesLegacyOracleFixture(fixture.id);
   final result = await compileDartToEsm(
     Dart2EsmOptions(
       inputPath: fixture.source.path,
       outputPath: output.path,
       workingDirectory: Directory.current,
+      allowLegacyOracle: usesLegacyOracle,
     ),
   );
   expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+  expect(
+    result.compilerPath,
+    usesLegacyOracle
+        ? Dart2EsmCompilerPath.legacyOracle
+        : Dart2EsmCompilerPath.newCore,
+  );
   expect(output.readAsStringSync(), fixture.expectedEsm.readAsStringSync());
   if (fixture.id == 'libraries/concurrent') {
     await _expectNodeOutput(output, 'concurrent 42\n');
@@ -2821,6 +2863,49 @@ globalThis.window = { AudioContext };
   }
   await _expectSameDartAndNodeOutput(fixture.source, output);
 }
+
+bool _usesLegacyOracleFixture(String fixtureId) {
+  return _legacyOracleFixtureIds.contains(fixtureId);
+}
+
+const _legacyOracleFixtureIds = {
+  'classes/mixins_generics_extensions',
+  'classes/no_such_method',
+  'control_flow/switch_continue',
+  'functions/generators',
+  'imports/deferred_imports',
+  'libraries/async',
+  'libraries/concurrent',
+  'libraries/convert',
+  'libraries/core_runtime',
+  'libraries/ffi',
+  'libraries/html',
+  'libraries/indexed_db',
+  'libraries/isolate',
+  'libraries/js',
+  'libraries/js_interop',
+  'libraries/mirrors',
+  'libraries/regexp',
+  'libraries/streams',
+  'libraries/svg',
+  'libraries/time',
+  'libraries/typed_data',
+  'libraries/weak_finalizer',
+  'libraries/web_audio',
+  'libraries/web_gl',
+  'packages/args_usage',
+  'packages/async_usage',
+  'packages/convert_usage',
+  'packages/crypto_usage',
+  'packages/glob_usage',
+  'packages/http_parser_usage',
+  'packages/mime_usage',
+  'packages/path_usage',
+  'packages/pub_semver_usage',
+  'packages/source_span_usage',
+  'packages/typed_data_usage',
+  'packages/yaml_usage',
+};
 
 Future<void> _expectNodeOutput(File output, String stdout) async {
   final nodeRun = await Process.run('node', [

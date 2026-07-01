@@ -233,6 +233,18 @@ void main() {
       }
     }
   });
+
+  test('legacy oracle is never enabled by default', () {
+    final cli = _read('lib/src/cli.dart');
+    final compiler = _read('lib/src/compiler.dart');
+    final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
+
+    expect(compiler, contains('this.allowLegacyOracle = false'));
+    expect(pipeline, contains('this.allowLegacyOracle = false'));
+    expect(cli, contains("'legacy-oracle'"));
+    expect(cli, contains("allowLegacyOracle: results['legacy-oracle']"));
+    expect(cli, isNot(contains('allowLegacyOracle: true')));
+  });
 }
 
 String _read(String relativePath) {

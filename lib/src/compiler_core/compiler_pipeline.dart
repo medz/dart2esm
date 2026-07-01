@@ -17,7 +17,7 @@ enum Dart2EsmCompilerPath { newCore, legacyOracle }
 final class Dart2EsmPipelineOptions {
   const Dart2EsmPipelineOptions({
     required this.runMain,
-    this.allowLegacyOracle = true,
+    this.allowLegacyOracle = false,
   });
 
   final bool runMain;

@@ -21,6 +21,7 @@ enum EsmRuntimeHelper {
   enumByName,
   expando,
   extensionTypeRep,
+  finalizer,
   functionApply,
   intGcd,
   intModular,
@@ -64,6 +65,7 @@ enum EsmRuntimeHelper {
   type,
   typeCast,
   uri,
+  weakReference,
 }
 
 final class EsmRuntimeHelperRegistry {
@@ -92,6 +94,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartEquals',
     '__dartExpando',
     '__dartExtensionTypeRep',
+    '__dartFinalizer',
     '__dartFunctionApply',
     '__dartIntGcd',
     '__dartIntModInverse',
@@ -223,6 +226,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartUriReplace',
     '__dartUriResolve',
     '__dartUriSplitQueryString',
+    '__dartWeakReference',
   };
 
   String name(EsmRuntimeHelper helper) {
@@ -247,6 +251,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
       EsmRuntimeHelper.expando => '__dartExpando',
       EsmRuntimeHelper.extensionTypeRep => '__dartExtensionTypeRep',
+      EsmRuntimeHelper.finalizer => '__dartFinalizer',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.intGcd => '__dartIntGcd',
       EsmRuntimeHelper.intModular => '__dartIntModInverse',
@@ -290,6 +295,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.type => '__dartType',
       EsmRuntimeHelper.typeCast => '__dartAs',
       EsmRuntimeHelper.uri => '__dartUriParse',
+      EsmRuntimeHelper.weakReference => '__dartWeakReference',
     };
   }
 
@@ -577,6 +583,44 @@ function __dartExpando(name = null) {
   };
   Object.defineProperty(expando, "__dartType", { value: "Expando" });
   return Object.freeze(expando);
+}
+'''),
+      EsmRuntimeHelper.finalizer => EsmRawModuleItemIr('''
+function __dartFinalizer(callback) {
+  const registry = typeof FinalizationRegistry === "function" ? new FinalizationRegistry(callback) : null;
+  const detachTokens = new Map();
+  const finalizer = {
+    attach(value, token, options = {}) {
+      if (registry != null) {
+        const detach = options.detach ?? null;
+        let unregisterToken = undefined;
+        if (detach != null) {
+          unregisterToken = detachTokens.get(detach);
+          if (unregisterToken == null) {
+            unregisterToken = {};
+            detachTokens.set(detach, unregisterToken);
+          }
+        }
+        registry.register(value, token, unregisterToken);
+      }
+      return null;
+    },
+    detach(detach) {
+      if (registry != null) {
+        const unregisterToken = detachTokens.get(detach);
+        if (unregisterToken != null) {
+          registry.unregister(unregisterToken);
+          detachTokens.delete(detach);
+        }
+      }
+      return null;
+    },
+    toString() {
+      return "Finalizer";
+    },
+  };
+  Object.defineProperty(finalizer, "__dartType", { value: "Finalizer" });
+  return Object.freeze(finalizer);
 }
 '''),
       EsmRuntimeHelper.mathPoint => EsmRawModuleItemIr('''
@@ -1904,6 +1948,21 @@ function __dartUriBuild(scheme, authority, path, queryParameters = null) {
   return __dartUriParse(url.toString());
 }
 '''),
+      EsmRuntimeHelper.weakReference => EsmRawModuleItemIr('''
+function __dartWeakReference(target) {
+  const ref = typeof WeakRef === "function" ? new WeakRef(target) : { deref() { return target; } };
+  const weak = {
+    get target() {
+      return ref.deref() ?? null;
+    },
+    toString() {
+      return "WeakReference";
+    },
+  };
+  Object.defineProperty(weak, "__dartType", { value: "WeakReference" });
+  return Object.freeze(weak);
+}
+'''),
       EsmRuntimeHelper.typeCast => EsmFunctionIr(
         name: name(helper),
         export: false,
@@ -1961,6 +2020,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.encoding:
       case EsmRuntimeHelper.expando:
       case EsmRuntimeHelper.extensionTypeRep:
+      case EsmRuntimeHelper.finalizer:
       case EsmRuntimeHelper.listFactory:
       case EsmRuntimeHelper.listRangeOps:
       case EsmRuntimeHelper.intGcd:
@@ -1970,6 +2030,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.mathRandom:
       case EsmRuntimeHelper.stringFactory:
       case EsmRuntimeHelper.stringOps:
+      case EsmRuntimeHelper.weakReference:
         break;
       case EsmRuntimeHelper.stringBuffer:
         _helpers.add(EsmRuntimeHelper.stringify);

@@ -4700,6 +4700,77 @@ final class KernelToEsmIrLoweringStage
     if (stringBufferInvocation != null) {
       return stringBufferInvocation;
     }
+    if (isDartCoreFinalizerMember(
+          expression.interfaceTargetReference,
+          memberName,
+        ) &&
+        expression.arguments.types.isEmpty) {
+      final positional = expression.arguments.positional;
+      if (memberName == 'attach' &&
+          positional.length == 2 &&
+          _hasOnlyNamedArguments(expression.arguments, {'detach'})) {
+        final detach =
+            _lowerNamedArgument(
+              world,
+              helpers,
+              locals,
+              expression.arguments,
+              'detach',
+              thisExpression: thisExpression,
+            ) ??
+            const EsmNullLiteralIr();
+        return EsmCallIr(
+          callee: EsmPropertyAccessIr(
+            receiver: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+            property: 'attach',
+          ),
+          arguments: [
+            for (final argument in positional)
+              _lowerExpression(
+                world,
+                helpers,
+                locals,
+                argument,
+                thisExpression: thisExpression,
+              ),
+            EsmObjectLiteralIr([
+              EsmObjectLiteralPropertyIr(name: 'detach', value: detach),
+            ]),
+          ],
+        );
+      }
+      if (memberName == 'detach' &&
+          positional.length == 1 &&
+          expression.arguments.named.isEmpty) {
+        return EsmCallIr(
+          callee: EsmPropertyAccessIr(
+            receiver: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
+            ),
+            property: 'detach',
+          ),
+          arguments: [
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.single,
+              thisExpression: thisExpression,
+            ),
+          ],
+        );
+      }
+    }
     if (_isCoreExpandoMember(target) &&
         expression.arguments.named.isEmpty &&
         expression.arguments.types.isEmpty) {
@@ -7464,6 +7535,13 @@ final class KernelToEsmIrLoweringStage
         return EsmPropertyAccessIr(receiver: receiver, property: property);
       }
     }
+    if (memberName == 'target' &&
+        isDartCoreWeakReferenceMember(
+          expression.interfaceTargetReference,
+          memberName,
+        )) {
+      return EsmPropertyAccessIr(receiver: receiver, property: 'target');
+    }
     if (target == 'dart:core::Iterable::@getters::isEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(
@@ -8097,6 +8175,40 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::Object::@constructors::' && positional.isEmpty) {
       return const EsmObjectLiteralIr([]);
     }
+    if (isDartCoreWeakReferenceConstructorReference(
+          expression.targetReference,
+        ) &&
+        positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.weakReference);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.weakReference),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (isDartCoreFinalizerConstructorReference(expression.targetReference) &&
+        positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.finalizer);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.finalizer),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
     if (isDartCoreExpandoConstructorReference(expression.targetReference) &&
         positional.length <= 1) {
       helpers.add(EsmRuntimeHelper.expando);
@@ -8658,6 +8770,10 @@ final class KernelToEsmIrLoweringStage
         ]),
         'Function' => _typeofEquals(value, 'function'),
         'Expando' => _lowerDartTypeTagTest(value, 'Expando'),
+        'WeakReference' ||
+        '_WeakReference' => _lowerDartTypeTagTest(value, 'WeakReference'),
+        'Finalizer' ||
+        '_FinalizerImpl' => _lowerDartTypeTagTest(value, 'Finalizer'),
         'Record' => _lowerRecordObjectTest(helpers, value),
         _ => throw NewCompilerUnsupported(
           type,

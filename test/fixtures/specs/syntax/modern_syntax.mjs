@@ -131,25 +131,26 @@ function __dartEquals(left, right) {
 }
 
 function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
+}
+
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
-    const values = [];
-    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
-    return values.join(String(separator));
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
   }
-  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+  return Array.from(iterable);
 }
 
 function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
-    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
-    : Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        this.current = values[index];
         return true;
       }
       this.current = undefined;
@@ -172,7 +173,7 @@ function __dartListAdd(list, value) {
 }
 
 function __dartListAddAll(list, values) {
-  for (const value of Array.from(values)) {
+  for (const value of __dartIterableToArray(values)) {
     __dartListAdd(list, value);
   }
   return null;

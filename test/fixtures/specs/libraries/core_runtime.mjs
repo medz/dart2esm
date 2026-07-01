@@ -67,13 +67,21 @@ function __dartExpando(name = null) {
   return Object.freeze(expando);
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartFixedList(values) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   Object.preventExtensions(list);
   return list;
 }
 function __dartListOf(values, growable = true) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
 function __dartListFilled(length, fill, growable = false) {
@@ -85,7 +93,7 @@ function __dartListGenerate(length, generator, growable = true) {
   return growable ? list : __dartFixedList(list);
 }
 function __dartUnmodifiableList(values) {
-  return Object.freeze(Array.from(values));
+  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -300,9 +308,7 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
-        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
-        : Array.from(values, (item) => __dartStr(item));
+      const parts = __dartIterableToArray(values).map((item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },

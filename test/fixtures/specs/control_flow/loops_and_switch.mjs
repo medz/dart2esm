@@ -19,17 +19,23 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
-    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
-    : Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        this.current = values[index];
         return true;
       }
       this.current = undefined;

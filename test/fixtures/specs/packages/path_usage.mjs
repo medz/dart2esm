@@ -50,20 +50,20 @@ function __dartEquals(left, right) {
 }
 
 function __dartIterableFirstWhere(iterable, test, orElse = null) {
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) return value;
   }
   if (typeof orElse === "function") return orElse();
   throw new Error("No element");
 }
 function __dartIterableFirstOrNull(iterable) {
-  for (const value of iterable) return value;
+  for (const value of __dartIterableToArray(iterable)) return value;
   return null;
 }
 function __dartIterableLastWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) {
       found = true;
       result = value;
@@ -76,21 +76,21 @@ function __dartIterableLastWhere(iterable, test, orElse = null) {
 function __dartIterableLastOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     found = true;
     result = value;
   }
   return found ? result : null;
 }
 function __dartIterableSingle(iterable) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   if (values.length !== 1) throw new Error(values.length === 0 ? "No element" : "Too many elements");
   return values[0];
 }
 function __dartIterableSingleWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (!test(value)) continue;
     if (found) throw new Error("Too many elements");
     found = true;
@@ -103,7 +103,7 @@ function __dartIterableSingleWhere(iterable, test, orElse = null) {
 function __dartIterableSingleOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (found) return null;
     found = true;
     result = value;
@@ -111,22 +111,28 @@ function __dartIterableSingleOrNull(iterable) {
   return found ? result : null;
 }
 function __dartIterableElementAtOrNull(iterable, index) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   const offset = Number(index);
   return offset >= 0 && offset < values.length ? values[offset] : null;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
-    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
-    : Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        this.current = values[index];
         return true;
       }
       this.current = undefined;
@@ -183,19 +189,19 @@ function __dartListAdd(list, value) {
 }
 
 function __dartListAddAll(list, values) {
-  for (const value of Array.from(values)) {
+  for (const value of __dartIterableToArray(values)) {
     __dartListAdd(list, value);
   }
   return null;
 }
 
 function __dartFixedList(values) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   Object.preventExtensions(list);
   return list;
 }
 function __dartListOf(values, growable = true) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
 function __dartListFilled(length, fill, growable = false) {
@@ -207,7 +213,7 @@ function __dartListGenerate(length, generator, growable = true) {
   return growable ? list : __dartFixedList(list);
 }
 function __dartUnmodifiableList(values) {
-  return Object.freeze(Array.from(values));
+  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -257,12 +263,7 @@ function __dartListMutationWrite(list, index, value) {
   }
 }
 function __dartListMutationValues(values) {
-  if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") {
-    const result = [];
-    for (let index = 0; index < values.length; index++) result.push(values["[]"](index));
-    return result;
-  }
-  return Array.from(values);
+  return __dartIterableToArray(values);
 }
 function __dartListShuffle(list, random = null) {
   for (let index = list.length - 1; index > 0; index--) {
@@ -689,9 +690,7 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
-        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
-        : Array.from(values, (item) => __dartStr(item));
+      const parts = __dartIterableToArray(values).map((item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },
@@ -1094,7 +1093,7 @@ class ParsedPath {
   get basename() {
     const copy = this.clone();
     copy.removeTrailingSeparators();
-    if (Array.from(copy.parts).length === 0) {
+    if (__dartIterableToArray(copy.parts).length === 0) {
       return (this.root ?? "");
     }
     return Array.from(copy.parts).at(-1);
@@ -1103,14 +1102,14 @@ class ParsedPath {
     return __dartListLikeGet(this._splitExtension_package_path_src_parsed_path_dart(), 0);
   }
   get hasTrailingSeparator() {
-    return (Array.from(this.parts).length > 0 && (__dartEquals(Array.from(this.parts).at(-1), "") || !(__dartEquals(Array.from(this.separators).at(-1), ""))));
+    return (__dartIterableToArray(this.parts).length > 0 && (__dartEquals(Array.from(this.parts).at(-1), "") || !(__dartEquals(Array.from(this.separators).at(-1), ""))));
   }
   removeTrailingSeparators() {
-    while ((Array.from(this.parts).length > 0 && __dartEquals(Array.from(this.parts).at(-1), ""))) {
+    while ((__dartIterableToArray(this.parts).length > 0 && __dartEquals(Array.from(this.parts).at(-1), ""))) {
       __dartListRemoveLast(this.parts);
       __dartListRemoveLast(this.separators);
     }
-    if (Array.from(this.separators).length > 0) {
+    if (__dartIterableToArray(this.separators).length > 0) {
       __dartListLikeSet(this.separators, this.separators.length - 1, "");
     }
   }
@@ -1123,7 +1122,7 @@ class ParsedPath {
       if ((__dartEquals(part, ".") || __dartEquals(part, ""))) {
       } else {
         if (__dartEquals(part, "..")) {
-          if (Array.from(newParts).length > 0) {
+          if (__dartIterableToArray(newParts).length > 0) {
             __dartListRemoveLast(newParts);
           } else {
             leadingDoubles = leadingDoubles + 1;
@@ -1136,12 +1135,12 @@ class ParsedPath {
     if (!(this.isAbsolute)) {
       __dartListInsertAll(newParts, 0, __dartListFilled(leadingDoubles, "..", false));
     }
-    if ((Array.from(newParts).length === 0 && !(this.isAbsolute))) {
+    if ((__dartIterableToArray(newParts).length === 0 && !(this.isAbsolute))) {
       __dartListAdd(newParts, ".");
     }
     this.parts = newParts;
     this.separators = __dartListFilled(newParts.length + 1, this.style.separator, true);
-    if (((!(this.isAbsolute) || Array.from(newParts).length === 0) || !(this.style.needsSeparator(__dartNullCheck(this.root))))) {
+    if (((!(this.isAbsolute) || __dartIterableToArray(newParts).length === 0) || !(this.style.needsSeparator(__dartNullCheck(this.root))))) {
       __dartListLikeSet(this.separators, 0, "");
     }
     if ((!(this.root === null) && __dartEquals(this.style, Style.windows))) {
@@ -1388,7 +1387,7 @@ class PosixStyle extends InternalStyle {
   }
   absolutePathToUri(path) {
     const parsed = ParsedPath.parse(path, this);
-    if (Array.from(parsed.parts).length === 0) {
+    if (__dartIterableToArray(parsed.parts).length === 0) {
       __dartListAddAll(parsed.parts, ["", ""]);
     } else {
       if (parsed.hasTrailingSeparator) {
@@ -1560,7 +1559,7 @@ class WindowsStyle extends InternalStyle {
   absolutePathToUri(path) {
     const parsed = ParsedPath.parse(path, this);
     if (__dartNullCheck(parsed.root).startsWith("\\\\")) {
-      const rootParts = Array.from(__dartNullCheck(parsed.root).split("\\")).filter((part) => {
+      const rootParts = __dartIterableToArray(__dartNullCheck(parsed.root).split("\\")).filter((part) => {
         return !(__dartEquals(part, ""));
       });
       __dartListInsert(parsed.parts, 0, Array.from(rootParts).at(-1));
@@ -1569,7 +1568,7 @@ class WindowsStyle extends InternalStyle {
       }
       return __dartUri({ scheme: "file", host: Array.from(rootParts)[0], pathSegments: parsed.parts });
     } else {
-      if ((Array.from(parsed.parts).length === 0 || parsed.hasTrailingSeparator)) {
+      if ((__dartIterableToArray(parsed.parts).length === 0 || parsed.hasTrailingSeparator)) {
         __dartListAdd(parsed.parts, "");
       }
       __dartListInsert(parsed.parts, 0, __dartNullCheck(parsed.root).replaceAll("/", "").replaceAll("\\", ""));
@@ -1689,7 +1688,7 @@ class Context {
   dirname(path) {
     const parsed = this._parse_package_path_src_context_dart(path);
     parsed.removeTrailingSeparators();
-    if (Array.from(parsed.parts).length === 0) {
+    if (__dartIterableToArray(parsed.parts).length === 0) {
       return (parsed.root ?? ".");
     }
     if (__dartEquals(parsed.parts.length, 1)) {
@@ -1718,13 +1717,13 @@ class Context {
   join(part1, part2 = null, part3 = null, part4 = null, part5 = null, part6 = null, part7 = null, part8 = null, part9 = null, part10 = null, part11 = null, part12 = null, part13 = null, part14 = null, part15 = null, part16 = null) {
     const parts = [part1, part2, part3, part4, part5, part6, part7, part8, part9, part10, part11, part12, part13, part14, part15, part16];
     _validateArgList("join", parts);
-    return this.joinAll(Array.from(parts).filter((value) => typeof value === "string"));
+    return this.joinAll(__dartIterableToArray(parts).filter((value) => typeof value === "string"));
   }
   joinAll(parts) {
     const buffer = __dartStringBuffer("");
     let needsSeparator = false;
     let isAbsoluteAndNotRootRelative = false;
-    let _sync_for_iterator = __dartIterator(Array.from(parts).filter((part) => {
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(parts).filter((part) => {
       return !(__dartEquals(part, ""));
     }));
     for (; _sync_for_iterator.moveNext(); ) {
@@ -1759,7 +1758,7 @@ class Context {
   }
   split(path) {
     const parsed = this._parse_package_path_src_context_dart(path);
-    parsed.parts = __dartListOf(Array.from(parsed.parts).filter((part) => {
+    parsed.parts = __dartListOf(__dartIterableToArray(parsed.parts).filter((part) => {
       return part.length > 0;
     }), true);
     if (!(parsed.root === null)) {
@@ -1856,25 +1855,25 @@ class Context {
         return v;
       })();
     })();
-    if ((Array.from(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), "."))) {
+    if ((__dartIterableToArray(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), "."))) {
       return pathParsed.toString();
     }
     if ((!(__dartEquals(fromParsed.root, pathParsed.root)) && ((fromParsed.root === null || pathParsed.root === null) || !(this.style.pathsEqual(__dartNullCheck(fromParsed.root), __dartNullCheck(pathParsed.root)))))) {
       return pathParsed.toString();
     }
-    while (((Array.from(fromParsed.parts).length > 0 && Array.from(pathParsed.parts).length > 0) && this.style.pathsEqual(__dartListLikeGet(fromParsed.parts, 0), __dartListLikeGet(pathParsed.parts, 0)))) {
+    while (((__dartIterableToArray(fromParsed.parts).length > 0 && __dartIterableToArray(pathParsed.parts).length > 0) && this.style.pathsEqual(__dartListLikeGet(fromParsed.parts, 0), __dartListLikeGet(pathParsed.parts, 0)))) {
       __dartListRemoveAt(fromParsed.parts, 0);
       __dartListRemoveAt(fromParsed.separators, 1);
       __dartListRemoveAt(pathParsed.parts, 0);
       __dartListRemoveAt(pathParsed.separators, 1);
     }
-    if ((Array.from(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), ".."))) {
+    if ((__dartIterableToArray(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), ".."))) {
       throw new PathException(`Unable to find a path to "${__dartStr(path)}" from "${__dartStr(from)}".`);
     }
     __dartListInsertAll(pathParsed.parts, 0, __dartListFilled(fromParsed.parts.length, "..", false));
     __dartListLikeSet(pathParsed.separators, 0, "");
     __dartListInsertAll(pathParsed.separators, 1, __dartListFilled(fromParsed.parts.length, this.style.separator, false));
-    if (Array.from(pathParsed.parts).length === 0) {
+    if (__dartIterableToArray(pathParsed.parts).length === 0) {
       return ".";
     }
     if ((pathParsed.parts.length > 1 && __dartEquals(Array.from(pathParsed.parts).at(-1), "."))) {
@@ -2334,7 +2333,7 @@ function _validateArgList(method, args) {
       }
       const message = __dartStringBuffer("");
       message.write(`${__dartStr(method)}(`);
-      message.write(Array.from(Array.from(Array.from(args).slice(0, numArgs), (arg) => {
+      message.write(Array.from(Array.from(__dartIterableToArray(args).slice(0, numArgs), (arg) => {
         return (arg === null ? "null" : `"${__dartStr(arg)}"`);
       })).join(", "));
       message.write(`): part ${__dartStr(i - 1)} was null, but part ${__dartStr(i)} was not.`);

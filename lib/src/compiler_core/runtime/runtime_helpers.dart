@@ -29,6 +29,7 @@ enum EsmRuntimeHelper {
   intParse,
   iterableJoin,
   iterableSearch,
+  iterableToArray,
   iterableWindow,
   iterator,
   lazyField,
@@ -126,6 +127,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartIterableSingleWhere',
     '__dartIterableSingleOrNull',
     '__dartIterableElementAtOrNull',
+    '__dartIterableToArray',
     '__dartIterableSkipWhile',
     '__dartIterableTakeWhile',
     '__dartIterator',
@@ -313,6 +315,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.intParse => '__dartIntParse',
       EsmRuntimeHelper.iterableJoin => '__dartIterableJoin',
       EsmRuntimeHelper.iterableSearch => '__dartIterableFirstWhere',
+      EsmRuntimeHelper.iterableToArray => '__dartIterableToArray',
       EsmRuntimeHelper.iterableWindow => '__dartIterableTakeWhile',
       EsmRuntimeHelper.iterator => '__dartIterator',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
@@ -915,20 +918,24 @@ function __dartIntParse(source, radix = null) {
   return value;
 }
 '''),
+      EsmRuntimeHelper.iterableToArray => EsmRawModuleItemIr('''
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+'''),
       EsmRuntimeHelper.iterableJoin => EsmRawModuleItemIr('''
 function __dartIterableJoin(iterable, separator = "") {
-  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
-    const values = [];
-    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
-    return values.join(String(separator));
-  }
-  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
 }
 '''),
       EsmRuntimeHelper.iterableWindow => EsmRawModuleItemIr('''
 function __dartIterableTakeWhile(iterable, test) {
   const values = [];
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (!test(value)) break;
     values.push(value);
   }
@@ -937,7 +944,7 @@ function __dartIterableTakeWhile(iterable, test) {
 function __dartIterableSkipWhile(iterable, test) {
   const values = [];
   let skipping = true;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (skipping && test(value)) continue;
     skipping = false;
     values.push(value);
@@ -947,20 +954,20 @@ function __dartIterableSkipWhile(iterable, test) {
 '''),
       EsmRuntimeHelper.iterableSearch => EsmRawModuleItemIr('''
 function __dartIterableFirstWhere(iterable, test, orElse = null) {
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) return value;
   }
   if (typeof orElse === "function") return orElse();
   throw new Error("No element");
 }
 function __dartIterableFirstOrNull(iterable) {
-  for (const value of iterable) return value;
+  for (const value of __dartIterableToArray(iterable)) return value;
   return null;
 }
 function __dartIterableLastWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) {
       found = true;
       result = value;
@@ -973,21 +980,21 @@ function __dartIterableLastWhere(iterable, test, orElse = null) {
 function __dartIterableLastOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     found = true;
     result = value;
   }
   return found ? result : null;
 }
 function __dartIterableSingle(iterable) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   if (values.length !== 1) throw new Error(values.length === 0 ? "No element" : "Too many elements");
   return values[0];
 }
 function __dartIterableSingleWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (!test(value)) continue;
     if (found) throw new Error("Too many elements");
     found = true;
@@ -1000,7 +1007,7 @@ function __dartIterableSingleWhere(iterable, test, orElse = null) {
 function __dartIterableSingleOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (found) return null;
     found = true;
     result = value;
@@ -1008,23 +1015,21 @@ function __dartIterableSingleOrNull(iterable) {
   return found ? result : null;
 }
 function __dartIterableElementAtOrNull(iterable, index) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   const offset = Number(index);
   return offset >= 0 && offset < values.length ? values[offset] : null;
 }
 '''),
       EsmRuntimeHelper.iterator => EsmRawModuleItemIr('''
 function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
-    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
-    : Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        this.current = values[index];
         return true;
       }
       this.current = undefined;
@@ -1725,9 +1730,7 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
-        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
-        : Array.from(values, (item) => __dartStr(item));
+      const parts = __dartIterableToArray(values).map((item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },
@@ -1829,7 +1832,7 @@ function __dartListAdd(list, value) {
 '''),
       EsmRuntimeHelper.listAddAll => EsmRawModuleItemIr('''
 function __dartListAddAll(list, values) {
-  for (const value of Array.from(values)) {
+  for (const value of __dartIterableToArray(values)) {
     __dartListAdd(list, value);
   }
   return null;
@@ -1837,12 +1840,12 @@ function __dartListAddAll(list, values) {
 '''),
       EsmRuntimeHelper.listFactory => EsmRawModuleItemIr('''
 function __dartFixedList(values) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   Object.preventExtensions(list);
   return list;
 }
 function __dartListOf(values, growable = true) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
 function __dartListFilled(length, fill, growable = false) {
@@ -1854,7 +1857,7 @@ function __dartListGenerate(length, generator, growable = true) {
   return growable ? list : __dartFixedList(list);
 }
 function __dartUnmodifiableList(values) {
-  return Object.freeze(Array.from(values));
+  return Object.freeze(__dartIterableToArray(values));
 }
 '''),
       EsmRuntimeHelper.listMixin => EsmRawModuleItemIr('''
@@ -1906,12 +1909,7 @@ function __dartListMutationWrite(list, index, value) {
   }
 }
 function __dartListMutationValues(values) {
-  if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") {
-    const result = [];
-    for (let index = 0; index < values.length; index++) result.push(values["[]"](index));
-    return result;
-  }
-  return Array.from(values);
+  return __dartIterableToArray(values);
 }
 function __dartListShuffle(list, random = null) {
   for (let index = list.length - 1; index > 0; index--) {
@@ -2042,13 +2040,7 @@ function __dartListRangeWrite(list, index, value) {
 }
 function __dartListRangeValues(source, start = 0, end = null) {
   const from = Number(start);
-  if (source != null && typeof source["[]"] === "function" && typeof source.length === "number") {
-    const actualEnd = end == null ? source.length : Number(end);
-    const result = [];
-    for (let index = from; index < actualEnd; index++) result.push(source["[]"](index));
-    return result;
-  }
-  return Array.from(source).slice(from, end == null ? undefined : Number(end));
+  return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
 }
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
   const values = __dartListRangeValues(source, start, end);
@@ -2628,11 +2620,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.expando:
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.finalizer:
-      case EsmRuntimeHelper.listFactory:
-      case EsmRuntimeHelper.listRangeOps:
       case EsmRuntimeHelper.intGcd:
-      case EsmRuntimeHelper.iterableSearch:
-      case EsmRuntimeHelper.iterableWindow:
+      case EsmRuntimeHelper.iterableToArray:
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:
       case EsmRuntimeHelper.stringFactory:
@@ -2649,6 +2638,7 @@ final class EsmRuntimeHelperUseSet {
         break;
       case EsmRuntimeHelper.stringBuffer:
         _helpers.add(EsmRuntimeHelper.stringify);
+        _helpers.add(EsmRuntimeHelper.iterableToArray);
       case EsmRuntimeHelper.constMap:
         _helpers.add(EsmRuntimeHelper.mapFactories);
         _helpers.add(EsmRuntimeHelper.mapAddAll);
@@ -2682,17 +2672,26 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.intParse:
       case EsmRuntimeHelper.iterableJoin:
         _helpers.add(EsmRuntimeHelper.stringify);
+        _helpers.add(EsmRuntimeHelper.iterableToArray);
+      case EsmRuntimeHelper.iterableSearch:
+      case EsmRuntimeHelper.iterableWindow:
       case EsmRuntimeHelper.iterator:
+      case EsmRuntimeHelper.listFactory:
+      case EsmRuntimeHelper.listRangeOps:
+        _helpers.add(EsmRuntimeHelper.iterableToArray);
       case EsmRuntimeHelper.lazyField:
       case EsmRuntimeHelper.listAdd:
-      case EsmRuntimeHelper.listAddAll:
       case EsmRuntimeHelper.nullCheck:
         break;
+      case EsmRuntimeHelper.listAddAll:
+        _helpers.add(EsmRuntimeHelper.iterableToArray);
+        _helpers.add(EsmRuntimeHelper.listAdd);
       case EsmRuntimeHelper.listMixin:
         _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.print:
         _helpers.add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.listMutation:
+        _helpers.add(EsmRuntimeHelper.iterableToArray);
         _helpers.add(EsmRuntimeHelper.equals);
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);

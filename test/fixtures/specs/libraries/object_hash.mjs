@@ -19,6 +19,14 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 const __dartIdentityHashes = new WeakMap();
 let __dartNextIdentityHash = 1;
 function __dartCombineHash(hash, value) {
@@ -135,15 +143,15 @@ export function hide(value) {
 export function main() {
   const ordered = __dartObjectHash([1, "a"]);
   const orderedAgain = __dartObjectHash([1, "a"]);
-  const fromIterable = __dartObjectHash(Array.from([1, "a"]));
-  const reversed = __dartObjectHash(Array.from(["a", 1]));
-  const unorderedA = __dartObjectHashUnordered(Array.from((() => {
+  const fromIterable = __dartObjectHash(__dartIterableToArray([1, "a"]));
+  const reversed = __dartObjectHash(__dartIterableToArray(["a", 1]));
+  const unorderedA = __dartObjectHashUnordered(__dartIterableToArray((() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "a");
     __dartSetAdd(v, "b");
     return v;
   })()));
-  const unorderedB = __dartObjectHashUnordered(Array.from((() => {
+  const unorderedB = __dartObjectHashUnordered(__dartIterableToArray((() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "b");
     __dartSetAdd(v, "a");

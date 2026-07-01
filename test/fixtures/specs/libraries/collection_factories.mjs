@@ -117,12 +117,15 @@ function __dartEquals(left, right) {
 }
 
 function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
+}
+
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
-    const values = [];
-    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
-    return values.join(String(separator));
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
   }
-  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+  return Array.from(iterable);
 }
 
 function __dartListAdd(list, value) {
@@ -139,12 +142,12 @@ function __dartListAdd(list, value) {
 }
 
 function __dartFixedList(values) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   Object.preventExtensions(list);
   return list;
 }
 function __dartListOf(values, growable = true) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
 function __dartListFilled(length, fill, growable = false) {
@@ -156,7 +159,7 @@ function __dartListGenerate(length, generator, growable = true) {
   return growable ? list : __dartFixedList(list);
 }
 function __dartUnmodifiableList(values) {
-  return Object.freeze(Array.from(values));
+  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -443,7 +446,7 @@ export function main() {
   const set = __dartSetFrom(["a", "b", "a"]);
   const setOf = __dartSetFrom(set);
   const setFixed = __dartSetFrom(setOf);
-  __dartPrint(`set ${__dartStr(Array.from(setFixed).length)} ${__dartStr(__dartSetContains(setFixed, "a"))} ${__dartStr(Array.from(setFixed).join("|"))}`);
+  __dartPrint(`set ${__dartStr(__dartIterableToArray(setFixed).length)} ${__dartStr(__dartSetContains(setFixed, "a"))} ${__dartStr(Array.from(setFixed).join("|"))}`);
   const eqSetFrom = __dartSetFrom([new EqBox(1), new EqBox(1), new EqBox(2)]);
   const eqSetOf = __dartSetFrom((() => {
     const v = __dartListOf(eqSetFrom);
@@ -452,16 +455,16 @@ export function main() {
     return v;
   })());
   const eqSetFixed = __dartSetFrom([new EqBox(1), new EqBox(1)]);
-  __dartPrint(`setFactories ${__dartStr(Array.from(eqSetFrom).length)} ${__dartStr(__dartSetContains(eqSetFrom, new EqBox(1)))} ${__dartStr(Array.from(eqSetOf).length)} ${__dartStr(Array.from(eqSetFixed).length)} ${__dartStr(__dartSetContains(eqSetFixed, new EqBox(1)))}`);
+  __dartPrint(`setFactories ${__dartStr(__dartIterableToArray(eqSetFrom).length)} ${__dartStr(__dartSetContains(eqSetFrom, new EqBox(1)))} ${__dartStr(__dartIterableToArray(eqSetOf).length)} ${__dartStr(__dartIterableToArray(eqSetFixed).length)} ${__dartStr(__dartSetContains(eqSetFixed, new EqBox(1)))}`);
   const identitySet = new Set();
   const identityBox = new EqBox(1);
   __dartSetAdd(identitySet, identityBox);
   __dartSetAdd(identitySet, new EqBox(1));
-  __dartPrint(`setIdentity ${__dartStr(__dartSetContains(identitySet, identityBox))} ${__dartStr(__dartSetContains(identitySet, new EqBox(1)))} ${__dartStr(Array.from(identitySet).length)}`);
+  __dartPrint(`setIdentity ${__dartStr(__dartSetContains(identitySet, identityBox))} ${__dartStr(__dartSetContains(identitySet, new EqBox(1)))} ${__dartStr(__dartIterableToArray(identitySet).length)}`);
   const map = __dartMapFromEntries(__dartMapFromEntries([["one", 1], ["two", 2]]));
   const mapOf = __dartMapFromEntries(map);
   const mapFixed = __dartMapFromEntries(mapOf);
-  __dartPrint(`map ${__dartStr(mapFixed.size)} ${__dartStr(__dartMapGet(mapFixed, "one"))} ${__dartStr(Array.from(Array.from(mapFixed.keys())).join(","))}`);
+  __dartPrint(`map ${__dartStr(mapFixed.size)} ${__dartStr(__dartMapGet(mapFixed, "one"))} ${__dartStr(Array.from(__dartIterableToArray(mapFixed.keys())).join(","))}`);
   const eqMapSource = __dartMapFromEntries([]);
   __dartMapSet(eqMapSource, new EqBox(1), "one");
   __dartMapSet(eqMapSource, new EqBox(1), "uno");

@@ -35,6 +35,14 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartListAdd(list, value) {
   if (Array.isArray(list)) {
     list.push(value);
@@ -49,19 +57,19 @@ function __dartListAdd(list, value) {
 }
 
 function __dartListAddAll(list, values) {
-  for (const value of Array.from(values)) {
+  for (const value of __dartIterableToArray(values)) {
     __dartListAdd(list, value);
   }
   return null;
 }
 
 function __dartFixedList(values) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   Object.preventExtensions(list);
   return list;
 }
 function __dartListOf(values, growable = true) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
 function __dartListFilled(length, fill, growable = false) {
@@ -73,7 +81,7 @@ function __dartListGenerate(length, generator, growable = true) {
   return growable ? list : __dartFixedList(list);
 }
 function __dartUnmodifiableList(values) {
-  return Object.freeze(Array.from(values));
+  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListMutationRead(list, index) {
@@ -87,12 +95,7 @@ function __dartListMutationWrite(list, index, value) {
   }
 }
 function __dartListMutationValues(values) {
-  if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") {
-    const result = [];
-    for (let index = 0; index < values.length; index++) result.push(values["[]"](index));
-    return result;
-  }
-  return Array.from(values);
+  return __dartIterableToArray(values);
 }
 function __dartListShuffle(list, random = null) {
   for (let index = list.length - 1; index > 0; index--) {
@@ -398,29 +401,29 @@ export function main() {
   __dartSetAdd(set, "a");
   __dartSetAdd(set, "b");
   __dartSetAdd(set, "a");
-  __dartPrint(`hashSet ${__dartStr(Array.from(set).length)} ${__dartStr(__dartSetContains(set, "a"))} ${__dartStr(Array.from(set).join(","))}`);
+  __dartPrint(`hashSet ${__dartStr(__dartIterableToArray(set).length)} ${__dartStr(__dartSetContains(set, "a"))} ${__dartStr(Array.from(set).join(","))}`);
   const queue = [];
   __dartListAdd(queue, 1);
   queue.unshift(0);
   __dartListAdd(queue, 2);
-  __dartPrint(`queue ${__dartStr(Array.from(queue).length)} ${__dartStr(Array.from(queue)[0])} ${__dartStr(Array.from(queue).at(-1))} ${__dartStr(Array.from(queue).join(","))}`);
+  __dartPrint(`queue ${__dartStr(__dartIterableToArray(queue).length)} ${__dartStr(Array.from(queue)[0])} ${__dartStr(Array.from(queue).at(-1))} ${__dartStr(Array.from(queue).join(","))}`);
   __dartPrint(`remove ${__dartStr(queue.shift())} ${__dartStr(queue.pop())} ${__dartStr(Array.from(queue).join(","))}`);
   const linked = [];
   __dartListAddAll(linked, ["b", "c"]);
   linked.unshift("a");
   __dartPrint(`linkedQueue ${__dartStr(linked.length)} ${__dartStr(__dartListRemove(linked, "b"))} ${__dartStr(Array.from(linked).join(","))}`);
-  const copied = Array.from([1, 2, 3, 4]);
+  const copied = __dartIterableToArray([1, 2, 3, 4]);
   __dartListRemoveWhere(copied, (value) => {
     return Math.trunc(value) % 2 !== 0;
   });
   __dartListRetainWhere(copied, (value) => {
     return value > 2;
   });
-  __dartListAddAll(copied, Array.from([5, 6]));
-  __dartPrint(`listQueue ${__dartStr(copied[0])} ${__dartStr(copied.at(-1))} ${__dartStr(Array.from(copied).length > 0)} ${__dartStr(Array.from(copied).join(","))}`);
-  __dartPrint(`queueIter ${__dartStr(Array.from(copied)[1])} ${__dartStr(Array.from(__dartListOf(copied, true)).join("|"))} ${__dartStr(Array.from(copied).some((value) => {
+  __dartListAddAll(copied, __dartIterableToArray([5, 6]));
+  __dartPrint(`listQueue ${__dartStr(copied[0])} ${__dartStr(copied.at(-1))} ${__dartStr(__dartIterableToArray(copied).length > 0)} ${__dartStr(Array.from(copied).join(","))}`);
+  __dartPrint(`queueIter ${__dartStr(__dartIterableToArray(copied)[1])} ${__dartStr(Array.from(__dartListOf(copied, true)).join("|"))} ${__dartStr(__dartIterableToArray(copied).some((value) => {
     return __dartEquals(value, 5);
-  }))} ${__dartStr(Array.from(copied).every((value) => {
+  }))} ${__dartStr(__dartIterableToArray(copied).every((value) => {
     return value > 0;
   }))}`);
   copied.length = 0;
@@ -431,7 +434,7 @@ export function main() {
   const sortedMap = __dartSplayTreeMap(null, null);
   __dartMapSet(sortedMap, "b", 2);
   __dartMapSet(sortedMap, "a", 1);
-  __dartPrint(`splayMap ${__dartStr(Array.from(Array.from(sortedMap.keys())).join(","))} ${__dartStr(Array.from(Array.from(sortedMap.values())).join(","))} ${__dartStr(__dartMapGet(sortedMap, "b"))}`);
+  __dartPrint(`splayMap ${__dartStr(Array.from(__dartIterableToArray(sortedMap.keys())).join(","))} ${__dartStr(Array.from(__dartIterableToArray(sortedMap.values())).join(","))} ${__dartStr(__dartMapGet(sortedMap, "b"))}`);
   const reversedSet = __dartSplayTreeSetFrom([1, 3, 2], descendingInt, null);
   const duplicateAdded = __dartSetAdd(reversedSet, 2);
   const newAdded = __dartSetAdd(reversedSet, 0);
@@ -439,7 +442,7 @@ export function main() {
   const reversedMap = __dartSplayTreeMapFromEntries(__dartMapFromEntries([["a", 1], ["c", 3], ["b", 2]]), descendingString, null);
   __dartMapSet(reversedMap, "d", 4);
   __dartMapSet(reversedMap, "a", 10);
-  __dartPrint(`splayMapOf ${__dartStr(Array.from(Array.from(reversedMap.keys())).join(","))} ${__dartStr(Array.from(Array.from(reversedMap.values())).join(","))} ${__dartStr(__dartMapGet(reversedMap, "a"))}`);
+  __dartPrint(`splayMapOf ${__dartStr(Array.from(__dartIterableToArray(reversedMap.keys())).join(","))} ${__dartStr(Array.from(__dartIterableToArray(reversedMap.values())).join(","))} ${__dartStr(__dartMapGet(reversedMap, "a"))}`);
 }
 
 main();

@@ -7505,6 +7505,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -7577,6 +7578,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -7615,6 +7617,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -7690,6 +7693,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -7725,6 +7729,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -7753,6 +7758,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -7780,6 +7786,7 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.positional.length == 1) {
       return EsmComputedPropertyAccessIr(
         receiver: _arrayFrom(
+          helpers,
           _lowerExpression(
             world,
             helpers,
@@ -8101,6 +8108,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -8130,6 +8138,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -8212,6 +8221,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -8224,6 +8234,7 @@ final class KernelToEsmIrLoweringStage
         ),
         arguments: [
           _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -8242,6 +8253,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -8256,6 +8268,7 @@ final class KernelToEsmIrLoweringStage
           EsmArrowFunctionIr(
             parameters: const ['value'],
             body: _arrayFrom(
+              helpers,
               EsmCallIr(
                 callee: EsmParenthesizedIr(
                   _lowerExpression(
@@ -8280,6 +8293,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -8467,7 +8481,7 @@ final class KernelToEsmIrLoweringStage
         positional.length <= 1) {
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
-          receiver: _arrayFrom(receiver),
+          receiver: _arrayFrom(helpers, receiver),
           property: 'join',
         ),
         arguments: [
@@ -8488,7 +8502,7 @@ final class KernelToEsmIrLoweringStage
         positional.length == 1) {
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
-          receiver: _arrayFrom(receiver),
+          receiver: _arrayFrom(helpers, receiver),
           property: name == 'any' ? 'some' : 'every',
         ),
         arguments: [
@@ -8506,7 +8520,7 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.named.isEmpty &&
         positional.length == 1) {
       return EsmComputedPropertyAccessIr(
-        receiver: _arrayFrom(receiver),
+        receiver: _arrayFrom(helpers, receiver),
         property: _lowerExpression(
           world,
           helpers,
@@ -9293,7 +9307,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::Iterable::@getters::length') {
       return EsmPropertyAccessIr(
-        receiver: _arrayFrom(receiver),
+        receiver: _arrayFrom(helpers, receiver),
         property: 'length',
       );
     }
@@ -9319,6 +9333,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (isMapMember && memberName == 'keys') {
       return _arrayFrom(
+        helpers,
         EsmCallIr(
           callee: EsmPropertyAccessIr(receiver: receiver, property: 'keys'),
           arguments: const [],
@@ -9327,6 +9342,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (isMapMember && memberName == 'values') {
       return _arrayFrom(
+        helpers,
         EsmCallIr(
           callee: EsmPropertyAccessIr(receiver: receiver, property: 'values'),
           arguments: const [],
@@ -9335,6 +9351,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (isMapMember && memberName == 'entries') {
       return _arrayFrom(
+        helpers,
         EsmCallIr(
           callee: EsmPropertyAccessIr(receiver: receiver, property: 'entries'),
           arguments: const [],
@@ -9416,7 +9433,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::Iterable::@getters::isEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(
-          receiver: _arrayFrom(receiver),
+          receiver: _arrayFrom(helpers, receiver),
           property: 'length',
         ),
         operator: '===',
@@ -9433,7 +9450,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::Iterable::@getters::isNotEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(
-          receiver: _arrayFrom(receiver),
+          receiver: _arrayFrom(helpers, receiver),
           property: 'length',
         ),
         operator: '>',
@@ -9493,7 +9510,7 @@ final class KernelToEsmIrLoweringStage
         target == 'dart:core::List::@getters::reversed') {
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
-          receiver: _arrayFrom(receiver),
+          receiver: _arrayFrom(helpers, receiver),
           property: 'reverse',
         ),
         arguments: const [],
@@ -10190,6 +10207,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -10217,6 +10235,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -10244,6 +10263,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -10258,6 +10278,7 @@ final class KernelToEsmIrLoweringStage
           EsmArrowFunctionIr(
             parameters: const ['value'],
             body: _arrayFrom(
+              helpers,
               EsmCallIr(
                 callee: EsmParenthesizedIr(
                   _lowerExpression(
@@ -10279,6 +10300,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -10305,6 +10327,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -10331,6 +10354,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -10379,6 +10403,7 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: _arrayFrom(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -10395,6 +10420,7 @@ final class KernelToEsmIrLoweringStage
     if (isDartMapBaseValueIterableConstructorPath(target) &&
         positional.length == 1) {
       return _arrayFrom(
+        helpers,
         EsmCallIr(
           callee: EsmPropertyAccessIr(
             receiver: _lowerExpression(
@@ -11886,6 +11912,7 @@ final class KernelToEsmIrLoweringStage
         return EsmCallIr(
           callee: EsmPropertyAccessIr(
             receiver: _arrayFrom(
+              helpers,
               _lowerExpression(
                 world,
                 helpers,
@@ -11913,6 +11940,7 @@ final class KernelToEsmIrLoweringStage
         return EsmCallIr(
           callee: EsmPropertyAccessIr(
             receiver: _arrayFrom(
+              helpers,
               _lowerExpression(
                 world,
                 helpers,
@@ -12057,6 +12085,7 @@ final class KernelToEsmIrLoweringStage
         return EsmCallIr(
           callee: EsmPropertyAccessIr(
             receiver: _arrayFrom(
+              helpers,
               _lowerExpression(
                 world,
                 helpers,
@@ -12069,6 +12098,7 @@ final class KernelToEsmIrLoweringStage
           ),
           arguments: [
             _arrayFrom(
+              helpers,
               _lowerExpression(
                 world,
                 helpers,
@@ -12120,6 +12150,7 @@ final class KernelToEsmIrLoweringStage
                 )
               : const EsmStringLiteralIr('('),
           _joinMappedIterable(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -12151,6 +12182,7 @@ final class KernelToEsmIrLoweringStage
         return _dartCollectionToString(
           '[',
           _joinMappedIterable(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -12174,6 +12206,7 @@ final class KernelToEsmIrLoweringStage
         return _dartCollectionToString(
           '{',
           _joinMappedIterable(
+            helpers,
             _lowerExpression(
               world,
               helpers,
@@ -12267,13 +12300,14 @@ final class KernelToEsmIrLoweringStage
   }
 
   EsmCallIr _joinMappedIterable(
+    EsmRuntimeHelperUseSet helpers,
     EsmExpressionIr iterable,
     EsmExpressionIr callback,
   ) {
     return _join(
       EsmCallIr(
         callee: EsmPropertyAccessIr(
-          receiver: _arrayFrom(iterable),
+          receiver: _arrayFrom(helpers, iterable),
           property: 'map',
         ),
         arguments: [callback],
@@ -12447,6 +12481,7 @@ final class KernelToEsmIrLoweringStage
       }
       if (positional.length == 1) {
         return _arrayFrom(
+          helpers,
           _lowerExpression(
             world,
             helpers,
@@ -14170,6 +14205,7 @@ final class KernelToEsmIrLoweringStage
           ),
           arguments: [
             _arrayFrom(
+              helpers,
               _lowerExpression(
                 world,
                 helpers,
@@ -14187,6 +14223,7 @@ final class KernelToEsmIrLoweringStage
           callee: const EsmIdentifierIr('__dartObjectHashUnordered'),
           arguments: [
             _arrayFrom(
+              helpers,
               _lowerExpression(
                 world,
                 helpers,
@@ -14202,11 +14239,12 @@ final class KernelToEsmIrLoweringStage
     }
   }
 
-  EsmCallIr _arrayFrom(EsmExpressionIr value) {
+  EsmCallIr _arrayFrom(EsmRuntimeHelperUseSet helpers, EsmExpressionIr value) {
+    helpers.require(EsmRuntimeHelper.iterableToArray);
     return EsmCallIr(
-      callee: const EsmPropertyAccessIr(
-        receiver: EsmIdentifierIr('Array'),
-        property: 'from',
+      callee: helpers.reference(
+        runtimeHelpers,
+        EsmRuntimeHelper.iterableToArray,
       ),
       arguments: [value],
     );

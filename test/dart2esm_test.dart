@@ -2306,7 +2306,7 @@ void main() {
       expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
       expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
       final code = output.readAsStringSync();
-      expect(code, contains('Array.from(values'));
+      expect(code, contains('__dartIterableToArray(values)'));
       expect(code, isNot(contains('iterableToFullString')));
       await _expectSameDartAndNodeOutput(input, output);
     },

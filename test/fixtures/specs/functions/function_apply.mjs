@@ -36,6 +36,14 @@ function __dartFunctionApply(fn, positionalArguments, namedArguments = null) {
   return fn(...args);
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartMapAddAll(map, entries) {
   for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;

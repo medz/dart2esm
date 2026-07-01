@@ -204,29 +204,24 @@ function __dartIntParse(source, radix = null) {
 }
 
 function __dartIterableJoin(iterable, separator = "") {
-  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
-    const values = [];
-    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
-    return values.join(String(separator));
-  }
-  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
 }
 
 function __dartIterableFirstWhere(iterable, test, orElse = null) {
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) return value;
   }
   if (typeof orElse === "function") return orElse();
   throw new Error("No element");
 }
 function __dartIterableFirstOrNull(iterable) {
-  for (const value of iterable) return value;
+  for (const value of __dartIterableToArray(iterable)) return value;
   return null;
 }
 function __dartIterableLastWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) {
       found = true;
       result = value;
@@ -239,21 +234,21 @@ function __dartIterableLastWhere(iterable, test, orElse = null) {
 function __dartIterableLastOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     found = true;
     result = value;
   }
   return found ? result : null;
 }
 function __dartIterableSingle(iterable) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   if (values.length !== 1) throw new Error(values.length === 0 ? "No element" : "Too many elements");
   return values[0];
 }
 function __dartIterableSingleWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (!test(value)) continue;
     if (found) throw new Error("Too many elements");
     found = true;
@@ -266,7 +261,7 @@ function __dartIterableSingleWhere(iterable, test, orElse = null) {
 function __dartIterableSingleOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (found) return null;
     found = true;
     result = value;
@@ -274,14 +269,22 @@ function __dartIterableSingleOrNull(iterable) {
   return found ? result : null;
 }
 function __dartIterableElementAtOrNull(iterable, index) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   const offset = Number(index);
   return offset >= 0 && offset < values.length ? values[offset] : null;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartIterableTakeWhile(iterable, test) {
   const values = [];
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (!test(value)) break;
     values.push(value);
   }
@@ -290,7 +293,7 @@ function __dartIterableTakeWhile(iterable, test) {
 function __dartIterableSkipWhile(iterable, test) {
   const values = [];
   let skipping = true;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (skipping && test(value)) continue;
     skipping = false;
     values.push(value);
@@ -299,16 +302,14 @@ function __dartIterableSkipWhile(iterable, test) {
 }
 
 function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
-    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
-    : Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        this.current = values[index];
         return true;
       }
       this.current = undefined;
@@ -365,19 +366,19 @@ function __dartListAdd(list, value) {
 }
 
 function __dartListAddAll(list, values) {
-  for (const value of Array.from(values)) {
+  for (const value of __dartIterableToArray(values)) {
     __dartListAdd(list, value);
   }
   return null;
 }
 
 function __dartFixedList(values) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   Object.preventExtensions(list);
   return list;
 }
 function __dartListOf(values, growable = true) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
 function __dartListFilled(length, fill, growable = false) {
@@ -389,7 +390,7 @@ function __dartListGenerate(length, generator, growable = true) {
   return growable ? list : __dartFixedList(list);
 }
 function __dartUnmodifiableList(values) {
-  return Object.freeze(Array.from(values));
+  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -439,12 +440,7 @@ function __dartListMutationWrite(list, index, value) {
   }
 }
 function __dartListMutationValues(values) {
-  if (values != null && typeof values["[]"] === "function" && typeof values.length === "number") {
-    const result = [];
-    for (let index = 0; index < values.length; index++) result.push(values["[]"](index));
-    return result;
-  }
-  return Array.from(values);
+  return __dartIterableToArray(values);
 }
 function __dartListShuffle(list, random = null) {
   for (let index = list.length - 1; index > 0; index--) {
@@ -574,13 +570,7 @@ function __dartListRangeWrite(list, index, value) {
 }
 function __dartListRangeValues(source, start = 0, end = null) {
   const from = Number(start);
-  if (source != null && typeof source["[]"] === "function" && typeof source.length === "number") {
-    const actualEnd = end == null ? source.length : Number(end);
-    const result = [];
-    for (let index = from; index < actualEnd; index++) result.push(source["[]"](index));
-    return result;
-  }
-  return Array.from(source).slice(from, end == null ? undefined : Number(end));
+  return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
 }
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
   const values = __dartListRangeValues(source, start, end);
@@ -1268,9 +1258,7 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
-        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
-        : Array.from(values, (item) => __dartStr(item));
+      const parts = __dartIterableToArray(values).map((item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },
@@ -1859,7 +1847,7 @@ class QueueList {
   }
   static from(source) {
     if ((Array.isArray(source) || (ArrayBuffer.isView(source) && !(source instanceof DataView)))) {
-      let length = Array.from(source).length;
+      let length = __dartIterableToArray(source).length;
       let queue = new QueueList(length + 1);
       let sourceList = source;
       __dartListSetRange(queue._table_package_collection_src_queue_list_dart, 0, length, sourceList, 0);
@@ -1920,7 +1908,7 @@ class QueueList {
     return this;
   }
   toString() {
-    return `[${Array.from(this).map((value) => __dartStr(value)).join(", ")}]`;
+    return `[${__dartIterableToArray(this).map((value) => __dartStr(value)).join(", ")}]`;
   }
   removeLast() {
     if (__dartEquals(this.length, 0)) {
@@ -1961,7 +1949,7 @@ class QueueList {
     return __dartListLikeGet(this, index);
   }
   followedBy(other) {
-    return Array.from(this).concat(Array.from(other));
+    return __dartIterableToArray(this).concat(__dartIterableToArray(other));
   }
   forEach(action) {
     let length = this.length;
@@ -2094,16 +2082,16 @@ class QueueList {
     return buffer.toString();
   }
   where(test) {
-    return Array.from(this).filter(test);
+    return __dartIterableToArray(this).filter(test);
   }
   whereType() {
-    return Array.from(this).filter((value) => true);
+    return __dartIterableToArray(this).filter((value) => true);
   }
   map(f) {
     return Array.from(this, f);
   }
   expand(f) {
-    return Array.from(this).flatMap((value) => Array.from((f)(value)));
+    return __dartIterableToArray(this).flatMap((value) => __dartIterableToArray((f)(value)));
   }
   reduce(combine) {
     let length = this.length;
@@ -2131,13 +2119,13 @@ class QueueList {
     return value;
   }
   skip(count) {
-    return Array.from(this).slice(count, null);
+    return __dartIterableToArray(this).slice(count, null);
   }
   skipWhile(test) {
     return __dartIterableSkipWhile(this, test);
   }
   take(count) {
-    return Array.from(this).slice(0, __dartNullCheck(count));
+    return __dartIterableToArray(this).slice(0, __dartNullCheck(count));
   }
   takeWhile(test) {
     return __dartIterableTakeWhile(this, test);
@@ -2231,11 +2219,11 @@ class QueueList {
     let listLength = this.length;
     (end === null ? end = listLength : null);
     __dartCheckValidRange(start, end, listLength, null, null, null);
-    return __dartListOf(Array.from(this).slice(start, end));
+    return __dartListOf(__dartIterableToArray(this).slice(start, end));
   }
   getRange(start, end) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
-    return Array.from(this).slice(start, end);
+    return __dartIterableToArray(this).slice(start, end);
   }
   removeRange(start, end) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
@@ -2269,7 +2257,7 @@ class QueueList {
       otherList = iterable;
       otherStart = skipCount;
     } else {
-      otherList = __dartListOf(Array.from(iterable).slice(skipCount), false);
+      otherList = __dartListOf(__dartIterableToArray(iterable).slice(skipCount), false);
       otherStart = 0;
     }
     if (otherStart + length > otherList.length) {
@@ -2295,7 +2283,7 @@ class QueueList {
       newContents = __dartListOf(newContents, true);
     }
     let removeLength = end - start;
-    let insertLength = Array.from(newContents).length;
+    let insertLength = __dartIterableToArray(newContents).length;
     if (removeLength >= insertLength) {
       let insertEnd = start + insertLength;
       __dartListSetRange(this, start, insertEnd, newContents);
@@ -2397,7 +2385,7 @@ class QueueList {
     if ((!(((iterable != null && typeof iterable !== "string") && typeof iterable.length === "number")) || Object.is(iterable, this))) {
       iterable = __dartListOf(iterable, true);
     }
-    let insertionLength = Array.from(iterable).length;
+    let insertionLength = __dartIterableToArray(iterable).length;
     if (__dartEquals(insertionLength, 0)) {
       return;
     }
@@ -2405,7 +2393,7 @@ class QueueList {
     for (let i = oldLength - insertionLength; i < oldLength; i = i + 1) {
       __dartListAdd(this, __dartListLikeGet(this, (i > 0 ? i : 0)));
     }
-    if (!(__dartEquals(Array.from(iterable).length, insertionLength))) {
+    if (!(__dartEquals(__dartIterableToArray(iterable).length, insertionLength))) {
       this.length = this.length - insertionLength;
       throw __dartCoreError("ConcurrentModificationError", iterable);
     }
@@ -2417,7 +2405,7 @@ class QueueList {
   }
   setAll(index, iterable) {
     if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      __dartListSetRange(this, index, index + Array.from(iterable).length, iterable);
+      __dartListSetRange(this, index, index + __dartIterableToArray(iterable).length, iterable);
     } else {
       let _sync_for_iterator = __dartIterator(iterable);
       for (; _sync_for_iterator.moveNext(); ) {
@@ -2433,7 +2421,7 @@ class QueueList {
     }
   }
   get reversed() {
-    return Array.from(this).reverse();
+    return __dartIterableToArray(this).reverse();
   }
   add_1(element) {
     this._add_package_collection_src_queue_list_dart(element);
@@ -2441,7 +2429,7 @@ class QueueList {
   addAll_1(iterable) {
     if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
       let list = iterable;
-      let addCount = Array.from(list).length;
+      let addCount = __dartIterableToArray(list).length;
       let length = this.length;
       if (length + addCount >= this._table_package_collection_src_queue_list_dart.length) {
         this._preGrow_package_collection_src_queue_list_dart(length + addCount);
@@ -2474,7 +2462,7 @@ class QueueList {
     return this.cast_1();
   }
   toString_1() {
-    return `{${Array.from(this).map((value) => __dartStr(value)).join(", ")}}`;
+    return `{${__dartIterableToArray(this).map((value) => __dartStr(value)).join(", ")}}`;
   }
   addLast(element) {
     this._add_package_collection_src_queue_list_dart(element);
@@ -2704,7 +2692,7 @@ class ParsedPath {
   get basename() {
     const copy = this.clone();
     copy.removeTrailingSeparators();
-    if (Array.from(copy.parts).length === 0) {
+    if (__dartIterableToArray(copy.parts).length === 0) {
       return (this.root ?? "");
     }
     return Array.from(copy.parts).at(-1);
@@ -2713,14 +2701,14 @@ class ParsedPath {
     return __dartListLikeGet(this._splitExtension_package_path_src_parsed_path_dart(), 0);
   }
   get hasTrailingSeparator() {
-    return (Array.from(this.parts).length > 0 && (__dartEquals(Array.from(this.parts).at(-1), "") || !(__dartEquals(Array.from(this.separators).at(-1), ""))));
+    return (__dartIterableToArray(this.parts).length > 0 && (__dartEquals(Array.from(this.parts).at(-1), "") || !(__dartEquals(Array.from(this.separators).at(-1), ""))));
   }
   removeTrailingSeparators() {
-    while ((Array.from(this.parts).length > 0 && __dartEquals(Array.from(this.parts).at(-1), ""))) {
+    while ((__dartIterableToArray(this.parts).length > 0 && __dartEquals(Array.from(this.parts).at(-1), ""))) {
       __dartListRemoveLast(this.parts);
       __dartListRemoveLast(this.separators);
     }
-    if (Array.from(this.separators).length > 0) {
+    if (__dartIterableToArray(this.separators).length > 0) {
       __dartListLikeSet(this.separators, this.separators.length - 1, "");
     }
   }
@@ -2733,7 +2721,7 @@ class ParsedPath {
       if ((__dartEquals(part, ".") || __dartEquals(part, ""))) {
       } else {
         if (__dartEquals(part, "..")) {
-          if (Array.from(newParts).length > 0) {
+          if (__dartIterableToArray(newParts).length > 0) {
             __dartListRemoveLast(newParts);
           } else {
             leadingDoubles = leadingDoubles + 1;
@@ -2746,12 +2734,12 @@ class ParsedPath {
     if (!(this.isAbsolute)) {
       __dartListInsertAll(newParts, 0, __dartListFilled(leadingDoubles, "..", false));
     }
-    if ((Array.from(newParts).length === 0 && !(this.isAbsolute))) {
+    if ((__dartIterableToArray(newParts).length === 0 && !(this.isAbsolute))) {
       __dartListAdd(newParts, ".");
     }
     this.parts = newParts;
     this.separators = __dartListFilled(newParts.length + 1, this.style.separator, true);
-    if (((!(this.isAbsolute) || Array.from(newParts).length === 0) || !(this.style.needsSeparator(__dartNullCheck(this.root))))) {
+    if (((!(this.isAbsolute) || __dartIterableToArray(newParts).length === 0) || !(this.style.needsSeparator(__dartNullCheck(this.root))))) {
       __dartListLikeSet(this.separators, 0, "");
     }
     if ((!(this.root === null) && __dartEquals(this.style, Style.windows))) {
@@ -2998,7 +2986,7 @@ class PosixStyle extends InternalStyle {
   }
   absolutePathToUri(path) {
     const parsed = ParsedPath.parse(path, this);
-    if (Array.from(parsed.parts).length === 0) {
+    if (__dartIterableToArray(parsed.parts).length === 0) {
       __dartListAddAll(parsed.parts, ["", ""]);
     } else {
       if (parsed.hasTrailingSeparator) {
@@ -3170,7 +3158,7 @@ class WindowsStyle extends InternalStyle {
   absolutePathToUri(path) {
     const parsed = ParsedPath.parse(path, this);
     if (__dartNullCheck(parsed.root).startsWith("\\\\")) {
-      const rootParts = Array.from(__dartNullCheck(parsed.root).split("\\")).filter((part) => {
+      const rootParts = __dartIterableToArray(__dartNullCheck(parsed.root).split("\\")).filter((part) => {
         return !(__dartEquals(part, ""));
       });
       __dartListInsert(parsed.parts, 0, Array.from(rootParts).at(-1));
@@ -3179,7 +3167,7 @@ class WindowsStyle extends InternalStyle {
       }
       return __dartUri({ scheme: "file", host: Array.from(rootParts)[0], pathSegments: parsed.parts });
     } else {
-      if ((Array.from(parsed.parts).length === 0 || parsed.hasTrailingSeparator)) {
+      if ((__dartIterableToArray(parsed.parts).length === 0 || parsed.hasTrailingSeparator)) {
         __dartListAdd(parsed.parts, "");
       }
       __dartListInsert(parsed.parts, 0, __dartNullCheck(parsed.root).replaceAll("/", "").replaceAll("\\", ""));
@@ -3299,7 +3287,7 @@ class Context {
   dirname(path) {
     const parsed = this._parse_package_path_src_context_dart(path);
     parsed.removeTrailingSeparators();
-    if (Array.from(parsed.parts).length === 0) {
+    if (__dartIterableToArray(parsed.parts).length === 0) {
       return (parsed.root ?? ".");
     }
     if (__dartEquals(parsed.parts.length, 1)) {
@@ -3328,13 +3316,13 @@ class Context {
   join(part1, part2 = null, part3 = null, part4 = null, part5 = null, part6 = null, part7 = null, part8 = null, part9 = null, part10 = null, part11 = null, part12 = null, part13 = null, part14 = null, part15 = null, part16 = null) {
     const parts = [part1, part2, part3, part4, part5, part6, part7, part8, part9, part10, part11, part12, part13, part14, part15, part16];
     _validateArgList("join", parts);
-    return this.joinAll(Array.from(parts).filter((value) => typeof value === "string"));
+    return this.joinAll(__dartIterableToArray(parts).filter((value) => typeof value === "string"));
   }
   joinAll(parts) {
     const buffer = __dartStringBuffer("");
     let needsSeparator = false;
     let isAbsoluteAndNotRootRelative = false;
-    let _sync_for_iterator = __dartIterator(Array.from(parts).filter((part) => {
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(parts).filter((part) => {
       return !(__dartEquals(part, ""));
     }));
     for (; _sync_for_iterator.moveNext(); ) {
@@ -3369,7 +3357,7 @@ class Context {
   }
   split(path) {
     const parsed = this._parse_package_path_src_context_dart(path);
-    parsed.parts = __dartListOf(Array.from(parsed.parts).filter((part) => {
+    parsed.parts = __dartListOf(__dartIterableToArray(parsed.parts).filter((part) => {
       return part.length > 0;
     }), true);
     if (!(parsed.root === null)) {
@@ -3466,25 +3454,25 @@ class Context {
         return v;
       })();
     })();
-    if ((Array.from(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), "."))) {
+    if ((__dartIterableToArray(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), "."))) {
       return pathParsed.toString();
     }
     if ((!(__dartEquals(fromParsed.root, pathParsed.root)) && ((fromParsed.root === null || pathParsed.root === null) || !(this.style.pathsEqual(__dartNullCheck(fromParsed.root), __dartNullCheck(pathParsed.root)))))) {
       return pathParsed.toString();
     }
-    while (((Array.from(fromParsed.parts).length > 0 && Array.from(pathParsed.parts).length > 0) && this.style.pathsEqual(__dartListLikeGet(fromParsed.parts, 0), __dartListLikeGet(pathParsed.parts, 0)))) {
+    while (((__dartIterableToArray(fromParsed.parts).length > 0 && __dartIterableToArray(pathParsed.parts).length > 0) && this.style.pathsEqual(__dartListLikeGet(fromParsed.parts, 0), __dartListLikeGet(pathParsed.parts, 0)))) {
       __dartListRemoveAt(fromParsed.parts, 0);
       __dartListRemoveAt(fromParsed.separators, 1);
       __dartListRemoveAt(pathParsed.parts, 0);
       __dartListRemoveAt(pathParsed.separators, 1);
     }
-    if ((Array.from(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), ".."))) {
+    if ((__dartIterableToArray(fromParsed.parts).length > 0 && __dartEquals(__dartListLikeGet(fromParsed.parts, 0), ".."))) {
       throw new PathException(`Unable to find a path to "${__dartStr(path)}" from "${__dartStr(from)}".`);
     }
     __dartListInsertAll(pathParsed.parts, 0, __dartListFilled(fromParsed.parts.length, "..", false));
     __dartListLikeSet(pathParsed.separators, 0, "");
     __dartListInsertAll(pathParsed.separators, 1, __dartListFilled(fromParsed.parts.length, this.style.separator, false));
-    if (Array.from(pathParsed.parts).length === 0) {
+    if (__dartIterableToArray(pathParsed.parts).length === 0) {
       return ".";
     }
     if ((pathParsed.parts.length > 1 && __dartEquals(Array.from(pathParsed.parts).at(-1), "."))) {
@@ -4426,7 +4414,7 @@ class Highlighter {
   static multiple(primarySpan, primaryLabel, secondarySpans, { color = false, primaryColor = null, secondaryColor = null } = {}) {
     return Highlighter.__package_source_span_src_highlighter_dart.call(this, Highlighter._collateLines_package_source_span_src_highlighter_dart((() => {
       const v = [new _Highlight(primarySpan, { label: primaryLabel, primary: true })];
-      let _sync_for_iterator = __dartIterator(Array.from(secondarySpans.entries()));
+      let _sync_for_iterator = __dartIterator(__dartIterableToArray(secondarySpans.entries()));
       for (; _sync_for_iterator.moveNext(); ) {
         let entry = _sync_for_iterator.current;
         __dartListAdd(v, new _Highlight(entry[0], { label: entry[1] }));
@@ -4447,8 +4435,8 @@ class Highlighter {
     Object.defineProperty($self, "_primaryColor_package_source_span_src_highlighter_dart", { value: _primaryColor, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "_secondaryColor_package_source_span_src_highlighter_dart", { value: _secondaryColor, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "_paddingBeforeSidebar_package_source_span_src_highlighter_dart", { value: 1 + Math.max(String(Array.from(_lines).at(-1).number + 1).length, (Highlighter._contiguous_package_source_span_src_highlighter_dart(_lines) ? 0 : 3)), writable: true, enumerable: true, configurable: true });
-    Object.defineProperty($self, "_maxMultilineSpans_package_source_span_src_highlighter_dart", { value: Array.from(Array.from(_lines, (line) => {
-      return Array.from(Array.from(line.highlights).filter((highlight) => {
+    Object.defineProperty($self, "_maxMultilineSpans_package_source_span_src_highlighter_dart", { value: __dartIterableToArray(Array.from(_lines, (line) => {
+      return __dartIterableToArray(__dartIterableToArray(line.highlights).filter((highlight) => {
         return isMultiline(highlight.span);
       })).length;
     })).reduce((left, right) => Math.max(left, right)), writable: true, enumerable: true, configurable: true });
@@ -4471,14 +4459,14 @@ class Highlighter {
     const highlightsByUrl = groupBy(highlights, (highlight) => {
       return (highlight.span.sourceUrl ?? {  });
     });
-    let _sync_for_iterator = __dartIterator(Array.from(highlightsByUrl.values()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(highlightsByUrl.values()));
     for (; _sync_for_iterator.moveNext(); ) {
       let list = _sync_for_iterator.current;
       list.sort((left, right) => __dartCompare(left, right, (highlight1, highlight2) => {
         return highlight1.span.compareTo(highlight2.span);
       }));
     }
-    return __dartListOf(Array.from(Array.from(highlightsByUrl.entries())).flatMap((value) => Array.from(((entry) => {
+    return __dartListOf(__dartIterableToArray(__dartIterableToArray(highlightsByUrl.entries())).flatMap((value) => __dartIterableToArray(((entry) => {
       const url = entry[0];
       const highlightsForFile = entry[1];
       const lines = Array(0).fill(null);
@@ -4487,12 +4475,12 @@ class Highlighter {
         let highlight = _sync_for_iterator_1.current;
         const context_1 = highlight.span.context;
         const lineStart = __dartNullCheck(findLineStart(context_1, highlight.span.text, highlight.span.start.column));
-        const linesBeforeSpan = Array.from(__dartPatternAllMatches("\n", context_1.substring(0, lineStart), 0)).length;
+        const linesBeforeSpan = __dartIterableToArray(__dartPatternAllMatches("\n", context_1.substring(0, lineStart), 0)).length;
         let lineNumber = highlight.span.start.line - linesBeforeSpan;
         let _sync_for_iterator_2 = __dartIterator(context_1.split("\n"));
         for (; _sync_for_iterator_2.moveNext(); ) {
           let line = _sync_for_iterator_2.current;
-          if ((Array.from(lines).length === 0 || lineNumber > Array.from(lines).at(-1).number)) {
+          if ((__dartIterableToArray(lines).length === 0 || lineNumber > Array.from(lines).at(-1).number)) {
             __dartListAdd(lines, new _Line(line, lineNumber, url));
           }
           lineNumber = lineNumber + 1;
@@ -4508,7 +4496,7 @@ class Highlighter {
         });
         const oldHighlightLength = activeHighlights.length;
         label: {
-          let _sync_for_iterator_4 = __dartIterator(Array.from(highlightsForFile).slice(highlightIndex));
+          let _sync_for_iterator_4 = __dartIterator(__dartIterableToArray(highlightsForFile).slice(highlightIndex));
           for (; _sync_for_iterator_4.moveNext(); ) {
             let highlight_1 = _sync_for_iterator_4.current;
             if (highlight_1.span.start.line > line_1.number) {
@@ -4541,7 +4529,7 @@ class Highlighter {
           }
         }
       }
-      let _sync_for_iterator = __dartIterator(Array.from(line.highlights).reverse());
+      let _sync_for_iterator = __dartIterator(__dartIterableToArray(line.highlights).reverse());
       for (; _sync_for_iterator.moveNext(); ) {
         let highlight = _sync_for_iterator.current;
         if (((isMultiline(highlight.span) && __dartEquals(highlight.span.start.line, line.number)) && this._isOnlyWhitespace_package_source_span_src_highlighter_dart(line.text.substring(0, highlight.span.start.column)))) {
@@ -4551,7 +4539,7 @@ class Highlighter {
       this._writeSidebar_package_source_span_src_highlighter_dart({ line: line.number });
       this._buffer_package_source_span_src_highlighter_dart.write(" ");
       this._writeMultilineHighlights_package_source_span_src_highlighter_dart(line, highlightsByColumn);
-      if (Array.from(highlightsByColumn).length > 0) {
+      if (__dartIterableToArray(highlightsByColumn).length > 0) {
         this._buffer_package_source_span_src_highlighter_dart.write(" ");
       }
       const primaryIdx = __dartListIndexWhere(line.highlights, (highlight) => {
@@ -4669,7 +4657,7 @@ class Highlighter {
       this._writeSidebar_package_source_span_src_highlighter_dart();
       this._buffer_package_source_span_src_highlighter_dart.write(" ");
       this._writeMultilineHighlights_package_source_span_src_highlighter_dart(line, highlightsByColumn, { current: highlight });
-      if (Array.from(highlightsByColumn).length > 0) {
+      if (__dartIterableToArray(highlightsByColumn).length > 0) {
         this._buffer_package_source_span_src_highlighter_dart.write(" ");
       }
       const underlineLength = this._colorize_package_source_span_src_highlighter_dart(() => {
@@ -4755,7 +4743,7 @@ class Highlighter {
       return this._buffer_package_source_span_src_highlighter_dart.write(` ${__dartStr(Array.from(lines)[0])}`);
     }, { color: color });
     this._buffer_package_source_span_src_highlighter_dart.writeln();
-    let _sync_for_iterator = __dartIterator(Array.from(lines).slice(1));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(lines).slice(1));
     for (; _sync_for_iterator.moveNext(); ) {
       let text = _sync_for_iterator.current;
       this._writeSidebar_package_source_span_src_highlighter_dart();
@@ -5637,7 +5625,7 @@ class LineScanner extends StringScanner {
       if (newPosition > oldPosition) {
         const newlines = this._newlinesIn_package_string_scanner_src_line_scanner_dart(this.string.substring(oldPosition, newPosition), { endPosition: newPosition });
         this._line_package_string_scanner_src_line_scanner_dart = this._line_package_string_scanner_src_line_scanner_dart + newlines.length;
-        if (Array.from(newlines).length === 0) {
+        if (__dartIterableToArray(newlines).length === 0) {
           this._column_package_string_scanner_src_line_scanner_dart = this._column_package_string_scanner_src_line_scanner_dart + (newPosition - oldPosition);
         } else {
           const offsetOfLastNewline = oldPosition + Array.from(newlines).at(-1).end;
@@ -5647,7 +5635,7 @@ class LineScanner extends StringScanner {
         if (newPosition < oldPosition) {
           const newlines_1 = this._newlinesIn_package_string_scanner_src_line_scanner_dart(this.string.substring(newPosition, oldPosition), { endPosition: oldPosition });
           this._line_package_string_scanner_src_line_scanner_dart = this._line_package_string_scanner_src_line_scanner_dart - newlines_1.length;
-          if (Array.from(newlines_1).length === 0) {
+          if (__dartIterableToArray(newlines_1).length === 0) {
             this._column_package_string_scanner_src_line_scanner_dart = this._column_package_string_scanner_src_line_scanner_dart - (oldPosition - newPosition);
           } else {
             const crOffset = (this._betweenCRLF_package_string_scanner_src_line_scanner_dart ? -1 : 0);
@@ -5686,7 +5674,7 @@ class LineScanner extends StringScanner {
     }
     const newlines = this._newlinesIn_package_string_scanner_src_line_scanner_dart(__dartNullCheck(__dartNullCheck(this.lastMatch)[0]), { endPosition: this.position });
     this._line_package_string_scanner_src_line_scanner_dart = this._line_package_string_scanner_src_line_scanner_dart + newlines.length;
-    if (Array.from(newlines).length === 0) {
+    if (__dartIterableToArray(newlines).length === 0) {
       this._column_package_string_scanner_src_line_scanner_dart = this._column_package_string_scanner_src_line_scanner_dart + __dartNullCheck(__dartNullCheck(this.lastMatch)[0]).length;
     } else {
       this._column_package_string_scanner_src_line_scanner_dart = __dartNullCheck(__dartNullCheck(this.lastMatch)[0]).length - Array.from(newlines).at(-1).end;
@@ -6026,7 +6014,7 @@ class EagerSpanScanner extends SpanScanner {
     if (newPosition > oldPosition) {
       const newlines = this._newlinesIn_package_string_scanner_src_eager_span_scanner_dart(this.string.substring(oldPosition, newPosition));
       this._line_package_string_scanner_src_eager_span_scanner_dart = this._line_package_string_scanner_src_eager_span_scanner_dart + newlines.length;
-      if (Array.from(newlines).length === 0) {
+      if (__dartIterableToArray(newlines).length === 0) {
         this._column_package_string_scanner_src_eager_span_scanner_dart = this._column_package_string_scanner_src_eager_span_scanner_dart + (newPosition - oldPosition);
       } else {
         this._column_package_string_scanner_src_eager_span_scanner_dart = newPosition - Array.from(newlines).at(-1).end;
@@ -6037,7 +6025,7 @@ class EagerSpanScanner extends SpanScanner {
         __dartListRemoveLast(newlines_1);
       }
       this._line_package_string_scanner_src_eager_span_scanner_dart = this._line_package_string_scanner_src_eager_span_scanner_dart - newlines_1.length;
-      if (Array.from(newlines_1).length === 0) {
+      if (__dartIterableToArray(newlines_1).length === 0) {
         this._column_package_string_scanner_src_eager_span_scanner_dart = this._column_package_string_scanner_src_eager_span_scanner_dart - (oldPosition - newPosition);
       } else {
         this._column_package_string_scanner_src_eager_span_scanner_dart = newPosition - __dartStringLastIndexOf(this.string, _newlineRegExp_1, newPosition) - 1;
@@ -6071,7 +6059,7 @@ class EagerSpanScanner extends SpanScanner {
     const firstMatch = __dartNullCheck(__dartNullCheck(this.lastMatch)[0]);
     const newlines = this._newlinesIn_package_string_scanner_src_eager_span_scanner_dart(firstMatch);
     this._line_package_string_scanner_src_eager_span_scanner_dart = this._line_package_string_scanner_src_eager_span_scanner_dart + newlines.length;
-    if (Array.from(newlines).length === 0) {
+    if (__dartIterableToArray(newlines).length === 0) {
       this._column_package_string_scanner_src_eager_span_scanner_dart = this._column_package_string_scanner_src_eager_span_scanner_dart + firstMatch.length;
     } else {
       this._column_package_string_scanner_src_eager_span_scanner_dart = firstMatch.length - Array.from(newlines).at(-1).end;
@@ -6773,7 +6761,7 @@ class Scanner {
           } }))))) {
             break label;
           }
-          if (!(Array.from(this._simpleKeys_package_yaml_src_scanner_dart).some((key) => {
+          if (!(__dartIterableToArray(this._simpleKeys_package_yaml_src_scanner_dart).some((key) => {
             return (!(key === null) && __dartEquals(key.tokenNumber, this._tokensParsed_package_yaml_src_scanner_dart));
           }))) {
             break label;
@@ -9368,7 +9356,7 @@ class YamlMap extends YamlNode {
     return this;
   }
   forEach(action) {
-    let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(this.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       action(key, (() => {
@@ -9383,7 +9371,7 @@ class YamlMap extends YamlNode {
     });
   }
   containsValue(value) {
-    let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(this.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       if (__dartEquals(__dartMapGet(this, key), value)) {
@@ -9441,7 +9429,7 @@ class YamlMap extends YamlNode {
     throw __dartCoreError("ArgumentError", key);
   }
   updateAll(update) {
-    let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(this.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       __dartMapSet(this, key, update(key, (() => {
@@ -9451,7 +9439,7 @@ class YamlMap extends YamlNode {
     }
   }
   get entries() {
-    return Array.from(Array.from(this.keys()), (key) => {
+    return Array.from(__dartIterableToArray(this.keys()), (key) => {
       return [key, (() => {
         let v = __dartMapGet(this, key);
         return (v === null ? v : v);
@@ -9460,7 +9448,7 @@ class YamlMap extends YamlNode {
   }
   map(transform) {
     let result = __dartMapFromEntries([]);
-    let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(this.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       let entry = transform(key, (() => {
@@ -9480,7 +9468,7 @@ class YamlMap extends YamlNode {
   }
   removeWhere(test) {
     let keysToRemove = Array(0).fill(null);
-    let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(this.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       if (test(key, (() => {
@@ -9497,19 +9485,19 @@ class YamlMap extends YamlNode {
     }
   }
   containsKey(key) {
-    return Array.from(this.keys()).includes(key);
+    return __dartIterableToArray(this.keys()).includes(key);
   }
   get length() {
-    return Array.from(Array.from(this.keys())).length;
+    return __dartIterableToArray(__dartIterableToArray(this.keys())).length;
   }
   get isEmpty() {
-    return Array.from(Array.from(this.keys())).length === 0;
+    return __dartIterableToArray(__dartIterableToArray(this.keys())).length === 0;
   }
   get isNotEmpty() {
-    return Array.from(Array.from(this.keys())).length > 0;
+    return __dartIterableToArray(__dartIterableToArray(this.keys())).length > 0;
   }
   get values() {
-    return Array.from(this.values());
+    return __dartIterableToArray(this.values());
   }
   toString() {
     return `{${Array.from(this, ([key, value]) => `${__dartStr(key)}: ${__dartStr(value)}`).join(", ")}}`;
@@ -9539,7 +9527,7 @@ class YamlMap extends YamlNode {
     return this;
   }
   get keys() {
-    return Array.from(Array.from(this.nodes.keys()), (node) => {
+    return Array.from(__dartIterableToArray(this.nodes.keys()), (node) => {
       return __dartAs(node, (value) => value instanceof YamlNode, "YamlNode").value;
     });
   }
@@ -9607,7 +9595,7 @@ class YamlMapWrapper {
     return this;
   }
   get keys() {
-    return Array.from(this._dartMap_package_yaml_src_yaml_node_wrapper_dart.keys());
+    return __dartIterableToArray(this._dartMap_package_yaml_src_yaml_node_wrapper_dart.keys());
   }
   "[]"(key) {
     let value = __dartMapGet(this._dartMap_package_yaml_src_yaml_node_wrapper_dart, key);
@@ -9685,7 +9673,7 @@ class _YamlMapNodes {
     return UnmodifiableMapMixin._throw_package_collection_src_unmodifiable_wrappers_dart();
   }
   get keys() {
-    return Array.from(Array.from(this._dartMap_package_yaml_src_yaml_node_wrapper_dart.keys()), (key) => {
+    return Array.from(__dartIterableToArray(this._dartMap_package_yaml_src_yaml_node_wrapper_dart.keys()), (key) => {
       return YamlScalar.internalWithSpan(key, this._span_package_yaml_src_yaml_node_wrapper_dart);
     });
   }
@@ -9753,7 +9741,7 @@ class YamlList extends YamlNode {
     return __dartListLikeGet(this, index);
   }
   followedBy(other) {
-    return Array.from(this).concat(Array.from(other));
+    return __dartIterableToArray(this).concat(__dartIterableToArray(other));
   }
   forEach(action) {
     let length = this.length;
@@ -9886,16 +9874,16 @@ class YamlList extends YamlNode {
     return buffer.toString();
   }
   where(test) {
-    return Array.from(this).filter(test);
+    return __dartIterableToArray(this).filter(test);
   }
   whereType() {
-    return Array.from(this).filter((value) => true);
+    return __dartIterableToArray(this).filter((value) => true);
   }
   map(f) {
     return Array.from(this, f);
   }
   expand(f) {
-    return Array.from(this).flatMap((value) => Array.from((f)(value)));
+    return __dartIterableToArray(this).flatMap((value) => __dartIterableToArray((f)(value)));
   }
   reduce(combine) {
     let length = this.length;
@@ -9923,13 +9911,13 @@ class YamlList extends YamlNode {
     return value;
   }
   skip(count) {
-    return Array.from(this).slice(count, null);
+    return __dartIterableToArray(this).slice(count, null);
   }
   skipWhile(test) {
     return __dartIterableSkipWhile(this, test);
   }
   take(count) {
-    return Array.from(this).slice(0, __dartNullCheck(count));
+    return __dartIterableToArray(this).slice(0, __dartNullCheck(count));
   }
   takeWhile(test) {
     return __dartIterableTakeWhile(this, test);
@@ -10052,11 +10040,11 @@ class YamlList extends YamlNode {
     let listLength = this.length;
     (end === null ? end = listLength : null);
     __dartCheckValidRange(start, end, listLength, null, null, null);
-    return __dartListOf(Array.from(this).slice(start, end));
+    return __dartListOf(__dartIterableToArray(this).slice(start, end));
   }
   getRange(start, end) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
-    return Array.from(this).slice(start, end);
+    return __dartIterableToArray(this).slice(start, end);
   }
   removeRange(start, end) {
     __dartCheckValidRange(start, end, this.length, null, null, null);
@@ -10087,7 +10075,7 @@ class YamlList extends YamlNode {
       otherList = iterable;
       otherStart = skipCount;
     } else {
-      otherList = __dartListOf(Array.from(iterable).slice(skipCount), false);
+      otherList = __dartListOf(__dartIterableToArray(iterable).slice(skipCount), false);
       otherStart = 0;
     }
     if (otherStart + length > otherList.length) {
@@ -10113,7 +10101,7 @@ class YamlList extends YamlNode {
       newContents = __dartListOf(newContents, true);
     }
     let removeLength = end - start;
-    let insertLength = Array.from(newContents).length;
+    let insertLength = __dartIterableToArray(newContents).length;
     if (removeLength >= insertLength) {
       let insertEnd = start + insertLength;
       __dartListSetRange(this, start, insertEnd, newContents);
@@ -10215,7 +10203,7 @@ class YamlList extends YamlNode {
     if ((!(((iterable != null && typeof iterable !== "string") && typeof iterable.length === "number")) || Object.is(iterable, this))) {
       iterable = __dartListOf(iterable, true);
     }
-    let insertionLength = Array.from(iterable).length;
+    let insertionLength = __dartIterableToArray(iterable).length;
     if (__dartEquals(insertionLength, 0)) {
       return;
     }
@@ -10223,7 +10211,7 @@ class YamlList extends YamlNode {
     for (let i = oldLength - insertionLength; i < oldLength; i = i + 1) {
       __dartListAdd(this, __dartListLikeGet(this, (i > 0 ? i : 0)));
     }
-    if (!(__dartEquals(Array.from(iterable).length, insertionLength))) {
+    if (!(__dartEquals(__dartIterableToArray(iterable).length, insertionLength))) {
       this.length = this.length - insertionLength;
       throw __dartCoreError("ConcurrentModificationError", iterable);
     }
@@ -10235,7 +10223,7 @@ class YamlList extends YamlNode {
   }
   setAll(index, iterable) {
     if ((Array.isArray(iterable) || (ArrayBuffer.isView(iterable) && !(iterable instanceof DataView)))) {
-      __dartListSetRange(this, index, index + Array.from(iterable).length, iterable);
+      __dartListSetRange(this, index, index + __dartIterableToArray(iterable).length, iterable);
     } else {
       let _sync_for_iterator = __dartIterator(iterable);
       for (; _sync_for_iterator.moveNext(); ) {
@@ -10251,10 +10239,10 @@ class YamlList extends YamlNode {
     }
   }
   get reversed() {
-    return Array.from(this).reverse();
+    return __dartIterableToArray(this).reverse();
   }
   toString() {
-    return `[${Array.from(this).map((value) => __dartStr(value)).join(", ")}]`;
+    return `[${__dartIterableToArray(this).map((value) => __dartStr(value)).join(", ")}]`;
   }
   get value() {
     return this;
@@ -10453,7 +10441,7 @@ class _DeepEquals {
     if (!(__dartEquals(map1.size, map2.size))) {
       return false;
     }
-    let _sync_for_iterator = __dartIterator(Array.from(map1.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(map1.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       if (!(__dartMapContainsKey(map2, key))) {
@@ -10929,7 +10917,7 @@ function _validateArgList(method, args) {
       }
       const message = __dartStringBuffer("");
       message.write(`${__dartStr(method)}(`);
-      message.write(Array.from(Array.from(Array.from(args).slice(0, numArgs), (arg) => {
+      message.write(Array.from(Array.from(__dartIterableToArray(args).slice(0, numArgs), (arg) => {
         return (arg === null ? "null" : `"${__dartStr(arg)}"`);
       })).join(", "));
       message.write(`): part ${__dartStr(i - 1)} was null, but part ${__dartStr(i)} was not.`);
@@ -10979,11 +10967,11 @@ function max(obj1, obj2) {
 }
 
 function isAllTheSame(iter) {
-  if (Array.from(iter).length === 0) {
+  if (__dartIterableToArray(iter).length === 0) {
     return true;
   }
   const firstValue = Array.from(iter)[0];
-  let _sync_for_iterator = __dartIterator(Array.from(iter).slice(1));
+  let _sync_for_iterator = __dartIterator(__dartIterableToArray(iter).slice(1));
   for (; _sync_for_iterator.moveNext(); ) {
     let value = _sync_for_iterator.current;
     if (!(__dartEquals(value, firstValue))) {
@@ -11173,7 +11161,7 @@ function deepEquals(obj1, obj2) {
 function deepHashCode(obj) {
   let parents = Array(0).fill(null);
   const deepHashCodeInner = (value) => {
-    if (Array.from(parents).some((parent) => {
+    if (__dartIterableToArray(parents).some((parent) => {
       return Object.is(parent, value);
     })) {
       return -1;
@@ -11182,7 +11170,7 @@ function deepHashCode(obj) {
     try {
       if (value instanceof Map) {
         let equality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const UnorderedIterableEquality<Object?>{_UnorderedEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(UnorderedIterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) })));
-        return equality.hash(Array.from(Array.from(value.keys()), deepHashCodeInner)) ^ equality.hash(Array.from(Array.from(value.values()), deepHashCodeInner));
+        return equality.hash(Array.from(__dartIterableToArray(value.keys()), deepHashCodeInner)) ^ equality.hash(Array.from(__dartIterableToArray(value.values()), deepHashCodeInner));
       } else {
         if ((((value != null && typeof value !== "string") && !(value instanceof Map)) && typeof value[Symbol.iterator] === "function")) {
           return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object?>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(Array.from(value, deepHashCode));

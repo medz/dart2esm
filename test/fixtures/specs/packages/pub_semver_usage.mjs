@@ -84,20 +84,20 @@ function __dartIntParse(source, radix = null) {
 }
 
 function __dartIterableFirstWhere(iterable, test, orElse = null) {
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) return value;
   }
   if (typeof orElse === "function") return orElse();
   throw new Error("No element");
 }
 function __dartIterableFirstOrNull(iterable) {
-  for (const value of iterable) return value;
+  for (const value of __dartIterableToArray(iterable)) return value;
   return null;
 }
 function __dartIterableLastWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) {
       found = true;
       result = value;
@@ -110,21 +110,21 @@ function __dartIterableLastWhere(iterable, test, orElse = null) {
 function __dartIterableLastOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     found = true;
     result = value;
   }
   return found ? result : null;
 }
 function __dartIterableSingle(iterable) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   if (values.length !== 1) throw new Error(values.length === 0 ? "No element" : "Too many elements");
   return values[0];
 }
 function __dartIterableSingleWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (!test(value)) continue;
     if (found) throw new Error("Too many elements");
     found = true;
@@ -137,7 +137,7 @@ function __dartIterableSingleWhere(iterable, test, orElse = null) {
 function __dartIterableSingleOrNull(iterable) {
   let found = false;
   let result;
-  for (const value of iterable) {
+  for (const value of __dartIterableToArray(iterable)) {
     if (found) return null;
     found = true;
     result = value;
@@ -145,22 +145,28 @@ function __dartIterableSingleOrNull(iterable) {
   return found ? result : null;
 }
 function __dartIterableElementAtOrNull(iterable, index) {
-  const values = Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   const offset = Number(index);
   return offset >= 0 && offset < values.length ? values[offset] : null;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
-    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
-    : Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        this.current = values[index];
         return true;
       }
       this.current = undefined;
@@ -217,12 +223,12 @@ function __dartListAdd(list, value) {
 }
 
 function __dartFixedList(values) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   Object.preventExtensions(list);
   return list;
 }
 function __dartListOf(values, growable = true) {
-  const list = Array.from(values);
+  const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
 function __dartListFilled(length, fill, growable = false) {
@@ -234,7 +240,7 @@ function __dartListGenerate(length, generator, growable = true) {
   return growable ? list : __dartFixedList(list);
 }
 function __dartUnmodifiableList(values) {
-  return Object.freeze(Array.from(values));
+  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -630,9 +636,7 @@ function __dartStringBuffer(initial = "") {
       return null;
     },
     writeAll(values, separator = "") {
-      const parts = values != null && typeof values["[]"] === "function" && typeof values.length === "number"
-        ? Array.from({ length: Number(values.length) }, (_, index) => __dartStr(values["[]"](index)))
-        : Array.from(values, (item) => __dartStr(item));
+      const parts = __dartIterableToArray(values).map((item) => __dartStr(item));
       value += parts.join(__dartStr(separator));
       return null;
     },
@@ -982,7 +986,7 @@ class VersionConstraint {
     return constraint;
   }
   static unionOf(constraints) {
-    let flattened = __dartListOf(Array.from(constraints).flatMap((value) => Array.from(((constraint) => {
+    let flattened = __dartListOf(__dartIterableToArray(constraints).flatMap((value) => __dartIterableToArray(((constraint) => {
       if (constraint.isEmpty) {
         return Array(0).fill(null);
       }
@@ -994,10 +998,10 @@ class VersionConstraint {
       }
       throw __dartCoreError("ArgumentError", `Unknown VersionConstraint type ${__dartStr(constraint)}.`);
     })(value))), true);
-    if (Array.from(flattened).length === 0) {
+    if (__dartIterableToArray(flattened).length === 0) {
       return VersionConstraint.empty;
     }
-    if (Array.from(flattened).some((constraint) => {
+    if (__dartIterableToArray(flattened).some((constraint) => {
       return constraint.isAny;
     })) {
       return VersionConstraint.any;
@@ -1007,7 +1011,7 @@ class VersionConstraint {
     let _sync_for_iterator = __dartIterator(flattened);
     for (; _sync_for_iterator.moveNext(); ) {
       let constraint = _sync_for_iterator.current;
-      if ((Array.from(merged).length === 0 || (!(Array.from(merged).at(-1).allowsAny(constraint)) && !(areAdjacent(Array.from(merged).at(-1), constraint))))) {
+      if ((__dartIterableToArray(merged).length === 0 || (!(Array.from(merged).at(-1).allowsAny(constraint)) && !(areAdjacent(Array.from(merged).at(-1), constraint))))) {
         __dartListAdd(merged, constraint);
       } else {
         __dartListLikeSet(merged, merged.length - 1, __dartAs(Array.from(merged).at(-1).union(constraint), (value) => value instanceof VersionRange, "VersionRange"));
@@ -1077,7 +1081,7 @@ class VersionUnion {
     return false;
   }
   allows(version) {
-    return Array.from(this.ranges).some((constraint) => {
+    return __dartIterableToArray(this.ranges).some((constraint) => {
       return constraint.allows(version);
     });
   }
@@ -1129,7 +1133,7 @@ class VersionUnion {
         theirRangesMoved = theirRanges.moveNext();
       }
     }
-    if (Array.from(newRanges).length === 0) {
+    if (__dartIterableToArray(newRanges).length === 0) {
       return VersionConstraint.empty;
     }
     if (__dartEquals(newRanges.length, 1)) {
@@ -1207,7 +1211,7 @@ class VersionUnion {
         }
       }
     }
-    if (Array.from(newRanges).length === 0) {
+    if (__dartIterableToArray(newRanges).length === 0) {
       return VersionConstraint.empty;
     }
     if (__dartEquals(newRanges.length, 1)) {
@@ -1247,7 +1251,7 @@ class VersionRange {
     if (((!(min === null) && !(max === null)) && min[">"](max))) {
       throw __dartCoreError("ArgumentError", `Minimum version ("${__dartStr(min)}") must be less than maximum ("${__dartStr(max)}").`);
     }
-    if ((((((!(alwaysIncludeMaxPreRelease) && !(includeMax)) && !(max === null)) && !(max.isPreRelease)) && Array.from(max.build).length === 0) && ((min === null || !(min.isPreRelease)) || !(equalsWithoutPreRelease(min, max))))) {
+    if ((((((!(alwaysIncludeMaxPreRelease) && !(includeMax)) && !(max === null)) && !(max.isPreRelease)) && __dartIterableToArray(max.build).length === 0) && ((min === null || !(min.isPreRelease)) || !(equalsWithoutPreRelease(min, max))))) {
       max = max.firstPreRelease;
     }
     return VersionRange.__package_pub_semver_src_version_range_dart(min, max, includeMin, includeMax);
@@ -1307,7 +1311,7 @@ class VersionRange {
       return this.allows(other);
     }
     if (other instanceof VersionUnion) {
-      return Array.from(other.ranges).every((function() {
+      return __dartIterableToArray(other.ranges).every((function() {
         const $receiver = this;
         return function(other) {
           return $receiver.allowsAll(other);
@@ -1327,7 +1331,7 @@ class VersionRange {
       return this.allows(other);
     }
     if (other instanceof VersionUnion) {
-      return Array.from(other.ranges).some((function() {
+      return __dartIterableToArray(other.ranges).some((function() {
         const $receiver = this;
         return function(other) {
           return $receiver.allowsAny(other);
@@ -1509,7 +1513,7 @@ class VersionRange {
               }
             }
           }
-          if (Array.from(ranges).length === 0) {
+          if (__dartIterableToArray(ranges).length === 0) {
             return current;
           }
           return VersionUnion.fromRanges((() => {
@@ -1598,7 +1602,7 @@ class VersionRange {
         } else {
           buffer.write(max);
           let minIsPreReleaseOfMax = ((!(min === null) && min.isPreRelease) && equalsWithoutPreRelease(min, max));
-          if (((!(max.isPreRelease) && Array.from(max.build).length === 0) && !(minIsPreReleaseOfMax))) {
+          if (((!(max.isPreRelease) && __dartIterableToArray(max.build).length === 0) && !(minIsPreReleaseOfMax))) {
             buffer.write("-∞");
           }
         }
@@ -1738,7 +1742,7 @@ class Version {
   }
   static primary(versions) {
     let primary = Array.from(versions)[0];
-    let _sync_for_iterator = __dartIterator(Array.from(versions).slice(1));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(versions).slice(1));
     for (; _sync_for_iterator.moveNext(); ) {
       let version = _sync_for_iterator.current;
       if (((!(version.isPreRelease) && primary.isPreRelease) || (__dartEquals(version.isPreRelease, primary.isPreRelease) && version[">"](primary)))) {
@@ -1789,7 +1793,7 @@ class Version {
     return false;
   }
   get isPreRelease() {
-    return Array.from(this.preRelease).length > 0;
+    return __dartIterableToArray(this.preRelease).length > 0;
   }
   get nextMajor() {
     if (((this.isPreRelease && __dartEquals(this.minor, 0)) && __dartEquals(this.patch, 0))) {
@@ -1880,10 +1884,10 @@ class Version {
       if (!(__dartEquals(comparison, 0))) {
         return comparison;
       }
-      if ((Array.from(this.build).length === 0 && Array.from(other.build).length > 0)) {
+      if ((__dartIterableToArray(this.build).length === 0 && __dartIterableToArray(other.build).length > 0)) {
         return -1;
       }
-      if ((Array.from(other.build).length === 0 && Array.from(this.build).length > 0)) {
+      if ((__dartIterableToArray(other.build).length === 0 && __dartIterableToArray(this.build).length > 0)) {
         return 1;
       }
       return this._compareLists_package_pub_semver_src_version_dart(this.build, other.build);
@@ -1895,7 +1899,7 @@ class Version {
     return this._text_package_pub_semver_src_version_dart;
   }
   get canonicalizedVersion() {
-    return new Version(this.major, this.minor, this.patch, { pre: (Array.from(this.preRelease).length > 0 ? Array.from(this.preRelease).join(".") : null), build: (Array.from(this.build).length > 0 ? Array.from(this.build).join(".") : null) }).toString();
+    return new Version(this.major, this.minor, this.patch, { pre: (__dartIterableToArray(this.preRelease).length > 0 ? Array.from(this.preRelease).join(".") : null), build: (__dartIterableToArray(this.build).length > 0 ? Array.from(this.build).join(".") : null) }).toString();
   }
   _compareLists_package_pub_semver_src_version_dart(a, b) {
     for (let i = 0; i < Math.max(a.length, b.length); i = i + 1) {

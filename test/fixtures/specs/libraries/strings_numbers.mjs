@@ -193,6 +193,14 @@ function __dartIntParse(source, radix = null) {
   return value;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartMapAddAll(map, entries) {
   for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
@@ -618,7 +626,7 @@ export function main() {
   __dartPrint(`checks ${__dartStr(trimmed.startsWith("he"))} ${__dartStr(trimmed.endsWith("rt"))} ${__dartStr(trimmed.indexOf("dart"))} ${__dartStr(Array.from(trimmed.split(",")).join("|"))}`);
   __dartPrint(`replace ${__dartStr(trimmed.replaceAll("l", "L").toUpperCase())}`);
   __dartPrint(`stringMeta ${__dartStr(trimmed.length)} ${__dartStr(trimmed.length > 0)} ${__dartStr("".length === 0)} ${__dartStr(trimmed.includes("l", 3))} ${__dartStr("7".padStart(3, "0"))} ${__dartStr("x".padEnd(3, "."))} ${__dartStr("  left".trimStart())} ${__dartStr("right  ".trimEnd())} ${__dartStr(__dartCompare("abc", "abd"))}`);
-  __dartPrint(`stringOps ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L"))} ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 3))} ${__dartStr(__dartStringReplaceRange(trimmed, 1, 4, "EL"))} ${__dartStr(Array.from(Array.from(__dartStringCodeUnits(trimmed)).slice(0, 3)).join("-"))}`);
+  __dartPrint(`stringOps ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L"))} ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 3))} ${__dartStr(__dartStringReplaceRange(trimmed, 1, 4, "EL"))} ${__dartStr(Array.from(__dartIterableToArray(__dartStringCodeUnits(trimmed)).slice(0, 3)).join("-"))}`);
   const numeric = -3.6;
   __dartPrint(`numOps ${__dartStr(Math.abs(numeric))} ${__dartStr((Number.isNaN(numeric) ? NaN : (numeric < 0 ? -1 : (numeric > 0 ? 1 : numeric))) < 0)} ${__dartStr(Math.round(numeric))} ${__dartStr(Math.floor(numeric))} ${__dartStr(Math.ceil(numeric))} ${__dartStr(Math.trunc(numeric))}`);
   __dartPrint(`numFormat ${__dartStr(Math.min(Math.max(numeric, -3), 2))} ${__dartStr(numeric % 2)} ${__dartStr(Number(3.14159).toFixed(2))} ${__dartStr(Number(3.14159).toPrecision(3))}`);

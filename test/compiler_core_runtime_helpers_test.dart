@@ -33,4 +33,24 @@ void main() {
       ]),
     );
   });
+
+  test('iterable materialization helper is shared across runtime helpers', () {
+    final helpers = EsmRuntimeHelperUseSet();
+
+    helpers
+      ..require(EsmRuntimeHelper.iterableJoin)
+      ..require(EsmRuntimeHelper.iterator)
+      ..require(EsmRuntimeHelper.listFactory);
+
+    expect(
+      helpers.toList(),
+      containsAll([
+        EsmRuntimeHelper.iterableToArray,
+        EsmRuntimeHelper.iterableJoin,
+        EsmRuntimeHelper.iterator,
+        EsmRuntimeHelper.listFactory,
+        EsmRuntimeHelper.stringify,
+      ]),
+    );
+  });
 }

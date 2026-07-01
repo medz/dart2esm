@@ -65,17 +65,23 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
 function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number")
-    ? { length: iterable.length, get(index) { return iterable["[]"](index); } }
-    : Array.from(iterable);
+  const values = __dartIterableToArray(iterable);
   let index = -1;
   return {
     current: undefined,
     moveNext() {
       index++;
       if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
+        this.current = values[index];
         return true;
       }
       this.current = undefined;
@@ -179,13 +185,7 @@ function __dartListRangeWrite(list, index, value) {
 }
 function __dartListRangeValues(source, start = 0, end = null) {
   const from = Number(start);
-  if (source != null && typeof source["[]"] === "function" && typeof source.length === "number") {
-    const actualEnd = end == null ? source.length : Number(end);
-    const result = [];
-    for (let index = from; index < actualEnd; index++) result.push(source["[]"](index));
-    return result;
-  }
-  return Array.from(source).slice(from, end == null ? undefined : Number(end));
+  return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
 }
 function __dartListCopyRange(target, at, source, start = 0, end = null) {
   const values = __dartListRangeValues(source, start, end);
@@ -691,14 +691,14 @@ class MapEquality {
       return false;
     }
     let equalElementCounts = __dartCustomHashMap(null, null, null);
-    let _sync_for_iterator = __dartIterator(Array.from(map1.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(map1.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       let entry = new _MapEntry(this, key, __dartMapGet(map1, key));
       let count = (__dartMapGet(equalElementCounts, entry) ?? 0);
       __dartMapSet(equalElementCounts, entry, count + 1);
     }
-    let _sync_for_iterator_1 = __dartIterator(Array.from(map2.keys()));
+    let _sync_for_iterator_1 = __dartIterator(__dartIterableToArray(map2.keys()));
     for (; _sync_for_iterator_1.moveNext(); ) {
       let key_1 = _sync_for_iterator_1.current;
       let entry_1 = new _MapEntry(this, key_1, __dartMapGet(map2, key_1));
@@ -715,7 +715,7 @@ class MapEquality {
       return __dartHashValue(null);
     }
     let hash = 0;
-    let _sync_for_iterator = __dartIterator(Array.from(map.keys()));
+    let _sync_for_iterator = __dartIterator(__dartIterableToArray(map.keys()));
     for (; _sync_for_iterator.moveNext(); ) {
       let key = _sync_for_iterator.current;
       let keyHash = this._keyEquality_package_collection_src_equality_dart.hash(key);
@@ -941,7 +941,7 @@ class HeapPriorityQueue {
     let length = this._length_package_collection_src_priority_queue_dart;
     this._queue_package_collection_src_priority_queue_dart = __dartConst("[\"list\",\"NeverType(Never)\"]", () => Object.freeze([]));
     this._length_package_collection_src_priority_queue_dart = 0;
-    return Array.from(result).slice(0, length);
+    return __dartIterableToArray(result).slice(0, length);
   }
   removeFirst() {
     if (__dartEquals(this._length_package_collection_src_priority_queue_dart, 0)) {
@@ -984,7 +984,7 @@ class HeapPriorityQueue {
     })();
   }
   toString() {
-    return String(Array.from(this._queue_package_collection_src_priority_queue_dart).slice(0, this._length_package_collection_src_priority_queue_dart));
+    return String(__dartIterableToArray(this._queue_package_collection_src_priority_queue_dart).slice(0, this._length_package_collection_src_priority_queue_dart));
   }
   _add_package_collection_src_priority_queue_dart(element) {
     if (__dartEquals(this._length_package_collection_src_priority_queue_dart, this._queue_package_collection_src_priority_queue_dart.length)) {

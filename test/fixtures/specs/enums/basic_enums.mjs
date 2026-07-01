@@ -161,76 +161,76 @@ export class Color {
   }
 }
 
-const $Color_red = __dartLazyField("Color.red", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+const $Color_red = __dartLazyField("Color.red", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
   return "Color.red";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(Color, "red", { get: function() {
   return $Color_red.get();
 }, set: function(value) {
   $Color_red.set(value);
 }, enumerable: true });
-const $Color_green = __dartLazyField("Color.green", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 1, __dartEnumName: "green", name: "green", toString: function() {
+const $Color_green = __dartLazyField("Color.green", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "green", enumerable: true }, name: { value: "green", enumerable: true }, toString: { value: function() {
   return "Color.green";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(Color, "green", { get: function() {
   return $Color_green.get();
 }, set: function(value) {
   $Color_green.set(value);
 }, enumerable: true });
-const $Color_blue = __dartLazyField("Color.blue", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 2, __dartEnumName: "blue", name: "blue", toString: function() {
+const $Color_blue = __dartLazyField("Color.blue", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "blue", enumerable: true }, name: { value: "blue", enumerable: true }, toString: { value: function() {
   return "Color.blue";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(Color, "blue", { get: function() {
   return $Color_blue.get();
 }, set: function(value) {
   $Color_blue.set(value);
 }, enumerable: true });
-const $Color_values = __dartLazyField("Color.values", () => __dartConst("[\"list\",\"InterfaceType(Color)\",[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+const $Color_values = __dartLazyField("Color.values", () => __dartConst("[\"list\",\"InterfaceType(Color)\",[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
   return "Color.red";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 1, __dartEnumName: "green", name: "green", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "green", enumerable: true }, name: { value: "green", enumerable: true }, toString: { value: function() {
   return "Color.green";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 2, __dartEnumName: "blue", name: "blue", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "blue", enumerable: true }, name: { value: "blue", enumerable: true }, toString: { value: function() {
   return "Color.blue";
-} })))])), false);
+}, enumerable: true } })))])), false);
 Object.defineProperty(Color, "values", { get: function() {
   return $Color_values.get();
 }, set: function(value) {
   $Color_values.set(value);
 }, enumerable: true });
 export function main() {
-  __dartPrint(`name ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+  __dartPrint(`name ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
     return "Color.red";
-  } }))).name)}`);
-  __dartPrint(`index ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 1, __dartEnumName: "green", name: "green", toString: function() {
+  }, enumerable: true } }))).name)}`);
+  __dartPrint(`index ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "green", enumerable: true }, name: { value: "green", enumerable: true }, toString: { value: function() {
     return "Color.green";
-  } }))).index)}`);
-  __dartPrint(`count ${__dartStr(__dartConst("[\"list\",\"InterfaceType(Color)\",[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+  }, enumerable: true } }))).index)}`);
+  __dartPrint(`count ${__dartStr(__dartConst("[\"list\",\"InterfaceType(Color)\",[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
     return "Color.red";
-  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 1, __dartEnumName: "green", name: "green", toString: function() {
+  }, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "green", enumerable: true }, name: { value: "green", enumerable: true }, toString: { value: function() {
     return "Color.green";
-  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 2, __dartEnumName: "blue", name: "blue", toString: function() {
+  }, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "blue", enumerable: true }, name: { value: "blue", enumerable: true }, toString: { value: function() {
     return "Color.blue";
-  } })))])).length)}`);
-  __dartPrint(`third ${__dartStr(__dartListLikeGet(__dartConst("[\"list\",\"InterfaceType(Color)\",[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+  }, enumerable: true } })))])).length)}`);
+  __dartPrint(`third ${__dartStr(__dartListLikeGet(__dartConst("[\"list\",\"InterfaceType(Color)\",[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
     return "Color.red";
-  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 1, __dartEnumName: "green", name: "green", toString: function() {
+  }, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "green", enumerable: true }, name: { value: "green", enumerable: true }, toString: { value: function() {
     return "Color.green";
-  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 2, __dartEnumName: "blue", name: "blue", toString: function() {
+  }, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 2, _Enum._name: \\\"blue\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "blue", enumerable: true }, name: { value: "blue", enumerable: true }, toString: { value: function() {
     return "Color.blue";
-  } })))])), 2).name)}`);
-  __dartPrint(`string ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+  }, enumerable: true } })))])), 2).name)}`);
+  __dartPrint(`string ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
     return "Color.red";
-  } }))))}`);
-  __dartPrint(`same ${__dartStr(__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+  }, enumerable: true } }))))}`);
+  __dartPrint(`same ${__dartStr(__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
     return "Color.red";
-  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+  }, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
     return "Color.red";
-  } })))))}`);
-  __dartPrint(`different ${__dartStr(__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 0, __dartEnumName: "red", name: "red", toString: function() {
+  }, enumerable: true } })))))}`);
+  __dartPrint(`different ${__dartStr(__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 0, _Enum._name: \\\"red\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "red", enumerable: true }, name: { value: "red", enumerable: true }, toString: { value: function() {
     return "Color.red";
-  } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.assign(Object.create(Color.prototype), { index: 1, __dartEnumName: "green", name: "green", toString: function() {
+  }, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Color{_Enum.index: 1, _Enum._name: \\\"green\\\"})\"]", () => Object.freeze(Object.create(Color.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "green", enumerable: true }, name: { value: "green", enumerable: true }, toString: { value: function() {
     return "Color.green";
-  } })))))}`);
+  }, enumerable: true } })))))}`);
 }
 
 main();

@@ -395,7 +395,7 @@ export function main() {
   __dartPrint(classify(true));
   __dartPrint(shape([3, 4]));
   __dartPrint(shape(__dartMapFromEntries([["name", "Ada"], ["age", 37]])));
-  __dartPrint(shape(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Pair{Pair.left: 1, Pair.right: 2})\"]", () => Object.freeze(Object.assign(Object.create(Pair.prototype), { left: 1, right: 2 })))));
+  __dartPrint(shape(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Pair{Pair.left: 1, Pair.right: 2})\"]", () => Object.freeze(Object.create(Pair.prototype, { left: { value: 1, enumerable: true }, right: { value: 2, enumerable: true } })))));
   __dartPrint(shape(5));
   __dartPrint(shape(null));
   __dartPrint(shape("x"));

@@ -4487,6 +4487,10 @@ final class KernelToEsmIrLoweringStage
       return _lowerConstant(world, helpers, constant.tearOffConstant, context);
     }
     if (constant is k.InstanceConstant) {
+      final typedDataConstant = _lowerDartTypedDataInstanceConstant(constant);
+      if (typedDataConstant != null) {
+        return typedDataConstant;
+      }
       final convertConstant = _lowerDartConvertInstanceConstant(
         helpers,
         constant,
@@ -4752,26 +4756,34 @@ final class KernelToEsmIrLoweringStage
         EsmCallIr(
           callee: const EsmPropertyAccessIr(
             receiver: EsmIdentifierIr('Object'),
-            property: 'assign',
+            property: 'create',
           ),
           arguments: [
-            EsmCallIr(
-              callee: const EsmPropertyAccessIr(
-                receiver: EsmIdentifierIr('Object'),
-                property: 'create',
-              ),
-              arguments: [
-                EsmPropertyAccessIr(
-                  receiver: EsmIdentifierIr(symbol.name),
-                  property: 'prototype',
-                ),
-              ],
+            EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr(symbol.name),
+              property: 'prototype',
             ),
-            EsmObjectLiteralIr(fields),
+            EsmObjectLiteralIr([
+              for (final field in fields)
+                EsmObjectLiteralPropertyIr(
+                  key: field.key,
+                  value: _constantPropertyDescriptor(field.value),
+                ),
+            ]),
           ],
         ),
       ],
     );
+  }
+
+  EsmObjectLiteralIr _constantPropertyDescriptor(EsmExpressionIr value) {
+    return EsmObjectLiteralIr([
+      EsmObjectLiteralPropertyIr.static(key: 'value', value: value),
+      EsmObjectLiteralPropertyIr.static(
+        key: 'enumerable',
+        value: const EsmBooleanLiteralIr(true),
+      ),
+    ]);
   }
 
   EsmExpressionIr? _lowerDartCoreInstanceConstant(
@@ -4823,6 +4835,21 @@ final class KernelToEsmIrLoweringStage
     return kernelReferencePath(constant.classReference) ==
             'dart:core::Object' &&
         constant.fieldValues.isEmpty;
+  }
+
+  EsmExpressionIr? _lowerDartTypedDataInstanceConstant(
+    k.InstanceConstant constant,
+  ) {
+    final classPath = kernelReferencePath(constant.classReference);
+    if (classPath != 'dart:typed_data::Endian') {
+      return null;
+    }
+    for (final value in constant.fieldValues.values) {
+      if (value is k.BoolConstant) {
+        return EsmBooleanLiteralIr(value.value);
+      }
+    }
+    return null;
   }
 
   EsmExpressionIr? _lowerDartMathInstanceConstant(
@@ -5580,23 +5607,51 @@ final class KernelToEsmIrLoweringStage
         '${kernelReferencePath(expression.interfaceTargetReference)}',
       );
     }
-    return EsmBinaryIr(
-      left: _lowerExpression(
-        world,
-        helpers,
-        locals,
-        expression.receiver,
-        thisExpression: thisExpression,
-      ),
-      operator: binaryOperator,
-      right: _lowerExpression(
-        world,
-        helpers,
-        locals,
-        expression.arguments.positional.single,
-        thisExpression: thisExpression,
-      ),
+    final left = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
     );
+    final right = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.arguments.positional.single,
+      thisExpression: thisExpression,
+    );
+    if (operator == '>>') {
+      helpers.require(EsmRuntimeHelper.intShift);
+      return EsmCallIr(
+        callee: helpers.reference(
+          const EsmRuntimeHelperRegistry(),
+          EsmRuntimeHelper.intShift,
+        ),
+        arguments: [left, right],
+      );
+    }
+    if (operator == '&') {
+      if (_isMask32Literal(right)) {
+        return EsmBinaryIr(
+          left: left,
+          operator: EsmBinaryOperatorIr.unsignedRightShift,
+          right: const EsmNumberLiteralIr(0),
+        );
+      }
+      if (_isMask32Literal(left)) {
+        return EsmBinaryIr(
+          left: right,
+          operator: EsmBinaryOperatorIr.unsignedRightShift,
+          right: const EsmNumberLiteralIr(0),
+        );
+      }
+    }
+    return EsmBinaryIr(left: left, operator: binaryOperator, right: right);
+  }
+
+  bool _isMask32Literal(EsmExpressionIr expression) {
+    return expression is EsmNumberLiteralIr && expression.value == 0xffffffff;
   }
 
   EsmExpressionIr? _lowerSdkInstanceInvocation(
@@ -7151,6 +7206,16 @@ final class KernelToEsmIrLoweringStage
       thisExpression: thisExpression,
     );
 
+    final byteDataInvocation = _lowerByteDataInstanceInvocation(
+      expression.interfaceTargetReference,
+      name,
+      receiver,
+      positional,
+      lower,
+    );
+    if (byteDataInvocation != null) {
+      return byteDataInvocation;
+    }
     if (target.startsWith('dart:typed_data::ByteBuffer::@methods::') &&
         positional.length <= 2) {
       final constructor = name == 'asByteData'
@@ -7235,6 +7300,88 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerByteDataInstanceInvocation(
+    k.Reference reference,
+    String name,
+    EsmExpressionIr receiver,
+    List<k.Expression> positional,
+    EsmExpressionIr Function(k.Expression argument) lower,
+  ) {
+    if (!isDartTypedDataClassMember(reference, 'ByteData', name)) {
+      return null;
+    }
+    final nativeMethod = _byteDataNativeMethodName(name);
+    if (nativeMethod == null) {
+      return null;
+    }
+    final isGetter = name.startsWith('get');
+    final is64Bit =
+        name == 'getInt64' ||
+        name == 'getUint64' ||
+        name == 'setInt64' ||
+        name == 'setUint64';
+    final arity = positional.length;
+    if (isGetter) {
+      if (arity < 1 || arity > 2 || (name.endsWith('8') && arity != 1)) {
+        return null;
+      }
+    } else if (arity < 2 || arity > 3 || (name.endsWith('8') && arity != 2)) {
+      return null;
+    }
+
+    final arguments = <EsmExpressionIr>[];
+    for (var index = 0; index < positional.length; index++) {
+      final argument = lower(positional[index]);
+      if (is64Bit && !isGetter && index == 1) {
+        arguments.add(
+          EsmCallIr(
+            callee: const EsmIdentifierIr('BigInt'),
+            arguments: [argument],
+          ),
+        );
+      } else {
+        arguments.add(argument);
+      }
+    }
+    final call = EsmCallIr(
+      callee: EsmPropertyAccessIr(receiver: receiver, property: nativeMethod),
+      arguments: arguments,
+    );
+    if (is64Bit && isGetter) {
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('Number'),
+        arguments: [call],
+      );
+    }
+    return call;
+  }
+
+  String? _byteDataNativeMethodName(String dartMethodName) {
+    return switch (dartMethodName) {
+      'getInt8' ||
+      'getUint8' ||
+      'getInt16' ||
+      'getUint16' ||
+      'getInt32' ||
+      'getUint32' ||
+      'getFloat32' ||
+      'getFloat64' ||
+      'setInt8' ||
+      'setUint8' ||
+      'setInt16' ||
+      'setUint16' ||
+      'setInt32' ||
+      'setUint32' ||
+      'setFloat32' ||
+      'setFloat64' => dartMethodName,
+      'getInt64' => 'getBigInt64',
+      'getUint64' => 'getBigUint64',
+      'setInt64' => 'setBigInt64',
+      'setUint64' => 'setBigUint64',
+      _ => null,
+    };
   }
 
   EsmExpressionIr? _lowerCoreUriInstanceInvocation(
@@ -10888,6 +11035,16 @@ final class KernelToEsmIrLoweringStage
     if (expression.arguments.named.isNotEmpty) {
       return null;
     }
+    final convertConstructor = _lowerDartConvertConstructorInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (convertConstructor != null) {
+      return convertConstructor;
+    }
     final mathConstructor = _lowerMathConstructorInvocation(
       world,
       helpers,
@@ -11451,6 +11608,52 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerDartConvertConstructorInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.ConstructorInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final path = kernelReferencePath(expression.targetReference);
+    if (!path.startsWith('dart:convert::_Byte') ||
+        expression.arguments.positional.length != 1) {
+      return null;
+    }
+    final helperName = switch (path) {
+      final value
+          when value.startsWith(
+            'dart:convert::_ByteAdapterSink::@constructors::',
+          ) =>
+        '__dartByteConversionSinkFrom',
+      final value
+          when value.startsWith(
+            'dart:convert::_ByteCallbackSink::@constructors::',
+          ) =>
+        '__dartByteConversionSink',
+      _ => null,
+    };
+    if (helperName == null) {
+      return null;
+    }
+    helpers.require(EsmRuntimeHelper.byteConversionSink);
+    return EsmCallIr(
+      callee: EsmIdentifierIr(helperName),
+      arguments: [
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.arguments.positional.single,
+          thisExpression: thisExpression,
+        ),
+      ],
+    );
   }
 
   EsmExpressionIr? _lowerCoreTimeConstructorInvocation(

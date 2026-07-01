@@ -50,7 +50,7 @@ export class Adder {
   }
 }
 
-export const add2 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 })));
+export const add2 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.create(Adder.prototype, { base: { value: 2, enumerable: true } })));
 export function apply(fn, value) {
   return fn(value);
 }
@@ -61,8 +61,8 @@ export function main() {
   let dynamicFunction = (value) => {
     return value * 2;
   };
-  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 }))).call(5))} ${__dartStr(add3.call(5))} ${__dartStr(apply((function() {
-    const $receiver = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 2 })));
+  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.create(Adder.prototype, { base: { value: 2, enumerable: true } }))).call(5))} ${__dartStr(add3.call(5))} ${__dartStr(apply((function() {
+    const $receiver = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 2})\"]", () => Object.freeze(Object.create(Adder.prototype, { base: { value: 2, enumerable: true } })));
     return function(value) {
       return $receiver.call(value);
     };

@@ -203,6 +203,10 @@ function __dartIntParse(source, radix = null) {
   return value;
 }
 
+function __dartShr(left, right) {
+  return Math.floor(Number(left) / (2 ** Number(right)));
+}
+
 function __dartIterableJoin(iterable, separator = "") {
   return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
 }
@@ -1688,7 +1692,7 @@ class DefaultEquality {
 }
 
 class IterableEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
@@ -1726,10 +1730,10 @@ class IterableEquality {
       let c = this._elementEquality_package_collection_src_equality_dart.hash(element);
       hash = hash + c & 2147483647;
       hash = hash + (hash << 10) & 2147483647;
-      hash = hash ^ hash >> 6;
+      hash = hash ^ __dartShr(hash, 6);
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -1800,7 +1804,7 @@ class _UnorderedEquality {
       hash = hash + c & 2147483647;
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -1810,7 +1814,7 @@ Object.defineProperty(_UnorderedEquality, Symbol.hasInstance, { value: function(
   return value != null && (_UnorderedEquality.prototype.isPrototypeOf(value) || value[$_UnorderedEquality_interface] === true);
 } });
 class UnorderedIterableEquality extends _UnorderedEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     super(elementEquality);
   }
   isValidKey(o) {
@@ -2570,7 +2574,7 @@ class QueueList {
     }
   }
   _preGrow_package_collection_src_queue_list_dart(newElementCount) {
-    newElementCount = newElementCount + (newElementCount >> 1);
+    newElementCount = newElementCount + __dartShr(newElementCount, 1);
     let newCapacity = QueueList._nextPowerOf2_package_collection_src_queue_list_dart(newElementCount);
     let newTable = Array(newCapacity).fill(null);
     this._tail_package_collection_src_queue_list_dart = this._writeToList_package_collection_src_queue_list_dart(newTable);
@@ -3492,10 +3496,10 @@ class Context {
     return pathParsed.toString();
   }
   isWithin(parent, child) {
-    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(parent, child), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))));
+    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(parent, child), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))));
   }
   equals(path1, path2) {
-    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(path1, path2), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" }))));
+    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(path1, path2), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } }))));
   }
   _isWithinOrEquals_package_path_src_context_dart(parent, child) {
     const parentIsAbsolute = this.isAbsolute(parent);
@@ -3526,7 +3530,7 @@ class Context {
       }
     }
     const result = this._isWithinOrEqualsFast_package_path_src_context_dart(parent, child);
-    if (!(__dartEquals(result, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })))))) {
+    if (!(__dartEquals(result, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })))))) {
       return result;
     }
     let relative = null;
@@ -3535,21 +3539,21 @@ class Context {
     } catch ($error) {
       if ($error instanceof PathException) {
         const _ = $error;
-        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
       } else {
         throw $error;
       }
     }
     if (!(this.isRelative(relative))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
     }
     if (__dartEquals(relative, ".")) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } })));
     }
     if (__dartEquals(relative, "..")) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
     }
-    return (((relative.length >= 3 && relative.startsWith("..")) && this.style.isSeparator(relative.charCodeAt(2))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))));
+    return (((relative.length >= 3 && relative.startsWith("..")) && this.style.isSeparator(relative.charCodeAt(2))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))));
   }
   _isWithinOrEqualsFast_package_path_src_context_dart(parent, child) {
     if (__dartEquals(parent, ".")) {
@@ -3558,13 +3562,13 @@ class Context {
     const parentRootLength = this.style.rootLength(parent);
     const childRootLength = this.style.rootLength(child);
     if (!(__dartEquals(parentRootLength, childRootLength))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
     }
     for (let i = 0; i < parentRootLength; i = i + 1) {
       const parentCodeUnit = parent.charCodeAt(i);
       const childCodeUnit = child.charCodeAt(i);
       if (!(this.style.codeUnitsEqual(parentCodeUnit, childCodeUnit))) {
-        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
       }
     }
     let lastCodeUnit = 47;
@@ -3609,7 +3613,7 @@ class Context {
             if (__dartEquals(parentCodeUnit_1, 46)) {
               parentIndex = parentIndex + 1;
               if ((__dartEquals(parentIndex, parent.length) || this.style.isSeparator(parent.charCodeAt(parentIndex)))) {
-                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
               }
             }
           }
@@ -3626,19 +3630,19 @@ class Context {
             if (__dartEquals(childCodeUnit_1, 46)) {
               childIndex = childIndex + 1;
               if ((__dartEquals(childIndex, child.length) || this.style.isSeparator(child.charCodeAt(childIndex)))) {
-                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
               }
             }
           }
           const childDirection = this._pathDirection_package_path_src_context_dart(child, childIndex);
-          if (!(__dartEquals(childDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" })))))) {
-            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+          if (!(__dartEquals(childDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } })))))) {
+            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
           }
           const parentDirection = this._pathDirection_package_path_src_context_dart(parent, parentIndex);
-          if (!(__dartEquals(parentDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" })))))) {
-            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+          if (!(__dartEquals(parentDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } })))))) {
+            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
           }
-          return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+          return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
         }
       }
     }
@@ -3649,19 +3653,19 @@ class Context {
         (lastParentSeparator === null ? lastParentSeparator = Math.max(0, parentRootLength - 1) : null);
       }
       const direction = this._pathDirection_package_path_src_context_dart(parent, lastParentSeparator);
-      if (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))))) {
-        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" })));
+      if (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } }))))) {
+        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } })));
       }
-      return (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" })))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))));
+      return (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } })))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))));
     }
     const direction_1 = this._pathDirection_package_path_src_context_dart(child, childIndex);
-    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" })));
+    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } }))))) {
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } })));
     }
-    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" }))))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } }))))) {
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
     }
-    return ((this.style.isSeparator(child.charCodeAt(childIndex)) || this.style.isSeparator(lastCodeUnit)) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))));
+    return ((this.style.isSeparator(child.charCodeAt(childIndex)) || this.style.isSeparator(lastCodeUnit)) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))));
   }
   _pathDirection_package_path_src_context_dart(path, index) {
     let depth = 0;
@@ -3700,15 +3704,15 @@ class Context {
       }
     }
     if (depth < 0) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } })));
     }
     if (__dartEquals(depth, 0)) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } })));
     }
     if (reachedRoot) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "reaches root" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "reaches root", enumerable: true } })));
     }
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" })));
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } })));
   }
   hash(path) {
     path = this.absolute(path);
@@ -3807,25 +3811,25 @@ class _PathDirection {
   }
 }
 
-const $_PathDirection_aboveRoot = __dartLazyField("_PathDirection.aboveRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" }))), false);
+const $_PathDirection_aboveRoot = __dartLazyField("_PathDirection.aboveRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "aboveRoot", { get: function() {
   return $_PathDirection_aboveRoot.get();
 }, set: function(value) {
   $_PathDirection_aboveRoot.set(value);
 }, enumerable: true });
-const $_PathDirection_atRoot = __dartLazyField("_PathDirection.atRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))), false);
+const $_PathDirection_atRoot = __dartLazyField("_PathDirection.atRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "atRoot", { get: function() {
   return $_PathDirection_atRoot.get();
 }, set: function(value) {
   $_PathDirection_atRoot.set(value);
 }, enumerable: true });
-const $_PathDirection_reachesRoot = __dartLazyField("_PathDirection.reachesRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "reaches root" }))), false);
+const $_PathDirection_reachesRoot = __dartLazyField("_PathDirection.reachesRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "reaches root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "reachesRoot", { get: function() {
   return $_PathDirection_reachesRoot.get();
 }, set: function(value) {
   $_PathDirection_reachesRoot.set(value);
 }, enumerable: true });
-const $_PathDirection_belowRoot = __dartLazyField("_PathDirection.belowRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" }))), false);
+const $_PathDirection_belowRoot = __dartLazyField("_PathDirection.belowRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "belowRoot", { get: function() {
   return $_PathDirection_belowRoot.get();
 }, set: function(value) {
@@ -3841,25 +3845,25 @@ class _PathRelation {
   }
 }
 
-const $_PathRelation_within = __dartLazyField("_PathRelation.within", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))), false);
+const $_PathRelation_within = __dartLazyField("_PathRelation.within", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "within", { get: function() {
   return $_PathRelation_within.get();
 }, set: function(value) {
   $_PathRelation_within.set(value);
 }, enumerable: true });
-const $_PathRelation_equal = __dartLazyField("_PathRelation.equal", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" }))), false);
+const $_PathRelation_equal = __dartLazyField("_PathRelation.equal", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "equal", { get: function() {
   return $_PathRelation_equal.get();
 }, set: function(value) {
   $_PathRelation_equal.set(value);
 }, enumerable: true });
-const $_PathRelation_different = __dartLazyField("_PathRelation.different", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))), false);
+const $_PathRelation_different = __dartLazyField("_PathRelation.different", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "different", { get: function() {
   return $_PathRelation_different.get();
 }, set: function(value) {
   $_PathRelation_different.set(value);
 }, enumerable: true });
-const $_PathRelation_inconclusive = __dartLazyField("_PathRelation.inconclusive", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))), false);
+const $_PathRelation_inconclusive = __dartLazyField("_PathRelation.inconclusive", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "inconclusive", { get: function() {
   return $_PathRelation_inconclusive.get();
 }, set: function(value) {
@@ -6124,44 +6128,44 @@ class ScalarStyle {
     return $self;
   }
   get isQuoted() {
-    return (__dartEquals(this, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"SINGLE_QUOTED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "SINGLE_QUOTED" })))) || __dartEquals(this, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"DOUBLE_QUOTED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "DOUBLE_QUOTED" })))));
+    return (__dartEquals(this, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"SINGLE_QUOTED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "SINGLE_QUOTED", enumerable: true } })))) || __dartEquals(this, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"DOUBLE_QUOTED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "DOUBLE_QUOTED", enumerable: true } })))));
   }
   toString() {
     return this.name;
   }
 }
 
-const $ScalarStyle_ANY = __dartLazyField("ScalarStyle.ANY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "ANY" }))), false);
+const $ScalarStyle_ANY = __dartLazyField("ScalarStyle.ANY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "ANY", enumerable: true } }))), false);
 Object.defineProperty(ScalarStyle, "ANY", { get: function() {
   return $ScalarStyle_ANY.get();
 }, set: function(value) {
   $ScalarStyle_ANY.set(value);
 }, enumerable: true });
-const $ScalarStyle_PLAIN = __dartLazyField("ScalarStyle.PLAIN", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))), false);
+const $ScalarStyle_PLAIN = __dartLazyField("ScalarStyle.PLAIN", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "PLAIN", enumerable: true } }))), false);
 Object.defineProperty(ScalarStyle, "PLAIN", { get: function() {
   return $ScalarStyle_PLAIN.get();
 }, set: function(value) {
   $ScalarStyle_PLAIN.set(value);
 }, enumerable: true });
-const $ScalarStyle_LITERAL = __dartLazyField("ScalarStyle.LITERAL", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"LITERAL\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "LITERAL" }))), false);
+const $ScalarStyle_LITERAL = __dartLazyField("ScalarStyle.LITERAL", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"LITERAL\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "LITERAL", enumerable: true } }))), false);
 Object.defineProperty(ScalarStyle, "LITERAL", { get: function() {
   return $ScalarStyle_LITERAL.get();
 }, set: function(value) {
   $ScalarStyle_LITERAL.set(value);
 }, enumerable: true });
-const $ScalarStyle_FOLDED = __dartLazyField("ScalarStyle.FOLDED", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"FOLDED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "FOLDED" }))), false);
+const $ScalarStyle_FOLDED = __dartLazyField("ScalarStyle.FOLDED", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"FOLDED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "FOLDED", enumerable: true } }))), false);
 Object.defineProperty(ScalarStyle, "FOLDED", { get: function() {
   return $ScalarStyle_FOLDED.get();
 }, set: function(value) {
   $ScalarStyle_FOLDED.set(value);
 }, enumerable: true });
-const $ScalarStyle_SINGLE_QUOTED = __dartLazyField("ScalarStyle.SINGLE_QUOTED", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"SINGLE_QUOTED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "SINGLE_QUOTED" }))), false);
+const $ScalarStyle_SINGLE_QUOTED = __dartLazyField("ScalarStyle.SINGLE_QUOTED", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"SINGLE_QUOTED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "SINGLE_QUOTED", enumerable: true } }))), false);
 Object.defineProperty(ScalarStyle, "SINGLE_QUOTED", { get: function() {
   return $ScalarStyle_SINGLE_QUOTED.get();
 }, set: function(value) {
   $ScalarStyle_SINGLE_QUOTED.set(value);
 }, enumerable: true });
-const $ScalarStyle_DOUBLE_QUOTED = __dartLazyField("ScalarStyle.DOUBLE_QUOTED", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"DOUBLE_QUOTED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "DOUBLE_QUOTED" }))), false);
+const $ScalarStyle_DOUBLE_QUOTED = __dartLazyField("ScalarStyle.DOUBLE_QUOTED", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"DOUBLE_QUOTED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "DOUBLE_QUOTED", enumerable: true } }))), false);
 Object.defineProperty(ScalarStyle, "DOUBLE_QUOTED", { get: function() {
   return $ScalarStyle_DOUBLE_QUOTED.get();
 }, set: function(value) {
@@ -6182,19 +6186,19 @@ class CollectionStyle {
   }
 }
 
-const $CollectionStyle_ANY = __dartLazyField("CollectionStyle.ANY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))), false);
+const $CollectionStyle_ANY = __dartLazyField("CollectionStyle.ANY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))), false);
 Object.defineProperty(CollectionStyle, "ANY", { get: function() {
   return $CollectionStyle_ANY.get();
 }, set: function(value) {
   $CollectionStyle_ANY.set(value);
 }, enumerable: true });
-const $CollectionStyle_BLOCK = __dartLazyField("CollectionStyle.BLOCK", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), false);
+const $CollectionStyle_BLOCK = __dartLazyField("CollectionStyle.BLOCK", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "BLOCK", enumerable: true } }))), false);
 Object.defineProperty(CollectionStyle, "BLOCK", { get: function() {
   return $CollectionStyle_BLOCK.get();
 }, set: function(value) {
   $CollectionStyle_BLOCK.set(value);
 }, enumerable: true });
-const $CollectionStyle_FLOW = __dartLazyField("CollectionStyle.FLOW", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))), false);
+const $CollectionStyle_FLOW = __dartLazyField("CollectionStyle.FLOW", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "FLOW", enumerable: true } }))), false);
 Object.defineProperty(CollectionStyle, "FLOW", { get: function() {
   return $CollectionStyle_FLOW.get();
 }, set: function(value) {
@@ -6227,9 +6231,9 @@ class VersionDirectiveToken {
     Object.defineProperty(this, $Token_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 2, __dartEnumName: "versionDirective", name: "versionDirective", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "versionDirective", enumerable: true }, name: { value: "versionDirective", enumerable: true }, toString: { value: function() {
       return "TokenType.versionDirective";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `VERSION_DIRECTIVE ${__dartStr(this.major)}.${__dartStr(this.minor)}`;
@@ -6247,9 +6251,9 @@ class TagDirectiveToken {
     Object.defineProperty(this, $Token_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 3, __dartEnumName: "tagDirective", name: "tagDirective", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "tagDirective", enumerable: true }, name: { value: "tagDirective", enumerable: true }, toString: { value: function() {
       return "TokenType.tagDirective";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `TAG_DIRECTIVE ${__dartStr(this.handle)} ${__dartStr(this.prefix)}`;
@@ -6265,9 +6269,9 @@ class AnchorToken {
     Object.defineProperty(this, $Token_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 18, __dartEnumName: "anchor", name: "anchor", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 18, enumerable: true }, __dartEnumName: { value: "anchor", enumerable: true }, name: { value: "anchor", enumerable: true }, toString: { value: function() {
       return "TokenType.anchor";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `ANCHOR ${__dartStr(this.name)}`;
@@ -6283,9 +6287,9 @@ class AliasToken {
     Object.defineProperty(this, $Token_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 17, __dartEnumName: "alias", name: "alias", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 17, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
       return "TokenType.alias";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `ALIAS ${__dartStr(this.name)}`;
@@ -6303,9 +6307,9 @@ class TagToken {
     Object.defineProperty(this, $Token_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 19, __dartEnumName: "tag", name: "tag", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 19, enumerable: true }, __dartEnumName: { value: "tag", enumerable: true }, name: { value: "tag", enumerable: true }, toString: { value: function() {
       return "TokenType.tag";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `TAG ${__dartStr(this.handle)} ${__dartStr(this.suffix)}`;
@@ -6323,9 +6327,9 @@ class ScalarToken {
     Object.defineProperty(this, $Token_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 20, __dartEnumName: "scalar", name: "scalar", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 20, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
       return "TokenType.scalar";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `SCALAR ${__dartStr(this.style)} "${__dartStr(this.value)}"`;
@@ -6344,217 +6348,217 @@ class TokenType {
   }
 }
 
-const $TokenType_streamStart = __dartLazyField("TokenType.streamStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 0, __dartEnumName: "streamStart", name: "streamStart", toString: function() {
+const $TokenType_streamStart = __dartLazyField("TokenType.streamStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "streamStart", enumerable: true }, name: { value: "streamStart", enumerable: true }, toString: { value: function() {
   return "TokenType.streamStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "streamStart", { get: function() {
   return $TokenType_streamStart.get();
 }, set: function(value) {
   $TokenType_streamStart.set(value);
 }, enumerable: true });
-const $TokenType_streamEnd = __dartLazyField("TokenType.streamEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+const $TokenType_streamEnd = __dartLazyField("TokenType.streamEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.streamEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "streamEnd", { get: function() {
   return $TokenType_streamEnd.get();
 }, set: function(value) {
   $TokenType_streamEnd.set(value);
 }, enumerable: true });
-const $TokenType_versionDirective = __dartLazyField("TokenType.versionDirective", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 2, __dartEnumName: "versionDirective", name: "versionDirective", toString: function() {
+const $TokenType_versionDirective = __dartLazyField("TokenType.versionDirective", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "versionDirective", enumerable: true }, name: { value: "versionDirective", enumerable: true }, toString: { value: function() {
   return "TokenType.versionDirective";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "versionDirective", { get: function() {
   return $TokenType_versionDirective.get();
 }, set: function(value) {
   $TokenType_versionDirective.set(value);
 }, enumerable: true });
-const $TokenType_tagDirective = __dartLazyField("TokenType.tagDirective", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 3, __dartEnumName: "tagDirective", name: "tagDirective", toString: function() {
+const $TokenType_tagDirective = __dartLazyField("TokenType.tagDirective", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "tagDirective", enumerable: true }, name: { value: "tagDirective", enumerable: true }, toString: { value: function() {
   return "TokenType.tagDirective";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "tagDirective", { get: function() {
   return $TokenType_tagDirective.get();
 }, set: function(value) {
   $TokenType_tagDirective.set(value);
 }, enumerable: true });
-const $TokenType_documentStart = __dartLazyField("TokenType.documentStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 4, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+const $TokenType_documentStart = __dartLazyField("TokenType.documentStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
   return "TokenType.documentStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "documentStart", { get: function() {
   return $TokenType_documentStart.get();
 }, set: function(value) {
   $TokenType_documentStart.set(value);
 }, enumerable: true });
-const $TokenType_documentEnd = __dartLazyField("TokenType.documentEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 5, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+const $TokenType_documentEnd = __dartLazyField("TokenType.documentEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.documentEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "documentEnd", { get: function() {
   return $TokenType_documentEnd.get();
 }, set: function(value) {
   $TokenType_documentEnd.set(value);
 }, enumerable: true });
-const $TokenType_blockSequenceStart = __dartLazyField("TokenType.blockSequenceStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 6, __dartEnumName: "blockSequenceStart", name: "blockSequenceStart", toString: function() {
+const $TokenType_blockSequenceStart = __dartLazyField("TokenType.blockSequenceStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "blockSequenceStart", enumerable: true }, name: { value: "blockSequenceStart", enumerable: true }, toString: { value: function() {
   return "TokenType.blockSequenceStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "blockSequenceStart", { get: function() {
   return $TokenType_blockSequenceStart.get();
 }, set: function(value) {
   $TokenType_blockSequenceStart.set(value);
 }, enumerable: true });
-const $TokenType_blockMappingStart = __dartLazyField("TokenType.blockMappingStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 7, __dartEnumName: "blockMappingStart", name: "blockMappingStart", toString: function() {
+const $TokenType_blockMappingStart = __dartLazyField("TokenType.blockMappingStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "blockMappingStart", enumerable: true }, name: { value: "blockMappingStart", enumerable: true }, toString: { value: function() {
   return "TokenType.blockMappingStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "blockMappingStart", { get: function() {
   return $TokenType_blockMappingStart.get();
 }, set: function(value) {
   $TokenType_blockMappingStart.set(value);
 }, enumerable: true });
-const $TokenType_blockEnd = __dartLazyField("TokenType.blockEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+const $TokenType_blockEnd = __dartLazyField("TokenType.blockEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.blockEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "blockEnd", { get: function() {
   return $TokenType_blockEnd.get();
 }, set: function(value) {
   $TokenType_blockEnd.set(value);
 }, enumerable: true });
-const $TokenType_flowSequenceStart = __dartLazyField("TokenType.flowSequenceStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 9, __dartEnumName: "flowSequenceStart", name: "flowSequenceStart", toString: function() {
+const $TokenType_flowSequenceStart = __dartLazyField("TokenType.flowSequenceStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "flowSequenceStart", enumerable: true }, name: { value: "flowSequenceStart", enumerable: true }, toString: { value: function() {
   return "TokenType.flowSequenceStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "flowSequenceStart", { get: function() {
   return $TokenType_flowSequenceStart.get();
 }, set: function(value) {
   $TokenType_flowSequenceStart.set(value);
 }, enumerable: true });
-const $TokenType_flowSequenceEnd = __dartLazyField("TokenType.flowSequenceEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+const $TokenType_flowSequenceEnd = __dartLazyField("TokenType.flowSequenceEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.flowSequenceEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "flowSequenceEnd", { get: function() {
   return $TokenType_flowSequenceEnd.get();
 }, set: function(value) {
   $TokenType_flowSequenceEnd.set(value);
 }, enumerable: true });
-const $TokenType_flowMappingStart = __dartLazyField("TokenType.flowMappingStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 11, __dartEnumName: "flowMappingStart", name: "flowMappingStart", toString: function() {
+const $TokenType_flowMappingStart = __dartLazyField("TokenType.flowMappingStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 11, enumerable: true }, __dartEnumName: { value: "flowMappingStart", enumerable: true }, name: { value: "flowMappingStart", enumerable: true }, toString: { value: function() {
   return "TokenType.flowMappingStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "flowMappingStart", { get: function() {
   return $TokenType_flowMappingStart.get();
 }, set: function(value) {
   $TokenType_flowMappingStart.set(value);
 }, enumerable: true });
-const $TokenType_flowMappingEnd = __dartLazyField("TokenType.flowMappingEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+const $TokenType_flowMappingEnd = __dartLazyField("TokenType.flowMappingEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.flowMappingEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "flowMappingEnd", { get: function() {
   return $TokenType_flowMappingEnd.get();
 }, set: function(value) {
   $TokenType_flowMappingEnd.set(value);
 }, enumerable: true });
-const $TokenType_blockEntry = __dartLazyField("TokenType.blockEntry", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+const $TokenType_blockEntry = __dartLazyField("TokenType.blockEntry", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
   return "TokenType.blockEntry";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "blockEntry", { get: function() {
   return $TokenType_blockEntry.get();
 }, set: function(value) {
   $TokenType_blockEntry.set(value);
 }, enumerable: true });
-const $TokenType_flowEntry = __dartLazyField("TokenType.flowEntry", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+const $TokenType_flowEntry = __dartLazyField("TokenType.flowEntry", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
   return "TokenType.flowEntry";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "flowEntry", { get: function() {
   return $TokenType_flowEntry.get();
 }, set: function(value) {
   $TokenType_flowEntry.set(value);
 }, enumerable: true });
-const $TokenType_key = __dartLazyField("TokenType.key", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+const $TokenType_key = __dartLazyField("TokenType.key", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
   return "TokenType.key";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "key", { get: function() {
   return $TokenType_key.get();
 }, set: function(value) {
   $TokenType_key.set(value);
 }, enumerable: true });
-const $TokenType_value = __dartLazyField("TokenType.value", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+const $TokenType_value = __dartLazyField("TokenType.value", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
   return "TokenType.value";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "value", { get: function() {
   return $TokenType_value.get();
 }, set: function(value) {
   $TokenType_value.set(value);
 }, enumerable: true });
-const $TokenType_alias = __dartLazyField("TokenType.alias", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 17, __dartEnumName: "alias", name: "alias", toString: function() {
+const $TokenType_alias = __dartLazyField("TokenType.alias", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 17, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
   return "TokenType.alias";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "alias", { get: function() {
   return $TokenType_alias.get();
 }, set: function(value) {
   $TokenType_alias.set(value);
 }, enumerable: true });
-const $TokenType_anchor = __dartLazyField("TokenType.anchor", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 18, __dartEnumName: "anchor", name: "anchor", toString: function() {
+const $TokenType_anchor = __dartLazyField("TokenType.anchor", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 18, enumerable: true }, __dartEnumName: { value: "anchor", enumerable: true }, name: { value: "anchor", enumerable: true }, toString: { value: function() {
   return "TokenType.anchor";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "anchor", { get: function() {
   return $TokenType_anchor.get();
 }, set: function(value) {
   $TokenType_anchor.set(value);
 }, enumerable: true });
-const $TokenType_tag = __dartLazyField("TokenType.tag", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 19, __dartEnumName: "tag", name: "tag", toString: function() {
+const $TokenType_tag = __dartLazyField("TokenType.tag", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 19, enumerable: true }, __dartEnumName: { value: "tag", enumerable: true }, name: { value: "tag", enumerable: true }, toString: { value: function() {
   return "TokenType.tag";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "tag", { get: function() {
   return $TokenType_tag.get();
 }, set: function(value) {
   $TokenType_tag.set(value);
 }, enumerable: true });
-const $TokenType_scalar = __dartLazyField("TokenType.scalar", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 20, __dartEnumName: "scalar", name: "scalar", toString: function() {
+const $TokenType_scalar = __dartLazyField("TokenType.scalar", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 20, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
   return "TokenType.scalar";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(TokenType, "scalar", { get: function() {
   return $TokenType_scalar.get();
 }, set: function(value) {
   $TokenType_scalar.set(value);
 }, enumerable: true });
-const $TokenType_values = __dartLazyField("TokenType.values", () => __dartConst("[\"list\",\"InterfaceType(TokenType)\",[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 0, __dartEnumName: "streamStart", name: "streamStart", toString: function() {
+const $TokenType_values = __dartLazyField("TokenType.values", () => __dartConst("[\"list\",\"InterfaceType(TokenType)\",[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "streamStart", enumerable: true }, name: { value: "streamStart", enumerable: true }, toString: { value: function() {
   return "TokenType.streamStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.streamEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 2, __dartEnumName: "versionDirective", name: "versionDirective", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "versionDirective", enumerable: true }, name: { value: "versionDirective", enumerable: true }, toString: { value: function() {
   return "TokenType.versionDirective";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 3, __dartEnumName: "tagDirective", name: "tagDirective", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "tagDirective", enumerable: true }, name: { value: "tagDirective", enumerable: true }, toString: { value: function() {
   return "TokenType.tagDirective";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 4, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
   return "TokenType.documentStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 5, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.documentEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 6, __dartEnumName: "blockSequenceStart", name: "blockSequenceStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "blockSequenceStart", enumerable: true }, name: { value: "blockSequenceStart", enumerable: true }, toString: { value: function() {
   return "TokenType.blockSequenceStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 7, __dartEnumName: "blockMappingStart", name: "blockMappingStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "blockMappingStart", enumerable: true }, name: { value: "blockMappingStart", enumerable: true }, toString: { value: function() {
   return "TokenType.blockMappingStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.blockEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 9, __dartEnumName: "flowSequenceStart", name: "flowSequenceStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "flowSequenceStart", enumerable: true }, name: { value: "flowSequenceStart", enumerable: true }, toString: { value: function() {
   return "TokenType.flowSequenceStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.flowSequenceEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 11, __dartEnumName: "flowMappingStart", name: "flowMappingStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 11, enumerable: true }, __dartEnumName: { value: "flowMappingStart", enumerable: true }, name: { value: "flowMappingStart", enumerable: true }, toString: { value: function() {
   return "TokenType.flowMappingStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
   return "TokenType.flowMappingEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
   return "TokenType.blockEntry";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
   return "TokenType.flowEntry";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
   return "TokenType.key";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
   return "TokenType.value";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 17, __dartEnumName: "alias", name: "alias", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 17, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 17, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
   return "TokenType.alias";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 18, __dartEnumName: "anchor", name: "anchor", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 18, _Enum._name: \\\"anchor\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 18, enumerable: true }, __dartEnumName: { value: "anchor", enumerable: true }, name: { value: "anchor", enumerable: true }, toString: { value: function() {
   return "TokenType.anchor";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 19, __dartEnumName: "tag", name: "tag", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 19, _Enum._name: \\\"tag\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 19, enumerable: true }, __dartEnumName: { value: "tag", enumerable: true }, name: { value: "tag", enumerable: true }, toString: { value: function() {
   return "TokenType.tag";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 20, __dartEnumName: "scalar", name: "scalar", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 20, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
   return "TokenType.scalar";
-} })))])), false);
+}, enumerable: true } })))])), false);
 Object.defineProperty(TokenType, "values", { get: function() {
   return $TokenType_values.get();
 }, set: function(value) {
@@ -6733,9 +6737,9 @@ class Scanner {
     let token = this._tokens_package_yaml_src_scanner_dart.removeFirst();
     this._tokenAvailable_package_yaml_src_scanner_dart = false;
     this._tokensParsed_package_yaml_src_scanner_dart = this._tokensParsed_package_yaml_src_scanner_dart + 1;
-    this._streamEndProduced_package_yaml_src_scanner_dart = __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+    this._streamEndProduced_package_yaml_src_scanner_dart = __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.streamEnd";
-    } }))));
+    }, enumerable: true } }))));
     return token;
   }
   advance() {
@@ -6756,9 +6760,9 @@ class Scanner {
       while (true) {
         if (this._tokens_package_yaml_src_scanner_dart.length > 0) {
           this._staleSimpleKeys_package_yaml_src_scanner_dart();
-          if (__dartEquals(__dartListMixinLast(this._tokens_package_yaml_src_scanner_dart).type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+          if (__dartEquals(__dartListMixinLast(this._tokens_package_yaml_src_scanner_dart).type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
             return "TokenType.streamEnd";
-          } }))))) {
+          }, enumerable: true } }))))) {
             break label;
           }
           if (!(__dartIterableToArray(this._simpleKeys_package_yaml_src_scanner_dart).some((key) => {
@@ -6791,15 +6795,15 @@ class Scanner {
       }
       if (this._isBlankOrEndAt_package_yaml_src_scanner_dart(3)) {
         if (this._scanner_package_yaml_src_scanner_dart.matches("---")) {
-          this._fetchDocumentIndicator_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 4, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+          this._fetchDocumentIndicator_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
             return "TokenType.documentStart";
-          } }))));
+          }, enumerable: true } }))));
           return;
         }
         if (this._scanner_package_yaml_src_scanner_dart.matches("...")) {
-          this._fetchDocumentIndicator_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 5, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+          this._fetchDocumentIndicator_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
             return "TokenType.documentEnd";
-          } }))));
+          }, enumerable: true } }))));
           return;
         }
       }
@@ -6807,24 +6811,24 @@ class Scanner {
     label: {
       switch (this._scanner_package_yaml_src_scanner_dart.peekChar()) {
         case 91:
-          this._fetchFlowCollectionStart_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 9, __dartEnumName: "flowSequenceStart", name: "flowSequenceStart", toString: function() {
+          this._fetchFlowCollectionStart_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "flowSequenceStart", enumerable: true }, name: { value: "flowSequenceStart", enumerable: true }, toString: { value: function() {
             return "TokenType.flowSequenceStart";
-          } }))));
+          }, enumerable: true } }))));
           return;
         case 123:
-          this._fetchFlowCollectionStart_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 11, __dartEnumName: "flowMappingStart", name: "flowMappingStart", toString: function() {
+          this._fetchFlowCollectionStart_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 11, enumerable: true }, __dartEnumName: { value: "flowMappingStart", enumerable: true }, name: { value: "flowMappingStart", enumerable: true }, toString: { value: function() {
             return "TokenType.flowMappingStart";
-          } }))));
+          }, enumerable: true } }))));
           return;
         case 93:
-          this._fetchFlowCollectionEnd_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+          this._fetchFlowCollectionEnd_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
             return "TokenType.flowSequenceEnd";
-          } }))));
+          }, enumerable: true } }))));
           return;
         case 125:
-          this._fetchFlowCollectionEnd_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+          this._fetchFlowCollectionEnd_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
             return "TokenType.flowMappingEnd";
-          } }))));
+          }, enumerable: true } }))));
           return;
         case 44:
           this._fetchFlowEntry_package_yaml_src_scanner_dart();
@@ -6878,13 +6882,13 @@ class Scanner {
         case 58:
           if ((!(this._inBlockContext_package_yaml_src_scanner_dart) && this._tokens_package_yaml_src_scanner_dart.length > 0)) {
             let token = __dartListMixinLast(this._tokens_package_yaml_src_scanner_dart);
-            if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+            if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
               return "TokenType.flowSequenceEnd";
-            } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+            }, enumerable: true } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
               return "TokenType.flowMappingEnd";
-            } }))))) || (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 20, __dartEnumName: "scalar", name: "scalar", toString: function() {
+            }, enumerable: true } }))))) || (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 20, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 20, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
               return "TokenType.scalar";
-            } })))) && __dartAs(token, (value) => value instanceof ScalarToken, "ScalarToken").style.isQuoted))) {
+            }, enumerable: true } })))) && __dartAs(token, (value) => value instanceof ScalarToken, "ScalarToken").style.isQuoted))) {
               this._fetchValue_package_yaml_src_scanner_dart();
               return;
             }
@@ -6922,9 +6926,9 @@ class Scanner {
         }
         if (key.required) {
           this._reportError_package_yaml_src_scanner_dart(new YamlException("Expected ':'.", this._scanner_package_yaml_src_scanner_dart.emptySpan));
-          this._tokens_package_yaml_src_scanner_dart.insert(key.tokenNumber - this._tokensParsed_package_yaml_src_scanner_dart, new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+          this._tokens_package_yaml_src_scanner_dart.insert(key.tokenNumber - this._tokensParsed_package_yaml_src_scanner_dart, new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
             return "TokenType.key";
-          } }))), __dartAs(key.location.pointSpan(), (value) => value instanceof FileSpan, "FileSpan")));
+          }, enumerable: true } }))), __dartAs(key.location.pointSpan(), (value) => value instanceof FileSpan, "FileSpan")));
         }
         __dartListLikeSet(this._simpleKeys_package_yaml_src_scanner_dart, i, null);
       }
@@ -6974,9 +6978,9 @@ class Scanner {
       return;
     }
     while (this._indent_package_yaml_src_scanner_dart > column) {
-      this._tokens_package_yaml_src_scanner_dart.add_1(new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+      this._tokens_package_yaml_src_scanner_dart.add_1(new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
         return "TokenType.blockEnd";
-      } }))), this._scanner_package_yaml_src_scanner_dart.emptySpan));
+      }, enumerable: true } }))), this._scanner_package_yaml_src_scanner_dart.emptySpan));
       __dartListRemoveLast(this._indents_package_yaml_src_scanner_dart);
     }
   }
@@ -6985,17 +6989,17 @@ class Scanner {
   }
   _fetchStreamStart_package_yaml_src_scanner_dart() {
     this._streamStartProduced_package_yaml_src_scanner_dart = true;
-    this._tokens_package_yaml_src_scanner_dart.add_1(new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 0, __dartEnumName: "streamStart", name: "streamStart", toString: function() {
+    this._tokens_package_yaml_src_scanner_dart.add_1(new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "streamStart", enumerable: true }, name: { value: "streamStart", enumerable: true }, toString: { value: function() {
       return "TokenType.streamStart";
-    } }))), this._scanner_package_yaml_src_scanner_dart.emptySpan));
+    }, enumerable: true } }))), this._scanner_package_yaml_src_scanner_dart.emptySpan));
   }
   _fetchStreamEnd_package_yaml_src_scanner_dart() {
     this._resetIndent_package_yaml_src_scanner_dart();
     this._removeSimpleKey_package_yaml_src_scanner_dart();
     this._simpleKeyAllowed_package_yaml_src_scanner_dart = false;
-    this._tokens_package_yaml_src_scanner_dart.add_1(new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+    this._tokens_package_yaml_src_scanner_dart.add_1(new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.streamEnd";
-    } }))), this._scanner_package_yaml_src_scanner_dart.emptySpan));
+    }, enumerable: true } }))), this._scanner_package_yaml_src_scanner_dart.emptySpan));
   }
   _fetchDirective_package_yaml_src_scanner_dart() {
     this._resetIndent_package_yaml_src_scanner_dart();
@@ -7031,49 +7035,49 @@ class Scanner {
   _fetchFlowEntry_package_yaml_src_scanner_dart() {
     this._removeSimpleKey_package_yaml_src_scanner_dart();
     this._simpleKeyAllowed_package_yaml_src_scanner_dart = true;
-    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
       return "TokenType.flowEntry";
-    } }))));
+    }, enumerable: true } }))));
   }
   _fetchBlockEntry_package_yaml_src_scanner_dart() {
     if (this._inBlockContext_package_yaml_src_scanner_dart) {
       if (!(this._simpleKeyAllowed_package_yaml_src_scanner_dart)) {
         throw new YamlException("Block sequence entries are not allowed here.", this._scanner_package_yaml_src_scanner_dart.emptySpan);
       }
-      this._rollIndent_package_yaml_src_scanner_dart(this._scanner_package_yaml_src_scanner_dart.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 6, __dartEnumName: "blockSequenceStart", name: "blockSequenceStart", toString: function() {
+      this._rollIndent_package_yaml_src_scanner_dart(this._scanner_package_yaml_src_scanner_dart.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "blockSequenceStart", enumerable: true }, name: { value: "blockSequenceStart", enumerable: true }, toString: { value: function() {
         return "TokenType.blockSequenceStart";
-      } }))), this._scanner_package_yaml_src_scanner_dart.location);
+      }, enumerable: true } }))), this._scanner_package_yaml_src_scanner_dart.location);
     } else {
     }
     this._removeSimpleKey_package_yaml_src_scanner_dart();
     this._simpleKeyAllowed_package_yaml_src_scanner_dart = true;
-    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEntry";
-    } }))));
+    }, enumerable: true } }))));
   }
   _fetchKey_package_yaml_src_scanner_dart() {
     if (this._inBlockContext_package_yaml_src_scanner_dart) {
       if (!(this._simpleKeyAllowed_package_yaml_src_scanner_dart)) {
         throw new YamlException("Mapping keys are not allowed here.", this._scanner_package_yaml_src_scanner_dart.emptySpan);
       }
-      this._rollIndent_package_yaml_src_scanner_dart(this._scanner_package_yaml_src_scanner_dart.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 7, __dartEnumName: "blockMappingStart", name: "blockMappingStart", toString: function() {
+      this._rollIndent_package_yaml_src_scanner_dart(this._scanner_package_yaml_src_scanner_dart.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "blockMappingStart", enumerable: true }, name: { value: "blockMappingStart", enumerable: true }, toString: { value: function() {
         return "TokenType.blockMappingStart";
-      } }))), this._scanner_package_yaml_src_scanner_dart.location);
+      }, enumerable: true } }))), this._scanner_package_yaml_src_scanner_dart.location);
     }
     this._simpleKeyAllowed_package_yaml_src_scanner_dart = this._inBlockContext_package_yaml_src_scanner_dart;
-    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
       return "TokenType.key";
-    } }))));
+    }, enumerable: true } }))));
   }
   _fetchValue_package_yaml_src_scanner_dart() {
     let simpleKey = Array.from(this._simpleKeys_package_yaml_src_scanner_dart).at(-1);
     if (!(simpleKey === null)) {
-      this._tokens_package_yaml_src_scanner_dart.insert(simpleKey.tokenNumber - this._tokensParsed_package_yaml_src_scanner_dart, new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+      this._tokens_package_yaml_src_scanner_dart.insert(simpleKey.tokenNumber - this._tokensParsed_package_yaml_src_scanner_dart, new Token(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
         return "TokenType.key";
-      } }))), __dartAs(simpleKey.location.pointSpan(), (value) => value instanceof FileSpan, "FileSpan")));
-      this._rollIndent_package_yaml_src_scanner_dart(simpleKey.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 7, __dartEnumName: "blockMappingStart", name: "blockMappingStart", toString: function() {
+      }, enumerable: true } }))), __dartAs(simpleKey.location.pointSpan(), (value) => value instanceof FileSpan, "FileSpan")));
+      this._rollIndent_package_yaml_src_scanner_dart(simpleKey.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "blockMappingStart", enumerable: true }, name: { value: "blockMappingStart", enumerable: true }, toString: { value: function() {
         return "TokenType.blockMappingStart";
-      } }))), simpleKey.location, { tokenNumber: simpleKey.tokenNumber });
+      }, enumerable: true } }))), simpleKey.location, { tokenNumber: simpleKey.tokenNumber });
       __dartListLikeSet(this._simpleKeys_package_yaml_src_scanner_dart, this._simpleKeys_package_yaml_src_scanner_dart.length - 1, null);
       this._simpleKeyAllowed_package_yaml_src_scanner_dart = false;
     } else {
@@ -7081,22 +7085,22 @@ class Scanner {
         if (!(this._simpleKeyAllowed_package_yaml_src_scanner_dart)) {
           throw new YamlException("Mapping values are not allowed here. Did you miss a colon earlier?", this._scanner_package_yaml_src_scanner_dart.emptySpan);
         }
-        this._rollIndent_package_yaml_src_scanner_dart(this._scanner_package_yaml_src_scanner_dart.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 7, __dartEnumName: "blockMappingStart", name: "blockMappingStart", toString: function() {
+        this._rollIndent_package_yaml_src_scanner_dart(this._scanner_package_yaml_src_scanner_dart.column, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "blockMappingStart", enumerable: true }, name: { value: "blockMappingStart", enumerable: true }, toString: { value: function() {
           return "TokenType.blockMappingStart";
-        } }))), this._scanner_package_yaml_src_scanner_dart.location);
+        }, enumerable: true } }))), this._scanner_package_yaml_src_scanner_dart.location);
         this._simpleKeyAllowed_package_yaml_src_scanner_dart = true;
       } else {
         if (this._simpleKeyAllowed_package_yaml_src_scanner_dart) {
           this._simpleKeyAllowed_package_yaml_src_scanner_dart = false;
-          this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+          this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
             return "TokenType.key";
-          } }))));
+          }, enumerable: true } }))));
         }
       }
     }
-    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    this._addCharToken_package_yaml_src_scanner_dart(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } }))));
+    }, enumerable: true } }))));
   }
   _addCharToken_package_yaml_src_scanner_dart(type) {
     let start = this._scanner_package_yaml_src_scanner_dart.state;
@@ -7304,17 +7308,17 @@ class Scanner {
   _scanBlockScalar_package_yaml_src_scanner_dart({ literal = false } = {}) {
     let start = this._scanner_package_yaml_src_scanner_dart.state;
     this._scanner_package_yaml_src_scanner_dart.readCodePoint();
-    let chomping = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 1, __dartEnumName: "clip", name: "clip", toString: function() {
+    let chomping = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "clip", enumerable: true }, name: { value: "clip", enumerable: true }, toString: { value: function() {
       return "_Chomping.clip";
-    } })));
+    }, enumerable: true } })));
     let increment = 0;
     let char = this._scanner_package_yaml_src_scanner_dart.peekChar();
     if ((__dartEquals(char, 43) || __dartEquals(char, 45))) {
-      chomping = (__dartEquals(char, 43) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 2, __dartEnumName: "keep", name: "keep", toString: function() {
+      chomping = (__dartEquals(char, 43) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "keep", enumerable: true }, name: { value: "keep", enumerable: true }, toString: { value: function() {
         return "_Chomping.keep";
-      } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 0, __dartEnumName: "strip", name: "strip", toString: function() {
+      }, enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "strip", enumerable: true }, name: { value: "strip", enumerable: true }, toString: { value: function() {
         return "_Chomping.strip";
-      } }))));
+      }, enumerable: true } }))));
       this._scanner_package_yaml_src_scanner_dart.readCodePoint();
       if (this._isDigit_package_yaml_src_scanner_dart) {
         if (__dartEquals(this._scanner_package_yaml_src_scanner_dart.peekChar(), 48)) {
@@ -7330,11 +7334,11 @@ class Scanner {
         increment = this._scanner_package_yaml_src_scanner_dart.readCodePoint() - 48;
         char = this._scanner_package_yaml_src_scanner_dart.peekChar();
         if ((__dartEquals(char, 43) || __dartEquals(char, 45))) {
-          chomping = (__dartEquals(char, 43) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 2, __dartEnumName: "keep", name: "keep", toString: function() {
+          chomping = (__dartEquals(char, 43) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "keep", enumerable: true }, name: { value: "keep", enumerable: true }, toString: { value: function() {
             return "_Chomping.keep";
-          } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 0, __dartEnumName: "strip", name: "strip", toString: function() {
+          }, enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "strip", enumerable: true }, name: { value: "strip", enumerable: true }, toString: { value: function() {
             return "_Chomping.strip";
-          } }))));
+          }, enumerable: true } }))));
           this._scanner_package_yaml_src_scanner_dart.readCodePoint();
         }
       }
@@ -7387,17 +7391,17 @@ class Scanner {
         trailingBreaks = pair_1.trailingBreaks;
       }
     }
-    if (!(__dartEquals(chomping, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 0, __dartEnumName: "strip", name: "strip", toString: function() {
+    if (!(__dartEquals(chomping, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "strip", enumerable: true }, name: { value: "strip", enumerable: true }, toString: { value: function() {
       return "_Chomping.strip";
-    } })))))) {
+    }, enumerable: true } })))))) {
       buffer.write(leadingBreak);
     }
-    if (__dartEquals(chomping, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 2, __dartEnumName: "keep", name: "keep", toString: function() {
+    if (__dartEquals(chomping, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "keep", enumerable: true }, name: { value: "keep", enumerable: true }, toString: { value: function() {
       return "_Chomping.keep";
-    } }))))) {
+    }, enumerable: true } }))))) {
       buffer.write(trailingBreaks);
     }
-    return new ScalarToken(this._scanner_package_yaml_src_scanner_dart.spanFrom(start, end), buffer.toString(), (literal ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"LITERAL\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "LITERAL" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"FOLDED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "FOLDED" })))));
+    return new ScalarToken(this._scanner_package_yaml_src_scanner_dart.spanFrom(start, end), buffer.toString(), (literal ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"LITERAL\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "LITERAL", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"FOLDED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "FOLDED", enumerable: true } })))));
   }
   _scanBlockScalarBreaks_package_yaml_src_scanner_dart(indent) {
     let maxIndent = 0;
@@ -7578,7 +7582,7 @@ class Scanner {
       }
     }
     this._scanner_package_yaml_src_scanner_dart.readChar();
-    return new ScalarToken(this._scanner_package_yaml_src_scanner_dart.spanFrom(start), buffer.toString(), (singleQuote ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"SINGLE_QUOTED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "SINGLE_QUOTED" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"DOUBLE_QUOTED\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "DOUBLE_QUOTED" })))));
+    return new ScalarToken(this._scanner_package_yaml_src_scanner_dart.spanFrom(start), buffer.toString(), (singleQuote ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"SINGLE_QUOTED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "SINGLE_QUOTED", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"DOUBLE_QUOTED\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "DOUBLE_QUOTED", enumerable: true } })))));
   }
   _scanPlainScalar_package_yaml_src_scanner_dart() {
     let start = this._scanner_package_yaml_src_scanner_dart.state;
@@ -7646,7 +7650,7 @@ class Scanner {
     if (leadingBreak.length > 0) {
       this._simpleKeyAllowed_package_yaml_src_scanner_dart = true;
     }
-    return new ScalarToken(this._scanner_package_yaml_src_scanner_dart.spanFrom(start, end), buffer.toString(), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))));
+    return new ScalarToken(this._scanner_package_yaml_src_scanner_dart.spanFrom(start, end), buffer.toString(), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "PLAIN", enumerable: true } }))));
   }
   _skipLine_package_yaml_src_scanner_dart() {
     let char = this._scanner_package_yaml_src_scanner_dart.peekChar();
@@ -8209,37 +8213,37 @@ class _Chomping {
   }
 }
 
-const $_Chomping_strip = __dartLazyField("_Chomping.strip", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 0, __dartEnumName: "strip", name: "strip", toString: function() {
+const $_Chomping_strip = __dartLazyField("_Chomping.strip", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "strip", enumerable: true }, name: { value: "strip", enumerable: true }, toString: { value: function() {
   return "_Chomping.strip";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(_Chomping, "strip", { get: function() {
   return $_Chomping_strip.get();
 }, set: function(value) {
   $_Chomping_strip.set(value);
 }, enumerable: true });
-const $_Chomping_clip = __dartLazyField("_Chomping.clip", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 1, __dartEnumName: "clip", name: "clip", toString: function() {
+const $_Chomping_clip = __dartLazyField("_Chomping.clip", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "clip", enumerable: true }, name: { value: "clip", enumerable: true }, toString: { value: function() {
   return "_Chomping.clip";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(_Chomping, "clip", { get: function() {
   return $_Chomping_clip.get();
 }, set: function(value) {
   $_Chomping_clip.set(value);
 }, enumerable: true });
-const $_Chomping_keep = __dartLazyField("_Chomping.keep", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 2, __dartEnumName: "keep", name: "keep", toString: function() {
+const $_Chomping_keep = __dartLazyField("_Chomping.keep", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "keep", enumerable: true }, name: { value: "keep", enumerable: true }, toString: { value: function() {
   return "_Chomping.keep";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(_Chomping, "keep", { get: function() {
   return $_Chomping_keep.get();
 }, set: function(value) {
   $_Chomping_keep.set(value);
 }, enumerable: true });
-const $_Chomping_values = __dartLazyField("_Chomping.values", () => __dartConst("[\"list\",\"InterfaceType(_Chomping)\",[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 0, __dartEnumName: "strip", name: "strip", toString: function() {
+const $_Chomping_values = __dartLazyField("_Chomping.values", () => __dartConst("[\"list\",\"InterfaceType(_Chomping)\",[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 0, _Enum._name: \\\"strip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "strip", enumerable: true }, name: { value: "strip", enumerable: true }, toString: { value: function() {
   return "_Chomping.strip";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 1, __dartEnumName: "clip", name: "clip", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 1, _Enum._name: \\\"clip\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "clip", enumerable: true }, name: { value: "clip", enumerable: true }, toString: { value: function() {
   return "_Chomping.clip";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_Chomping.prototype), { index: 2, __dartEnumName: "keep", name: "keep", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _Chomping{_Enum.index: 2, _Enum._name: \\\"keep\\\"})\"]", () => Object.freeze(Object.create(_Chomping.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "keep", enumerable: true }, name: { value: "keep", enumerable: true }, toString: { value: function() {
   return "_Chomping.keep";
-} })))])), false);
+}, enumerable: true } })))])), false);
 Object.defineProperty(_Chomping, "values", { get: function() {
   return $_Chomping_values.get();
 }, set: function(value) {
@@ -8298,12 +8302,12 @@ class Parser {
   constructor(source, { sourceUrl = null, recover = false, errorListener = null } = {}) {
     Object.defineProperty(this, "_scanner_package_yaml_src_parser_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_states_package_yaml_src_parser_dart", { value: Array(0).fill(null), writable: true, enumerable: true, configurable: true });
-    Object.defineProperty(this, "_state_package_yaml_src_parser_dart", { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"STREAM_START\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "STREAM_START" }))), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_state_package_yaml_src_parser_dart", { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"STREAM_START\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "STREAM_START", enumerable: true } }))), writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_tagDirectives_package_yaml_src_parser_dart", { value: __dartMapFromEntries([]), writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_scanner_package_yaml_src_parser_dart", { value: new Scanner(source, { sourceUrl: sourceUrl, recover: recover, errorListener: errorListener }), writable: true, enumerable: true, configurable: true });
   }
   get isDone() {
-    return __dartEquals(this._state_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "END" }))));
+    return __dartEquals(this._state_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "END", enumerable: true } }))));
   }
   parse() {
     try {
@@ -8324,51 +8328,51 @@ class Parser {
   _stateMachine_package_yaml_src_parser_dart() {
     label: {
       switch (this._state_package_yaml_src_parser_dart) {
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"STREAM_START\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "STREAM_START" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"STREAM_START\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "STREAM_START", enumerable: true } }))):
           return this._parseStreamStart_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_START", enumerable: true } }))):
           return this._parseDocumentStart_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_CONTENT\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_CONTENT" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_CONTENT\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_CONTENT", enumerable: true } }))):
           return this._parseDocumentContent_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_END", enumerable: true } }))):
           return this._parseDocumentEnd_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_NODE", enumerable: true } }))):
           return this._parseNode_package_yaml_src_parser_dart({ block: true });
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE_OR_INDENTLESS_SEQUENCE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE_OR_INDENTLESS_SEQUENCE" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE_OR_INDENTLESS_SEQUENCE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_NODE_OR_INDENTLESS_SEQUENCE", enumerable: true } }))):
           return this._parseNode_package_yaml_src_parser_dart({ block: true, indentlessSequence: true });
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_NODE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_NODE" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_NODE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_NODE", enumerable: true } }))):
           return this._parseNode_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_FIRST_ENTRY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_SEQUENCE_FIRST_ENTRY", enumerable: true } }))):
           this._scanner_package_yaml_src_parser_dart.scan();
           return this._parseBlockSequenceEntry_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_SEQUENCE_ENTRY", enumerable: true } }))):
           return this._parseBlockSequenceEntry_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "INDENTLESS_SEQUENCE_ENTRY", enumerable: true } }))):
           return this._parseIndentlessSequenceEntry_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_FIRST_KEY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_FIRST_KEY", enumerable: true } }))):
           this._scanner_package_yaml_src_parser_dart.scan();
           return this._parseBlockMappingKey_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_KEY", enumerable: true } }))):
           return this._parseBlockMappingKey_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_VALUE", enumerable: true } }))):
           return this._parseBlockMappingValue_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_FIRST_ENTRY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_FIRST_ENTRY", enumerable: true } }))):
           return this._parseFlowSequenceEntry_package_yaml_src_parser_dart({ first: true });
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY", enumerable: true } }))):
           return this._parseFlowSequenceEntry_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY", enumerable: true } }))):
           return this._parseFlowSequenceEntryMappingKey_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", enumerable: true } }))):
           return this._parseFlowSequenceEntryMappingValue_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_END", enumerable: true } }))):
           return this._parseFlowSequenceEntryMappingEnd_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_FIRST_KEY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_FIRST_KEY", enumerable: true } }))):
           return this._parseFlowMappingKey_package_yaml_src_parser_dart({ first: true });
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_KEY", enumerable: true } }))):
           return this._parseFlowMappingKey_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_VALUE", enumerable: true } }))):
           return this._parseFlowMappingValue_package_yaml_src_parser_dart();
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_EMPTY_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_EMPTY_VALUE" }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_EMPTY_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_EMPTY_VALUE", enumerable: true } }))):
           return this._parseFlowMappingValue_package_yaml_src_parser_dart({ empty: true });
         default:
           throw __dartCoreError("StateError", "Unreachable");
@@ -8377,40 +8381,40 @@ class Parser {
   }
   _parseStreamStart_package_yaml_src_parser_dart() {
     let token = this._scanner_package_yaml_src_parser_dart.scan();
-    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" })));
-    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 0, __dartEnumName: "streamStart", name: "streamStart", toString: function() {
+    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_START", enumerable: true } })));
+    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "streamStart", enumerable: true }, name: { value: "streamStart", enumerable: true }, toString: { value: function() {
       return "EventType.streamStart";
-    } }))), token.span);
+    }, enumerable: true } }))), token.span);
   }
   _parseDocumentStart_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    while (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 5, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+    while (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.documentEnd";
-    } }))))) {
+    }, enumerable: true } }))))) {
       token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
     }
-    if ((((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 2, __dartEnumName: "versionDirective", name: "versionDirective", toString: function() {
+    if ((((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "versionDirective", enumerable: true }, name: { value: "versionDirective", enumerable: true }, toString: { value: function() {
       return "TokenType.versionDirective";
-    } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 3, __dartEnumName: "tagDirective", name: "tagDirective", toString: function() {
+    }, enumerable: true } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "tagDirective", enumerable: true }, name: { value: "tagDirective", enumerable: true }, toString: { value: function() {
       return "TokenType.tagDirective";
-    } })))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 4, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+    }, enumerable: true } })))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
       return "TokenType.documentStart";
-    } })))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+    }, enumerable: true } })))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.streamEnd";
-    } }))))))) {
+    }, enumerable: true } }))))))) {
       this._processDirectives_package_yaml_src_parser_dart();
-      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" }))));
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE" })));
+      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_END", enumerable: true } }))));
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_NODE", enumerable: true } })));
       return new DocumentStartEvent(token.span.start.pointSpan());
     }
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.streamEnd";
-    } }))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "END" })));
+    }, enumerable: true } }))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "END", enumerable: true } })));
       this._scanner_package_yaml_src_parser_dart.scan();
-      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
         return "EventType.streamEnd";
-      } }))), token.span);
+      }, enumerable: true } }))), token.span);
     }
     let start = token.span;
     let versionDirective = null;
@@ -8419,13 +8423,13 @@ class Parser {
     versionDirective = _0_0.$1;
     tagDirectives = _0_0.$2;
     token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 4, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
       return "TokenType.documentStart";
-    } })))))) {
+    }, enumerable: true } })))))) {
       throw new YamlException("Expected document start.", token.span);
     }
-    __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" }))));
-    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_CONTENT\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_CONTENT" })));
+    __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_END", enumerable: true } }))));
+    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_CONTENT\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_CONTENT", enumerable: true } })));
     this._scanner_package_yaml_src_parser_dart.scan();
     return new DocumentStartEvent(start.expand(token.span), { versionDirective: versionDirective, tagDirectives: tagDirectives, isImplicit: false });
   }
@@ -8433,21 +8437,21 @@ class Parser {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
     label: {
       switch (token.type) {
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 2, __dartEnumName: "versionDirective", name: "versionDirective", toString: function() {
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "versionDirective", enumerable: true }, name: { value: "versionDirective", enumerable: true }, toString: { value: function() {
           return "TokenType.versionDirective";
-        } }))):
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 3, __dartEnumName: "tagDirective", name: "tagDirective", toString: function() {
+        }, enumerable: true } }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "tagDirective", enumerable: true }, name: { value: "tagDirective", enumerable: true }, toString: { value: function() {
           return "TokenType.tagDirective";
-        } }))):
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 4, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+        }, enumerable: true } }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 4, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
           return "TokenType.documentStart";
-        } }))):
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 5, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+        }, enumerable: true } }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
           return "TokenType.documentEnd";
-        } }))):
-        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+        }, enumerable: true } }))):
+        case __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
           return "TokenType.streamEnd";
-        } }))):
+        }, enumerable: true } }))):
           this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
           return this._processEmptyScalar_package_yaml_src_parser_dart(token.span.start);
         default:
@@ -8457,11 +8461,11 @@ class Parser {
   }
   _parseDocumentEnd_package_yaml_src_parser_dart() {
     __dartMapClear(this._tagDirectives_package_yaml_src_parser_dart);
-    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" })));
+    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_START", enumerable: true } })));
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 5, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 5, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.documentEnd";
-    } }))))) {
+    }, enumerable: true } }))))) {
       this._scanner_package_yaml_src_parser_dart.scan();
       return new DocumentEndEvent(token.span, { isImplicit: false });
     } else {
@@ -8513,167 +8517,167 @@ class Parser {
         tag = tagDirective.prefix + (tagToken?.suffix ?? "");
       }
     }
-    if ((indentlessSequence && __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+    if ((indentlessSequence && __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEntry";
-    } })))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" })));
-      return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), { anchor: anchor, tag: tag });
+    }, enumerable: true } })))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "INDENTLESS_SEQUENCE_ENTRY", enumerable: true } })));
+      return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "BLOCK", enumerable: true } }))), { anchor: anchor, tag: tag });
     }
     if (token instanceof ScalarToken) {
-      if ((tag === null && !(__dartEquals(token.style, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))))))) {
+      if ((tag === null && !(__dartEquals(token.style, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "PLAIN", enumerable: true } }))))))) {
         tag = "!";
       }
       this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
       this._scanner_package_yaml_src_parser_dart.scan();
       return new ScalarEvent(span.expand(token.span), token.value, token.style, { anchor: anchor, tag: tag });
     }
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 9, __dartEnumName: "flowSequenceStart", name: "flowSequenceStart", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 9, _Enum._name: \\\"flowSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "flowSequenceStart", enumerable: true }, name: { value: "flowSequenceStart", enumerable: true }, toString: { value: function() {
       return "TokenType.flowSequenceStart";
-    } }))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_FIRST_ENTRY" })));
-      return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))), { anchor: anchor, tag: tag });
+    }, enumerable: true } }))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_FIRST_ENTRY", enumerable: true } })));
+      return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "FLOW", enumerable: true } }))), { anchor: anchor, tag: tag });
     }
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 11, __dartEnumName: "flowMappingStart", name: "flowMappingStart", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 11, _Enum._name: \\\"flowMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 11, enumerable: true }, __dartEnumName: { value: "flowMappingStart", enumerable: true }, name: { value: "flowMappingStart", enumerable: true }, toString: { value: function() {
       return "TokenType.flowMappingStart";
-    } }))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_FIRST_KEY" })));
-      return new MappingStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))), { anchor: anchor, tag: tag });
+    }, enumerable: true } }))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_FIRST_KEY", enumerable: true } })));
+      return new MappingStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "FLOW", enumerable: true } }))), { anchor: anchor, tag: tag });
     }
-    if ((block && __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 6, __dartEnumName: "blockSequenceStart", name: "blockSequenceStart", toString: function() {
+    if ((block && __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 6, _Enum._name: \\\"blockSequenceStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "blockSequenceStart", enumerable: true }, name: { value: "blockSequenceStart", enumerable: true }, toString: { value: function() {
       return "TokenType.blockSequenceStart";
-    } })))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_FIRST_ENTRY" })));
-      return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), { anchor: anchor, tag: tag });
+    }, enumerable: true } })))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_SEQUENCE_FIRST_ENTRY", enumerable: true } })));
+      return new SequenceStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "BLOCK", enumerable: true } }))), { anchor: anchor, tag: tag });
     }
-    if ((block && __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 7, __dartEnumName: "blockMappingStart", name: "blockMappingStart", toString: function() {
+    if ((block && __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 7, _Enum._name: \\\"blockMappingStart\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "blockMappingStart", enumerable: true }, name: { value: "blockMappingStart", enumerable: true }, toString: { value: function() {
       return "TokenType.blockMappingStart";
-    } })))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_FIRST_KEY" })));
-      return new MappingStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "BLOCK" }))), { anchor: anchor, tag: tag });
+    }, enumerable: true } })))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_FIRST_KEY", enumerable: true } })));
+      return new MappingStartEvent(span.expand(token.span), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"BLOCK\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "BLOCK", enumerable: true } }))), { anchor: anchor, tag: tag });
     }
     if ((!(anchor === null) || !(tag === null))) {
       this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
-      return new ScalarEvent(span, "", __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))), { anchor: anchor, tag: tag });
+      return new ScalarEvent(span, "", __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "PLAIN", enumerable: true } }))), { anchor: anchor, tag: tag });
     }
     throw new YamlException("Expected node content.", span);
   }
   _parseBlockSequenceEntry_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEntry";
-    } }))))) {
+    }, enumerable: true } }))))) {
       let start = token.span.start;
       token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
-      if ((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+      if ((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
         return "TokenType.blockEntry";
-      } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+      }, enumerable: true } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
         return "TokenType.blockEnd";
-      } })))))) {
-        this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" })));
+      }, enumerable: true } })))))) {
+        this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_SEQUENCE_ENTRY", enumerable: true } })));
         return this._processEmptyScalar_package_yaml_src_parser_dart(start);
       } else {
-        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" }))));
+        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_SEQUENCE_ENTRY", enumerable: true } }))));
         return this._parseNode_package_yaml_src_parser_dart({ block: true });
       }
     }
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEnd";
-    } }))))) {
+    }, enumerable: true } }))))) {
       this._scanner_package_yaml_src_parser_dart.scan();
       this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
-      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 7, __dartEnumName: "sequenceEnd", name: "sequenceEnd", toString: function() {
+      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "sequenceEnd", enumerable: true }, name: { value: "sequenceEnd", enumerable: true }, toString: { value: function() {
         return "EventType.sequenceEnd";
-      } }))), token.span);
+      }, enumerable: true } }))), token.span);
     }
     throw new YamlException("While parsing a block collection, expected '-'.", token.span.start.pointSpan());
   }
   _parseIndentlessSequenceEntry_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEntry";
-    } })))))) {
+    }, enumerable: true } })))))) {
       this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
-      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 7, __dartEnumName: "sequenceEnd", name: "sequenceEnd", toString: function() {
+      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "sequenceEnd", enumerable: true }, name: { value: "sequenceEnd", enumerable: true }, toString: { value: function() {
         return "EventType.sequenceEnd";
-      } }))), token.span.start.pointSpan());
+      }, enumerable: true } }))), token.span.start.pointSpan());
     }
     let start = token.span.start;
     token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
-    if ((((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 13, __dartEnumName: "blockEntry", name: "blockEntry", toString: function() {
+    if ((((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 13, _Enum._name: \\\"blockEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 13, enumerable: true }, __dartEnumName: { value: "blockEntry", enumerable: true }, name: { value: "blockEntry", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEntry";
-    } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+    }, enumerable: true } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
       return "TokenType.key";
-    } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    }, enumerable: true } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+    }, enumerable: true } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEnd";
-    } })))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" })));
+    }, enumerable: true } })))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "INDENTLESS_SEQUENCE_ENTRY", enumerable: true } })));
       return this._processEmptyScalar_package_yaml_src_parser_dart(start);
     } else {
-      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" }))));
+      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "INDENTLESS_SEQUENCE_ENTRY", enumerable: true } }))));
       return this._parseNode_package_yaml_src_parser_dart({ block: true });
     }
   }
   _parseBlockMappingKey_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
       return "TokenType.key";
-    } }))))) {
+    }, enumerable: true } }))))) {
       let start = token.span.start;
       token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
-      if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+      if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
         return "TokenType.key";
-      } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+      }, enumerable: true } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
         return "TokenType.value";
-      } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+      }, enumerable: true } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
         return "TokenType.blockEnd";
-      } })))))) {
-        this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" })));
+      }, enumerable: true } })))))) {
+        this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_VALUE", enumerable: true } })));
         return this._processEmptyScalar_package_yaml_src_parser_dart(start);
       } else {
-        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" }))));
+        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_VALUE", enumerable: true } }))));
         return this._parseNode_package_yaml_src_parser_dart({ block: true, indentlessSequence: true });
       }
     }
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } }))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" })));
+    }, enumerable: true } }))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_VALUE", enumerable: true } })));
       return this._processEmptyScalar_package_yaml_src_parser_dart(token.span.start);
     }
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEnd";
-    } }))))) {
+    }, enumerable: true } }))))) {
       this._scanner_package_yaml_src_parser_dart.scan();
       this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
-      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 9, __dartEnumName: "mappingEnd", name: "mappingEnd", toString: function() {
+      return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "mappingEnd", enumerable: true }, name: { value: "mappingEnd", enumerable: true }, toString: { value: function() {
         return "EventType.mappingEnd";
-      } }))), token.span);
+      }, enumerable: true } }))), token.span);
     }
     throw new YamlException("Expected a key while parsing a block mapping.", token.span.start.pointSpan());
   }
   _parseBlockMappingValue_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } })))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" })));
+    }, enumerable: true } })))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_KEY", enumerable: true } })));
       return this._processEmptyScalar_package_yaml_src_parser_dart(token.span.start);
     }
     let start = token.span.start;
     token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
-    if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+    if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
       return "TokenType.key";
-    } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    }, enumerable: true } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 8, __dartEnumName: "blockEnd", name: "blockEnd", toString: function() {
+    }, enumerable: true } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 8, _Enum._name: \\\"blockEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "blockEnd", enumerable: true }, name: { value: "blockEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.blockEnd";
-    } })))))) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" })));
+    }, enumerable: true } })))))) {
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_KEY", enumerable: true } })));
       return this._processEmptyScalar_package_yaml_src_parser_dart(start);
     } else {
-      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" }))));
+      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_KEY", enumerable: true } }))));
       return this._parseNode_package_yaml_src_parser_dart({ block: true, indentlessSequence: true });
     }
   }
@@ -8682,161 +8686,161 @@ class Parser {
       this._scanner_package_yaml_src_parser_dart.scan();
     }
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.flowSequenceEnd";
-    } })))))) {
+    }, enumerable: true } })))))) {
       if (!(first)) {
-        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
           return "TokenType.flowEntry";
-        } })))))) {
+        }, enumerable: true } })))))) {
           throw new YamlException("While parsing a flow sequence, expected ',' or ']'.", token.span.start.pointSpan());
         }
         token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
       }
-      if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+      if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
         return "TokenType.key";
-      } }))))) {
-        this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY" })));
+      }, enumerable: true } }))))) {
+        this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY", enumerable: true } })));
         this._scanner_package_yaml_src_parser_dart.scan();
-        return new MappingStartEvent(token.span, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "FLOW" }))));
+        return new MappingStartEvent(token.span, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"FLOW\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "FLOW", enumerable: true } }))));
       } else {
-        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
           return "TokenType.flowSequenceEnd";
-        } })))))) {
-          __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" }))));
+        }, enumerable: true } })))))) {
+          __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY", enumerable: true } }))));
           return this._parseNode_package_yaml_src_parser_dart();
         }
       }
     }
     this._scanner_package_yaml_src_parser_dart.scan();
     this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
-    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 7, __dartEnumName: "sequenceEnd", name: "sequenceEnd", toString: function() {
+    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "sequenceEnd", enumerable: true }, name: { value: "sequenceEnd", enumerable: true }, toString: { value: function() {
       return "EventType.sequenceEnd";
-    } }))), token.span);
+    }, enumerable: true } }))), token.span);
   }
   _parseFlowSequenceEntryMappingKey_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    if (((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+    }, enumerable: true } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
       return "TokenType.flowEntry";
-    } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+    }, enumerable: true } }))))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.flowSequenceEnd";
-    } })))))) {
+    }, enumerable: true } })))))) {
       let start = token.span.start;
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" })));
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", enumerable: true } })));
       return this._processEmptyScalar_package_yaml_src_parser_dart(start);
     } else {
-      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" }))));
+      __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", enumerable: true } }))));
       return this._parseNode_package_yaml_src_parser_dart();
     }
   }
   _parseFlowSequenceEntryMappingValue_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } }))))) {
+    }, enumerable: true } }))))) {
       token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
-      if ((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+      if ((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
         return "TokenType.flowEntry";
-      } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 10, __dartEnumName: "flowSequenceEnd", name: "flowSequenceEnd", toString: function() {
+      }, enumerable: true } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 10, _Enum._name: \\\"flowSequenceEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 10, enumerable: true }, __dartEnumName: { value: "flowSequenceEnd", enumerable: true }, name: { value: "flowSequenceEnd", enumerable: true }, toString: { value: function() {
         return "TokenType.flowSequenceEnd";
-      } }))))))) {
-        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" }))));
+      }, enumerable: true } }))))))) {
+        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_END", enumerable: true } }))));
         return this._parseNode_package_yaml_src_parser_dart();
       }
     }
-    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" })));
+    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_END", enumerable: true } })));
     return this._processEmptyScalar_package_yaml_src_parser_dart(token.span.start);
   }
   _parseFlowSequenceEntryMappingEnd_package_yaml_src_parser_dart() {
-    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" })));
-    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 9, __dartEnumName: "mappingEnd", name: "mappingEnd", toString: function() {
+    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY", enumerable: true } })));
+    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "mappingEnd", enumerable: true }, name: { value: "mappingEnd", enumerable: true }, toString: { value: function() {
       return "EventType.mappingEnd";
-    } }))), __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek()).span.start.pointSpan());
+    }, enumerable: true } }))), __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek()).span.start.pointSpan());
   }
   _parseFlowMappingKey_package_yaml_src_parser_dart({ first = false } = {}) {
     if (first) {
       this._scanner_package_yaml_src_parser_dart.scan();
     }
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
-    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+    if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
       return "TokenType.flowMappingEnd";
-    } })))))) {
+    }, enumerable: true } })))))) {
       if (!(first)) {
-        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
           return "TokenType.flowEntry";
-        } })))))) {
+        }, enumerable: true } })))))) {
           throw new YamlException("While parsing a flow mapping, expected ',' or '}'.", token.span.start.pointSpan());
         }
         token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
       }
-      if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 15, __dartEnumName: "key", name: "key", toString: function() {
+      if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 15, _Enum._name: \\\"key\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 15, enumerable: true }, __dartEnumName: { value: "key", enumerable: true }, name: { value: "key", enumerable: true }, toString: { value: function() {
         return "TokenType.key";
-      } }))))) {
+      }, enumerable: true } }))))) {
         token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
-        if (((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+        if (((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
           return "TokenType.value";
-        } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+        }, enumerable: true } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
           return "TokenType.flowEntry";
-        } })))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+        }, enumerable: true } })))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
           return "TokenType.flowMappingEnd";
-        } }))))))) {
-          __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" }))));
+        }, enumerable: true } }))))))) {
+          __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_VALUE", enumerable: true } }))));
           return this._parseNode_package_yaml_src_parser_dart();
         } else {
-          this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" })));
+          this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_VALUE", enumerable: true } })));
           return this._processEmptyScalar_package_yaml_src_parser_dart(token.span.start);
         }
       } else {
-        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+        if (!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
           return "TokenType.flowMappingEnd";
-        } })))))) {
-          __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_EMPTY_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_EMPTY_VALUE" }))));
+        }, enumerable: true } })))))) {
+          __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_EMPTY_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_EMPTY_VALUE", enumerable: true } }))));
           return this._parseNode_package_yaml_src_parser_dart();
         }
       }
     }
     this._scanner_package_yaml_src_parser_dart.scan();
     this._state_package_yaml_src_parser_dart = __dartListRemoveLast(this._states_package_yaml_src_parser_dart);
-    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 9, __dartEnumName: "mappingEnd", name: "mappingEnd", toString: function() {
+    return new Event(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "mappingEnd", enumerable: true }, name: { value: "mappingEnd", enumerable: true }, toString: { value: function() {
       return "EventType.mappingEnd";
-    } }))), token.span);
+    }, enumerable: true } }))), token.span);
   }
   _parseFlowMappingValue_package_yaml_src_parser_dart({ empty = false } = {}) {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
     if (empty) {
-      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" })));
+      this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_KEY", enumerable: true } })));
       return this._processEmptyScalar_package_yaml_src_parser_dart(token.span.start);
     }
-    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 16, __dartEnumName: "value", name: "value", toString: function() {
+    if (__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 16, _Enum._name: \\\"value\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 16, enumerable: true }, __dartEnumName: { value: "value", enumerable: true }, name: { value: "value", enumerable: true }, toString: { value: function() {
       return "TokenType.value";
-    } }))))) {
+    }, enumerable: true } }))))) {
       token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.advance());
-      if ((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 14, __dartEnumName: "flowEntry", name: "flowEntry", toString: function() {
+      if ((!(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 14, _Enum._name: \\\"flowEntry\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 14, enumerable: true }, __dartEnumName: { value: "flowEntry", enumerable: true }, name: { value: "flowEntry", enumerable: true }, toString: { value: function() {
         return "TokenType.flowEntry";
-      } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 12, __dartEnumName: "flowMappingEnd", name: "flowMappingEnd", toString: function() {
+      }, enumerable: true } }))))) && !(__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 12, _Enum._name: \\\"flowMappingEnd\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 12, enumerable: true }, __dartEnumName: { value: "flowMappingEnd", enumerable: true }, name: { value: "flowMappingEnd", enumerable: true }, toString: { value: function() {
         return "TokenType.flowMappingEnd";
-      } }))))))) {
-        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" }))));
+      }, enumerable: true } }))))))) {
+        __dartListAdd(this._states_package_yaml_src_parser_dart, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_KEY", enumerable: true } }))));
         return this._parseNode_package_yaml_src_parser_dart();
       }
     }
-    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" })));
+    this._state_package_yaml_src_parser_dart = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_KEY", enumerable: true } })));
     return this._processEmptyScalar_package_yaml_src_parser_dart(token.span.start);
   }
   _processEmptyScalar_package_yaml_src_parser_dart(location) {
-    return new ScalarEvent(__dartAs(location.pointSpan(), (value) => value instanceof FileSpan, "FileSpan"), "", __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "PLAIN" }))));
+    return new ScalarEvent(__dartAs(location.pointSpan(), (value) => value instanceof FileSpan, "FileSpan"), "", __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"PLAIN\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "PLAIN", enumerable: true } }))));
   }
   _processDirectives_package_yaml_src_parser_dart() {
     let token = __dartNullCheck(this._scanner_package_yaml_src_parser_dart.peek());
     let versionDirective = null;
     let tagDirectives = Array(0).fill(null);
-    while ((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 2, __dartEnumName: "versionDirective", name: "versionDirective", toString: function() {
+    while ((__dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 2, _Enum._name: \\\"versionDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "versionDirective", enumerable: true }, name: { value: "versionDirective", enumerable: true }, toString: { value: function() {
       return "TokenType.versionDirective";
-    } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.assign(Object.create(TokenType.prototype), { index: 3, __dartEnumName: "tagDirective", name: "tagDirective", toString: function() {
+    }, enumerable: true } })))) || __dartEquals(token.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const TokenType{_Enum.index: 3, _Enum._name: \\\"tagDirective\\\"})\"]", () => Object.freeze(Object.create(TokenType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "tagDirective", enumerable: true }, name: { value: "tagDirective", enumerable: true }, toString: { value: function() {
       return "TokenType.tagDirective";
-    } })))))) {
+    }, enumerable: true } })))))) {
       if (token instanceof VersionDirectiveToken) {
         if (!(versionDirective === null)) {
           throw new YamlException("Duplicate %YAML directive.", token.span);
@@ -8883,139 +8887,139 @@ class _State {
   }
 }
 
-const $_State_STREAM_START = __dartLazyField("_State.STREAM_START", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"STREAM_START\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "STREAM_START" }))), false);
+const $_State_STREAM_START = __dartLazyField("_State.STREAM_START", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"STREAM_START\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "STREAM_START", enumerable: true } }))), false);
 Object.defineProperty(_State, "STREAM_START", { get: function() {
   return $_State_STREAM_START.get();
 }, set: function(value) {
   $_State_STREAM_START.set(value);
 }, enumerable: true });
-const $_State_DOCUMENT_START = __dartLazyField("_State.DOCUMENT_START", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_START" }))), false);
+const $_State_DOCUMENT_START = __dartLazyField("_State.DOCUMENT_START", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_START\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_START", enumerable: true } }))), false);
 Object.defineProperty(_State, "DOCUMENT_START", { get: function() {
   return $_State_DOCUMENT_START.get();
 }, set: function(value) {
   $_State_DOCUMENT_START.set(value);
 }, enumerable: true });
-const $_State_DOCUMENT_CONTENT = __dartLazyField("_State.DOCUMENT_CONTENT", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_CONTENT\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_CONTENT" }))), false);
+const $_State_DOCUMENT_CONTENT = __dartLazyField("_State.DOCUMENT_CONTENT", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_CONTENT\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_CONTENT", enumerable: true } }))), false);
 Object.defineProperty(_State, "DOCUMENT_CONTENT", { get: function() {
   return $_State_DOCUMENT_CONTENT.get();
 }, set: function(value) {
   $_State_DOCUMENT_CONTENT.set(value);
 }, enumerable: true });
-const $_State_DOCUMENT_END = __dartLazyField("_State.DOCUMENT_END", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "DOCUMENT_END" }))), false);
+const $_State_DOCUMENT_END = __dartLazyField("_State.DOCUMENT_END", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"DOCUMENT_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "DOCUMENT_END", enumerable: true } }))), false);
 Object.defineProperty(_State, "DOCUMENT_END", { get: function() {
   return $_State_DOCUMENT_END.get();
 }, set: function(value) {
   $_State_DOCUMENT_END.set(value);
 }, enumerable: true });
-const $_State_BLOCK_NODE = __dartLazyField("_State.BLOCK_NODE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE" }))), false);
+const $_State_BLOCK_NODE = __dartLazyField("_State.BLOCK_NODE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_NODE", enumerable: true } }))), false);
 Object.defineProperty(_State, "BLOCK_NODE", { get: function() {
   return $_State_BLOCK_NODE.get();
 }, set: function(value) {
   $_State_BLOCK_NODE.set(value);
 }, enumerable: true });
-const $_State_BLOCK_NODE_OR_INDENTLESS_SEQUENCE = __dartLazyField("_State.BLOCK_NODE_OR_INDENTLESS_SEQUENCE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE_OR_INDENTLESS_SEQUENCE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_NODE_OR_INDENTLESS_SEQUENCE" }))), false);
+const $_State_BLOCK_NODE_OR_INDENTLESS_SEQUENCE = __dartLazyField("_State.BLOCK_NODE_OR_INDENTLESS_SEQUENCE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_NODE_OR_INDENTLESS_SEQUENCE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_NODE_OR_INDENTLESS_SEQUENCE", enumerable: true } }))), false);
 Object.defineProperty(_State, "BLOCK_NODE_OR_INDENTLESS_SEQUENCE", { get: function() {
   return $_State_BLOCK_NODE_OR_INDENTLESS_SEQUENCE.get();
 }, set: function(value) {
   $_State_BLOCK_NODE_OR_INDENTLESS_SEQUENCE.set(value);
 }, enumerable: true });
-const $_State_FLOW_NODE = __dartLazyField("_State.FLOW_NODE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_NODE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_NODE" }))), false);
+const $_State_FLOW_NODE = __dartLazyField("_State.FLOW_NODE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_NODE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_NODE", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_NODE", { get: function() {
   return $_State_FLOW_NODE.get();
 }, set: function(value) {
   $_State_FLOW_NODE.set(value);
 }, enumerable: true });
-const $_State_BLOCK_SEQUENCE_FIRST_ENTRY = __dartLazyField("_State.BLOCK_SEQUENCE_FIRST_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_FIRST_ENTRY" }))), false);
+const $_State_BLOCK_SEQUENCE_FIRST_ENTRY = __dartLazyField("_State.BLOCK_SEQUENCE_FIRST_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_SEQUENCE_FIRST_ENTRY", enumerable: true } }))), false);
 Object.defineProperty(_State, "BLOCK_SEQUENCE_FIRST_ENTRY", { get: function() {
   return $_State_BLOCK_SEQUENCE_FIRST_ENTRY.get();
 }, set: function(value) {
   $_State_BLOCK_SEQUENCE_FIRST_ENTRY.set(value);
 }, enumerable: true });
-const $_State_BLOCK_SEQUENCE_ENTRY = __dartLazyField("_State.BLOCK_SEQUENCE_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_SEQUENCE_ENTRY" }))), false);
+const $_State_BLOCK_SEQUENCE_ENTRY = __dartLazyField("_State.BLOCK_SEQUENCE_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_SEQUENCE_ENTRY", enumerable: true } }))), false);
 Object.defineProperty(_State, "BLOCK_SEQUENCE_ENTRY", { get: function() {
   return $_State_BLOCK_SEQUENCE_ENTRY.get();
 }, set: function(value) {
   $_State_BLOCK_SEQUENCE_ENTRY.set(value);
 }, enumerable: true });
-const $_State_INDENTLESS_SEQUENCE_ENTRY = __dartLazyField("_State.INDENTLESS_SEQUENCE_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "INDENTLESS_SEQUENCE_ENTRY" }))), false);
+const $_State_INDENTLESS_SEQUENCE_ENTRY = __dartLazyField("_State.INDENTLESS_SEQUENCE_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"INDENTLESS_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "INDENTLESS_SEQUENCE_ENTRY", enumerable: true } }))), false);
 Object.defineProperty(_State, "INDENTLESS_SEQUENCE_ENTRY", { get: function() {
   return $_State_INDENTLESS_SEQUENCE_ENTRY.get();
 }, set: function(value) {
   $_State_INDENTLESS_SEQUENCE_ENTRY.set(value);
 }, enumerable: true });
-const $_State_BLOCK_MAPPING_FIRST_KEY = __dartLazyField("_State.BLOCK_MAPPING_FIRST_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_FIRST_KEY" }))), false);
+const $_State_BLOCK_MAPPING_FIRST_KEY = __dartLazyField("_State.BLOCK_MAPPING_FIRST_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_FIRST_KEY", enumerable: true } }))), false);
 Object.defineProperty(_State, "BLOCK_MAPPING_FIRST_KEY", { get: function() {
   return $_State_BLOCK_MAPPING_FIRST_KEY.get();
 }, set: function(value) {
   $_State_BLOCK_MAPPING_FIRST_KEY.set(value);
 }, enumerable: true });
-const $_State_BLOCK_MAPPING_KEY = __dartLazyField("_State.BLOCK_MAPPING_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_KEY" }))), false);
+const $_State_BLOCK_MAPPING_KEY = __dartLazyField("_State.BLOCK_MAPPING_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_KEY", enumerable: true } }))), false);
 Object.defineProperty(_State, "BLOCK_MAPPING_KEY", { get: function() {
   return $_State_BLOCK_MAPPING_KEY.get();
 }, set: function(value) {
   $_State_BLOCK_MAPPING_KEY.set(value);
 }, enumerable: true });
-const $_State_BLOCK_MAPPING_VALUE = __dartLazyField("_State.BLOCK_MAPPING_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "BLOCK_MAPPING_VALUE" }))), false);
+const $_State_BLOCK_MAPPING_VALUE = __dartLazyField("_State.BLOCK_MAPPING_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"BLOCK_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "BLOCK_MAPPING_VALUE", enumerable: true } }))), false);
 Object.defineProperty(_State, "BLOCK_MAPPING_VALUE", { get: function() {
   return $_State_BLOCK_MAPPING_VALUE.get();
 }, set: function(value) {
   $_State_BLOCK_MAPPING_VALUE.set(value);
 }, enumerable: true });
-const $_State_FLOW_SEQUENCE_FIRST_ENTRY = __dartLazyField("_State.FLOW_SEQUENCE_FIRST_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_FIRST_ENTRY" }))), false);
+const $_State_FLOW_SEQUENCE_FIRST_ENTRY = __dartLazyField("_State.FLOW_SEQUENCE_FIRST_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_FIRST_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_FIRST_ENTRY", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_SEQUENCE_FIRST_ENTRY", { get: function() {
   return $_State_FLOW_SEQUENCE_FIRST_ENTRY.get();
 }, set: function(value) {
   $_State_FLOW_SEQUENCE_FIRST_ENTRY.set(value);
 }, enumerable: true });
-const $_State_FLOW_SEQUENCE_ENTRY = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY" }))), false);
+const $_State_FLOW_SEQUENCE_ENTRY = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY", { get: function() {
   return $_State_FLOW_SEQUENCE_ENTRY.get();
 }, set: function(value) {
   $_State_FLOW_SEQUENCE_ENTRY.set(value);
 }, enumerable: true });
-const $_State_FLOW_SEQUENCE_ENTRY_MAPPING_KEY = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY_MAPPING_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY" }))), false);
+const $_State_FLOW_SEQUENCE_ENTRY_MAPPING_KEY = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY_MAPPING_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_KEY", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY_MAPPING_KEY", { get: function() {
   return $_State_FLOW_SEQUENCE_ENTRY_MAPPING_KEY.get();
 }, set: function(value) {
   $_State_FLOW_SEQUENCE_ENTRY_MAPPING_KEY.set(value);
 }, enumerable: true });
-const $_State_FLOW_SEQUENCE_ENTRY_MAPPING_VALUE = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE" }))), false);
+const $_State_FLOW_SEQUENCE_ENTRY_MAPPING_VALUE = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY_MAPPING_VALUE", { get: function() {
   return $_State_FLOW_SEQUENCE_ENTRY_MAPPING_VALUE.get();
 }, set: function(value) {
   $_State_FLOW_SEQUENCE_ENTRY_MAPPING_VALUE.set(value);
 }, enumerable: true });
-const $_State_FLOW_SEQUENCE_ENTRY_MAPPING_END = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY_MAPPING_END", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_SEQUENCE_ENTRY_MAPPING_END" }))), false);
+const $_State_FLOW_SEQUENCE_ENTRY_MAPPING_END = __dartLazyField("_State.FLOW_SEQUENCE_ENTRY_MAPPING_END", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_SEQUENCE_ENTRY_MAPPING_END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_SEQUENCE_ENTRY_MAPPING_END", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_SEQUENCE_ENTRY_MAPPING_END", { get: function() {
   return $_State_FLOW_SEQUENCE_ENTRY_MAPPING_END.get();
 }, set: function(value) {
   $_State_FLOW_SEQUENCE_ENTRY_MAPPING_END.set(value);
 }, enumerable: true });
-const $_State_FLOW_MAPPING_FIRST_KEY = __dartLazyField("_State.FLOW_MAPPING_FIRST_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_FIRST_KEY" }))), false);
+const $_State_FLOW_MAPPING_FIRST_KEY = __dartLazyField("_State.FLOW_MAPPING_FIRST_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_FIRST_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_FIRST_KEY", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_MAPPING_FIRST_KEY", { get: function() {
   return $_State_FLOW_MAPPING_FIRST_KEY.get();
 }, set: function(value) {
   $_State_FLOW_MAPPING_FIRST_KEY.set(value);
 }, enumerable: true });
-const $_State_FLOW_MAPPING_KEY = __dartLazyField("_State.FLOW_MAPPING_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_KEY" }))), false);
+const $_State_FLOW_MAPPING_KEY = __dartLazyField("_State.FLOW_MAPPING_KEY", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_KEY\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_KEY", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_MAPPING_KEY", { get: function() {
   return $_State_FLOW_MAPPING_KEY.get();
 }, set: function(value) {
   $_State_FLOW_MAPPING_KEY.set(value);
 }, enumerable: true });
-const $_State_FLOW_MAPPING_VALUE = __dartLazyField("_State.FLOW_MAPPING_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_VALUE" }))), false);
+const $_State_FLOW_MAPPING_VALUE = __dartLazyField("_State.FLOW_MAPPING_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_VALUE", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_MAPPING_VALUE", { get: function() {
   return $_State_FLOW_MAPPING_VALUE.get();
 }, set: function(value) {
   $_State_FLOW_MAPPING_VALUE.set(value);
 }, enumerable: true });
-const $_State_FLOW_MAPPING_EMPTY_VALUE = __dartLazyField("_State.FLOW_MAPPING_EMPTY_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_EMPTY_VALUE\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "FLOW_MAPPING_EMPTY_VALUE" }))), false);
+const $_State_FLOW_MAPPING_EMPTY_VALUE = __dartLazyField("_State.FLOW_MAPPING_EMPTY_VALUE", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"FLOW_MAPPING_EMPTY_VALUE\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "FLOW_MAPPING_EMPTY_VALUE", enumerable: true } }))), false);
 Object.defineProperty(_State, "FLOW_MAPPING_EMPTY_VALUE", { get: function() {
   return $_State_FLOW_MAPPING_EMPTY_VALUE.get();
 }, set: function(value) {
   $_State_FLOW_MAPPING_EMPTY_VALUE.set(value);
 }, enumerable: true });
-const $_State_END = __dartLazyField("_State.END", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"END\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_State.prototype), { name: "END" }))), false);
+const $_State_END = __dartLazyField("_State.END", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _State{_State.name: \\\"END\\\"})\"]", () => Object.freeze(Object.create(_State.prototype, { name: { value: "END", enumerable: true } }))), false);
 Object.defineProperty(_State, "END", { get: function() {
   return $_State_END.get();
 }, set: function(value) {
@@ -9050,9 +9054,9 @@ class DocumentStartEvent {
     Object.defineProperty(this, $Event_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 2, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
       return "EventType.documentStart";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return "DOCUMENT_START";
@@ -9068,9 +9072,9 @@ class DocumentEndEvent {
     Object.defineProperty(this, $Event_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 3, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
       return "EventType.documentEnd";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return "DOCUMENT_END";
@@ -9086,9 +9090,9 @@ class AliasEvent {
     Object.defineProperty(this, $Event_interface, { value: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 4, __dartEnumName: "alias", name: "alias", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
       return "EventType.alias";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `ALIAS ${__dartStr(this.name)}`;
@@ -9136,9 +9140,9 @@ class ScalarEvent extends _ValueEvent {
     Object.defineProperty(this, "tag", { value: tag, writable: true, enumerable: true, configurable: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 5, __dartEnumName: "scalar", name: "scalar", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
       return "EventType.scalar";
-    } })));
+    }, enumerable: true } })));
   }
   toString() {
     return `${__dartStr(super.toString())} "${__dartStr(this.value)}"`;
@@ -9158,9 +9162,9 @@ class SequenceStartEvent extends _ValueEvent {
     Object.defineProperty(this, "tag", { value: tag, writable: true, enumerable: true, configurable: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 6, __dartEnumName: "sequenceStart", name: "sequenceStart", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "sequenceStart", enumerable: true }, name: { value: "sequenceStart", enumerable: true }, toString: { value: function() {
       return "EventType.sequenceStart";
-    } })));
+    }, enumerable: true } })));
   }
 }
 
@@ -9177,9 +9181,9 @@ class MappingStartEvent extends _ValueEvent {
     Object.defineProperty(this, "tag", { value: tag, writable: true, enumerable: true, configurable: true });
   }
   get type() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 8, __dartEnumName: "mappingStart", name: "mappingStart", toString: function() {
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "mappingStart", enumerable: true }, name: { value: "mappingStart", enumerable: true }, toString: { value: function() {
       return "EventType.mappingStart";
-    } })));
+    }, enumerable: true } })));
   }
 }
 
@@ -9195,107 +9199,107 @@ class EventType {
   }
 }
 
-const $EventType_streamStart = __dartLazyField("EventType.streamStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 0, __dartEnumName: "streamStart", name: "streamStart", toString: function() {
+const $EventType_streamStart = __dartLazyField("EventType.streamStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "streamStart", enumerable: true }, name: { value: "streamStart", enumerable: true }, toString: { value: function() {
   return "EventType.streamStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "streamStart", { get: function() {
   return $EventType_streamStart.get();
 }, set: function(value) {
   $EventType_streamStart.set(value);
 }, enumerable: true });
-const $EventType_streamEnd = __dartLazyField("EventType.streamEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+const $EventType_streamEnd = __dartLazyField("EventType.streamEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
   return "EventType.streamEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "streamEnd", { get: function() {
   return $EventType_streamEnd.get();
 }, set: function(value) {
   $EventType_streamEnd.set(value);
 }, enumerable: true });
-const $EventType_documentStart = __dartLazyField("EventType.documentStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 2, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+const $EventType_documentStart = __dartLazyField("EventType.documentStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
   return "EventType.documentStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "documentStart", { get: function() {
   return $EventType_documentStart.get();
 }, set: function(value) {
   $EventType_documentStart.set(value);
 }, enumerable: true });
-const $EventType_documentEnd = __dartLazyField("EventType.documentEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 3, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+const $EventType_documentEnd = __dartLazyField("EventType.documentEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
   return "EventType.documentEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "documentEnd", { get: function() {
   return $EventType_documentEnd.get();
 }, set: function(value) {
   $EventType_documentEnd.set(value);
 }, enumerable: true });
-const $EventType_alias = __dartLazyField("EventType.alias", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 4, __dartEnumName: "alias", name: "alias", toString: function() {
+const $EventType_alias = __dartLazyField("EventType.alias", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
   return "EventType.alias";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "alias", { get: function() {
   return $EventType_alias.get();
 }, set: function(value) {
   $EventType_alias.set(value);
 }, enumerable: true });
-const $EventType_scalar = __dartLazyField("EventType.scalar", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 5, __dartEnumName: "scalar", name: "scalar", toString: function() {
+const $EventType_scalar = __dartLazyField("EventType.scalar", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
   return "EventType.scalar";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "scalar", { get: function() {
   return $EventType_scalar.get();
 }, set: function(value) {
   $EventType_scalar.set(value);
 }, enumerable: true });
-const $EventType_sequenceStart = __dartLazyField("EventType.sequenceStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 6, __dartEnumName: "sequenceStart", name: "sequenceStart", toString: function() {
+const $EventType_sequenceStart = __dartLazyField("EventType.sequenceStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "sequenceStart", enumerable: true }, name: { value: "sequenceStart", enumerable: true }, toString: { value: function() {
   return "EventType.sequenceStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "sequenceStart", { get: function() {
   return $EventType_sequenceStart.get();
 }, set: function(value) {
   $EventType_sequenceStart.set(value);
 }, enumerable: true });
-const $EventType_sequenceEnd = __dartLazyField("EventType.sequenceEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 7, __dartEnumName: "sequenceEnd", name: "sequenceEnd", toString: function() {
+const $EventType_sequenceEnd = __dartLazyField("EventType.sequenceEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "sequenceEnd", enumerable: true }, name: { value: "sequenceEnd", enumerable: true }, toString: { value: function() {
   return "EventType.sequenceEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "sequenceEnd", { get: function() {
   return $EventType_sequenceEnd.get();
 }, set: function(value) {
   $EventType_sequenceEnd.set(value);
 }, enumerable: true });
-const $EventType_mappingStart = __dartLazyField("EventType.mappingStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 8, __dartEnumName: "mappingStart", name: "mappingStart", toString: function() {
+const $EventType_mappingStart = __dartLazyField("EventType.mappingStart", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "mappingStart", enumerable: true }, name: { value: "mappingStart", enumerable: true }, toString: { value: function() {
   return "EventType.mappingStart";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "mappingStart", { get: function() {
   return $EventType_mappingStart.get();
 }, set: function(value) {
   $EventType_mappingStart.set(value);
 }, enumerable: true });
-const $EventType_mappingEnd = __dartLazyField("EventType.mappingEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 9, __dartEnumName: "mappingEnd", name: "mappingEnd", toString: function() {
+const $EventType_mappingEnd = __dartLazyField("EventType.mappingEnd", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "mappingEnd", enumerable: true }, name: { value: "mappingEnd", enumerable: true }, toString: { value: function() {
   return "EventType.mappingEnd";
-} }))), false);
+}, enumerable: true } }))), false);
 Object.defineProperty(EventType, "mappingEnd", { get: function() {
   return $EventType_mappingEnd.get();
 }, set: function(value) {
   $EventType_mappingEnd.set(value);
 }, enumerable: true });
-const $EventType_values = __dartLazyField("EventType.values", () => __dartConst("[\"list\",\"InterfaceType(EventType)\",[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 0, __dartEnumName: "streamStart", name: "streamStart", toString: function() {
+const $EventType_values = __dartLazyField("EventType.values", () => __dartConst("[\"list\",\"InterfaceType(EventType)\",[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"],[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 0, _Enum._name: \\\"streamStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 0, enumerable: true }, __dartEnumName: { value: "streamStart", enumerable: true }, name: { value: "streamStart", enumerable: true }, toString: { value: function() {
   return "EventType.streamStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
   return "EventType.streamEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 2, __dartEnumName: "documentStart", name: "documentStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 2, _Enum._name: \\\"documentStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 2, enumerable: true }, __dartEnumName: { value: "documentStart", enumerable: true }, name: { value: "documentStart", enumerable: true }, toString: { value: function() {
   return "EventType.documentStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 3, __dartEnumName: "documentEnd", name: "documentEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 3, _Enum._name: \\\"documentEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 3, enumerable: true }, __dartEnumName: { value: "documentEnd", enumerable: true }, name: { value: "documentEnd", enumerable: true }, toString: { value: function() {
   return "EventType.documentEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 4, __dartEnumName: "alias", name: "alias", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
   return "EventType.alias";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 5, __dartEnumName: "scalar", name: "scalar", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
   return "EventType.scalar";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 6, __dartEnumName: "sequenceStart", name: "sequenceStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "sequenceStart", enumerable: true }, name: { value: "sequenceStart", enumerable: true }, toString: { value: function() {
   return "EventType.sequenceStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 7, __dartEnumName: "sequenceEnd", name: "sequenceEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "sequenceEnd", enumerable: true }, name: { value: "sequenceEnd", enumerable: true }, toString: { value: function() {
   return "EventType.sequenceEnd";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 8, __dartEnumName: "mappingStart", name: "mappingStart", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "mappingStart", enumerable: true }, name: { value: "mappingStart", enumerable: true }, toString: { value: function() {
   return "EventType.mappingStart";
-} }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 9, __dartEnumName: "mappingEnd", name: "mappingEnd", toString: function() {
+}, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "mappingEnd", enumerable: true }, name: { value: "mappingEnd", enumerable: true }, toString: { value: function() {
   return "EventType.mappingEnd";
-} })))])), false);
+}, enumerable: true } })))])), false);
 Object.defineProperty(EventType, "values", { get: function() {
   return $EventType_values.get();
 }, set: function(value) {
@@ -9349,7 +9353,7 @@ class YamlMap extends YamlNode {
     Object.defineProperty($self, $UnmodifiableMapMixin_interface, { value: true });
     return $self;
   }
-  static wrap(dartMap, { sourceUrl = null, style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
+  static wrap(dartMap, { sourceUrl = null, style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))) } = {}) {
     return new YamlMapWrapper(dartMap, sourceUrl, { style: style });
   }
   cast() {
@@ -9552,10 +9556,10 @@ Object.defineProperty(YamlMap, Symbol.hasInstance, { value: function(value) {
   return value != null && (YamlMap.prototype.isPrototypeOf(value) || value[$YamlMap_interface] === true);
 } });
 class YamlMapWrapper {
-  constructor(dartMap, sourceUrl, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
+  constructor(dartMap, sourceUrl, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))) } = {}) {
     return YamlMapWrapper.__package_yaml_src_yaml_node_wrapper_dart.call(new.target, dartMap, new NullSpan(sourceUrl), { style: style });
   }
-  static __package_yaml_src_yaml_node_wrapper_dart(dartMap, span, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
+  static __package_yaml_src_yaml_node_wrapper_dart(dartMap, span, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))) } = {}) {
     const $self = Object.create(this.prototype);
     Object.defineProperty($self, "style", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "_dartMap_package_yaml_src_yaml_node_wrapper_dart", { value: null, writable: true, enumerable: true, configurable: true });
@@ -9707,7 +9711,7 @@ class YamlList extends YamlNode {
     Object.defineProperty($self, "nodes", { value: __dartUnmodifiableListView(nodes), writable: true, enumerable: true, configurable: true });
     return $self;
   }
-  static wrap(dartList, { sourceUrl = null, style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
+  static wrap(dartList, { sourceUrl = null, style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))) } = {}) {
     return new YamlListWrapper(dartList, sourceUrl, { style: style });
   }
   get first() {
@@ -10265,10 +10269,10 @@ Object.defineProperty(YamlList, Symbol.hasInstance, { value: function(value) {
   return value != null && (YamlList.prototype.isPrototypeOf(value) || value[$YamlList_interface] === true);
 } });
 class YamlListWrapper {
-  constructor(dartList, sourceUrl, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
+  constructor(dartList, sourceUrl, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))) } = {}) {
     return YamlListWrapper.__package_yaml_src_yaml_node_wrapper_dart.call(new.target, dartList, new NullSpan(sourceUrl), { style: style });
   }
-  static __package_yaml_src_yaml_node_wrapper_dart(dartList, span, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))) } = {}) {
+  static __package_yaml_src_yaml_node_wrapper_dart(dartList, span, { style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))) } = {}) {
     const $self = Object.create(this.prototype);
     Object.defineProperty($self, "style", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "_dartList_package_yaml_src_yaml_node_wrapper_dart", { value: null, writable: true, enumerable: true, configurable: true });
@@ -10353,7 +10357,7 @@ class YamlScalar extends YamlNode {
   constructor() {
     throw new TypeError("Class YamlScalar has no unnamed constructor");
   }
-  static wrap(value, { sourceUrl = null, style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "ANY" }))) } = {}) {
+  static wrap(value, { sourceUrl = null, style = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "ANY", enumerable: true } }))) } = {}) {
     const $self = YamlNode.__package_yaml_src_yaml_node_dart.call(this, new NullSpan(sourceUrl));
     Object.defineProperty($self, "value", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "style", { value: null, writable: true, enumerable: true, configurable: true });
@@ -10375,7 +10379,7 @@ class YamlScalar extends YamlNode {
     Object.defineProperty($self, "value", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "style", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "value", { value: value, writable: true, enumerable: true, configurable: true });
-    Object.defineProperty($self, "style", { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(ScalarStyle.prototype), { name: "ANY" }))), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "style", { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ScalarStyle{ScalarStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(ScalarStyle.prototype, { name: { value: "ANY", enumerable: true } }))), writable: true, enumerable: true, configurable: true });
     return $self;
   }
   toString() {
@@ -10484,9 +10488,9 @@ class Loader {
       return null;
     }
     let event = this._parser_package_yaml_src_loader_dart.parse();
-    if (__dartEquals(event.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 1, __dartEnumName: "streamEnd", name: "streamEnd", toString: function() {
+    if (__dartEquals(event.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 1, _Enum._name: \\\"streamEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 1, enumerable: true }, __dartEnumName: { value: "streamEnd", enumerable: true }, name: { value: "streamEnd", enumerable: true }, toString: { value: function() {
       return "EventType.streamEnd";
-    } }))))) {
+    }, enumerable: true } }))))) {
       this._span_package_yaml_src_loader_dart = this._span_package_yaml_src_loader_dart.expand(event.span);
       return null;
     }
@@ -10504,40 +10508,40 @@ class Loader {
     return (() => {
       let v = null;
       const _0_0 = firstEvent.type;
-      const _0_1 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 4, __dartEnumName: "alias", name: "alias", toString: function() {
+      const _0_1 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
         return "EventType.alias";
-      } })));
-      const _0_3 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 5, __dartEnumName: "scalar", name: "scalar", toString: function() {
+      }, enumerable: true } })));
+      const _0_3 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
         return "EventType.scalar";
-      } })));
-      const _0_5 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 6, __dartEnumName: "sequenceStart", name: "sequenceStart", toString: function() {
+      }, enumerable: true } })));
+      const _0_5 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "sequenceStart", enumerable: true }, name: { value: "sequenceStart", enumerable: true }, toString: { value: function() {
         return "EventType.sequenceStart";
-      } })));
-      const _0_7 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 8, __dartEnumName: "mappingStart", name: "mappingStart", toString: function() {
+      }, enumerable: true } })));
+      const _0_7 = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "mappingStart", enumerable: true }, name: { value: "mappingStart", enumerable: true }, toString: { value: function() {
         return "EventType.mappingStart";
-      } })));
+      }, enumerable: true } })));
       label: {
-        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 4, __dartEnumName: "alias", name: "alias", toString: function() {
+        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 4, _Enum._name: \\\"alias\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 4, enumerable: true }, __dartEnumName: { value: "alias", enumerable: true }, name: { value: "alias", enumerable: true }, toString: { value: function() {
           return "EventType.alias";
-        } }))), _0_0)) {
+        }, enumerable: true } }))), _0_0)) {
           v = this._loadAlias_package_yaml_src_loader_dart(__dartAs(firstEvent, (value) => value instanceof AliasEvent, "AliasEvent"));
           break label;
         }
-        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 5, __dartEnumName: "scalar", name: "scalar", toString: function() {
+        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 5, _Enum._name: \\\"scalar\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 5, enumerable: true }, __dartEnumName: { value: "scalar", enumerable: true }, name: { value: "scalar", enumerable: true }, toString: { value: function() {
           return "EventType.scalar";
-        } }))), _0_0)) {
+        }, enumerable: true } }))), _0_0)) {
           v = this._loadScalar_package_yaml_src_loader_dart(__dartAs(firstEvent, (value) => value instanceof ScalarEvent, "ScalarEvent"));
           break label;
         }
-        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 6, __dartEnumName: "sequenceStart", name: "sequenceStart", toString: function() {
+        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 6, _Enum._name: \\\"sequenceStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 6, enumerable: true }, __dartEnumName: { value: "sequenceStart", enumerable: true }, name: { value: "sequenceStart", enumerable: true }, toString: { value: function() {
           return "EventType.sequenceStart";
-        } }))), _0_0)) {
+        }, enumerable: true } }))), _0_0)) {
           v = this._loadSequence_package_yaml_src_loader_dart(__dartAs(firstEvent, (value) => value instanceof SequenceStartEvent, "SequenceStartEvent"));
           break label;
         }
-        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 8, __dartEnumName: "mappingStart", name: "mappingStart", toString: function() {
+        if (__dartEquals(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 8, _Enum._name: \\\"mappingStart\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 8, enumerable: true }, __dartEnumName: { value: "mappingStart", enumerable: true }, name: { value: "mappingStart", enumerable: true }, toString: { value: function() {
           return "EventType.mappingStart";
-        } }))), _0_0)) {
+        }, enumerable: true } }))), _0_0)) {
           v = this._loadMapping_package_yaml_src_loader_dart(__dartAs(firstEvent, (value) => value instanceof MappingStartEvent, "MappingStartEvent"));
           break label;
         }
@@ -10586,9 +10590,9 @@ class Loader {
     let node = YamlList.internal(children, firstEvent.span, firstEvent.style);
     this._registerAnchor_package_yaml_src_loader_dart(firstEvent.anchor, node);
     let event = this._parser_package_yaml_src_loader_dart.parse();
-    while (!(__dartEquals(event.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 7, __dartEnumName: "sequenceEnd", name: "sequenceEnd", toString: function() {
+    while (!(__dartEquals(event.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 7, _Enum._name: \\\"sequenceEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 7, enumerable: true }, __dartEnumName: { value: "sequenceEnd", enumerable: true }, name: { value: "sequenceEnd", enumerable: true }, toString: { value: function() {
       return "EventType.sequenceEnd";
-    } })))))) {
+    }, enumerable: true } })))))) {
       __dartListAdd(children, this._loadNode_package_yaml_src_loader_dart(event));
       event = this._parser_package_yaml_src_loader_dart.parse();
     }
@@ -10603,9 +10607,9 @@ class Loader {
     let node = YamlMap.internal(children, firstEvent.span, firstEvent.style);
     this._registerAnchor_package_yaml_src_loader_dart(firstEvent.anchor, node);
     let event = this._parser_package_yaml_src_loader_dart.parse();
-    while (!(__dartEquals(event.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.assign(Object.create(EventType.prototype), { index: 9, __dartEnumName: "mappingEnd", name: "mappingEnd", toString: function() {
+    while (!(__dartEquals(event.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const EventType{_Enum.index: 9, _Enum._name: \\\"mappingEnd\\\"})\"]", () => Object.freeze(Object.create(EventType.prototype, { index: { value: 9, enumerable: true }, __dartEnumName: { value: "mappingEnd", enumerable: true }, name: { value: "mappingEnd", enumerable: true }, toString: { value: function() {
       return "EventType.mappingEnd";
-    } })))))) {
+    }, enumerable: true } })))))) {
       let key = this._loadNode_package_yaml_src_loader_dart(event);
       let value = this._loadNode_package_yaml_src_loader_dart(this._parser_package_yaml_src_loader_dart.parse());
       if (__dartMapContainsKey(children, key)) {
@@ -10823,7 +10827,7 @@ class Loader {
 const context = createInternal();
 let _currentUriBase;
 let _current;
-let _glyphs = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const UnicodeGlyphSet{})\"]", () => Object.freeze(Object.assign(Object.create(UnicodeGlyphSet.prototype), {  })));
+let _glyphs = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const UnicodeGlyphSet{})\"]", () => Object.freeze(Object.create(UnicodeGlyphSet.prototype, {  })));
 const _newlineRegExp = __dartRegExp("\\n|\\r\\n|\\r(?!\\n)", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 const _newlineRegExp_1 = __dartRegExp("\\r\\n?|\\n", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
 let yamlWarningCallback = (message, span = null) => {
@@ -11109,11 +11113,11 @@ function isHighSurrogate(codeUnit) {
 }
 
 function isLowSurrogate(codeUnit) {
-  return __dartEquals(codeUnit >> 10, 56320 >> 10);
+  return __dartEquals(__dartShr(codeUnit, 10), __dartShr(56320, 10));
 }
 
 function highSurrogate(codePoint) {
-  return (codePoint - 65536 >> 10) + 55296;
+  return __dartShr(codePoint - 65536, 10) + 55296;
 }
 
 function lowSurrogate(codePoint) {
@@ -11169,11 +11173,11 @@ function deepHashCode(obj) {
     __dartListAdd(parents, value);
     try {
       if (value instanceof Map) {
-        let equality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const UnorderedIterableEquality<Object?>{_UnorderedEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(UnorderedIterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) })));
+        let equality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const UnorderedIterableEquality<Object?>{_UnorderedEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(UnorderedIterableEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } })));
         return equality.hash(Array.from(__dartIterableToArray(value.keys()), deepHashCodeInner)) ^ equality.hash(Array.from(__dartIterableToArray(value.values()), deepHashCodeInner));
       } else {
         if ((((value != null && typeof value !== "string") && !(value instanceof Map)) && typeof value[Symbol.iterator] === "function")) {
-          return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object?>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(Array.from(value, deepHashCode));
+          return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object?>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(IterableEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).hash(Array.from(value, deepHashCode));
         } else {
           if (value instanceof YamlScalar) {
             return __dartHashValue(__dartAs(value.value, (value) => true, "Object"));
@@ -11220,7 +11224,7 @@ function loadYamlStream(yaml, { sourceUrl = null } = {}) {
   }
   return YamlList.internal(__dartListOf(Array.from(documents, (document) => {
     return document.contents;
-  }), true), loader.span, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.assign(Object.create(CollectionStyle.prototype), { name: "ANY" }))));
+  }), true), loader.span, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const CollectionStyle{CollectionStyle.name: \\\"ANY\\\"})\"]", () => Object.freeze(Object.create(CollectionStyle.prototype, { name: { value: "ANY", enumerable: true } }))));
 }
 
 export function main() {

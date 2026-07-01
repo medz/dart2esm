@@ -72,21 +72,21 @@ export class Positive {
   }
 }
 
-export const sharedPoint = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 })));
-export const origin = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 0, Point.y: 0})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 0, y: 0 })));
-export const sharedAdder = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 10 })));
-export const positive = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Positive{Positive.value: 4})\"]", () => Object.freeze(Object.assign(Object.create(Positive.prototype), { value: 4 })));
+export const sharedPoint = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 2, enumerable: true }, y: { value: 3, enumerable: true } })));
+export const origin = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 0, Point.y: 0})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 0, enumerable: true }, y: { value: 0, enumerable: true } })));
+export const sharedAdder = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.create(Adder.prototype, { base: { value: 10, enumerable: true } })));
+export const positive = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Positive{Positive.value: 4})\"]", () => Object.freeze(Object.create(Positive.prototype, { value: { value: 4, enumerable: true } })));
 export function hide(value) {
   return value;
 }
 
 export function main() {
-  const maybePoint = hide(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))));
-  const maybeAdder = hide(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 10 }))));
-  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))).describe())} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))).sum)} ${__dartStr(maybePoint instanceof Point)}`);
-  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 0, Point.y: 0})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 0, y: 0 }))).describe())} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.assign(Object.create(Adder.prototype), { base: 10 }))).call(5))} ${__dartStr(maybeAdder instanceof Adder)}`);
-  __dartPrint(Object.is(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.assign(Object.create(Point.prototype), { x: 2, y: 3 })))));
-  __dartPrint(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Positive{Positive.value: 4})\"]", () => Object.freeze(Object.assign(Object.create(Positive.prototype), { value: 4 }))).value);
+  const maybePoint = hide(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 2, enumerable: true }, y: { value: 3, enumerable: true } }))));
+  const maybeAdder = hide(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.create(Adder.prototype, { base: { value: 10, enumerable: true } }))));
+  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 2, enumerable: true }, y: { value: 3, enumerable: true } }))).describe())} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 2, enumerable: true }, y: { value: 3, enumerable: true } }))).sum)} ${__dartStr(maybePoint instanceof Point)}`);
+  __dartPrint(`${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 0, Point.y: 0})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 0, enumerable: true }, y: { value: 0, enumerable: true } }))).describe())} ${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Adder{Adder.base: 10})\"]", () => Object.freeze(Object.create(Adder.prototype, { base: { value: 10, enumerable: true } }))).call(5))} ${__dartStr(maybeAdder instanceof Adder)}`);
+  __dartPrint(Object.is(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 2, enumerable: true }, y: { value: 3, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Point{Point.x: 2, Point.y: 3})\"]", () => Object.freeze(Object.create(Point.prototype, { x: { value: 2, enumerable: true }, y: { value: 3, enumerable: true } })))));
+  __dartPrint(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Positive{Positive.value: 4})\"]", () => Object.freeze(Object.create(Positive.prototype, { value: { value: 4, enumerable: true } }))).value);
 }
 
 main();

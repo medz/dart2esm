@@ -48,6 +48,10 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartShr(left, right) {
+  return Math.floor(Number(left) / (2 ** Number(right)));
+}
+
 function __dartIterableToArray(iterable) {
   if (Array.isArray(iterable)) return Array.from(iterable);
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
@@ -1291,7 +1295,7 @@ class QueueList {
     }
   }
   _preGrow_package_collection_src_queue_list_dart(newElementCount) {
-    newElementCount = newElementCount + (newElementCount >> 1);
+    newElementCount = newElementCount + __dartShr(newElementCount, 1);
     let newCapacity = QueueList._nextPowerOf2_package_collection_src_queue_list_dart(newElementCount);
     let newTable = Array(newCapacity).fill(null);
     this._tail_package_collection_src_queue_list_dart = this._writeToList_package_collection_src_queue_list_dart(newTable);
@@ -2380,7 +2384,7 @@ class _TypedQueue {
     this._table_package_typed_data_src_typed_queue_dart = newTable;
   }
   _growTo_package_typed_data_src_typed_queue_dart(newElementCount) {
-    newElementCount = newElementCount + (newElementCount >> 1);
+    newElementCount = newElementCount + __dartShr(newElementCount, 1);
     let newTable = this._createList_package_typed_data_src_typed_queue_dart(_nextPowerOf2(newElementCount));
     this._tail_package_typed_data_src_typed_queue_dart = this._writeToList_package_typed_data_src_typed_queue_dart(newTable);
     this._table_package_typed_data_src_typed_queue_dart = newTable;

@@ -160,6 +160,10 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartShr(left, right) {
+  return Math.floor(Number(left) / (2 ** Number(right)));
+}
+
 function __dartIterableToArray(iterable) {
   if (Array.isArray(iterable)) return Array.from(iterable);
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
@@ -1346,10 +1350,10 @@ class HexCodec {
     return $self;
   }
   get encoder() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexEncoder{})\"]", () => Object.freeze(Object.assign(Object.create(HexEncoder.prototype), {  })));
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexEncoder{})\"]", () => Object.freeze(Object.create(HexEncoder.prototype, {  })));
   }
   get decoder() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexDecoder{})\"]", () => Object.freeze(Object.assign(Object.create(HexDecoder.prototype), {  })));
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexDecoder{})\"]", () => Object.freeze(Object.create(HexDecoder.prototype, {  })));
   }
   encode(input) {
     return this.encoder.convert(input);
@@ -1561,10 +1565,10 @@ class PercentCodec {
     return $self;
   }
   get encoder() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentEncoder{})\"]", () => Object.freeze(Object.assign(Object.create(PercentEncoder.prototype), {  })));
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentEncoder{})\"]", () => Object.freeze(Object.create(PercentEncoder.prototype, {  })));
   }
   get decoder() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentDecoder{})\"]", () => Object.freeze(Object.assign(Object.create(PercentDecoder.prototype), {  })));
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentDecoder{})\"]", () => Object.freeze(Object.create(PercentDecoder.prototype, {  })));
   }
   encode(input) {
     return this.encoder.convert(input);
@@ -1974,7 +1978,7 @@ function _convert(bytes, start, end) {
         const v_1 = bufferIndex = v + 1;
         return v;
       })();
-    })(), _codeUnitForDigit((byte & 240) >> 4));
+    })(), _codeUnitForDigit(__dartShr(byte & 240, 4)));
     __dartListLikeSet(buffer, (() => {
       const v = bufferIndex;
       return (() => {
@@ -2069,7 +2073,7 @@ function _convert_1(bytes, start, end) {
         break label;
       }
       buffer.writeCharCode(37);
-      buffer.writeCharCode(_codeUnitForDigit_1((byte & 240) >> 4));
+      buffer.writeCharCode(_codeUnitForDigit_1(__dartShr(byte & 240, 4)));
       buffer.writeCharCode(_codeUnitForDigit_1(byte & 15));
     }
   }
@@ -2093,16 +2097,16 @@ function _codeUnitForDigit_1(digit) {
 }
 
 export function main() {
-  const decodedHex = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexCodec{})\"]", () => Object.freeze(Object.assign(Object.create(HexCodec.prototype), {  }))).decode("48656c6c6f21");
-  const encodedHex = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexCodec{})\"]", () => Object.freeze(Object.assign(Object.create(HexCodec.prototype), {  }))).encode([0, 15, 16, 255]);
+  const decodedHex = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexCodec{})\"]", () => Object.freeze(Object.create(HexCodec.prototype, {  }))).decode("48656c6c6f21");
+  const encodedHex = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexCodec{})\"]", () => Object.freeze(Object.create(HexCodec.prototype, {  }))).encode([0, 15, 16, 255]);
   const hexChunks = Array(0).fill(null);
-  const hexSink = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexCodec{})\"]", () => Object.freeze(Object.assign(Object.create(HexCodec.prototype), {  }))).encoder.startChunkedConversion(new _ListSink(hexChunks));
+  const hexSink = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const HexCodec{})\"]", () => Object.freeze(Object.create(HexCodec.prototype, {  }))).encoder.startChunkedConversion(new _ListSink(hexChunks));
   hexSink.add([1, 2]);
   hexSink.addSlice([3, 4, 5], 1, 3, true);
-  const encodedPercent = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentCodec{})\"]", () => Object.freeze(Object.assign(Object.create(PercentCodec.prototype), {  }))).encode(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Utf8Codec{Utf8Codec._allowMalformed: false})\"]", () => __dartUtf8Codec(false)).encode("a b/~?"));
-  const decodedPercent = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Utf8Codec{Utf8Codec._allowMalformed: false})\"]", () => __dartUtf8Codec(false)).decode(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentCodec{})\"]", () => Object.freeze(Object.assign(Object.create(PercentCodec.prototype), {  }))).decode(encodedPercent));
+  const encodedPercent = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentCodec{})\"]", () => Object.freeze(Object.create(PercentCodec.prototype, {  }))).encode(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const Utf8Codec{Utf8Codec._allowMalformed: false})\"]", () => __dartUtf8Codec(false)).encode("a b/~?"));
+  const decodedPercent = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Utf8Codec{Utf8Codec._allowMalformed: false})\"]", () => __dartUtf8Codec(false)).decode(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentCodec{})\"]", () => Object.freeze(Object.create(PercentCodec.prototype, {  }))).decode(encodedPercent));
   const percentChunks = Array(0).fill(null);
-  const percentSink = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentCodec{})\"]", () => Object.freeze(Object.assign(Object.create(PercentCodec.prototype), {  }))).decoder.startChunkedConversion(new _ListSink(percentChunks));
+  const percentSink = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const PercentCodec{})\"]", () => Object.freeze(Object.create(PercentCodec.prototype, {  }))).decoder.startChunkedConversion(new _ListSink(percentChunks));
   percentSink.add("a%20");
   percentSink.add("b%2F");
   percentSink.close();
@@ -2140,7 +2144,7 @@ export function main() {
       return v;
     })();
   })();
-  const identityCodec = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IdentityCodec<Object?>{})\"]", () => Object.freeze(Object.assign(Object.create(IdentityCodec.prototype), {  })));
+  const identityCodec = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IdentityCodec<Object?>{})\"]", () => Object.freeze(Object.create(IdentityCodec.prototype, {  })));
   const identity = (__dartEquals(identityCodec.encode("id"), "id") && __dartEquals(identityCodec.decode(42), 42));
   const formatter = new FixedDateTimeFormatter("YYYY-MM-DD hh:mm:ss.SSSSSS");
   const formatted = formatter.encode(__dartDateTimeFromParts(true, 2026, 6, 23, 4, 5, 6, 7, 8));

@@ -83,6 +83,10 @@ function __dartIntParse(source, radix = null) {
   return value;
 }
 
+function __dartShr(left, right) {
+  return Math.floor(Number(left) / (2 ** Number(right)));
+}
+
 function __dartIterableFirstWhere(iterable, test, orElse = null) {
   for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) return value;
@@ -742,7 +746,7 @@ class DefaultEquality {
 }
 
 class IterableEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
@@ -780,10 +784,10 @@ class IterableEquality {
       let c = this._elementEquality_package_collection_src_equality_dart.hash(element);
       hash = hash + c & 2147483647;
       hash = hash + (hash << 10) & 2147483647;
-      hash = hash ^ hash >> 6;
+      hash = hash ^ __dartShr(hash, 6);
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -793,7 +797,7 @@ class IterableEquality {
 }
 
 class ListEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
@@ -825,10 +829,10 @@ class ListEquality {
       let c = this._elementEquality_package_collection_src_equality_dart.hash(__dartListLikeGet(list, i));
       hash = hash + c & 2147483647;
       hash = hash + (hash << 10) & 2147483647;
-      hash = hash ^ hash >> 6;
+      hash = hash ^ __dartShr(hash, 6);
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -1054,7 +1058,7 @@ Object.defineProperty(VersionConstraint, "any", { get: function() {
 }, set: function(value) {
   $VersionConstraint_any.set(value);
 }, enumerable: true });
-const $VersionConstraint_empty = __dartLazyField("VersionConstraint.empty", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _EmptyVersion{})\"]", () => Object.freeze(Object.assign(Object.create(_EmptyVersion.prototype), {  }))), true);
+const $VersionConstraint_empty = __dartLazyField("VersionConstraint.empty", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _EmptyVersion{})\"]", () => Object.freeze(Object.create(_EmptyVersion.prototype, {  }))), true);
 Object.defineProperty(VersionConstraint, "empty", { get: function() {
   return $VersionConstraint_empty.get();
 }, set: function(value) {
@@ -1235,10 +1239,10 @@ class VersionUnion {
     return VersionConstraint.unionOf([this, other]);
   }
   "=="(other) {
-    return (other instanceof VersionUnion && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(ListEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.ranges, other.ranges));
+    return (other instanceof VersionUnion && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(ListEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).equals(this.ranges, other.ranges));
   }
   get hashCode() {
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(ListEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.ranges);
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(ListEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).hash(this.ranges);
   }
   toString() {
     return __dartIterableToArray(this.ranges).join(" or ");
@@ -1769,10 +1773,10 @@ class Version {
     return true;
   }
   "=="(other) {
-    return (((((other instanceof Version && __dartEquals(this.major, other.major)) && __dartEquals(this.minor, other.minor)) && __dartEquals(this.patch, other.patch)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.preRelease, other.preRelease)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).equals(this.build, other.build));
+    return (((((other instanceof Version && __dartEquals(this.major, other.major)) && __dartEquals(this.minor, other.minor)) && __dartEquals(this.patch, other.patch)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(IterableEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).equals(this.preRelease, other.preRelease)) && __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(IterableEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).equals(this.build, other.build));
   }
   get hashCode() {
-    return this.major ^ this.minor ^ this.patch ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.preRelease) ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(IterableEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.build);
+    return this.major ^ this.minor ^ this.patch ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(IterableEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).hash(this.preRelease) ^ __dartConst("[\"InstanceConstant\",\"InstanceConstant(const IterableEquality<Object>{IterableEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(IterableEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).hash(this.build);
   }
   "<"(other) {
     return this.compareTo(other) < 0;

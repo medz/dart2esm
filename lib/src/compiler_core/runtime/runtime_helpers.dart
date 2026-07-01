@@ -4,6 +4,7 @@ enum EsmRuntimeHelper {
   argumentChecks,
   bigIntBitLength,
   bigIntParse,
+  byteConversionSink,
   compare,
   coreError,
   constMap,
@@ -29,6 +30,7 @@ enum EsmRuntimeHelper {
   intGcd,
   intModular,
   intParse,
+  intShift,
   iterableJoin,
   iterableSearch,
   iterableToArray,
@@ -88,6 +90,8 @@ final class EsmRuntimeHelperRegistry {
     '__dartAs',
     '__dartBigIntBitLength',
     '__dartBigIntParse',
+    '__dartByteConversionSink',
+    '__dartByteConversionSinkFrom',
     '__dartCheckNotNull',
     '__dartCompare',
     '__dartCoreError',
@@ -227,6 +231,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartRegExpMatch',
     '__dartRuntimeType',
     '__dartSafeToString',
+    '__dartShr',
     '__dartSetAddAll',
     '__dartSetAdd',
     '__dartSetContains',
@@ -241,6 +246,8 @@ final class EsmRuntimeHelperRegistry {
     '__dartSetRetainAll',
     '__dartSetRetainWhere',
     '__dartSetUnion',
+    '__dartSinkAdd',
+    '__dartSinkClose',
     '__dartSplaySortMap',
     '__dartSplaySortSet',
     '__dartSplayTreeMap',
@@ -299,6 +306,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.bigIntBitLength => '__dartBigIntBitLength',
       EsmRuntimeHelper.argumentChecks => '__dartCheckNotNull',
       EsmRuntimeHelper.bigIntParse => '__dartBigIntParse',
+      EsmRuntimeHelper.byteConversionSink => '__dartByteConversionSinkFrom',
       EsmRuntimeHelper.compare => '__dartCompare',
       EsmRuntimeHelper.coreError => '__dartCoreError',
       EsmRuntimeHelper.constMap => '__dartConstMap',
@@ -324,6 +332,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.intGcd => '__dartIntGcd',
       EsmRuntimeHelper.intModular => '__dartIntModInverse',
       EsmRuntimeHelper.intParse => '__dartIntParse',
+      EsmRuntimeHelper.intShift => '__dartShr',
       EsmRuntimeHelper.iterableJoin => '__dartIterableJoin',
       EsmRuntimeHelper.iterableSearch => '__dartIterableFirstWhere',
       EsmRuntimeHelper.iterableToArray => '__dartIterableToArray',
@@ -645,6 +654,58 @@ function __dartUtf8Codec(allowMalformed = false) {
   });
 }
 '''),
+      EsmRuntimeHelper.byteConversionSink => EsmRawModuleItemIr('''
+function __dartSinkAdd(sink, value) {
+  if (sink != null && typeof sink.add === "function") return sink.add(value);
+  if (typeof sink === "function") return sink(value);
+  throw new TypeError("Sink has no add method");
+}
+function __dartSinkClose(sink) {
+  if (sink != null && typeof sink.close === "function") return sink.close();
+  return null;
+}
+function __dartByteConversionSink(callback) {
+  return Object.freeze({
+    add(chunk) {
+      callback(Array.from(chunk));
+      return null;
+    },
+    addSlice(chunk, start, end, isLast) {
+      callback(Array.from(chunk).slice(start, end));
+      if (isLast) this.close();
+      return null;
+    },
+    addByte(byte) {
+      callback([Number(byte) & 255]);
+      return null;
+    },
+    close() {
+      return null;
+    },
+  });
+}
+function __dartByteConversionSinkFrom(sink) {
+  return Object.freeze({
+    add(chunk) {
+      __dartSinkAdd(sink, Array.from(chunk));
+      return null;
+    },
+    addSlice(chunk, start, end, isLast) {
+      __dartSinkAdd(sink, Array.from(chunk).slice(start, end));
+      if (isLast) __dartSinkClose(sink);
+      return null;
+    },
+    addByte(byte) {
+      __dartSinkAdd(sink, [Number(byte) & 255]);
+      return null;
+    },
+    close() {
+      __dartSinkClose(sink);
+      return null;
+    },
+  });
+}
+'''),
       EsmRuntimeHelper.enumAsNameMap => EsmRawModuleItemIr('''
 function __dartEnumAsNameMap(values) {
   const map = new Map();
@@ -866,6 +927,11 @@ function __dartIntGcd(left, right) {
     b = next;
   }
   return a;
+}
+'''),
+      EsmRuntimeHelper.intShift => EsmRawModuleItemIr('''
+function __dartShr(left, right) {
+  return Math.floor(Number(left) / (2 ** Number(right)));
 }
 '''),
       EsmRuntimeHelper.intModular => EsmRawModuleItemIr('''
@@ -2706,6 +2772,7 @@ final class EsmRuntimeHelperUseSet {
     switch (helper) {
       case EsmRuntimeHelper.bigIntBitLength:
       case EsmRuntimeHelper.bigIntParse:
+      case EsmRuntimeHelper.byteConversionSink:
       case EsmRuntimeHelper.compare:
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
@@ -2723,6 +2790,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.finalizer:
       case EsmRuntimeHelper.intGcd:
+      case EsmRuntimeHelper.intShift:
       case EsmRuntimeHelper.iterableToArray:
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:

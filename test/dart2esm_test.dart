@@ -1574,6 +1574,96 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
+  test('compiles typed data Endian constants through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-typed-data-endian-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+import 'dart:typed_data';
+
+void main() {
+  final data = ByteData(4);
+  data.setUint16(0, 0x0a0b, Endian.little);
+  data.setUint16(2, 0x0c0d, Endian.big);
+  print(
+    'endian \${data.getUint8(0)} \${data.getUint8(1)} '
+    '\${data.getUint8(2)} \${data.getUint8(3)} '
+    '\${data.getUint16(0, Endian.little)} '
+    '\${data.getUint16(2, Endian.big)}',
+  );
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('data.setUint16(0, 2571, true);'));
+    expect(code, contains('data.setUint16(2, 3085, false);'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
+  test('compiles byte conversion sink adapters through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-byte-conversion-sink-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+import 'dart:convert';
+
+void main() {
+  final chunks = <List<int>>[];
+  final sink = ByteConversionSink.from(_ListSink(chunks));
+  sink.add([1, 2]);
+  sink.addSlice([3, 4, 5], 1, 3, true);
+  print('byteSink \${chunks.map((chunk) => chunk.join('-')).join('|')}');
+}
+
+class _ListSink<T> implements Sink<T> {
+  _ListSink(this.values);
+
+  final List<T> values;
+
+  @override
+  void add(T data) {
+    values.add(data);
+  }
+
+  @override
+  void close() {}
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('function __dartByteConversionSinkFrom'));
+    expect(code, contains('__dartByteConversionSinkFrom(new _ListSink'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
   test('compiles control operators through the new core', () async {
     final source = File(
       p.join(fixtureDir.path, 'syntax', 'control_operators.dart'),
@@ -1675,6 +1765,8 @@ void main() {
       '\${3.2.ceilToDouble()} \${3.2.truncateToDouble()} '
       '\${0x0f0f & 0x00ff} \${0x0f0f | 0x1000} '
       '\${0x0f0f ^ 0x00ff} \${3 << 4} \${16 >> 2} \${16 >>> 2} '
+      '\${0xffffffff & 0xffffffff} \${0xffffffff >> 4} '
+      '\${(-5) >> 1} '
       '\$modInverseFailed \$modPowFailed');
 }
 ''');
@@ -1704,6 +1796,8 @@ void main() {
     expect(code, contains('__dartIntGcd'));
     expect(code, contains('__dartIntModInverse'));
     expect(code, contains('__dartIntModPow'));
+    expect(code, contains('__dartShr'));
+    expect(code, contains('4294967295 >>> 0'));
     await _expectSameDartAndNodeOutput(input, output);
   });
 
@@ -3750,7 +3844,6 @@ const _legacyOracleFixtureIds = {
   'libraries/web_audio',
   'libraries/web_gl',
   'packages/async_usage',
-  'packages/crypto_usage',
   'packages/glob_usage',
   'packages/http_parser_usage',
   'packages/mime_usage',

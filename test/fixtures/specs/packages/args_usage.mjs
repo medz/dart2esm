@@ -1023,7 +1023,7 @@ class Option {
     Object.defineProperty($self, "aliases", { value: aliases, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "allowed", { value: (allowed === null ? null : __dartUnmodifiableList(allowed)), writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "allowedHelp", { value: (allowedHelp === null ? null : __dartMapFromEntries(allowedHelp)), writable: true, enumerable: true, configurable: true });
-    Object.defineProperty($self, "splitCommas", { value: (splitCommas ?? __dartEquals(type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.multiple" }))))), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "splitCommas", { value: (splitCommas ?? __dartEquals(type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.multiple", enumerable: true } }))))), writable: true, enumerable: true, configurable: true });
     if ($self.name.length === 0) {
       throw __dartCoreError("ArgumentError", "Name cannot be empty.");
     } else {
@@ -1050,13 +1050,13 @@ class Option {
     return $self;
   }
   get isFlag() {
-    return __dartEquals(this.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.flag\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.flag" }))));
+    return __dartEquals(this.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.flag\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.flag", enumerable: true } }))));
   }
   get isSingle() {
-    return __dartEquals(this.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.single\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.single" }))));
+    return __dartEquals(this.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.single\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.single", enumerable: true } }))));
   }
   get isMultiple() {
-    return __dartEquals(this.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.multiple" }))));
+    return __dartEquals(this.type, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.multiple", enumerable: true } }))));
   }
   valueOrDefault(value) {
     if (!(value === null)) {
@@ -1090,19 +1090,19 @@ class OptionType {
   }
 }
 
-const $OptionType_flag = __dartLazyField("OptionType.flag", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.flag\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.flag" }))), false);
+const $OptionType_flag = __dartLazyField("OptionType.flag", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.flag\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.flag", enumerable: true } }))), false);
 Object.defineProperty(OptionType, "flag", { get: function() {
   return $OptionType_flag.get();
 }, set: function(value) {
   $OptionType_flag.set(value);
 }, enumerable: true });
-const $OptionType_single = __dartLazyField("OptionType.single", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.single\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.single" }))), false);
+const $OptionType_single = __dartLazyField("OptionType.single", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.single\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.single", enumerable: true } }))), false);
 Object.defineProperty(OptionType, "single", { get: function() {
   return $OptionType_single.get();
 }, set: function(value) {
   $OptionType_single.set(value);
 }, enumerable: true });
-const $OptionType_multiple = __dartLazyField("OptionType.multiple", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.multiple" }))), false);
+const $OptionType_multiple = __dartLazyField("OptionType.multiple", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.multiple", enumerable: true } }))), false);
 Object.defineProperty(OptionType, "multiple", { get: function() {
   return $OptionType_multiple.get();
 }, set: function(value) {
@@ -1658,10 +1658,10 @@ class ArgParser {
   addFlag(name, { abbr = null, help = null, defaultsTo = false, negatable = true, callback = null, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
     this._addOption_package_args_src_arg_parser_dart(name, abbr, help, null, null, null, defaultsTo, (callback === null ? null : (value) => {
       return callback(value);
-    }), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.flag\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.flag" }))), { negatable: negatable, hide: hide, hideNegatedUsage: hideNegatedUsage, aliases: aliases });
+    }), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.flag\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.flag", enumerable: true } }))), { negatable: negatable, hide: hide, hideNegatedUsage: hideNegatedUsage, aliases: aliases });
   }
   addOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, mandatory = false, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
-    this._addOption_package_args_src_arg_parser_dart(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.single\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.single" }))), { mandatory: mandatory, hide: hide, aliases: aliases });
+    this._addOption_package_args_src_arg_parser_dart(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.single\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.single", enumerable: true } }))), { mandatory: mandatory, hide: hide, aliases: aliases });
   }
   addMultiOption(name, { abbr = null, help = null, valueHelp = null, allowed = null, allowedHelp = null, defaultsTo = null, callback = null, splitCommas = true, hide = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
     this._addOption_package_args_src_arg_parser_dart(name, abbr, help, valueHelp, allowed, allowedHelp, ((() => {
@@ -1669,7 +1669,7 @@ class ArgParser {
       return (v === null ? null : __dartListOf(v, true));
     })() ?? Array(0).fill(null)), (callback === null ? null : (value) => {
       return callback(value);
-    }), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.assign(Object.create(OptionType.prototype), { name: "OptionType.multiple" }))), { splitCommas: splitCommas, hide: hide, aliases: aliases });
+    }), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const OptionType{OptionType.name: \\\"OptionType.multiple\\\"})\"]", () => Object.freeze(Object.create(OptionType.prototype, { name: { value: "OptionType.multiple", enumerable: true } }))), { splitCommas: splitCommas, hide: hide, aliases: aliases });
   }
   _addOption_package_args_src_arg_parser_dart(name, abbr, help, valueHelp, allowed, allowedHelp, defaultsTo, callback, type, { negatable = false, splitCommas = null, mandatory = false, hide = false, hideNegatedUsage = false, aliases = __dartConst("[\"list\",\"InterfaceType(String)\"]", () => Object.freeze([])) } = {}) {
     let allNames = (() => {

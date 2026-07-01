@@ -1893,10 +1893,10 @@ class Context {
     return pathParsed.toString();
   }
   isWithin(parent, child) {
-    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(parent, child), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))));
+    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(parent, child), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))));
   }
   equals(path1, path2) {
-    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(path1, path2), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" }))));
+    return __dartEquals(this._isWithinOrEquals_package_path_src_context_dart(path1, path2), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } }))));
   }
   _isWithinOrEquals_package_path_src_context_dart(parent, child) {
     const parentIsAbsolute = this.isAbsolute(parent);
@@ -1927,7 +1927,7 @@ class Context {
       }
     }
     const result = this._isWithinOrEqualsFast_package_path_src_context_dart(parent, child);
-    if (!(__dartEquals(result, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })))))) {
+    if (!(__dartEquals(result, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })))))) {
       return result;
     }
     let relative = null;
@@ -1936,21 +1936,21 @@ class Context {
     } catch ($error) {
       if ($error instanceof PathException) {
         const _ = $error;
-        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
       } else {
         throw $error;
       }
     }
     if (!(this.isRelative(relative))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
     }
     if (__dartEquals(relative, ".")) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } })));
     }
     if (__dartEquals(relative, "..")) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
     }
-    return (((relative.length >= 3 && relative.startsWith("..")) && this.style.isSeparator(relative.charCodeAt(2))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))));
+    return (((relative.length >= 3 && relative.startsWith("..")) && this.style.isSeparator(relative.charCodeAt(2))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))));
   }
   _isWithinOrEqualsFast_package_path_src_context_dart(parent, child) {
     if (__dartEquals(parent, ".")) {
@@ -1959,13 +1959,13 @@ class Context {
     const parentRootLength = this.style.rootLength(parent);
     const childRootLength = this.style.rootLength(child);
     if (!(__dartEquals(parentRootLength, childRootLength))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
     }
     for (let i = 0; i < parentRootLength; i = i + 1) {
       const parentCodeUnit = parent.charCodeAt(i);
       const childCodeUnit = child.charCodeAt(i);
       if (!(this.style.codeUnitsEqual(parentCodeUnit, childCodeUnit))) {
-        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
       }
     }
     let lastCodeUnit = 47;
@@ -2010,7 +2010,7 @@ class Context {
             if (__dartEquals(parentCodeUnit_1, 46)) {
               parentIndex = parentIndex + 1;
               if ((__dartEquals(parentIndex, parent.length) || this.style.isSeparator(parent.charCodeAt(parentIndex)))) {
-                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
               }
             }
           }
@@ -2027,19 +2027,19 @@ class Context {
             if (__dartEquals(childCodeUnit_1, 46)) {
               childIndex = childIndex + 1;
               if ((__dartEquals(childIndex, child.length) || this.style.isSeparator(child.charCodeAt(childIndex)))) {
-                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+                return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
               }
             }
           }
           const childDirection = this._pathDirection_package_path_src_context_dart(child, childIndex);
-          if (!(__dartEquals(childDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" })))))) {
-            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+          if (!(__dartEquals(childDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } })))))) {
+            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
           }
           const parentDirection = this._pathDirection_package_path_src_context_dart(parent, parentIndex);
-          if (!(__dartEquals(parentDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" })))))) {
-            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+          if (!(__dartEquals(parentDirection, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } })))))) {
+            return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
           }
-          return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" })));
+          return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } })));
         }
       }
     }
@@ -2050,19 +2050,19 @@ class Context {
         (lastParentSeparator === null ? lastParentSeparator = Math.max(0, parentRootLength - 1) : null);
       }
       const direction = this._pathDirection_package_path_src_context_dart(parent, lastParentSeparator);
-      if (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))))) {
-        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" })));
+      if (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } }))))) {
+        return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } })));
       }
-      return (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" })))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))));
+      return (__dartEquals(direction, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } })))) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))));
     }
     const direction_1 = this._pathDirection_package_path_src_context_dart(child, childIndex);
-    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" })));
+    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } }))))) {
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } })));
     }
-    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" }))))) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" })));
+    if (__dartEquals(direction_1, __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } }))))) {
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } })));
     }
-    return ((this.style.isSeparator(child.charCodeAt(childIndex)) || this.style.isSeparator(lastCodeUnit)) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))));
+    return ((this.style.isSeparator(child.charCodeAt(childIndex)) || this.style.isSeparator(lastCodeUnit)) ? __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))) : __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))));
   }
   _pathDirection_package_path_src_context_dart(path, index) {
     let depth = 0;
@@ -2101,15 +2101,15 @@ class Context {
       }
     }
     if (depth < 0) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } })));
     }
     if (__dartEquals(depth, 0)) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } })));
     }
     if (reachedRoot) {
-      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "reaches root" })));
+      return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "reaches root", enumerable: true } })));
     }
-    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" })));
+    return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } })));
   }
   hash(path) {
     path = this.absolute(path);
@@ -2208,25 +2208,25 @@ class _PathDirection {
   }
 }
 
-const $_PathDirection_aboveRoot = __dartLazyField("_PathDirection.aboveRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "above root" }))), false);
+const $_PathDirection_aboveRoot = __dartLazyField("_PathDirection.aboveRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"above root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "above root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "aboveRoot", { get: function() {
   return $_PathDirection_aboveRoot.get();
 }, set: function(value) {
   $_PathDirection_aboveRoot.set(value);
 }, enumerable: true });
-const $_PathDirection_atRoot = __dartLazyField("_PathDirection.atRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "at root" }))), false);
+const $_PathDirection_atRoot = __dartLazyField("_PathDirection.atRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"at root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "at root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "atRoot", { get: function() {
   return $_PathDirection_atRoot.get();
 }, set: function(value) {
   $_PathDirection_atRoot.set(value);
 }, enumerable: true });
-const $_PathDirection_reachesRoot = __dartLazyField("_PathDirection.reachesRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "reaches root" }))), false);
+const $_PathDirection_reachesRoot = __dartLazyField("_PathDirection.reachesRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"reaches root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "reaches root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "reachesRoot", { get: function() {
   return $_PathDirection_reachesRoot.get();
 }, set: function(value) {
   $_PathDirection_reachesRoot.set(value);
 }, enumerable: true });
-const $_PathDirection_belowRoot = __dartLazyField("_PathDirection.belowRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathDirection.prototype), { name: "below root" }))), false);
+const $_PathDirection_belowRoot = __dartLazyField("_PathDirection.belowRoot", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathDirection{_PathDirection.name: \\\"below root\\\"})\"]", () => Object.freeze(Object.create(_PathDirection.prototype, { name: { value: "below root", enumerable: true } }))), false);
 Object.defineProperty(_PathDirection, "belowRoot", { get: function() {
   return $_PathDirection_belowRoot.get();
 }, set: function(value) {
@@ -2242,25 +2242,25 @@ class _PathRelation {
   }
 }
 
-const $_PathRelation_within = __dartLazyField("_PathRelation.within", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "within" }))), false);
+const $_PathRelation_within = __dartLazyField("_PathRelation.within", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"within\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "within", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "within", { get: function() {
   return $_PathRelation_within.get();
 }, set: function(value) {
   $_PathRelation_within.set(value);
 }, enumerable: true });
-const $_PathRelation_equal = __dartLazyField("_PathRelation.equal", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "equal" }))), false);
+const $_PathRelation_equal = __dartLazyField("_PathRelation.equal", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"equal\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "equal", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "equal", { get: function() {
   return $_PathRelation_equal.get();
 }, set: function(value) {
   $_PathRelation_equal.set(value);
 }, enumerable: true });
-const $_PathRelation_different = __dartLazyField("_PathRelation.different", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "different" }))), false);
+const $_PathRelation_different = __dartLazyField("_PathRelation.different", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"different\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "different", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "different", { get: function() {
   return $_PathRelation_different.get();
 }, set: function(value) {
   $_PathRelation_different.set(value);
 }, enumerable: true });
-const $_PathRelation_inconclusive = __dartLazyField("_PathRelation.inconclusive", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.assign(Object.create(_PathRelation.prototype), { name: "inconclusive" }))), false);
+const $_PathRelation_inconclusive = __dartLazyField("_PathRelation.inconclusive", () => __dartConst("[\"InstanceConstant\",\"InstanceConstant(const _PathRelation{_PathRelation.name: \\\"inconclusive\\\"})\"]", () => Object.freeze(Object.create(_PathRelation.prototype, { name: { value: "inconclusive", enumerable: true } }))), false);
 Object.defineProperty(_PathRelation, "inconclusive", { get: function() {
   return $_PathRelation_inconclusive.get();
 }, set: function(value) {

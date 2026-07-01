@@ -65,6 +65,10 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartShr(left, right) {
+  return Math.floor(Number(left) / (2 ** Number(right)));
+}
+
 function __dartIterableToArray(iterable) {
   if (Array.isArray(iterable)) return Array.from(iterable);
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
@@ -470,7 +474,7 @@ class DefaultEquality {
 }
 
 class IterableEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
@@ -508,10 +512,10 @@ class IterableEquality {
       let c = this._elementEquality_package_collection_src_equality_dart.hash(element);
       hash = hash + c & 2147483647;
       hash = hash + (hash << 10) & 2147483647;
-      hash = hash ^ hash >> 6;
+      hash = hash ^ __dartShr(hash, 6);
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -521,7 +525,7 @@ class IterableEquality {
 }
 
 class ListEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_elementEquality_package_collection_src_equality_dart", { value: elementEquality, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
@@ -553,10 +557,10 @@ class ListEquality {
       let c = this._elementEquality_package_collection_src_equality_dart.hash(__dartListLikeGet(list, i));
       hash = hash + c & 2147483647;
       hash = hash + (hash << 10) & 2147483647;
-      hash = hash ^ hash >> 6;
+      hash = hash ^ __dartShr(hash, 6);
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -627,7 +631,7 @@ class _UnorderedEquality {
       hash = hash + c & 2147483647;
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -637,7 +641,7 @@ Object.defineProperty(_UnorderedEquality, Symbol.hasInstance, { value: function(
   return value != null && (_UnorderedEquality.prototype.isPrototypeOf(value) || value[$_UnorderedEquality_interface] === true);
 } });
 class UnorderedIterableEquality extends _UnorderedEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     super(elementEquality);
   }
   isValidKey(o) {
@@ -646,7 +650,7 @@ class UnorderedIterableEquality extends _UnorderedEquality {
 }
 
 class SetEquality extends _UnorderedEquality {
-  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(elementEquality = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     super(elementEquality);
   }
   isValidKey(o) {
@@ -672,7 +676,7 @@ class _MapEntry {
 }
 
 class MapEquality {
-  constructor({ keys = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))), values = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) } = {}) {
+  constructor({ keys = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), values = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))) } = {}) {
     Object.defineProperty(this, "_keyEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_valueEquality_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_keyEquality_package_collection_src_equality_dart", { value: keys, writable: true, enumerable: true, configurable: true });
@@ -726,7 +730,7 @@ class MapEquality {
       hash = hash + 3 * keyHash + 7 * valueHash & 2147483647;
     }
     hash = hash + (hash << 3) & 2147483647;
-    hash = hash ^ hash >> 11;
+    hash = hash ^ __dartShr(hash, 11);
     hash = hash + (hash << 15) & 2147483647;
     return hash;
   }
@@ -736,14 +740,14 @@ class MapEquality {
 }
 
 class DeepCollectionEquality {
-  constructor(base = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  constructor(base = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     Object.defineProperty(this, "_base_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_unordered_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_base_package_collection_src_equality_dart", { value: base, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "_unordered_package_collection_src_equality_dart", { value: false, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, $Equality_interface, { value: true });
   }
-  static unordered(base = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  })))) {
+  static unordered(base = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  })))) {
     const $self = Object.create(this.prototype);
     Object.defineProperty($self, "_base_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty($self, "_unordered_package_collection_src_equality_dart", { value: null, writable: true, enumerable: true, configurable: true });
@@ -1026,7 +1030,7 @@ class HeapPriorityQueue {
         }
         do {
           while (Math.trunc(position) % 2 !== 0) {
-            position = position >> 1;
+            position = __dartShr(position, 1);
           }
           position = position + 1;
         } while (position > this._length_package_collection_src_priority_queue_dart);
@@ -1220,7 +1224,7 @@ export function main() {
   const groups = groupBy(["aa", "b", "cc", "d"], (value) => {
     return value.length;
   });
-  const deepEqual = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DeepCollectionEquality{DeepCollectionEquality._base: const DefaultEquality<Never>{}, DeepCollectionEquality._unordered: false})\"]", () => Object.freeze(Object.assign(Object.create(DeepCollectionEquality.prototype), { _base_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))), _unordered_package_collection_src_equality_dart: false }))).equals(__dartMapFromEntries([["a", [1, 2]]]), __dartMapFromEntries([["a", [1, 2]]]));
+  const deepEqual = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DeepCollectionEquality{DeepCollectionEquality._base: const DefaultEquality<Never>{}, DeepCollectionEquality._unordered: false})\"]", () => Object.freeze(Object.create(DeepCollectionEquality.prototype, { _base_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true }, _unordered_package_collection_src_equality_dart: { value: false, enumerable: true } }))).equals(__dartMapFromEntries([["a", [1, 2]]]), __dartMapFromEntries([["a", [1, 2]]]));
   const queue = (() => {
     const v = new HeapPriorityQueue();
     return (() => {

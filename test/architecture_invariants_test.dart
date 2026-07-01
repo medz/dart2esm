@@ -201,6 +201,9 @@ void main() {
     final coreText = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_text_intrinsics.dart',
     );
+    final coreTime = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_time_intrinsics.dart',
+    );
     final coreUri = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_uri_intrinsics.dart',
     );
@@ -255,6 +258,7 @@ void main() {
     expect(lowering, isNot(contains('_lowerUriOptionsObject')));
     expect(lowering, isNot(contains('_lowerCoreStringStaticInvocation')));
     expect(lowering, isNot(contains('_lowerCoreRegExpStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreTimeStaticInvocation')));
     expect(lowering, isNot(contains('_lowerDeveloperStaticGet')));
     expect(lowering, isNot(contains('_lowerDeveloperStaticInvocation')));
     expect(lowering, isNot(contains('_lowerMathStaticGet')));
@@ -313,6 +317,11 @@ void main() {
       isNot(contains('dart:core::String::@factories::fromCharCodes')),
     );
     expect(lowering, isNot(contains('dart:core::RegExp::@methods::escape')));
+    expect(lowering, isNot(contains('dart:core::DateTime::@methods::parse')));
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.coreDateTimeCopyWith')),
+    );
     expect(
       lowering,
       isNot(contains('dart:core::ArgumentError::@methods::checkNotNull')),
@@ -369,6 +378,13 @@ void main() {
     expect(coreText, contains('dart:core::RegExp::@methods::escape'));
     expect(coreText, contains('EsmRuntimeHelper.regExp'));
     expect(coreText, contains('EsmRuntimeHelper.stringFactory'));
+    expect(coreTime, contains('lowerDartCoreTimeStaticInvocation'));
+    expect(coreTime, contains('dart:core::DateTime::@methods::parse'));
+    expect(
+      coreTime,
+      contains('DartSdkStaticInvocationSymbol.coreDateTimeCopyWith'),
+    );
+    expect(coreTime, contains('__dartDateTimeCopyWith'));
     expect(coreUri, contains('lowerDartCoreUriStaticGet'));
     expect(coreUri, contains('lowerDartCoreUriInstanceInvocation'));
     expect(coreUri, contains('lowerDartCoreUriInstanceGet'));
@@ -457,6 +473,23 @@ void main() {
     );
     expect(convert, contains('dart:convert::_ByteAdapterSink'));
     expect(convert, contains('dart:convert::_ByteCallbackSink'));
+  });
+
+  test('compiler core does not lower pub packages by package URI', () {
+    final compilerCoreSources = _dartFiles(
+      'lib/src/compiler_core',
+    ).map((file) => file.readAsStringSync()).join('\n');
+
+    for (final packageUri in [
+      'package:collection/',
+      'package:source_span/',
+      'package:string_scanner/',
+      'package:http_parser/',
+      'package:typed_data/',
+      'package:glob/',
+    ]) {
+      expect(compilerCoreSources, isNot(contains(packageUri)));
+    }
   });
 
   test('ESM IR is independent from runtime helper registry', () {

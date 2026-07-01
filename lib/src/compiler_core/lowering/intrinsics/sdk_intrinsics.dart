@@ -9,6 +9,7 @@ import 'dart_core_error_intrinsics.dart';
 import 'dart_core_iterable_intrinsics.dart';
 import 'dart_core_runtime_intrinsics.dart';
 import 'dart_core_text_intrinsics.dart';
+import 'dart_core_time_intrinsics.dart';
 import 'dart_core_uri_intrinsics.dart';
 import 'dart_developer_intrinsics.dart';
 import 'dart_internal_intrinsics.dart';
@@ -163,6 +164,11 @@ final class DartSdkIntrinsicRegistry {
           expression: expression,
           helpers: helpers,
           runtimeHelpers: runtimeHelpers,
+          lower: lower,
+        ) ??
+        lowerDartCoreTimeStaticInvocation(
+          expression: expression,
+          helpers: helpers,
           lower: lower,
         ) ??
         lowerDartInternalStaticInvocation(

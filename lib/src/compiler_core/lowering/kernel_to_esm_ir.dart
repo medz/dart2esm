@@ -12242,16 +12242,6 @@ final class KernelToEsmIrLoweringStage
     if (sdkStatic != null) {
       return sdkStatic;
     }
-    final coreTimeStatic = _lowerCoreTimeStaticInvocation(
-      world,
-      helpers,
-      locals,
-      expression,
-      thisExpression: thisExpression,
-    );
-    if (coreTimeStatic != null) {
-      return coreTimeStatic;
-    }
     final coreNumberStatic = _lowerCoreNumberStaticInvocation(
       world,
       helpers,
@@ -12966,80 +12956,6 @@ final class KernelToEsmIrLoweringStage
 
   bool _isCoreExpandoMember(String target) {
     return target.startsWith('dart:core::Expando::@');
-  }
-
-  EsmExpressionIr? _lowerCoreTimeStaticInvocation(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    final target = kernelReferencePath(expression.targetReference);
-    final positional = expression.arguments.positional;
-    if ((target == 'dart:core::DateTime::@methods::parse' ||
-            target == 'dart:core::DateTime::@methods::tryParse') &&
-        positional.length == 1 &&
-        expression.arguments.named.isEmpty &&
-        expression.arguments.types.isEmpty) {
-      helpers.require(EsmRuntimeHelper.dateTime);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartDateTimeParse'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          EsmBooleanLiteralIr(target.endsWith('tryParse')),
-        ],
-      );
-    }
-    if (dartSdkStaticInvocationSymbol(expression.targetReference) ==
-            DartSdkStaticInvocationSymbol.coreDateTimeCopyWith &&
-        positional.length == 1 &&
-        expression.arguments.types.isEmpty &&
-        _hasOnlyNamedArguments(expression.arguments, {
-          'year',
-          'month',
-          'day',
-          'hour',
-          'minute',
-          'second',
-          'millisecond',
-          'microsecond',
-          'isUtc',
-        })) {
-      helpers.require(EsmRuntimeHelper.dateTime);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartDateTimeCopyWith'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          EsmObjectLiteralIr([
-            for (final argument in expression.arguments.named)
-              EsmObjectLiteralPropertyIr.static(
-                key: argument.name,
-                value: _lowerExpression(
-                  world,
-                  helpers,
-                  locals,
-                  argument.value,
-                  thisExpression: thisExpression,
-                ),
-              ),
-          ]),
-        ],
-      );
-    }
-    return null;
   }
 
   EsmExpressionIr? _lowerNamedArgument(

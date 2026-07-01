@@ -7,6 +7,7 @@ import 'dart_convert_intrinsics.dart';
 import 'dart_core_iterable_intrinsics.dart';
 import 'dart_core_text_intrinsics.dart';
 import 'dart_core_uri_intrinsics.dart';
+import 'dart_developer_intrinsics.dart';
 import 'dart_internal_intrinsics.dart';
 import 'dart_typed_data_intrinsics.dart';
 
@@ -95,10 +96,11 @@ final class DartSdkIntrinsicRegistry {
     required EsmRuntimeHelperRegistry runtimeHelpers,
   }) {
     return lowerDartCoreUriStaticGet(
-      expression: expression,
-      helpers: helpers,
-      runtimeHelpers: runtimeHelpers,
-    );
+          expression: expression,
+          helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
+        ) ??
+        lowerDartDeveloperStaticGet(expression);
   }
 
   EsmExpressionIr? lowerConstructorInvocation({
@@ -122,7 +124,12 @@ final class DartSdkIntrinsicRegistry {
     lowerNamedArgument,
     required EsmExpressionIr Function(EsmExpressionIr value) arrayFrom,
   }) {
-    return lowerDartInternalStaticInvocation(
+    return lowerDartDeveloperStaticInvocation(
+          expression: expression,
+          lower: lower,
+          lowerNamedArgument: lowerNamedArgument,
+        ) ??
+        lowerDartInternalStaticInvocation(
           expression: expression,
           helpers: helpers,
           runtimeHelpers: runtimeHelpers,

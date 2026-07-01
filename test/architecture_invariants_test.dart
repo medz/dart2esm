@@ -195,6 +195,9 @@ void main() {
     final coreUri = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_uri_intrinsics.dart',
     );
+    final developer = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_developer_intrinsics.dart',
+    );
     final internal = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_internal_intrinsics.dart',
     );
@@ -239,6 +242,8 @@ void main() {
     expect(lowering, isNot(contains('_lowerUriOptionsObject')));
     expect(lowering, isNot(contains('_lowerCoreStringStaticInvocation')));
     expect(lowering, isNot(contains('_lowerCoreRegExpStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerDeveloperStaticGet')));
+    expect(lowering, isNot(contains('_lowerDeveloperStaticInvocation')));
     expect(
       lowering,
       isNot(contains('_typedDataByteBufferViewConstructorName')),
@@ -282,6 +287,8 @@ void main() {
       isNot(contains('dart:core::String::@factories::fromCharCodes')),
     );
     expect(lowering, isNot(contains('dart:core::RegExp::@methods::escape')));
+    expect(lowering, isNot(contains('DartDeveloperStaticGetSymbol')));
+    expect(lowering, isNot(contains('DartDeveloperStaticInvocationSymbol')));
     expect(typedDataInvocation, isNot(contains('__dartListSetAll')));
     expect(typedDataInvocation, isNot(contains('__dartListSetRange')));
     expect(typedDataInvocation, isNot(contains('__dartListFillRange')));
@@ -318,6 +325,14 @@ void main() {
     expect(coreUri, contains('dart:core::_Uri::@factories::'));
     expect(coreUri, contains('__dartUriReplace'));
     expect(coreUri, contains('queryParametersAll'));
+    expect(developer, contains('lowerDartDeveloperStaticGet'));
+    expect(developer, contains('lowerDartDeveloperStaticInvocation'));
+    expect(developer, contains('DartDeveloperStaticGetSymbol.timelineNow'));
+    expect(
+      developer,
+      contains('DartDeveloperStaticInvocationSymbol.timelineTimeSync'),
+    );
+    expect(developer, contains('DartDeveloperStaticInvocationSymbol.log'));
     expect(collection, contains('lowerDartCollectionQueueInstanceInvocation'));
     expect(collection, contains('lowerDartCollectionQueueInstanceGet'));
     expect(collection, contains('lowerDartCollectionStaticInvocation'));

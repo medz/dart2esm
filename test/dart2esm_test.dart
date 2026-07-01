@@ -3749,7 +3749,6 @@ const _legacyOracleFixtureIds = {
   'libraries/typed_data',
   'libraries/web_audio',
   'libraries/web_gl',
-  'packages/args_usage',
   'packages/async_usage',
   'packages/convert_usage',
   'packages/crypto_usage',

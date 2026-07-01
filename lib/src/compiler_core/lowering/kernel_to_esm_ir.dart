@@ -1911,6 +1911,16 @@ final class KernelToEsmIrLoweringStage
     if (initializer.arguments.types.isNotEmpty) {
       throw NewCompilerUnsupported(initializer, 'super initializer arguments');
     }
+    final coreErrorInitializer = _lowerCoreErrorSuperInitializer(
+      world,
+      helpers,
+      locals,
+      initializer,
+      const EsmThisIr(),
+    );
+    if (coreErrorInitializer != null) {
+      return coreErrorInitializer;
+    }
     final target = initializer.targetReference.node;
     if (target is k.Constructor &&
         _resolveEmittableConstructorTarget(world, target) != null) {
@@ -1934,6 +1944,94 @@ final class KernelToEsmIrLoweringStage
       return const [];
     }
     throw NewCompilerUnsupported(initializer, 'super initializer lowering');
+  }
+
+  List<EsmStatementIr>? _lowerCoreErrorSuperInitializer(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.SuperInitializer initializer,
+    EsmExpressionIr receiver,
+  ) {
+    final typeName = dartCoreErrorConstructorName(initializer.targetReference);
+    if (typeName == null) {
+      return null;
+    }
+    if (initializer.arguments.named.isNotEmpty) {
+      throw NewCompilerUnsupported(
+        initializer,
+        'core error super initializer arguments',
+      );
+    }
+    final positional = initializer.arguments.positional;
+    final message = positional.isEmpty
+        ? const EsmStringLiteralIr('')
+        : _lowerExpression(world, helpers, locals, positional.first);
+    return [
+      _lowerOwnDataPropertyDefinition(
+        receiver,
+        '__dartCoreErrorType',
+        EsmStringLiteralIr(typeName),
+      ),
+      _lowerOwnDataPropertyDefinition(
+        receiver,
+        'name',
+        EsmStringLiteralIr(typeName),
+      ),
+      _lowerOwnDataPropertyDefinition(receiver, 'message', message),
+      if (typeName == 'FormatException') ...[
+        _lowerOwnDataPropertyDefinition(
+          receiver,
+          'source',
+          positional.length > 1
+              ? _lowerExpression(world, helpers, locals, positional[1])
+              : const EsmNullLiteralIr(),
+        ),
+        _lowerOwnDataPropertyDefinition(
+          receiver,
+          'offset',
+          positional.length > 2
+              ? _lowerExpression(world, helpers, locals, positional[2])
+              : const EsmNullLiteralIr(),
+        ),
+      ],
+      _lowerOwnDataPropertyDefinition(
+        receiver,
+        'toString',
+        EsmFunctionExpressionIr(
+          parameters: const [],
+          body: [
+            EsmReturnStatementIr(
+              EsmConditionalIr(
+                condition: EsmBinaryIr(
+                  left: const EsmPropertyAccessIr(
+                    receiver: EsmThisIr(),
+                    property: 'message',
+                  ),
+                  operator: EsmBinaryOperatorIr.strictEquals,
+                  right: const EsmStringLiteralIr(''),
+                ),
+                thenExpression: const EsmPropertyAccessIr(
+                  receiver: EsmThisIr(),
+                  property: 'name',
+                ),
+                otherwiseExpression: EsmStringConcatenationIr([
+                  const EsmPropertyAccessIr(
+                    receiver: EsmThisIr(),
+                    property: 'name',
+                  ),
+                  const EsmStringLiteralIr(': '),
+                  const EsmPropertyAccessIr(
+                    receiver: EsmThisIr(),
+                    property: 'message',
+                  ),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   k.Constructor? _resolveEmittableConstructorTarget(
@@ -6222,6 +6320,24 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
+    if (isListMember &&
+        memberName == 'clear' &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.positional.isEmpty) {
+      return EsmAssignmentIr(
+        target: EsmPropertyAccessIr(
+          receiver: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          property: 'length',
+        ),
+        value: const EsmNumberLiteralIr(0),
+      );
+    }
     if (((isMapMember && memberName == 'clear') ||
             target == 'dart:_compact_hash::_Map::@methods::clear') &&
         expression.arguments.named.isEmpty &&
@@ -9570,6 +9686,13 @@ final class KernelToEsmIrLoweringStage
         arguments: [receiver],
       );
     }
+    final coreErrorGetter = _coreErrorInstanceGetterProperty(
+      expression.interfaceTargetReference,
+      memberName,
+    );
+    if (coreErrorGetter != null) {
+      return EsmPropertyAccessIr(receiver: receiver, property: coreErrorGetter);
+    }
     final numberGet = _lowerCoreNumberInstanceGet(helpers, receiver, target);
     if (numberGet != null) {
       return numberGet;
@@ -9611,6 +9734,30 @@ final class KernelToEsmIrLoweringStage
       ),
       _ => null,
     };
+  }
+
+  String? _coreErrorInstanceGetterProperty(k.Reference reference, String name) {
+    final property = switch (name) {
+      'message' ||
+      'source' ||
+      'offset' ||
+      'invalidValue' ||
+      'name' ||
+      'start' ||
+      'end' ||
+      'stackTrace' => name,
+      _ => null,
+    };
+    if (property == null) {
+      return null;
+    }
+    final path = kernelReferencePath(reference);
+    for (final typeName in dartCoreErrorTypeNames) {
+      if (path == 'dart:core::$typeName::@getters::$name') {
+        return property;
+      }
+    }
+    return null;
   }
 
   EsmExpressionIr? _lowerCoreNumberInstanceGet(
@@ -10835,16 +10982,50 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
     final target = expression.interfaceTargetReference.node;
+    final targetPath = kernelReferencePath(expression.interfaceTargetReference);
+    final sdkTearOff = _lowerSdkInstanceTearOff(
+      world,
+      helpers,
+      locals,
+      expression,
+      targetPath,
+      thisExpression: thisExpression,
+    );
+    if (sdkTearOff != null) {
+      return sdkTearOff;
+    }
     if (target is! k.Procedure) {
-      throw NewCompilerUnsupported(expression, 'instance tear-off target');
+      throw NewCompilerUnsupported(
+        expression,
+        'instance tear-off target non-procedure $targetPath',
+      );
     }
     final symbol = world.instanceProcedureSymbolFor(target);
-    if (symbol == null || symbol.kind != EsmProcedureKind.method) {
-      throw NewCompilerUnsupported(expression, 'instance tear-off target');
+    final targetName = target.name.text;
+    final methodName = switch (symbol?.kind) {
+      EsmProcedureKind.method => symbol!.name,
+      EsmProcedureKind.getter ||
+      EsmProcedureKind.setter => throw NewCompilerUnsupported(
+        expression,
+        'instance tear-off target accessor $targetPath',
+      ),
+      null => _sdkInstanceTearOffMethodName(
+        expression.interfaceTargetReference,
+        targetName,
+      ),
+    };
+    if (methodName == null) {
+      throw NewCompilerUnsupported(
+        expression,
+        'instance tear-off target $targetPath',
+      );
     }
     final function = target.function;
     if (function.asyncMarker != k.AsyncMarker.Sync) {
-      throw NewCompilerUnsupported(expression, 'instance tear-off target');
+      throw NewCompilerUnsupported(
+        expression,
+        'instance tear-off target async $targetPath',
+      );
     }
     final receiverName = _freshLocalName(world, const [], r'$receiver');
     final forwardingLocals = <k.VariableDeclaration, String>{};
@@ -10877,9 +11058,9 @@ final class KernelToEsmIrLoweringStage
               body: [
                 EsmReturnStatementIr(
                   EsmCallIr(
-                    callee: EsmPropertyAccessIr(
-                      receiver: EsmIdentifierIr(receiverName),
-                      property: symbol.name,
+                    callee: _memberAccess(
+                      EsmIdentifierIr(receiverName),
+                      methodName,
                     ),
                     arguments: _forwardingArguments(function, forwardingLocals),
                   ),
@@ -10891,6 +11072,99 @@ final class KernelToEsmIrLoweringStage
       ),
       arguments: const [],
     );
+  }
+
+  EsmExpressionIr? _lowerSdkInstanceTearOff(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceTearOff expression,
+    String targetPath, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (targetPath.startsWith('dart:') &&
+        targetPath.contains('::@methods::contains') &&
+        !targetPath.contains('Set::') &&
+        !targetPath.contains('_Set::')) {
+      return _lowerSimpleInstanceTearOff(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        'includes',
+        const ['element'],
+        thisExpression: thisExpression,
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr _lowerSimpleInstanceTearOff(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.Expression receiver,
+    String methodName,
+    List<String> parameterNames, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final receiverName = _freshLocalName(world, const [], r'$receiver');
+    return EsmCallIr(
+      callee: EsmFunctionExpressionIr(
+        parameters: const [],
+        body: [
+          EsmVariableDeclarationIr(
+            binding: EsmIdentifierBindingIr(receiverName),
+            initializer: _lowerExpression(
+              world,
+              helpers,
+              locals,
+              receiver,
+              thisExpression: thisExpression,
+            ),
+            mutable: false,
+          ),
+          EsmReturnStatementIr(
+            EsmFunctionExpressionIr(
+              parameters: [
+                for (final name in parameterNames)
+                  EsmIdentifierParameterIr(name: name),
+              ],
+              body: [
+                EsmReturnStatementIr(
+                  EsmCallIr(
+                    callee: _memberAccess(
+                      EsmIdentifierIr(receiverName),
+                      methodName,
+                    ),
+                    arguments: [
+                      for (final name in parameterNames) EsmIdentifierIr(name),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      arguments: const [],
+    );
+  }
+
+  String? _sdkInstanceTearOffMethodName(k.Reference reference, String name) {
+    final sdkMethod = _sdkInstanceMethodName(reference, name);
+    if (sdkMethod != null) {
+      return sdkMethod;
+    }
+    final target = kernelReferencePath(reference);
+    final isContains =
+        name == 'contains' || target.contains('::@methods::contains');
+    if (target.startsWith('dart:') && isContains) {
+      if (!target.contains('Set::') && !target.contains('_Set::')) {
+        return 'includes';
+      }
+    }
+    return null;
   }
 
   EsmExpressionIr _lowerIsExpression(

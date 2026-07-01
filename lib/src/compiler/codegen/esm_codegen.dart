@@ -1,33 +1,20 @@
 import 'dart:convert';
 
-import '../stage.dart';
 import '../ir/esm_ir.dart';
 
-final class CodegenStageResult {
-  const CodegenStageResult({required this.code, required this.diagnostics});
+final class CodegenResult {
+  const CodegenResult({required this.code, required this.diagnostics});
 
   final String code;
   final List<String> diagnostics;
 }
 
-final class EsmCodegenStage
-    implements Dart2EsmCompilerStage<EsmModuleIr, CodegenStageResult> {
-  const EsmCodegenStage();
+final class Codegen {
+  const Codegen();
 
-  @override
-  Dart2EsmCompilerStageId get stageId => Dart2EsmCompilerStageId.esmCodegen;
-
-  @override
-  CodegenStageResult run(EsmModuleIr input, Dart2EsmStageContext context) {
-    return emit(input);
-  }
-
-  CodegenStageResult emit(EsmModuleIr module) {
+  CodegenResult generate(EsmModuleIr module) {
     final printer = _EsmIrPrinter();
-    return CodegenStageResult(
-      code: printer.print(module),
-      diagnostics: const [],
-    );
+    return CodegenResult(code: printer.print(module), diagnostics: const []);
   }
 }
 

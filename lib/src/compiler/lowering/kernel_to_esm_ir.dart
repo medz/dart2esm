@@ -6,7 +6,6 @@ import '../../foundation/kernel/kernel_references.dart';
 import '../../foundation/kernel/sdk_symbols.dart';
 import '../../foundation/names/js_names.dart';
 import '../semantic/analysis/sdk_classification.dart';
-import '../stage.dart';
 import '../ir/esm_ir.dart';
 import '../unsupported.dart';
 import '../runtime/runtime_helpers.dart';
@@ -22,14 +21,13 @@ final class LoweringResult {
   }) : items = List.unmodifiable(items),
        runtimeHelpers = List.unmodifiable(runtimeHelpers);
 
-  final SemanticWorldResult semantic;
+  final SemanticResult semantic;
   final List<EsmModuleItemIr> items;
   final List<EsmRuntimeHelper> runtimeHelpers;
 }
 
-final class KernelToEsmIrLoweringStage
-    implements Dart2EsmCompilerStage<SemanticWorldResult, LoweringResult> {
-  const KernelToEsmIrLoweringStage({
+final class Lowerer {
+  const Lowerer({
     this.runtimeHelpers = const EsmRuntimeHelperRegistry(),
     this.sdkIntrinsics = const DartSdkIntrinsicRegistry(),
   });
@@ -37,15 +35,7 @@ final class KernelToEsmIrLoweringStage
   final EsmRuntimeHelperRegistry runtimeHelpers;
   final DartSdkIntrinsicRegistry sdkIntrinsics;
 
-  @override
-  Dart2EsmCompilerStageId get stageId => Dart2EsmCompilerStageId.dartLowering;
-
-  @override
-  LoweringResult run(SemanticWorldResult input, Dart2EsmStageContext context) {
-    return lower(input, runMain: context.runMain);
-  }
-
-  LoweringResult lower(SemanticWorldResult semantic, {required bool runMain}) {
+  LoweringResult lower(SemanticResult semantic, {required bool runMain}) {
     final context = DartLoweringContext(
       world: semantic.world,
       runtimeHelpers: runtimeHelpers,

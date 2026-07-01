@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:dart2esm/src/compiler/stage.dart';
+import 'package:dart2esm/src/compiler/component.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -10,9 +10,9 @@ void main() {
 
     expect(
       compiler,
-      contains("import 'package:dart2esm/src/compiler/pipeline.dart';"),
+      contains("import 'package:dart2esm/src/compiler/compiler.dart';"),
     );
-    expect(compiler, contains('Dart2EsmCompilerPipeline('));
+    expect(compiler, contains('Compiler('));
     expect(compiler, isNot(contains("src/pipeline/pipeline.dart")));
     expect(Directory('lib/src/pipeline').existsSync(), isFalse);
   });
@@ -43,45 +43,63 @@ void main() {
     }
   });
 
-  test('compiler core has explicit Oxc-style stage result boundaries', () {
-    final pipeline = _read('lib/src/compiler/pipeline.dart');
-    final stages = _read('lib/src/compiler/stage.dart');
-    final normalizer = _read(
-      'lib/src/compiler/transform/module_normalizer.dart',
+  test('compiler core has explicit Oxc-style component result boundaries', () {
+    final compiler = _read('lib/src/compiler/compiler.dart');
+    final components = _read('lib/src/compiler/component.dart');
+    final parser = _read('lib/src/compiler/parser/kernel_parser.dart');
+    final semantic = _read('lib/src/compiler/semantic/semantic_world.dart');
+    final lowerer = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
+    final moduleBuilder = _read(
+      'lib/src/compiler/module_builder/module_builder.dart',
     );
+    final transformer = _read(
+      'lib/src/compiler/transformer/module_transformer.dart',
+    );
+    final runtime = _read('lib/src/compiler/runtime/runtime_linker.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
 
-    expect(stages, contains('enum Dart2EsmCompilerStageId'));
-    expect(stages, contains('enum Dart2EsmStageCapability'));
-    expect(stages, contains('final class Dart2EsmStageContract'));
-    expect(stages, contains('dart2EsmCompilerStageContracts'));
-    expect(stages, contains('dart2EsmCompilerStageOrder'));
-    expect(stages, contains('abstract interface class Dart2EsmCompilerStage'));
-    expect(stages, contains('final class Dart2EsmStageContext'));
-    expect(pipeline, contains('final class Dart2EsmPipelineResult'));
-    expect(pipeline, contains('final KernelFrontendResult kernel'));
-    expect(pipeline, contains('final List<Dart2EsmCompilerStageId>'));
-    expect(pipeline, contains('final SemanticWorldResult? semantic'));
-    expect(pipeline, contains('final LoweringResult? lowering'));
-    expect(pipeline, contains('final EsmIrBuildResult? irBuild'));
-    expect(pipeline, contains('final NormalizationResult? normalization'));
-    expect(pipeline, contains('final RuntimeLinkResult? runtime'));
-    expect(pipeline, contains('final CodegenStageResult? codegen'));
-    expect(normalizer, contains('invalidatesSemanticWorld'));
-    expect(pipeline, isNot(contains('File(')));
-    expect(pipeline, isNot(contains('Directory(')));
-    expect(pipeline, isNot(contains('Process.run')));
-    expect(pipeline, isNot(contains('writeAsStringSync')));
+    expect(components, contains('enum CompilerComponentId'));
+    expect(components, contains('enum CompilerComponentCapability'));
+    expect(components, contains('final class CompilerComponentContract'));
+    expect(components, contains('compilerComponentContracts'));
+    expect(components, contains('compilerComponentOrder'));
+    expect(components, isNot(contains('abstract interface class')));
+    expect(components, isNot(contains('CompilerContext')));
+    expect(parser, contains('KernelParseResult parse(k.Component'));
+    expect(semantic, contains('SemanticResult build(KernelParseResult'));
+    expect(lowerer, contains('LoweringResult lower(SemanticResult'));
+    expect(moduleBuilder, contains('ModuleBuildResult build(LoweringResult'));
+    expect(
+      transformer,
+      contains('TransformResult transform(ModuleBuildResult'),
+    );
+    expect(runtime, contains('RuntimeLinkResult link(TransformResult'));
+    expect(codegen, contains('CodegenResult generate(EsmModuleIr'));
+    expect(compiler, contains('final class CompilerResult'));
+    expect(compiler, contains('final KernelParseResult kernel'));
+    expect(compiler, contains('final List<CompilerComponentId>'));
+    expect(compiler, contains('final SemanticResult? semantic'));
+    expect(compiler, contains('final LoweringResult? lowering'));
+    expect(compiler, contains('final ModuleBuildResult? moduleBuild'));
+    expect(compiler, contains('final TransformResult? transform'));
+    expect(compiler, contains('final RuntimeLinkResult? runtime'));
+    expect(compiler, contains('final CodegenResult? codegen'));
+    expect(transformer, contains('invalidatesSemanticWorld'));
+    expect(compiler, isNot(contains('File(')));
+    expect(compiler, isNot(contains('Directory(')));
+    expect(compiler, isNot(contains('Process.run')));
+    expect(compiler, isNot(contains('writeAsStringSync')));
   });
 
-  test('compiler core stage contracts own source capabilities', () {
+  test('compiler core component contracts own source capabilities', () {
     final compilerCoreRoot = p.join(Directory.current.path, 'lib/src/compiler');
     final contractsByOwnerDirectory = {
-      for (final contract in dart2EsmCompilerStageContracts)
+      for (final contract in compilerComponentContracts)
         contract.ownerDirectory: contract,
     };
 
     expect(contractsByOwnerDirectory.keys, hasLength(7));
-    for (final contract in dart2EsmCompilerStageContracts) {
+    for (final contract in compilerComponentContracts) {
       final owner = Directory(
         p.join(compilerCoreRoot, contract.ownerDirectory),
       );
@@ -109,7 +127,7 @@ void main() {
         expect(
           source,
           isNot(contains("package:kernel/kernel.dart")),
-          reason: '${contract.stageId} must not read Kernel in ${file.path}',
+          reason: '${contract.id} must not read Kernel in ${file.path}',
         );
       }
       if (!contract.allowsRuntimeHelperReference &&
@@ -118,32 +136,32 @@ void main() {
           source,
           isNot(contains('runtime_helpers.dart')),
           reason:
-              '${contract.stageId} must not discover runtime helpers in ${file.path}',
+              '${contract.id} must not discover runtime helpers in ${file.path}',
         );
         expect(
           source,
           isNot(contains('EsmRuntimeHelper')),
           reason:
-              '${contract.stageId} must not depend on runtime helpers in ${file.path}',
+              '${contract.id} must not depend on runtime helpers in ${file.path}',
         );
       }
       if (!contract.isCodePrinter) {
         expect(
           source,
-          isNot(contains('CodegenStageResult')),
-          reason: '${contract.stageId} must not print ESM in ${file.path}',
+          isNot(contains('CodegenResult')),
+          reason: '${contract.id} must not print ESM in ${file.path}',
         );
         expect(
           source,
           isNot(contains('_EsmIrPrinter')),
-          reason: '${contract.stageId} must not print ESM in ${file.path}',
+          reason: '${contract.id} must not print ESM in ${file.path}',
         );
       }
       expect(
         source,
         isNot(contains('backend/esm_backend.dart')),
         reason:
-            '${contract.stageId} must not call the old backend in ${file.path}',
+            '${contract.id} must not call the legacy backend in ${file.path}',
       );
     }
   });
@@ -151,7 +169,7 @@ void main() {
   test('codegen only consumes prepared ESM IR', () {
     final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
 
-    expect(codegen, contains('CodegenStageResult emit(EsmModuleIr'));
+    expect(codegen, contains('CodegenResult generate(EsmModuleIr'));
     expect(codegen, contains('EsmModuleIr'));
     expect(codegen, isNot(contains("package:kernel/kernel.dart")));
     expect(codegen, isNot(contains('runtime/runtime_helpers.dart')));
@@ -164,30 +182,32 @@ void main() {
     expect(codegen, isNot(contains('backend/esm_backend.dart')));
   });
 
-  test('ESM module construction and normalization have separate ownership', () {
+  test('ESM module construction and transform have separate ownership', () {
     final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
-    final irBuilder = _read('lib/src/compiler/ir_builder/esm_ir_builder.dart');
-    final normalizer = _read(
-      'lib/src/compiler/transform/module_normalizer.dart',
+    final moduleBuilder = _read(
+      'lib/src/compiler/module_builder/module_builder.dart',
+    );
+    final transformer = _read(
+      'lib/src/compiler/transformer/module_transformer.dart',
     );
 
-    expect(irBuilder, contains('final class EsmIrBuildResult'));
-    expect(irBuilder, contains('final class EsmIrBuilderStage'));
-    expect(irBuilder, contains('EsmModuleIr(items: lowering.items)'));
+    expect(moduleBuilder, contains('final class ModuleBuildResult'));
+    expect(moduleBuilder, contains('final class ModuleBuilder'));
+    expect(moduleBuilder, contains('EsmModuleIr(items: lowering.items)'));
     expect(
-      irBuilder,
+      moduleBuilder,
       contains('get runtimeHelpers => lowering.runtimeHelpers'),
     );
     expect(lowering, contains('final List<EsmModuleItemIr> items'));
     expect(lowering, isNot(contains('EsmModuleIr(items:')));
-    expect(normalizer, contains('final EsmIrBuildResult irBuild'));
-    expect(normalizer, contains('EsmModuleIr(items: normalized.items)'));
-    expect(normalizer, contains('changed: normalized.changed'));
+    expect(transformer, contains('final ModuleBuildResult moduleBuild'));
+    expect(transformer, contains('EsmModuleIr(items: normalized.items)'));
+    expect(transformer, contains('changed: normalized.changed'));
     expect(
-      normalizer,
-      contains('get runtimeHelpers => irBuild.runtimeHelpers'),
+      transformer,
+      contains('get runtimeHelpers => moduleBuild.runtimeHelpers'),
     );
-    expect(normalizer, isNot(contains('LoweringResult')));
+    expect(transformer, isNot(contains('LoweringResult')));
   });
 
   test('SDK intrinsic lowering is routed through a registry', () {
@@ -661,8 +681,8 @@ void main() {
     final ir = _read('lib/src/compiler/ir/esm_ir.dart');
     final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
     final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
-    final normalizer = _read(
-      'lib/src/compiler/transform/module_normalizer.dart',
+    final transformer = _read(
+      'lib/src/compiler/transformer/module_transformer.dart',
     );
 
     expect(
@@ -673,8 +693,8 @@ void main() {
     expect(codegen, isNot(contains('_emitObjectPropertyName(method.name)')));
     expect(lowering, contains('key: EsmStaticPropertyKeyIr'));
     expect(lowering, isNot(contains('EsmClassMethodIr(\n      name:')));
-    expect(normalizer, contains('key: method.key'));
-    expect(normalizer, isNot(contains('EsmStaticPropertyKeyIr(method.name)')));
+    expect(transformer, contains('key: method.key'));
+    expect(transformer, isNot(contains('EsmStaticPropertyKeyIr(method.name)')));
   });
 
   test('ESM identifier IR is not used for member expressions', () {
@@ -709,13 +729,13 @@ void main() {
     'semantic world accepts name reservations without runtime dependency',
     () {
       final semantic = _read('lib/src/compiler/semantic/semantic_world.dart');
-      final pipeline = _read('lib/src/compiler/pipeline.dart');
+      final compiler = _read('lib/src/compiler/compiler.dart');
 
       expect(semantic, contains('generatedGlobalNames'));
       expect(semantic, isNot(contains('runtime_helpers.dart')));
       expect(semantic, isNot(contains('EsmRuntimeHelper')));
       expect(
-        pipeline,
+        compiler,
         contains('EsmRuntimeHelperRegistry.generatedGlobalNames'),
       );
     },
@@ -735,10 +755,10 @@ void main() {
     expect(runtime, contains('bool require(EsmRuntimeHelper helper)'));
     expect(runtime, contains('EsmIdentifierIr reference('));
     expect(runtime, contains('__dartPrint'));
-    expect(linker, contains('final class RuntimeLinkerStage'));
+    expect(linker, contains('final class RuntimeLinker'));
     expect(linker, contains('runtimeHelpers.declaration'));
-    expect(linker, contains('normalized.runtimeHelpers'));
-    expect(linker, isNot(contains('normalized.irBuild.lowering')));
+    expect(linker, contains('transform.runtimeHelpers'));
+    expect(linker, isNot(contains('transform.moduleBuild.lowering')));
     expect(loweringContext, contains('final class DartLoweringContext'));
     expect(loweringContext, contains('EsmRuntimeHelperUseSet'));
     expect(loweringContext, contains('runtimeHelperUses'));
@@ -758,7 +778,7 @@ void main() {
     }
   });
 
-  test('old backend entrypoints are deleted from the architecture', () {
+  test('legacy backend entrypoints are deleted from the architecture', () {
     expect(Directory('lib/src/backend').existsSync(), isFalse);
     expect(File('lib/src/compiler/legacy_oracle.dart').existsSync(), isFalse);
 
@@ -774,13 +794,13 @@ void main() {
     }
   });
 
-  test('compiler exposes no old backend oracle entrypoint', () {
+  test('compiler exposes no legacy backend oracle entrypoint', () {
     final cli = _read('lib/src/app/cli.dart');
     final compiler = _read('lib/src/app/compiler.dart');
-    final pipeline = _read('lib/src/compiler/pipeline.dart');
+    final compilerCore = _read('lib/src/compiler/compiler.dart');
 
     expect(compiler, isNot(contains('allowLegacyOracle')));
-    expect(pipeline, isNot(contains('allowLegacyOracle')));
+    expect(compilerCore, isNot(contains('allowLegacyOracle')));
     expect(cli, isNot(contains('legacy-oracle')));
     expect(cli, isNot(contains('allowLegacyOracle')));
   });

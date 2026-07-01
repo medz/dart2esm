@@ -4,14 +4,13 @@ import '../../foundation/kernel/kernel_references.dart';
 import 'model/class_runtime_plan.dart';
 import '../../foundation/names/js_names.dart';
 import 'model/program_model.dart';
-import '../stage.dart';
-import '../frontend/kernel_frontend.dart';
+import '../parser/kernel_parser.dart';
 import '../unsupported.dart';
 
-final class SemanticWorldResult {
-  const SemanticWorldResult({required this.kernel, required this.world});
+final class SemanticResult {
+  const SemanticResult({required this.kernel, required this.world});
 
-  final KernelFrontendResult kernel;
+  final KernelParseResult kernel;
   final EsmSemanticWorld world;
 }
 
@@ -402,25 +401,12 @@ final class EsmProcedureSymbol {
 
 enum EsmProcedureKind { method, getter, setter }
 
-final class SemanticWorldStage
-    implements
-        Dart2EsmCompilerStage<KernelFrontendResult, SemanticWorldResult> {
-  const SemanticWorldStage({this.generatedGlobalNames = const {}});
+final class SemanticBuilder {
+  const SemanticBuilder({this.generatedGlobalNames = const {}});
 
   final Set<String> generatedGlobalNames;
 
-  @override
-  Dart2EsmCompilerStageId get stageId => Dart2EsmCompilerStageId.semanticWorld;
-
-  @override
-  SemanticWorldResult run(
-    KernelFrontendResult input,
-    Dart2EsmStageContext context,
-  ) {
-    return build(input);
-  }
-
-  SemanticWorldResult build(KernelFrontendResult kernel) {
+  SemanticResult build(KernelParseResult kernel) {
     final model = buildEsmProgramModel(kernel.component);
     final allocator = JsNameAllocator(
       generatedGlobalNames: generatedGlobalNames,
@@ -502,7 +488,7 @@ final class SemanticWorldStage
     )) {
       throw NewCompilerUnsupported(kernel.main, 'entrypoint procedure shape');
     }
-    return SemanticWorldResult(
+    return SemanticResult(
       kernel: kernel,
       world: EsmSemanticWorld(
         component: kernel.component,

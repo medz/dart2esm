@@ -1,46 +1,32 @@
-import '../stage.dart';
-import '../ir_builder/esm_ir_builder.dart';
+import '../module_builder/module_builder.dart';
 import '../ir/esm_ir.dart';
 
-final class NormalizationResult {
-  const NormalizationResult({
-    required this.irBuild,
+final class TransformResult {
+  const TransformResult({
+    required this.moduleBuild,
     required this.module,
     required this.changed,
     required this.invalidatesSemanticWorld,
   });
 
-  final EsmIrBuildResult irBuild;
+  final ModuleBuildResult moduleBuild;
   final EsmModuleIr module;
   final bool changed;
   final bool invalidatesSemanticWorld;
 
-  get runtimeHelpers => irBuild.runtimeHelpers;
+  get runtimeHelpers => moduleBuild.runtimeHelpers;
 }
 
-final class ModuleNormalizerStage
-    implements Dart2EsmCompilerStage<EsmIrBuildResult, NormalizationResult> {
-  const ModuleNormalizerStage();
+final class Transformer {
+  const Transformer();
 
-  @override
-  Dart2EsmCompilerStageId get stageId =>
-      Dart2EsmCompilerStageId.moduleNormalizer;
-
-  @override
-  NormalizationResult run(
-    EsmIrBuildResult input,
-    Dart2EsmStageContext context,
-  ) {
-    return normalize(input);
-  }
-
-  NormalizationResult normalize(EsmIrBuildResult irBuild) {
-    final normalized = _normalizeModuleItems(irBuild.module.items);
-    return NormalizationResult(
-      irBuild: irBuild,
+  TransformResult transform(ModuleBuildResult moduleBuild) {
+    final normalized = _normalizeModuleItems(moduleBuild.module.items);
+    return TransformResult(
+      moduleBuild: moduleBuild,
       module: normalized.changed
           ? EsmModuleIr(items: normalized.items)
-          : irBuild.module,
+          : moduleBuild.module,
       changed: normalized.changed,
       invalidatesSemanticWorld: false,
     );

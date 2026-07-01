@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:dart2esm/src/foundation/diagnostics/metrics.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_kernel_node.dart';
 import 'package:dart2esm/src/foundation/kernel/kernel_header.dart';
-import 'package:dart2esm/src/compiler/pipeline.dart';
+import 'package:dart2esm/src/compiler/compiler.dart';
 import 'package:dart2esm/src/compiler/unsupported.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
@@ -31,15 +31,15 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
     }
     final component = kernel.loadComponentFromBytes(kernelBytes);
 
-    final pipelineResult = Dart2EsmCompilerPipeline(
-      options: Dart2EsmPipelineOptions(runMain: options.runMain),
+    final compilerResult = Compiler(
+      options: CompilerOptions(runMain: options.runMain),
     ).compile(component);
     output.parent.createSync(recursive: true);
-    output.writeAsStringSync(pipelineResult.code);
+    output.writeAsStringSync(compilerResult.code);
     final collectMetrics =
         options.collectMetrics || options.compareDart2JsMetrics;
     final esmMetrics = collectMetrics
-        ? CodeSizeMetrics.fromCode('dart2esm', pipelineResult.code)
+        ? CodeSizeMetrics.fromCode('dart2esm', compilerResult.code)
         : null;
     final dart2jsMetrics = options.compareDart2JsMetrics
         ? await _compileDart2JsMetrics(input, options, tempDir)
@@ -49,7 +49,7 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
       diagnostics: [
         'Kernel input accepted: format ${header.formatVersion}, SDK hash ${header.sdkHash}.',
         'Kernel libraries: ${component.libraries.length}; main: ${component.mainMethod?.name.text ?? 'none'}.',
-        ...pipelineResult.diagnostics,
+        ...compilerResult.diagnostics,
       ],
       esmMetrics: esmMetrics,
       dart2jsMetrics: dart2jsMetrics,

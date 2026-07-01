@@ -1,62 +1,54 @@
 import 'package:dart2esm/src/compiler/codegen/esm_codegen.dart';
-import 'package:dart2esm/src/compiler/pipeline.dart';
-import 'package:dart2esm/src/compiler/stage.dart';
-import 'package:dart2esm/src/compiler/frontend/kernel_frontend.dart';
-import 'package:dart2esm/src/compiler/ir_builder/esm_ir_builder.dart';
+import 'package:dart2esm/src/compiler/compiler.dart';
+import 'package:dart2esm/src/compiler/component.dart';
+import 'package:dart2esm/src/compiler/parser/kernel_parser.dart';
+import 'package:dart2esm/src/compiler/module_builder/module_builder.dart';
 import 'package:dart2esm/src/compiler/ir/esm_ir.dart';
 import 'package:dart2esm/src/compiler/lowering/kernel_to_esm_ir.dart';
 import 'package:dart2esm/src/compiler/unsupported.dart';
 import 'package:dart2esm/src/compiler/runtime/runtime_helpers.dart';
 import 'package:dart2esm/src/compiler/runtime/runtime_linker.dart';
 import 'package:dart2esm/src/compiler/semantic/semantic_world.dart';
-import 'package:dart2esm/src/compiler/transform/module_normalizer.dart';
+import 'package:dart2esm/src/compiler/transformer/module_transformer.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_kernel_node.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {
-  test('compiler core exposes the ordered stage contract', () {
+  test('compiler core exposes the ordered component contract', () {
     expect(
-      dart2EsmCompilerStageOrder,
-      dart2EsmCompilerStageContracts
-          .map((contract) => contract.stageId)
-          .toList(),
+      compilerComponentOrder,
+      compilerComponentContracts.map((contract) => contract.id).toList(),
     );
-    expect(dart2EsmCompilerStageContracts.map((contract) => contract.stageId), [
-      Dart2EsmCompilerStageId.kernelFrontend,
-      Dart2EsmCompilerStageId.semanticWorld,
-      Dart2EsmCompilerStageId.dartLowering,
-      Dart2EsmCompilerStageId.esmIrBuilder,
-      Dart2EsmCompilerStageId.moduleNormalizer,
-      Dart2EsmCompilerStageId.runtimeLinker,
-      Dart2EsmCompilerStageId.esmCodegen,
+    expect(compilerComponentContracts.map((contract) => contract.id), [
+      CompilerComponentId.parser,
+      CompilerComponentId.semantic,
+      CompilerComponentId.lowerer,
+      CompilerComponentId.moduleBuilder,
+      CompilerComponentId.transformer,
+      CompilerComponentId.runtime,
+      CompilerComponentId.codegen,
     ]);
-    expect(const KernelFrontendStage().stageId, dart2EsmCompilerStageOrder[0]);
-    expect(const SemanticWorldStage().stageId, dart2EsmCompilerStageOrder[1]);
+    expect(const KernelParser().parse, isA<Function>());
+    expect(const SemanticBuilder().build, isA<Function>());
+    expect(const Lowerer().lower, isA<Function>());
+    expect(const ModuleBuilder().build, isA<Function>());
+    expect(const Transformer().transform, isA<Function>());
+    expect(const RuntimeLinker().link, isA<Function>());
+    expect(const Codegen().generate, isA<Function>());
     expect(
-      const KernelToEsmIrLoweringStage().stageId,
-      dart2EsmCompilerStageOrder[2],
-    );
-    expect(const EsmIrBuilderStage().stageId, dart2EsmCompilerStageOrder[3]);
-    expect(
-      const ModuleNormalizerStage().stageId,
-      dart2EsmCompilerStageOrder[4],
-    );
-    expect(const RuntimeLinkerStage().stageId, dart2EsmCompilerStageOrder[5]);
-    expect(const EsmCodegenStage().stageId, dart2EsmCompilerStageOrder[6]);
-    expect(
-      dart2EsmStageContractFor(Dart2EsmCompilerStageId.kernelFrontend).output,
-      'KernelFrontendResult',
+      compilerComponentContractFor(CompilerComponentId.parser).output,
+      'KernelParseResult',
     );
     expect(
-      dart2EsmStageContractFor(
-        Dart2EsmCompilerStageId.dartLowering,
+      compilerComponentContractFor(
+        CompilerComponentId.lowerer,
       ).allowsRuntimeHelperReference,
       isTrue,
     );
     expect(
-      dart2EsmStageContractFor(
-        Dart2EsmCompilerStageId.esmCodegen,
+      compilerComponentContractFor(
+        CompilerComponentId.codegen,
       ).allowsKernelAccess,
       isFalse,
     );
@@ -90,20 +82,20 @@ void main() {
     final component = k.Component(libraries: [library]);
     component.setMainMethodAndMode(main.reference, true);
 
-    final result = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(runMain: true),
+    final result = Compiler(
+      options: const CompilerOptions(runMain: true),
     ).compile(component);
 
-    expect(result.completedStages, dart2EsmCompilerStageOrder);
+    expect(result.completedComponents, compilerComponentOrder);
     expect(result.kernel.component, same(component));
     expect(result.semantic?.world.main, same(main));
     expect(result.lowering?.items, hasLength(3));
-    expect(result.irBuild?.module.items, hasLength(3));
+    expect(result.moduleBuild?.module.items, hasLength(3));
     expect(result.lowering?.runtimeHelpers, isEmpty);
-    expect(result.irBuild?.runtimeHelpers, isEmpty);
-    expect(result.normalization?.irBuild, same(result.irBuild));
-    expect(result.normalization?.runtimeHelpers, isEmpty);
-    expect(result.normalization?.invalidatesSemanticWorld, isFalse);
+    expect(result.moduleBuild?.runtimeHelpers, isEmpty);
+    expect(result.transform?.moduleBuild, same(result.moduleBuild));
+    expect(result.transform?.runtimeHelpers, isEmpty);
+    expect(result.transform?.invalidatesSemanticWorld, isFalse);
     expect(result.runtime?.linkedHelpers, isEmpty);
     expect(result.codegen?.code, same(result.code));
     expect(result.code, '''
@@ -137,7 +129,7 @@ main();
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 ((value) => value)("ok");
@@ -162,7 +154,7 @@ main();
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 (compare ?? ((left, right) => 0));
@@ -196,7 +188,7 @@ main();
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 (([key, value]) => key)(["left", "right"]);
@@ -227,7 +219,7 @@ main();
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 const object = { alpha: 1, "not-valid": 2, [dynamicKey]: 3 };
@@ -263,7 +255,7 @@ const object = { alpha: 1, "not-valid": 2, [dynamicKey]: 3 };
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 const [first, second] = pair;
@@ -303,7 +295,7 @@ let { alpha: value = 1 } = source;
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 export function main() {
@@ -339,7 +331,7 @@ export function main() {
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 typeof value === "string";
@@ -356,7 +348,7 @@ typeof value === "string";
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 import.meta.url;
@@ -379,7 +371,7 @@ import.meta.url;
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 export class Derived extends mixin(Base) {
@@ -415,7 +407,7 @@ export class Derived extends mixin(Base) {
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 export class Box {
@@ -446,7 +438,7 @@ export class Box {
       ],
     );
 
-    expect(const EsmCodegenStage().emit(module).code, '''
+    expect(const Codegen().generate(module).code, '''
 // Generated by dart2esm.
 
 try {
@@ -457,7 +449,7 @@ try {
 ''');
   });
 
-  test('module normalizer prunes empty module artifacts', () {
+  test('module transformer prunes empty module artifacts', () {
     const marker = EsmExpressionStatementIr(
       EsmCallIr(callee: EsmIdentifierIr('sideEffect'), arguments: const []),
     );
@@ -495,8 +487,8 @@ try {
       ],
     );
 
-    final result = const ModuleNormalizerStage().normalize(
-      _normalizationForModule(module).irBuild,
+    final result = const Transformer().transform(
+      _transformForModule(module).moduleBuild,
     );
 
     expect(result.changed, isTrue);
@@ -529,8 +521,8 @@ try {
       ],
     );
 
-    final linked = const RuntimeLinkerStage().link(
-      _normalizationForModule(
+    final linked = const RuntimeLinker().link(
+      _transformForModule(
         module,
         runtimeHelpers: const [EsmRuntimeHelper.print],
       ),
@@ -540,13 +532,13 @@ try {
       EsmRuntimeHelper.print,
       EsmRuntimeHelper.stringify,
     ]);
-    expect(linked.normalization.runtimeHelpers, [EsmRuntimeHelper.print]);
+    expect(linked.transform.runtimeHelpers, [EsmRuntimeHelper.print]);
     expect(linked.module.items, hasLength(3));
     final helper = linked.module.items.first;
     expect(helper, isA<EsmFunctionIr>());
     expect((helper as EsmFunctionIr).name, '__dartPrint');
     expect(helper.export, isFalse);
-    expect(const EsmCodegenStage().emit(linked.module).code, '''
+    expect(const Codegen().generate(linked.module).code, '''
 // Generated by dart2esm.
 
 function __dartPrint(value) {
@@ -579,7 +571,7 @@ export function main() {
 ''');
   });
 
-  test('semantic world reserves pipeline-provided generated global names', () {
+  test('semantic world reserves compiler-provided generated global names', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
     final helperCollision = k.Procedure(
@@ -600,8 +592,8 @@ export function main() {
     final component = k.Component(libraries: [library]);
     component.setMainMethodAndMode(main.reference, true);
 
-    final result = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(runMain: false),
+    final result = Compiler(
+      options: const CompilerOptions(runMain: false),
     ).compile(component);
 
     final collisionSymbol = result.semantic!.world.symbolForRequired(
@@ -643,8 +635,8 @@ export function main() {
     final component = k.Component(libraries: [library]);
     component.setMainMethodAndMode(main.reference, true);
 
-    final semantic = const SemanticWorldStage().build(
-      KernelFrontendResult(component: component, main: main),
+    final semantic = const SemanticBuilder().build(
+      KernelParseResult(component: component, main: main),
     );
 
     expect(
@@ -665,11 +657,11 @@ export function main() {
   });
 
   test('compiles switch continue through the new compiler core', () {
-    final result = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(runMain: true),
+    final result = Compiler(
+      options: const CompilerOptions(runMain: true),
     ).compile(_componentWithSwitchContinue());
 
-    expect(result.completedStages, dart2EsmCompilerStageOrder);
+    expect(result.completedComponents, compilerComponentOrder);
     expect(result.code, contains(r'$switchTarget'));
     expect(result.code, contains(r'continue $switchLoop;'));
   });
@@ -677,23 +669,19 @@ export function main() {
   test('rejects unsupported Kernel in the compiler core', () {
     final component = _componentWithYieldStatement();
 
-    final pipeline = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(runMain: true),
-    );
+    final compiler = Compiler(options: const CompilerOptions(runMain: true));
 
     expect(
-      () => pipeline.compile(component),
+      () => compiler.compile(component),
       throwsA(isA<NewCompilerUnsupported>()),
     );
   });
 
-  test('rejects components without a main method in the frontend stage', () {
-    final pipeline = Dart2EsmCompilerPipeline(
-      options: const Dart2EsmPipelineOptions(runMain: true),
-    );
+  test('rejects components without a main method in the parser component', () {
+    final compiler = Compiler(options: const CompilerOptions(runMain: true));
 
     expect(
-      () => pipeline.compile(k.Component()),
+      () => compiler.compile(k.Component()),
       throwsA(isA<UnsupportedKernelNode>()),
     );
   });
@@ -753,7 +741,7 @@ k.Procedure _procedure(
   );
 }
 
-NormalizationResult _normalizationForModule(
+TransformResult _transformForModule(
   EsmModuleIr module, {
   Iterable<EsmRuntimeHelper> runtimeHelpers = const [],
 }) {
@@ -763,8 +751,8 @@ NormalizationResult _normalizationForModule(
   library.addProcedure(main);
   final component = k.Component(libraries: [library]);
   component.setMainMethodAndMode(main.reference, true);
-  final kernel = KernelFrontendResult(component: component, main: main);
-  final semantic = SemanticWorldResult(
+  final kernel = KernelParseResult(component: component, main: main);
+  final semantic = SemanticResult(
     kernel: kernel,
     world: EsmSemanticWorld(
       component: component,
@@ -782,8 +770,8 @@ NormalizationResult _normalizationForModule(
       ],
     ),
   );
-  return NormalizationResult(
-    irBuild: EsmIrBuildResult(
+  return TransformResult(
+    moduleBuild: ModuleBuildResult(
       lowering: LoweringResult(
         semantic: semantic,
         items: module.items,

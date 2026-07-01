@@ -2086,7 +2086,7 @@ final class KernelToEsmIrLoweringStage
                     ),
               _lateWritableArgument(field.node.isFinal, field.mutable),
               EsmArrowFunctionIr(
-                parameters: const ['value'],
+                parameters: const [EsmIdentifierParameterIr(name: 'value')],
                 body: EsmAssignmentIr(
                   target: EsmIdentifierIr(field.name),
                   value: const EsmIdentifierIr('value'),
@@ -4258,7 +4258,10 @@ final class KernelToEsmIrLoweringStage
         'dart:collection::ListBase::@methods::dart:collection::_compareAny') {
       helpers.require(EsmRuntimeHelper.compare);
       return EsmArrowFunctionIr(
-        parameters: const ['left', 'right'],
+        parameters: const [
+          EsmIdentifierParameterIr(name: 'left'),
+          EsmIdentifierParameterIr(name: 'right'),
+        ],
         body: EsmCallIr(
           callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.compare),
           arguments: const [EsmIdentifierIr('left'), EsmIdentifierIr('right')],
@@ -4273,23 +4276,26 @@ final class KernelToEsmIrLoweringStage
     if (mathMethod == null || mathSymbol == null) {
       return null;
     }
-    final parameters = switch (_jsMathStaticFunctionArity(mathSymbol)) {
+    final parameterNames = switch (_jsMathStaticFunctionArity(mathSymbol)) {
       1 => const ['value'],
       2 => const ['left', 'right'],
       _ => null,
     };
-    if (parameters == null) {
+    if (parameterNames == null) {
       return null;
     }
     return EsmArrowFunctionIr(
-      parameters: parameters,
+      parameters: [
+        for (final parameter in parameterNames)
+          EsmIdentifierParameterIr(name: parameter),
+      ],
       body: EsmCallIr(
         callee: EsmPropertyAccessIr(
           receiver: const EsmIdentifierIr('Math'),
           property: mathMethod,
         ),
         arguments: [
-          for (final parameter in parameters) EsmIdentifierIr(parameter),
+          for (final parameter in parameterNames) EsmIdentifierIr(parameter),
         ],
       ),
     );
@@ -7521,7 +7527,7 @@ final class KernelToEsmIrLoweringStage
         ),
         arguments: [
           EsmArrowFunctionIr(
-            parameters: const ['value'],
+            parameters: const [EsmIdentifierParameterIr(name: 'value')],
             body: _lowerTypeTest(
               world,
               helpers,
@@ -7851,7 +7857,10 @@ final class KernelToEsmIrLoweringStage
       final compare = expression.arguments.positional.isEmpty
           ? helpers.reference(runtimeHelpers, EsmRuntimeHelper.compare)
           : EsmArrowFunctionIr(
-              parameters: const ['left', 'right'],
+              parameters: const [
+                EsmIdentifierParameterIr(name: 'left'),
+                EsmIdentifierParameterIr(name: 'right'),
+              ],
               body: EsmCallIr(
                 callee: helpers.reference(
                   runtimeHelpers,
@@ -8269,7 +8278,7 @@ final class KernelToEsmIrLoweringStage
         ),
         arguments: [
           EsmArrowFunctionIr(
-            parameters: const ['value'],
+            parameters: const [EsmIdentifierParameterIr(name: 'value')],
             body: _arrayFrom(
               helpers,
               EsmCallIr(
@@ -10251,7 +10260,7 @@ final class KernelToEsmIrLoweringStage
         ),
         arguments: [
           EsmArrowFunctionIr(
-            parameters: const ['value'],
+            parameters: const [EsmIdentifierParameterIr(name: 'value')],
             body: _lowerTypeTest(
               world,
               helpers,
@@ -10279,7 +10288,7 @@ final class KernelToEsmIrLoweringStage
         ),
         arguments: [
           EsmArrowFunctionIr(
-            parameters: const ['value'],
+            parameters: const [EsmIdentifierParameterIr(name: 'value')],
             body: _arrayFrom(
               helpers,
               EsmCallIr(
@@ -10916,7 +10925,7 @@ final class KernelToEsmIrLoweringStage
       arguments: [
         operand,
         EsmArrowFunctionIr(
-          parameters: const ['value'],
+          parameters: const [EsmIdentifierParameterIr(name: 'value')],
           body: _lowerTypeTest(
             world,
             helpers,
@@ -11928,7 +11937,7 @@ final class KernelToEsmIrLoweringStage
           ),
           arguments: const [
             EsmArrowFunctionIr(
-              parameters: ['value'],
+              parameters: [EsmIdentifierParameterIr(name: 'value')],
               body: EsmBinaryIr(
                 left: EsmIdentifierIr('value'),
                 operator: '!=',
@@ -11956,7 +11965,10 @@ final class KernelToEsmIrLoweringStage
           ),
           arguments: const [
             EsmArrowFunctionIr(
-              parameters: ['value', 'index'],
+              parameters: [
+                EsmIdentifierParameterIr(name: 'value'),
+                EsmIdentifierParameterIr(name: 'index'),
+              ],
               body: EsmCallIr(
                 callee: EsmIdentifierIr('__dartRecord'),
                 arguments: [
@@ -12062,7 +12074,10 @@ final class KernelToEsmIrLoweringStage
           ),
           arguments: [
             EsmArrowFunctionIr(
-              parameters: const ['left', 'right'],
+              parameters: const [
+                EsmIdentifierParameterIr(name: 'left'),
+                EsmIdentifierParameterIr(name: 'right'),
+              ],
               body: EsmCallIr(
                 callee: helpers.reference(
                   runtimeHelpers,
@@ -12162,7 +12177,7 @@ final class KernelToEsmIrLoweringStage
               thisExpression: thisExpression,
             ),
             const EsmArrowFunctionIr(
-              parameters: ['value'],
+              parameters: [EsmIdentifierParameterIr(name: 'value')],
               body: EsmCallIr(
                 callee: EsmIdentifierIr('__dartStr'),
                 arguments: [EsmIdentifierIr('value')],
@@ -12194,7 +12209,7 @@ final class KernelToEsmIrLoweringStage
               thisExpression: thisExpression,
             ),
             const EsmArrowFunctionIr(
-              parameters: ['value'],
+              parameters: [EsmIdentifierParameterIr(name: 'value')],
               body: EsmCallIr(
                 callee: EsmIdentifierIr('__dartStr'),
                 arguments: [EsmIdentifierIr('value')],
@@ -12218,7 +12233,7 @@ final class KernelToEsmIrLoweringStage
               thisExpression: thisExpression,
             ),
             const EsmArrowFunctionIr(
-              parameters: ['value'],
+              parameters: [EsmIdentifierParameterIr(name: 'value')],
               body: EsmCallIr(
                 callee: EsmIdentifierIr('__dartStr'),
                 arguments: [EsmIdentifierIr('value')],
@@ -12247,7 +12262,9 @@ final class KernelToEsmIrLoweringStage
                   thisExpression: thisExpression,
                 ),
                 const EsmArrowFunctionIr(
-                  parameters: ['[key, value]'],
+                  parameters: [
+                    EsmArrayPatternParameterIr(bindings: ['key', 'value']),
+                  ],
                   body: EsmStringConcatenationIr([
                     EsmCallIr(
                       callee: EsmIdentifierIr('__dartStr'),
@@ -12548,7 +12565,7 @@ final class KernelToEsmIrLoweringStage
       helpers.require(EsmRuntimeHelper.listFactory);
       final generator = positional.length == 1
           ? const EsmArrowFunctionIr(
-              parameters: ['index'],
+              parameters: [EsmIdentifierParameterIr(name: 'index')],
               body: EsmIdentifierIr('index'),
             )
           : _lowerExpression(
@@ -13351,7 +13368,7 @@ final class KernelToEsmIrLoweringStage
       if (constructor == 'BigInt64Array' || constructor == 'BigUint64Array') {
         arguments.add(
           const EsmArrowFunctionIr(
-            parameters: ['value'],
+            parameters: [EsmIdentifierParameterIr(name: 'value')],
             body: EsmCallIr(
               callee: EsmIdentifierIr('BigInt'),
               arguments: [EsmIdentifierIr('value')],
@@ -14262,7 +14279,7 @@ final class KernelToEsmIrLoweringStage
       arguments: [
         EsmCallIr(callee: const EsmIdentifierIr('String'), arguments: [value]),
         const EsmArrowFunctionIr(
-          parameters: ['char'],
+          parameters: [EsmIdentifierParameterIr(name: 'char')],
           body: EsmCallIr(
             callee: EsmPropertyAccessIr(
               receiver: EsmIdentifierIr('char'),

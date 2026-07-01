@@ -90,6 +90,12 @@ final class EsmObjectPatternParameterIr extends EsmParameterIr {
   final List<EsmObjectPatternBindingIr> bindings;
 }
 
+final class EsmArrayPatternParameterIr extends EsmParameterIr {
+  const EsmArrayPatternParameterIr({required this.bindings});
+
+  final List<String> bindings;
+}
+
 final class EsmObjectPatternBindingIr extends EsmIrNode {
   const EsmObjectPatternBindingIr({
     required this.property,
@@ -351,7 +357,7 @@ final class EsmObjectLiteralPropertyIr extends EsmIrNode {
 final class EsmArrowFunctionIr extends EsmExpressionIr {
   const EsmArrowFunctionIr({required this.parameters, required this.body});
 
-  final List<String> parameters;
+  final List<EsmParameterIr> parameters;
   final EsmExpressionIr body;
 }
 

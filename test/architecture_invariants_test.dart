@@ -181,6 +181,18 @@ void main() {
     expect(ir, isNot(contains('runtimeHelpers')));
   });
 
+  test('ESM arrow function parameters use structured binding IR', () {
+    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+
+    expect(ir, contains('final class EsmArrayPatternParameterIr'));
+    expect(ir, contains('final List<EsmParameterIr> parameters;'));
+    expect(ir, isNot(contains('final List<String> parameters;')));
+    expect(codegen, contains('EsmArrayPatternParameterIr()'));
+    expect(codegen, contains('expression.parameters.map(_emitParameter)'));
+    expect(codegen, isNot(contains('expression.parameters.join')));
+  });
+
   test('ESM identifier IR is not used for member expressions', () {
     final dottedIdentifierLiteral = RegExp(
       r'''EsmIdentifierIr\(\s*['"][^'"]+\.[^'"]*['"]''',

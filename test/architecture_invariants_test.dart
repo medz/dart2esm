@@ -251,6 +251,7 @@ void main() {
       isNot(contains('_lowerDartCollectionQueueInstanceInvocation')),
     );
     expect(lowering, isNot(contains('_lowerSdkCollectionStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreCollectionStaticInvocation')));
     expect(lowering, isNot(contains('_lowerDartCollectionQueueInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataStaticInvocation')));
@@ -329,6 +330,17 @@ void main() {
     expect(lowering, isNot(contains('dart:core::num::@methods::parse')));
     expect(lowering, isNot(contains('dart:core::BigInt::@methods::parse')));
     expect(lowering, isNot(contains('dart:core::BigInt::@factories::from')));
+    expect(lowering, isNot(contains('dart:core::List::@factories::of')));
+    expect(lowering, isNot(contains('dart:core::List::@factories::filled')));
+    expect(lowering, isNot(contains('dart:core::List::@methods::copyRange')));
+    expect(
+      lowering,
+      isNot(contains('dart:core::Map::@factories::fromIterable')),
+    );
+    expect(
+      lowering,
+      isNot(contains('dart:collection::SplayTreeSet::@factories::')),
+    );
     expect(
       lowering,
       isNot(contains('DartSdkStaticInvocationSymbol.coreDateTimeCopyWith')),
@@ -433,6 +445,13 @@ void main() {
       collection,
       contains('DartSdkStaticInvocationSymbol.collectionListBaseToString'),
     );
+    expect(collection, contains('dart:core::List::@factories::of'));
+    expect(collection, contains('dart:core::List::@factories::filled'));
+    expect(collection, contains('dart:core::List::@methods::copyRange'));
+    expect(collection, contains('dart:core::Map::@factories::fromIterable'));
+    expect(collection, contains('dart:collection::SplayTreeSet::@factories::'));
+    expect(collection, contains('EsmRuntimeHelper.mapFactories'));
+    expect(collection, contains('EsmRuntimeHelper.splayTree'));
     expect(coreEnum, contains('lowerDartCoreEnumStaticInvocation'));
     expect(coreEnum, contains('DartSdkStaticInvocationSymbol.coreEnumName'));
     expect(coreEnum, contains('DartSdkStaticInvocationSymbol.coreEnumByName'));

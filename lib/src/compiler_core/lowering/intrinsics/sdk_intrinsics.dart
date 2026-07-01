@@ -194,7 +194,9 @@ final class DartSdkIntrinsicRegistry {
         lowerDartCollectionStaticInvocation(
           expression: expression,
           helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
           lower: lower,
+          lowerNamedArgument: lowerNamedArgument,
           arrayFrom: arrayFrom,
         ) ??
         lowerTypedDataStaticInvocation(

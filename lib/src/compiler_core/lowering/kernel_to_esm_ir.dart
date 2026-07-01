@@ -15,12 +15,13 @@ import 'lowering_context.dart';
 final class LoweringResult {
   LoweringResult({
     required this.semantic,
-    required this.module,
+    required Iterable<EsmModuleItemIr> items,
     required Iterable<EsmRuntimeHelper> runtimeHelpers,
-  }) : runtimeHelpers = List.unmodifiable(runtimeHelpers);
+  }) : items = List.unmodifiable(items),
+       runtimeHelpers = List.unmodifiable(runtimeHelpers);
 
   final SemanticWorldResult semantic;
-  final EsmModuleIr module;
+  final List<EsmModuleItemIr> items;
   final List<EsmRuntimeHelper> runtimeHelpers;
 }
 
@@ -66,7 +67,7 @@ final class KernelToEsmIrLoweringStage
     ];
     return LoweringResult(
       semantic: semantic,
-      module: EsmModuleIr(items: items),
+      items: items,
       runtimeHelpers: context.runtimeHelperUses,
     );
   }

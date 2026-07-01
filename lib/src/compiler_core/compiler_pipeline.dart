@@ -3,6 +3,7 @@ import 'package:kernel/kernel.dart' as k;
 import 'codegen/esm_codegen.dart';
 import 'compiler_stage.dart';
 import 'frontend/kernel_frontend.dart';
+import 'ir_builder/esm_ir_builder.dart';
 import 'ir/esm_ir.dart';
 import 'legacy_oracle.dart';
 import 'lowering/kernel_to_esm_ir.dart';
@@ -33,6 +34,7 @@ final class Dart2EsmPipelineResult {
     required Iterable<Dart2EsmCompilerStageId> completedStages,
     this.semantic,
     this.lowering,
+    this.irBuild,
     this.normalization,
     this.runtime,
     this.codegen,
@@ -46,6 +48,7 @@ final class Dart2EsmPipelineResult {
   final List<Dart2EsmCompilerStageId> completedStages;
   final SemanticWorldResult? semantic;
   final LoweringResult? lowering;
+  final EsmIrBuildResult? irBuild;
   final NormalizationResult? normalization;
   final RuntimeLinkResult? runtime;
   final CodegenStageResult? codegen;
@@ -62,6 +65,7 @@ final class Dart2EsmCompilerPipeline {
       generatedGlobalNames: EsmRuntimeHelperRegistry.generatedGlobalNames,
     ),
     this.lowering = const KernelToEsmIrLoweringStage(),
+    this.irBuilder = const EsmIrBuilderStage(),
     this.normalizer = const ModuleNormalizerStage(),
     this.runtimeLinker = const RuntimeLinkerStage(),
     this.codegen = const EsmCodegenStage(),
@@ -73,7 +77,8 @@ final class Dart2EsmCompilerPipeline {
   final Dart2EsmCompilerStage<KernelFrontendResult, SemanticWorldResult>
   semanticWorld;
   final Dart2EsmCompilerStage<SemanticWorldResult, LoweringResult> lowering;
-  final Dart2EsmCompilerStage<LoweringResult, NormalizationResult> normalizer;
+  final Dart2EsmCompilerStage<LoweringResult, EsmIrBuildResult> irBuilder;
+  final Dart2EsmCompilerStage<EsmIrBuildResult, NormalizationResult> normalizer;
   final Dart2EsmCompilerStage<NormalizationResult, RuntimeLinkResult>
   runtimeLinker;
   final Dart2EsmCompilerStage<EsmModuleIr, CodegenStageResult> codegen;
@@ -89,7 +94,9 @@ final class Dart2EsmCompilerPipeline {
       completedStages.add(semanticWorld.stageId);
       final lowered = lowering.run(semantic, context);
       completedStages.add(lowering.stageId);
-      final normalized = normalizer.run(lowered, context);
+      final irBuild = irBuilder.run(lowered, context);
+      completedStages.add(irBuilder.stageId);
+      final normalized = normalizer.run(irBuild, context);
       completedStages.add(normalizer.stageId);
       final linked = runtimeLinker.run(normalized, context);
       completedStages.add(runtimeLinker.stageId);
@@ -103,6 +110,7 @@ final class Dart2EsmCompilerPipeline {
         completedStages: completedStages,
         semantic: semantic,
         lowering: lowered,
+        irBuild: irBuild,
         normalization: normalized,
         runtime: linked,
         codegen: codegenResult,

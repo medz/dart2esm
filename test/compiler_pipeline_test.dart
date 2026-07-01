@@ -2,6 +2,7 @@ import 'package:dart2esm/src/compiler_core/codegen/esm_codegen.dart';
 import 'package:dart2esm/src/compiler_core/compiler_pipeline.dart';
 import 'package:dart2esm/src/compiler_core/compiler_stage.dart';
 import 'package:dart2esm/src/compiler_core/frontend/kernel_frontend.dart';
+import 'package:dart2esm/src/compiler_core/ir_builder/esm_ir_builder.dart';
 import 'package:dart2esm/src/compiler_core/ir/esm_ir.dart';
 import 'package:dart2esm/src/compiler_core/lowering/kernel_to_esm_ir.dart';
 import 'package:dart2esm/src/compiler_core/new_compiler_unsupported.dart';
@@ -29,6 +30,7 @@ void main() {
       Dart2EsmCompilerStageId.kernelFrontend,
       Dart2EsmCompilerStageId.semanticWorld,
       Dart2EsmCompilerStageId.dartLowering,
+      Dart2EsmCompilerStageId.esmIrBuilder,
       Dart2EsmCompilerStageId.moduleNormalizer,
       Dart2EsmCompilerStageId.runtimeLinker,
       Dart2EsmCompilerStageId.esmCodegen,
@@ -39,12 +41,13 @@ void main() {
       const KernelToEsmIrLoweringStage().stageId,
       dart2EsmCompilerStageOrder[2],
     );
+    expect(const EsmIrBuilderStage().stageId, dart2EsmCompilerStageOrder[3]);
     expect(
       const ModuleNormalizerStage().stageId,
-      dart2EsmCompilerStageOrder[3],
+      dart2EsmCompilerStageOrder[4],
     );
-    expect(const RuntimeLinkerStage().stageId, dart2EsmCompilerStageOrder[4]);
-    expect(const EsmCodegenStage().stageId, dart2EsmCompilerStageOrder[5]);
+    expect(const RuntimeLinkerStage().stageId, dart2EsmCompilerStageOrder[5]);
+    expect(const EsmCodegenStage().stageId, dart2EsmCompilerStageOrder[6]);
     expect(
       dart2EsmStageContractFor(Dart2EsmCompilerStageId.kernelFrontend).output,
       'KernelFrontendResult',
@@ -100,8 +103,10 @@ void main() {
     expect(result.usedLegacyOracle, isFalse);
     expect(result.kernel.component, same(component));
     expect(result.semantic?.world.main, same(main));
-    expect(result.lowering?.module.items, hasLength(3));
+    expect(result.lowering?.items, hasLength(3));
+    expect(result.irBuild?.module.items, hasLength(3));
     expect(result.lowering?.runtimeHelpers, isEmpty);
+    expect(result.normalization?.irBuild, same(result.irBuild));
     expect(result.normalization?.invalidatesSemanticWorld, isFalse);
     expect(result.runtime?.linkedHelpers, isEmpty);
     expect(result.codegen?.code, same(result.code));
@@ -458,10 +463,13 @@ NormalizationResult _normalizationForModule(
     ),
   );
   return NormalizationResult(
-    lowering: LoweringResult(
-      semantic: semantic,
+    irBuild: EsmIrBuildResult(
+      lowering: LoweringResult(
+        semantic: semantic,
+        items: module.items,
+        runtimeHelpers: runtimeHelpers,
+      ),
       module: module,
-      runtimeHelpers: runtimeHelpers,
     ),
     module: module,
     invalidatesSemanticWorld: false,

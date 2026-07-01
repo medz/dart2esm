@@ -38,6 +38,7 @@ void main() {
     expect(pipeline, contains('final List<Dart2EsmCompilerStageId>'));
     expect(pipeline, contains('final SemanticWorldResult? semantic'));
     expect(pipeline, contains('final LoweringResult? lowering'));
+    expect(pipeline, contains('final EsmIrBuildResult? irBuild'));
     expect(pipeline, contains('final NormalizationResult? normalization'));
     expect(pipeline, contains('final RuntimeLinkResult? runtime'));
     expect(pipeline, contains('final CodegenStageResult? codegen'));
@@ -58,7 +59,7 @@ void main() {
         contract.ownerDirectory: contract,
     };
 
-    expect(contractsByOwnerDirectory.keys, hasLength(6));
+    expect(contractsByOwnerDirectory.keys, hasLength(7));
     for (final contract in dart2EsmCompilerStageContracts) {
       final owner = Directory(
         p.join(compilerCoreRoot, contract.ownerDirectory),
@@ -140,6 +141,27 @@ void main() {
     expect(codegen, isNot(contains('emitEsm(')));
     expect(codegen, isNot(contains('emitEsmModel(')));
     expect(codegen, isNot(contains('backend/esm_backend.dart')));
+  });
+
+  test('ESM module construction is owned by the IR builder stage', () {
+    final lowering = _read(
+      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
+    );
+    final irBuilder = _read(
+      'lib/src/compiler_core/ir_builder/esm_ir_builder.dart',
+    );
+    final normalizer = _read(
+      'lib/src/compiler_core/transform/module_normalizer.dart',
+    );
+
+    expect(irBuilder, contains('final class EsmIrBuildResult'));
+    expect(irBuilder, contains('final class EsmIrBuilderStage'));
+    expect(irBuilder, contains('EsmModuleIr(items: lowering.items)'));
+    expect(lowering, contains('final List<EsmModuleItemIr> items'));
+    expect(lowering, isNot(contains('EsmModuleIr(items:')));
+    expect(normalizer, contains('final EsmIrBuildResult irBuild'));
+    expect(normalizer, isNot(contains('LoweringResult')));
+    expect(normalizer, isNot(contains('EsmModuleIr(items:')));
   });
 
   test('ESM IR is independent from runtime helper registry', () {

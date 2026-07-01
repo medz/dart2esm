@@ -2,6 +2,7 @@ enum Dart2EsmCompilerStageId {
   kernelFrontend,
   semanticWorld,
   dartLowering,
+  esmIrBuilder,
   moduleNormalizer,
   runtimeLinker,
   esmCodegen,
@@ -68,9 +69,15 @@ const dart2EsmCompilerStageContracts = [
     },
   ),
   Dart2EsmStageContract(
+    stageId: Dart2EsmCompilerStageId.esmIrBuilder,
+    ownerDirectory: 'ir_builder',
+    input: 'LoweringResult',
+    output: 'EsmIrBuildResult',
+  ),
+  Dart2EsmStageContract(
     stageId: Dart2EsmCompilerStageId.moduleNormalizer,
     ownerDirectory: 'transform',
-    input: 'LoweringResult',
+    input: 'EsmIrBuildResult',
     output: 'NormalizationResult',
   ),
   Dart2EsmStageContract(

@@ -1,21 +1,21 @@
 import '../compiler_stage.dart';
+import '../ir_builder/esm_ir_builder.dart';
 import '../ir/esm_ir.dart';
-import '../lowering/kernel_to_esm_ir.dart';
 
 final class NormalizationResult {
   const NormalizationResult({
-    required this.lowering,
+    required this.irBuild,
     required this.module,
     required this.invalidatesSemanticWorld,
   });
 
-  final LoweringResult lowering;
+  final EsmIrBuildResult irBuild;
   final EsmModuleIr module;
   final bool invalidatesSemanticWorld;
 }
 
 final class ModuleNormalizerStage
-    implements Dart2EsmCompilerStage<LoweringResult, NormalizationResult> {
+    implements Dart2EsmCompilerStage<EsmIrBuildResult, NormalizationResult> {
   const ModuleNormalizerStage();
 
   @override
@@ -23,14 +23,17 @@ final class ModuleNormalizerStage
       Dart2EsmCompilerStageId.moduleNormalizer;
 
   @override
-  NormalizationResult run(LoweringResult input, Dart2EsmStageContext context) {
+  NormalizationResult run(
+    EsmIrBuildResult input,
+    Dart2EsmStageContext context,
+  ) {
     return normalize(input);
   }
 
-  NormalizationResult normalize(LoweringResult lowering) {
+  NormalizationResult normalize(EsmIrBuildResult irBuild) {
     return NormalizationResult(
-      lowering: lowering,
-      module: lowering.module,
+      irBuild: irBuild,
+      module: irBuild.module,
       invalidatesSemanticWorld: false,
     );
   }

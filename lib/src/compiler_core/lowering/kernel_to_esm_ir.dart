@@ -5,6 +5,7 @@ import 'package:kernel/kernel.dart' as k;
 import '../../kernel/kernel_references.dart';
 import '../../kernel/sdk_symbols.dart';
 import '../../names/js_names.dart';
+import '../../world/sdk_classification.dart';
 import '../compiler_stage.dart';
 import '../ir/esm_ir.dart';
 import '../new_compiler_unsupported.dart';
@@ -305,6 +306,7 @@ final class KernelToEsmIrLoweringStage
     methods.addAll(
       _lowerInterfaceMethodBridges(world, helpers, klass, methods),
     );
+    methods.addAll(_lowerDartConvertSuperclassBridges(klass, methods));
     methods.addAll(
       _lowerPublicMemberNameBridges(world, helpers, klass, methods),
     );
@@ -369,6 +371,165 @@ final class KernelToEsmIrLoweringStage
       }
     }
     return bridges;
+  }
+
+  List<EsmClassMethodIr> _lowerDartConvertSuperclassBridges(
+    EsmClassSymbol klass,
+    List<EsmClassMethodIr> methods,
+  ) {
+    final existing = {
+      for (final method in methods)
+        if (!method.isStatic) (method.name, method.kind),
+    };
+    final bridges = <EsmClassMethodIr>[];
+    void addBridge(String name, String accessor, String parameter) {
+      if (!existing.add((name, EsmClassMethodKindIr.method))) {
+        return;
+      }
+      bridges.add(
+        EsmClassMethodIr(
+          key: EsmStaticPropertyKeyIr(name),
+          kind: EsmClassMethodKindIr.method,
+          isStatic: false,
+          parameters: [EsmIdentifierParameterIr(name: parameter)],
+          body: [
+            EsmReturnStatementIr(
+              EsmCallIr(
+                callee: EsmPropertyAccessIr(
+                  receiver: _memberAccess(const EsmThisIr(), accessor),
+                  property: 'convert',
+                ),
+                arguments: [EsmIdentifierIr(parameter)],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (hasDartConvertBase(klass.node, const {'Codec', 'Encoding'})) {
+      addBridge('encode', 'encoder', 'input');
+      addBridge('decode', 'decoder', 'encoded');
+    }
+    if (hasDartConvertBase(klass.node, const {
+      'StringConversionSink',
+      'StringConversionSinkBase',
+    })) {
+      _addSinkAddBridge(existing, bridges, 'string');
+    }
+    if (hasDartConvertBase(klass.node, const {
+      'ByteConversionSink',
+      'ByteConversionSinkBase',
+    })) {
+      _addSinkAddBridge(existing, bridges, 'chunk');
+      if (existing.add(('addSlice', EsmClassMethodKindIr.method))) {
+        bridges.add(
+          EsmClassMethodIr(
+            key: EsmStaticPropertyKeyIr('addSlice'),
+            kind: EsmClassMethodKindIr.method,
+            isStatic: false,
+            parameters: const [
+              EsmIdentifierParameterIr(name: 'chunk'),
+              EsmIdentifierParameterIr(name: 'start'),
+              EsmIdentifierParameterIr(name: 'end'),
+              EsmIdentifierParameterIr(name: 'isLast'),
+            ],
+            body: [
+              EsmExpressionStatementIr(
+                EsmCallIr(
+                  callee: _memberAccess(const EsmThisIr(), 'add'),
+                  arguments: [
+                    EsmCallIr(
+                      callee: EsmPropertyAccessIr(
+                        receiver: EsmCallIr(
+                          callee: const EsmPropertyAccessIr(
+                            receiver: EsmIdentifierIr('Array'),
+                            property: 'from',
+                          ),
+                          arguments: [const EsmIdentifierIr('chunk')],
+                        ),
+                        property: 'slice',
+                      ),
+                      arguments: const [
+                        EsmIdentifierIr('start'),
+                        EsmIdentifierIr('end'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              EsmIfStatementIr(
+                condition: const EsmIdentifierIr('isLast'),
+                thenBody: [
+                  EsmExpressionStatementIr(
+                    EsmCallIr(
+                      callee: _memberAccess(const EsmThisIr(), 'close'),
+                      arguments: const [],
+                    ),
+                  ),
+                ],
+                otherwiseBody: null,
+              ),
+            ],
+          ),
+        );
+      }
+      if (existing.add(('addByte', EsmClassMethodKindIr.method))) {
+        bridges.add(
+          EsmClassMethodIr(
+            key: EsmStaticPropertyKeyIr('addByte'),
+            kind: EsmClassMethodKindIr.method,
+            isStatic: false,
+            parameters: const [EsmIdentifierParameterIr(name: 'byte')],
+            body: [
+              EsmReturnStatementIr(
+                EsmCallIr(
+                  callee: _memberAccess(const EsmThisIr(), 'add'),
+                  arguments: const [
+                    EsmArrayLiteralIr([EsmIdentifierIr('byte')]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+    return bridges;
+  }
+
+  void _addSinkAddBridge(
+    Set<(String, EsmClassMethodKindIr)> existing,
+    List<EsmClassMethodIr> bridges,
+    String parameter,
+  ) {
+    if (!existing.add(('add', EsmClassMethodKindIr.method))) {
+      return;
+    }
+    bridges.add(
+      EsmClassMethodIr(
+        key: EsmStaticPropertyKeyIr('add'),
+        kind: EsmClassMethodKindIr.method,
+        isStatic: false,
+        parameters: [EsmIdentifierParameterIr(name: parameter)],
+        body: [
+          EsmReturnStatementIr(
+            EsmCallIr(
+              callee: _memberAccess(const EsmThisIr(), 'addSlice'),
+              arguments: [
+                EsmIdentifierIr(parameter),
+                const EsmNumberLiteralIr(0),
+                EsmPropertyAccessIr(
+                  receiver: EsmIdentifierIr(parameter),
+                  property: 'length',
+                ),
+                const EsmBooleanLiteralIr(false),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   EsmClassMethodKindIr _classMethodKind(EsmClassProcedureSymbol procedure) {
@@ -5445,6 +5606,16 @@ final class KernelToEsmIrLoweringStage
     k.InstanceInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final coreTimeInvocation = _lowerCoreTimeInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (coreTimeInvocation != null) {
+      return coreTimeInvocation;
+    }
     final webInvocation = _lowerWebInstanceInvocation(
       world,
       helpers,
@@ -5461,6 +5632,175 @@ final class KernelToEsmIrLoweringStage
       locals,
       expression,
       thisExpression: thisExpression,
+    );
+  }
+
+  EsmExpressionIr? _lowerCoreTimeInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final target = kernelReferencePath(expression.interfaceTargetReference);
+    final name = expression.name.text;
+    final positional = expression.arguments.positional;
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    if (target.startsWith('dart:core::DateTime::@methods::') &&
+        expression.arguments.named.isEmpty) {
+      final expectedArity = switch (name) {
+        'compareTo' ||
+        'isBefore' ||
+        'isAfter' ||
+        'isAtSameMomentAs' ||
+        'add' ||
+        'subtract' ||
+        'difference' => 1,
+        'toUtc' || 'toLocal' || 'toIso8601String' || 'toString' => 0,
+        _ => null,
+      };
+      if (expectedArity == null || positional.length != expectedArity) {
+        return null;
+      }
+      return EsmCallIr(
+        callee: _memberAccess(receiver, name),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    if (!target.startsWith('dart:core::Duration::@methods::') ||
+        expression.arguments.named.isNotEmpty) {
+      return null;
+    }
+    if ((name == 'abs' || name == 'toString') && positional.isEmpty) {
+      return EsmCallIr(
+        callee: _memberAccess(receiver, name),
+        arguments: const [],
+      );
+    }
+    if (name == 'compareTo' && positional.length == 1) {
+      return EsmCallIr(
+        callee: _memberAccess(receiver, name),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (positional.length != 1) {
+      return null;
+    }
+    final right = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      positional.single,
+      thisExpression: thisExpression,
+    );
+    return switch (name) {
+      '+' => _durationFromMicros(
+        helpers,
+        EsmBinaryIr(
+          left: EsmPropertyAccessIr(
+            receiver: receiver,
+            property: 'inMicroseconds',
+          ),
+          operator: EsmBinaryOperatorIr.add,
+          right: EsmPropertyAccessIr(
+            receiver: right,
+            property: 'inMicroseconds',
+          ),
+        ),
+      ),
+      '-' => _durationFromMicros(
+        helpers,
+        EsmBinaryIr(
+          left: EsmPropertyAccessIr(
+            receiver: receiver,
+            property: 'inMicroseconds',
+          ),
+          operator: EsmBinaryOperatorIr.subtract,
+          right: EsmPropertyAccessIr(
+            receiver: right,
+            property: 'inMicroseconds',
+          ),
+        ),
+      ),
+      '*' => _durationFromMicros(
+        helpers,
+        _mathRound(
+          EsmBinaryIr(
+            left: EsmPropertyAccessIr(
+              receiver: receiver,
+              property: 'inMicroseconds',
+            ),
+            operator: EsmBinaryOperatorIr.multiply,
+            right: right,
+          ),
+        ),
+      ),
+      '~/' => _durationFromMicros(
+        helpers,
+        _mathTrunc(
+          EsmBinaryIr(
+            left: EsmPropertyAccessIr(
+              receiver: receiver,
+              property: 'inMicroseconds',
+            ),
+            operator: EsmBinaryOperatorIr.divide,
+            right: right,
+          ),
+        ),
+      ),
+      '<' || '<=' || '>' || '>=' => EsmBinaryIr(
+        left: EsmPropertyAccessIr(
+          receiver: receiver,
+          property: 'inMicroseconds',
+        ),
+        operator: _binaryOperators[name]!,
+        right: EsmPropertyAccessIr(receiver: right, property: 'inMicroseconds'),
+      ),
+      _ => null,
+    };
+  }
+
+  EsmCallIr _durationFromMicros(
+    EsmRuntimeHelperUseSet helpers,
+    EsmExpressionIr microseconds,
+  ) {
+    helpers.require(EsmRuntimeHelper.duration);
+    return EsmCallIr(
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.duration),
+      arguments: [
+        EsmObjectLiteralIr([
+          EsmObjectLiteralPropertyIr.static(
+            key: 'microseconds',
+            value: microseconds,
+          ),
+        ]),
+      ],
     );
   }
 
@@ -6794,6 +7134,7 @@ final class KernelToEsmIrLoweringStage
     if (!isDartTypedDataMember(expression.interfaceTargetReference, name)) {
       return null;
     }
+    final target = kernelReferencePath(expression.interfaceTargetReference);
     final positional = expression.arguments.positional;
     final receiver = _lowerExpression(
       world,
@@ -6810,6 +7151,27 @@ final class KernelToEsmIrLoweringStage
       thisExpression: thisExpression,
     );
 
+    if (target.startsWith('dart:typed_data::ByteBuffer::@methods::') &&
+        positional.length <= 2) {
+      final constructor = name == 'asByteData'
+          ? 'DataView'
+          : _typedDataByteBufferViewConstructorName(name);
+      if (constructor != null) {
+        final arguments = <EsmExpressionIr>[
+          receiver,
+          positional.isNotEmpty
+              ? lower(positional[0])
+              : const EsmNumberLiteralIr(0),
+        ];
+        if (positional.length >= 2 && !_isNullLiteral(positional[1])) {
+          arguments.add(lower(positional[1]));
+        }
+        return EsmNewIr(
+          callee: EsmIdentifierIr(constructor),
+          arguments: arguments,
+        );
+      }
+    }
     if (name == 'sublist' && positional.isNotEmpty && positional.length <= 2) {
       return EsmCallIr(
         callee: EsmPropertyAccessIr(receiver: receiver, property: 'slice'),
@@ -9531,6 +9893,10 @@ final class KernelToEsmIrLoweringStage
     if (typedDataGet != null) {
       return typedDataGet;
     }
+    final coreTimeGet = _lowerCoreTimeInstanceGet(target, memberName, receiver);
+    if (coreTimeGet != null) {
+      return coreTimeGet;
+    }
     final isMapMember = isDartCoreMapMember(
       expression.interfaceTargetReference,
       memberName,
@@ -9885,6 +10251,53 @@ final class KernelToEsmIrLoweringStage
     for (final typeName in dartCoreErrorTypeNames) {
       if (path == 'dart:core::$typeName::@getters::$name') {
         return property;
+      }
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerCoreTimeInstanceGet(
+    String target,
+    String name,
+    EsmExpressionIr receiver,
+  ) {
+    if (target.startsWith('dart:core::DateTime::@getters::')) {
+      final property = switch (name) {
+        'millisecondsSinceEpoch' ||
+        'microsecondsSinceEpoch' ||
+        'microsecond' ||
+        'millisecond' ||
+        'second' ||
+        'minute' ||
+        'hour' ||
+        'day' ||
+        'month' ||
+        'year' ||
+        'weekday' ||
+        'isUtc' ||
+        'timeZoneName' ||
+        'timeZoneOffset' ||
+        'hashCode' => name,
+        _ => null,
+      };
+      if (property != null) {
+        return EsmPropertyAccessIr(receiver: receiver, property: property);
+      }
+    }
+    if (target.startsWith('dart:core::Duration::@getters::')) {
+      final property = switch (name) {
+        'inDays' ||
+        'inHours' ||
+        'inMinutes' ||
+        'inSeconds' ||
+        'inMilliseconds' ||
+        'inMicroseconds' ||
+        'isNegative' ||
+        'hashCode' => name,
+        _ => null,
+      };
+      if (property != null) {
+        return EsmPropertyAccessIr(receiver: receiver, property: property);
       }
     }
     return null;
@@ -10409,17 +10822,16 @@ final class KernelToEsmIrLoweringStage
     if (klass == null) {
       throw NewCompilerUnsupported(
         expression,
-        'constructor invocation $targetPath',
+        'constructor invocation class symbol missing $targetPath',
       );
     }
     if (constructor == null) {
       if (!_isSyntheticDefaultConstructor(target) ||
           expression.arguments.positional.isNotEmpty ||
-          expression.arguments.named.isNotEmpty ||
-          expression.arguments.types.isNotEmpty) {
+          expression.arguments.named.isNotEmpty) {
         throw NewCompilerUnsupported(
           expression,
-          'constructor invocation '
+          'constructor invocation symbol missing '
           '${kernelReferencePath(expression.targetReference)}',
         );
       }
@@ -10463,6 +10875,16 @@ final class KernelToEsmIrLoweringStage
     k.ConstructorInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final coreTimeConstructor = _lowerCoreTimeConstructorInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (coreTimeConstructor != null) {
+      return coreTimeConstructor;
+    }
     if (expression.arguments.named.isNotEmpty) {
       return null;
     }
@@ -11029,6 +11451,154 @@ final class KernelToEsmIrLoweringStage
       );
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerCoreTimeConstructorInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.ConstructorInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final target = kernelReferencePath(expression.targetReference);
+    final positional = expression.arguments.positional;
+    if (target.startsWith('dart:core::Duration::@constructors::') &&
+        positional.isEmpty &&
+        expression.arguments.types.isEmpty &&
+        _hasOnlyNamedArguments(expression.arguments, {
+          'days',
+          'hours',
+          'minutes',
+          'seconds',
+          'milliseconds',
+          'microseconds',
+        })) {
+      helpers.require(EsmRuntimeHelper.duration);
+      return EsmCallIr(
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.duration),
+        arguments: [
+          _lowerCoreDurationOptionsObject(
+            world,
+            helpers,
+            locals,
+            expression.arguments,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (!target.startsWith('dart:core::DateTime::@constructors::') ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    helpers.require(EsmRuntimeHelper.dateTime);
+    if ((target == 'dart:core::DateTime::@constructors::' ||
+            target == 'dart:core::DateTime::@constructors::utc') &&
+        expression.arguments.named.isEmpty &&
+        positional.isNotEmpty &&
+        positional.length <= 8) {
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartDateTimeFromParts'),
+        arguments: [
+          EsmBooleanLiteralIr(
+            target == 'dart:core::DateTime::@constructors::utc',
+          ),
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    if ((target == 'dart:core::DateTime::@constructors::now' ||
+            target == 'dart:core::DateTime::@constructors::timestamp') &&
+        expression.arguments.named.isEmpty &&
+        positional.isEmpty) {
+      return EsmCallIr(
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.dateTime),
+        arguments: [
+          const EsmCallIr(
+            callee: EsmPropertyAccessIr(
+              receiver: EsmIdentifierIr('Date'),
+              property: 'now',
+            ),
+            arguments: [],
+          ),
+          EsmBooleanLiteralIr(
+            target == 'dart:core::DateTime::@constructors::timestamp',
+          ),
+        ],
+      );
+    }
+    if ((target ==
+                'dart:core::DateTime::@constructors::fromMillisecondsSinceEpoch' ||
+            target ==
+                'dart:core::DateTime::@constructors::fromMicrosecondsSinceEpoch') &&
+        positional.length == 1 &&
+        _hasOnlyNamedArguments(expression.arguments, {'isUtc'})) {
+      final isUtc =
+          _lowerNamedArgument(
+            world,
+            helpers,
+            locals,
+            expression.arguments,
+            'isUtc',
+            thisExpression: thisExpression,
+          ) ??
+          const EsmBooleanLiteralIr(false);
+      return EsmCallIr(
+        callee: target.endsWith('fromMicrosecondsSinceEpoch')
+            ? const EsmIdentifierIr('__dartDateTimeFromMicros')
+            : helpers.reference(runtimeHelpers, EsmRuntimeHelper.dateTime),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+          isUtc,
+        ],
+      );
+    }
+    return null;
+  }
+
+  EsmObjectLiteralIr _lowerCoreDurationOptionsObject(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.Arguments arguments, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    return EsmObjectLiteralIr([
+      for (final name in const [
+        'days',
+        'hours',
+        'minutes',
+        'seconds',
+        'milliseconds',
+        'microseconds',
+      ])
+        EsmObjectLiteralPropertyIr.static(
+          key: name,
+          value:
+              _lowerNamedArgument(
+                world,
+                helpers,
+                locals,
+                arguments,
+                name,
+                thisExpression: thisExpression,
+              ) ??
+              const EsmNumberLiteralIr(0),
+        ),
+    ]);
   }
 
   EsmExpressionIr? _lowerMathConstructorInvocation(
@@ -11880,6 +12450,16 @@ final class KernelToEsmIrLoweringStage
     );
   }
 
+  EsmExpressionIr _mathRound(EsmExpressionIr value) {
+    return EsmCallIr(
+      callee: const EsmPropertyAccessIr(
+        receiver: EsmIdentifierIr('Math'),
+        property: 'round',
+      ),
+      arguments: [value],
+    );
+  }
+
   bool _isCoreCompareToTarget(String target) {
     return target == 'dart:core::Comparable::@methods::compareTo' ||
         target == 'dart:core::num::@methods::compareTo' ||
@@ -12252,6 +12832,16 @@ final class KernelToEsmIrLoweringStage
     );
     if (coreUriStatic != null) {
       return coreUriStatic;
+    }
+    final coreTimeStatic = _lowerCoreTimeStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (coreTimeStatic != null) {
+      return coreTimeStatic;
     }
     final coreNumberStatic = _lowerCoreNumberStaticInvocation(
       world,
@@ -13950,6 +14540,23 @@ final class KernelToEsmIrLoweringStage
     };
   }
 
+  String? _typedDataByteBufferViewConstructorName(String methodName) {
+    return switch (methodName) {
+      'asInt8List' => 'Int8Array',
+      'asUint8List' => 'Uint8Array',
+      'asUint8ClampedList' => 'Uint8ClampedArray',
+      'asInt16List' => 'Int16Array',
+      'asUint16List' => 'Uint16Array',
+      'asInt32List' => 'Int32Array',
+      'asUint32List' => 'Uint32Array',
+      'asInt64List' => 'BigInt64Array',
+      'asUint64List' => 'BigUint64Array',
+      'asFloat32List' => 'Float32Array',
+      'asFloat64List' => 'Float64Array',
+      _ => null,
+    };
+  }
+
   int? _typedDataArrayBytesPerElement(String dartTypeName) {
     return switch (dartTypeName) {
       'Int8List' || 'Uint8List' || 'Uint8ClampedList' => 1,
@@ -14317,6 +14924,80 @@ final class KernelToEsmIrLoweringStage
           ],
         );
       }
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerCoreTimeStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final target = kernelReferencePath(expression.targetReference);
+    final positional = expression.arguments.positional;
+    if ((target == 'dart:core::DateTime::@methods::parse' ||
+            target == 'dart:core::DateTime::@methods::tryParse') &&
+        positional.length == 1 &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.types.isEmpty) {
+      helpers.require(EsmRuntimeHelper.dateTime);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartDateTimeParse'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+          EsmBooleanLiteralIr(target.endsWith('tryParse')),
+        ],
+      );
+    }
+    if (dartSdkStaticInvocationSymbol(expression.targetReference) ==
+            DartSdkStaticInvocationSymbol.coreDateTimeCopyWith &&
+        positional.length == 1 &&
+        expression.arguments.types.isEmpty &&
+        _hasOnlyNamedArguments(expression.arguments, {
+          'year',
+          'month',
+          'day',
+          'hour',
+          'minute',
+          'second',
+          'millisecond',
+          'microsecond',
+          'isUtc',
+        })) {
+      helpers.require(EsmRuntimeHelper.dateTime);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartDateTimeCopyWith'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+          EsmObjectLiteralIr([
+            for (final argument in expression.arguments.named)
+              EsmObjectLiteralPropertyIr.static(
+                key: argument.name,
+                value: _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  argument.value,
+                  thisExpression: thisExpression,
+                ),
+              ),
+          ]),
+        ],
+      );
     }
     return null;
   }

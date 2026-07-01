@@ -1,6 +1,7 @@
 import '../ir/esm_ir.dart';
 
 enum EsmRuntimeHelper {
+  argumentChecks,
   bigIntBitLength,
   bigIntParse,
   compare,
@@ -26,6 +27,7 @@ enum EsmRuntimeHelper {
   intGcd,
   intModular,
   intParse,
+  iterableJoin,
   iterableSearch,
   iterableWindow,
   iterator,
@@ -33,6 +35,7 @@ enum EsmRuntimeHelper {
   listAdd,
   listAddAll,
   listFactory,
+  listMixin,
   listMutation,
   listRangeOps,
   listSearch,
@@ -49,6 +52,7 @@ enum EsmRuntimeHelper {
   objectHash,
   pattern,
   print,
+  rangeChecks,
   recordShape,
   isRecord,
   record,
@@ -67,6 +71,7 @@ enum EsmRuntimeHelper {
   throwWithStackTrace,
   type,
   typeCast,
+  typedDataSublistView,
   unmodifiableViews,
   uri,
   uriToFilePath,
@@ -80,8 +85,13 @@ final class EsmRuntimeHelperRegistry {
     '__dartAs',
     '__dartBigIntBitLength',
     '__dartBigIntParse',
+    '__dartCheckNotNull',
     '__dartCompare',
     '__dartCoreError',
+    '__dartCheckNotNegative',
+    '__dartCheckValidIndex',
+    '__dartCheckValidRange',
+    '__dartCheckValueInInterval',
     '__dartConst',
     '__dartConstMap',
     '__dartConstSet',
@@ -107,6 +117,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartFormatException',
     '__dartIntParse',
     '__dartIntTryParse',
+    '__dartIterableJoin',
     '__dartIterableFirstWhere',
     '__dartIterableFirstOrNull',
     '__dartIterableLastWhere',
@@ -130,10 +141,16 @@ final class EsmRuntimeHelperRegistry {
     '__dartListGenerate',
     '__dartListIndexOf',
     '__dartListIndexWhere',
+    '__dartListLikeGet',
+    '__dartListLikeSet',
     '__dartListLastIndexOf',
     '__dartListLastIndexWhere',
     '__dartListInsert',
     '__dartListInsertAll',
+    '__dartListMixinFirst',
+    '__dartListMixinInsert',
+    '__dartListMixinLast',
+    '__dartListMixinSingle',
     '__dartListOf',
     '__dartListRemove',
     '__dartListRemoveAt',
@@ -238,6 +255,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartSymbol',
     '__dartSymbolCache',
     '__dartThrowWithStackTrace',
+    '__dartTypedDataSublistView',
     '__dartType',
     '__dartTypeCache',
     '__dartUnmodifiableListView',
@@ -262,6 +280,7 @@ final class EsmRuntimeHelperRegistry {
   String name(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.bigIntBitLength => '__dartBigIntBitLength',
+      EsmRuntimeHelper.argumentChecks => '__dartCheckNotNull',
       EsmRuntimeHelper.bigIntParse => '__dartBigIntParse',
       EsmRuntimeHelper.compare => '__dartCompare',
       EsmRuntimeHelper.coreError => '__dartCoreError',
@@ -286,6 +305,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.intGcd => '__dartIntGcd',
       EsmRuntimeHelper.intModular => '__dartIntModInverse',
       EsmRuntimeHelper.intParse => '__dartIntParse',
+      EsmRuntimeHelper.iterableJoin => '__dartIterableJoin',
       EsmRuntimeHelper.iterableSearch => '__dartIterableFirstWhere',
       EsmRuntimeHelper.iterableWindow => '__dartIterableTakeWhile',
       EsmRuntimeHelper.iterator => '__dartIterator',
@@ -294,6 +314,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.listAdd => '__dartListAdd',
       EsmRuntimeHelper.listAddAll => '__dartListAddAll',
       EsmRuntimeHelper.listFactory => '__dartListOf',
+      EsmRuntimeHelper.listMixin => '__dartListMixinFirst',
       EsmRuntimeHelper.listMutation => '__dartListShuffle',
       EsmRuntimeHelper.listRangeOps => '__dartListCopyRange',
       EsmRuntimeHelper.listSearch => '__dartListIndexOf',
@@ -310,6 +331,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.objectHash => '__dartObjectHash',
       EsmRuntimeHelper.pattern => '__dartPatternRegExp',
       EsmRuntimeHelper.print => '__dartPrint',
+      EsmRuntimeHelper.rangeChecks => '__dartCheckValidRange',
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
       EsmRuntimeHelper.objectRuntimeType => '__dartRuntimeType',
@@ -327,6 +349,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.throwWithStackTrace => '__dartThrowWithStackTrace',
       EsmRuntimeHelper.type => '__dartType',
       EsmRuntimeHelper.typeCast => '__dartAs',
+      EsmRuntimeHelper.typedDataSublistView => '__dartTypedDataSublistView',
       EsmRuntimeHelper.unmodifiableViews => '__dartUnmodifiableListView',
       EsmRuntimeHelper.uri => '__dartUriParse',
       EsmRuntimeHelper.uriToFilePath => '__dartUriToFilePath',
@@ -402,6 +425,12 @@ function __dartIsCoreError(value, typeName) {
   }
   if (typeName === "TypeError" && value instanceof TypeError) return true;
   return typeName === "Error" && value instanceof Error;
+}
+'''),
+      EsmRuntimeHelper.argumentChecks => EsmRawModuleItemIr('''
+function __dartCheckNotNull(value, name = null) {
+  if (value == null) throw __dartCoreError("ArgumentError", name == null ? "null value" : String(name) + " must not be null");
+  return value;
 }
 '''),
       EsmRuntimeHelper.constValue => EsmRawModuleItemIr('''
@@ -868,6 +897,16 @@ function __dartIntParse(source, radix = null) {
   const value = __dartIntTryParse(source, radix);
   if (value == null) throw __dartFormatException("Invalid integer literal");
   return value;
+}
+'''),
+      EsmRuntimeHelper.iterableJoin => EsmRawModuleItemIr('''
+function __dartIterableJoin(iterable, separator = "") {
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    const values = [];
+    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
+    return values.join(String(separator));
+  }
+  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
 }
 '''),
       EsmRuntimeHelper.iterableWindow => EsmRawModuleItemIr('''
@@ -1790,6 +1829,43 @@ function __dartUnmodifiableList(values) {
   return Object.freeze(Array.from(values));
 }
 '''),
+      EsmRuntimeHelper.listMixin => EsmRawModuleItemIr('''
+function __dartListLikeGet(list, index) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list) || typeof list === "string") return list[index];
+  const op = list == null ? null : list["[]"];
+  return typeof op === "function" ? op.call(list, index) : list[index];
+}
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
+}
+function __dartListMixinFirst(list) {
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinLast(list) {
+  return __dartListLikeGet(list, list.length - 1);
+}
+function __dartListMixinSingle(list) {
+  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinInsert(list, index, value) {
+  index = Number(index);
+  const length = Number(list.length);
+  list.length = length + 1;
+  for (let i = length; i > index; i--) {
+    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
+  }
+  __dartListLikeSet(list, index, value);
+  return null;
+}
+'''),
       EsmRuntimeHelper.listMutation => EsmRawModuleItemIr('''
 function __dartListShuffle(list, random = null) {
   for (let index = list.length - 1; index > 0; index--) {
@@ -1985,6 +2061,27 @@ function __dartObjectHashUnordered(values) {
           ),
         ],
       ),
+      EsmRuntimeHelper.rangeChecks => EsmRawModuleItemIr('''
+function __dartCheckValueInInterval(value, minValue, maxValue, name = null, message = null) {
+  if (value < minValue || value > maxValue) throw __dartCoreError("RangeError", message ?? (String(name ?? "value") + " out of range"));
+  return value;
+}
+function __dartCheckValidIndex(index, indexable, name = null, length = null, message = null) {
+  length ??= indexable.length;
+  if (index < 0 || index >= length) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " out of range"));
+  return index;
+}
+function __dartCheckValidRange(start, end, length, startName = null, endName = null, message = null) {
+  if (start < 0 || start > length) throw __dartCoreError("RangeError", message ?? (String(startName ?? "start") + " out of range"));
+  if (end == null) return length;
+  if (end < start || end > length) throw __dartCoreError("RangeError", message ?? (String(endName ?? "end") + " out of range"));
+  return end;
+}
+function __dartCheckNotNegative(value, name = null, message = null) {
+  if (value < 0) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " must not be negative"));
+  return value;
+}
+'''),
       EsmRuntimeHelper.stringify => EsmRawModuleItemIr(r'''
 function __dartStr(value) {
   if (value == null) return "null";
@@ -2024,6 +2121,17 @@ function __dartThrowWithStackTrace(error, stackTrace) {
     try { error.stack = String(stackTrace); } catch (_) {}
   }
   throw error;
+}
+'''),
+      EsmRuntimeHelper.typedDataSublistView => EsmRawModuleItemIr('''
+function __dartTypedDataSublistView(data, start, end, viewConstructor, bytesPerElement) {
+  const elementSize = data instanceof DataView ? 1 : data.BYTES_PER_ELEMENT;
+  const elementCount = Math.trunc(data.byteLength / elementSize);
+  const effectiveEnd = end == null ? elementCount : end;
+  const byteOffset = data.byteOffset + start * elementSize;
+  const byteLength = (effectiveEnd - start) * elementSize;
+  if (viewConstructor === DataView) return new DataView(data.buffer, byteOffset, byteLength);
+  return new viewConstructor(data.buffer, byteOffset, Math.trunc(byteLength / bytesPerElement));
 }
 '''),
       EsmRuntimeHelper.type => EsmRawModuleItemIr('''
@@ -2401,6 +2509,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.stringOps:
       case EsmRuntimeHelper.weakReference:
         break;
+      case EsmRuntimeHelper.argumentChecks:
+        _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.pattern:
         _helpers.add(EsmRuntimeHelper.stringOps);
       case EsmRuntimeHelper.regExp:
@@ -2436,12 +2546,16 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.type);
       case EsmRuntimeHelper.functionApply:
       case EsmRuntimeHelper.intParse:
+      case EsmRuntimeHelper.iterableJoin:
+        _helpers.add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.iterator:
       case EsmRuntimeHelper.lazyField:
       case EsmRuntimeHelper.listAdd:
       case EsmRuntimeHelper.listAddAll:
       case EsmRuntimeHelper.nullCheck:
         break;
+      case EsmRuntimeHelper.listMixin:
+        _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.print:
         _helpers.add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.listMutation:
@@ -2479,6 +2593,8 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mathRectangle:
         _helpers.add(EsmRuntimeHelper.mathPoint);
+      case EsmRuntimeHelper.rangeChecks:
+        _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.recordShape:
       case EsmRuntimeHelper.objectHash:
       case EsmRuntimeHelper.safeToString:
@@ -2487,6 +2603,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.throwWithStackTrace:
       case EsmRuntimeHelper.type:
       case EsmRuntimeHelper.typeCast:
+      case EsmRuntimeHelper.typedDataSublistView:
       case EsmRuntimeHelper.unmodifiableViews:
         break;
       case EsmRuntimeHelper.uriToFilePath:

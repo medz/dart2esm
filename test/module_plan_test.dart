@@ -144,6 +144,10 @@ void main() {
         plan.classRuntime.interfaceMarkersFor(implementer),
         containsAll([interface, inheritedInterface]),
       );
+      expect(
+        plan.classRuntime.interfaceMarkersFor(mixinApplication),
+        contains(mixinBase),
+      );
       expect(plan.classRuntime.interfaceBaseClasses, contains(interface));
       expect(
         plan.classRuntime.interfaceBaseClasses,

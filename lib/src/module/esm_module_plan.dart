@@ -189,6 +189,11 @@ List<k.Class> _classesInGlobalEmitOrder(
         visit(klass);
       }
     }
+    for (final klass in classes) {
+      if (identical(klass.enclosingLibrary, library)) {
+        visit(klass);
+      }
+    }
   }
   return result;
 }

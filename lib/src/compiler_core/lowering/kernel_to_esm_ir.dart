@@ -976,13 +976,28 @@ final class KernelToEsmIrLoweringStage
                         right: const EsmNullLiteralIr(),
                       ),
                       operator: '&&',
-                      right: EsmBinaryIr(
-                        left: EsmComputedPropertyAccessIr(
-                          receiver: const EsmIdentifierIr('value'),
-                          property: EsmIdentifierIr(markerName),
+                      right: EsmParenthesizedIr(
+                        EsmBinaryIr(
+                          left: EsmCallIr(
+                            callee: EsmPropertyAccessIr(
+                              receiver: EsmPropertyAccessIr(
+                                receiver: EsmIdentifierIr(klass.name),
+                                property: 'prototype',
+                              ),
+                              property: 'isPrototypeOf',
+                            ),
+                            arguments: const [EsmIdentifierIr('value')],
+                          ),
+                          operator: '||',
+                          right: EsmBinaryIr(
+                            left: EsmComputedPropertyAccessIr(
+                              receiver: const EsmIdentifierIr('value'),
+                              property: EsmIdentifierIr(markerName),
+                            ),
+                            operator: '===',
+                            right: const EsmBooleanLiteralIr(true),
+                          ),
                         ),
-                        operator: '===',
-                        right: const EsmBooleanLiteralIr(true),
                       ),
                     ),
                   ),
@@ -1000,11 +1015,10 @@ final class KernelToEsmIrLoweringStage
     EsmClassSymbol klass,
   ) {
     return [
-      for (final interfaceType in klass.node.implementedTypes)
-        if (interfaceType.className.node case final k.Class interfaceClass)
-          if (world.classSymbolFor(interfaceClass)?.interfaceMarkerName
-              case final markerName?)
-            markerName,
+      for (final interfaceClass in klass.interfaceMarkerClasses)
+        if (world.classSymbolFor(interfaceClass)?.interfaceMarkerName
+            case final markerName?)
+          markerName,
     ];
   }
 
@@ -1186,9 +1200,18 @@ final class KernelToEsmIrLoweringStage
       ];
       return EsmClassConstructorIr(parameters: parameters, body: body);
     }
-    final body = <EsmStatementIr>[
+    final superInitializerStatements = [
       for (final initializer in superInitializers)
         ..._lowerSuperInitializer(world, helpers, locals, initializer),
+    ];
+    final needsImplicitSuperCall =
+        superInitializerStatements.isEmpty && klass.jsSuperclass != null;
+    final body = <EsmStatementIr>[
+      if (needsImplicitSuperCall)
+        const EsmExpressionStatementIr(
+          EsmCallIr(callee: EsmSuperIr(), arguments: []),
+        ),
+      ...superInitializerStatements,
       ..._lowerLateInstanceFieldDefinitions(
         world,
         helpers,
@@ -1391,8 +1414,12 @@ final class KernelToEsmIrLoweringStage
     k.SuperInitializer initializer,
   ) {
     final target = initializer.targetReference.node;
-    return target is k.Constructor &&
-        world.constructorSymbolFor(target)?.name.isNotEmpty == true;
+    if (target is! k.Constructor) {
+      return false;
+    }
+    final resolvedTarget = _resolveEmittableConstructorTarget(world, target);
+    return resolvedTarget != null &&
+        world.constructorSymbolFor(resolvedTarget)?.name.isNotEmpty == true;
   }
 
   EsmExpressionIr _lowerObjectCreate(EsmExpressionIr newTarget) {
@@ -1423,22 +1450,27 @@ final class KernelToEsmIrLoweringStage
           initializer.arguments.named.isEmpty) {
         return _lowerObjectCreate(newTarget);
       }
-      throw NewCompilerUnsupported(initializer, 'super initializer target');
+      throw NewCompilerUnsupported(
+        initializer,
+        'super initializer target ${kernelReferencePath(initializer.targetReference)}',
+      );
     }
-    final constructor = world.constructorSymbolFor(target);
-    final klass = world.classSymbolFor(target.enclosingClass);
-    if (constructor == null || klass == null) {
+    final resolvedTarget = _resolveEmittableConstructorTarget(world, target);
+    if (resolvedTarget == null) {
       if (initializer.arguments.positional.isEmpty &&
           initializer.arguments.named.isEmpty) {
         return _lowerObjectCreate(newTarget);
       }
-      throw NewCompilerUnsupported(initializer, 'super initializer target');
+      throw NewCompilerUnsupported(
+        initializer,
+        'super initializer target ${kernelReferencePath(initializer.targetReference)}',
+      );
     }
     return _lowerConstructorAllocation(
       world,
       helpers,
       locals,
-      target,
+      resolvedTarget,
       initializer.arguments,
       newTarget,
       initializer,
@@ -1456,11 +1488,15 @@ final class KernelToEsmIrLoweringStage
     k.TreeNode contextNode,
     String context,
   ) {
-    final constructor = world.constructorSymbolFor(target);
-    final klass = world.classSymbolFor(target.enclosingClass);
-    if (constructor == null || klass == null) {
-      throw NewCompilerUnsupported(contextNode, context);
+    final resolvedTarget = _resolveEmittableConstructorTarget(world, target);
+    if (resolvedTarget == null) {
+      throw NewCompilerUnsupported(
+        contextNode,
+        '$context ${kernelReferencePath(target.reference)}',
+      );
     }
+    final constructor = world.constructorSymbolFor(resolvedTarget)!;
+    final klass = world.classSymbolFor(resolvedTarget.enclosingClass)!;
     final arguments = _lowerArguments(
       world,
       helpers,
@@ -1537,7 +1573,8 @@ final class KernelToEsmIrLoweringStage
       throw NewCompilerUnsupported(initializer, 'super initializer arguments');
     }
     final target = initializer.targetReference.node;
-    if (target is k.Constructor && world.constructorSymbolFor(target) != null) {
+    if (target is k.Constructor &&
+        _resolveEmittableConstructorTarget(world, target) != null) {
       return [
         EsmExpressionStatementIr(
           EsmCallIr(
@@ -1558,6 +1595,64 @@ final class KernelToEsmIrLoweringStage
       return const [];
     }
     throw NewCompilerUnsupported(initializer, 'super initializer lowering');
+  }
+
+  k.Constructor? _resolveEmittableConstructorTarget(
+    EsmSemanticWorld world,
+    k.Constructor target,
+  ) {
+    if (world.constructorSymbolFor(target) != null &&
+        world.classSymbolFor(target.enclosingClass) != null) {
+      return target;
+    }
+
+    final visited = <k.Class>{};
+    var current = target.enclosingClass;
+    while (current.isAnonymousMixin) {
+      if (!visited.add(current)) {
+        throw NewCompilerUnsupported(
+          target,
+          'cyclic anonymous mixin constructor hierarchy',
+        );
+      }
+      final superclass = _localSuperclass(current);
+      if (superclass == null) {
+        return null;
+      }
+      final candidate = _constructorNamed(superclass, target.name);
+      if (candidate != null &&
+          world.constructorSymbolFor(candidate) != null &&
+          world.classSymbolFor(candidate.enclosingClass) != null) {
+        return candidate;
+      }
+      current = superclass;
+    }
+    return null;
+  }
+
+  k.Class? _localSuperclass(k.Class klass) {
+    final supertype = klass.supertype;
+    if (supertype == null ||
+        isKernelCoreClassReference(supertype.className, 'Object') ||
+        isDartSdkReference(supertype.className)) {
+      return null;
+    }
+    final node = supertype.className.node;
+    return node is k.Class ? node : null;
+  }
+
+  k.Constructor? _constructorNamed(k.Class klass, k.Name name) {
+    for (final constructor in klass.constructors) {
+      if (_sameKernelName(constructor.name, name)) {
+        return constructor;
+      }
+    }
+    return null;
+  }
+
+  bool _sameKernelName(k.Name left, k.Name right) {
+    return left.text == right.text &&
+        left.libraryReference == right.libraryReference;
   }
 
   EsmClassMethodIr _lowerClassProcedure(
@@ -3477,6 +3572,13 @@ final class KernelToEsmIrLoweringStage
       if (extensionTypeMember != null) {
         return EsmIdentifierIr(extensionTypeMember.backingName);
       }
+      final sdkTearOff = _lowerSdkStaticTearOffConstant(
+        helpers,
+        constant.targetReference,
+      );
+      if (sdkTearOff != null) {
+        return sdkTearOff;
+      }
       final target = constant.targetReference.node;
       if (target is k.Procedure) {
         final symbol = world.symbolFor(target);
@@ -3498,6 +3600,10 @@ final class KernelToEsmIrLoweringStage
           );
         }
       }
+      throw NewCompilerUnsupported(
+        context,
+        'constant expression lowering ${kernelReferencePath(constant.targetReference)}',
+      );
     }
     if (constant is k.ConstructorTearOffConstant ||
         constant is k.RedirectingFactoryTearOffConstant) {
@@ -3532,6 +3638,52 @@ final class KernelToEsmIrLoweringStage
     throw NewCompilerUnsupported(
       context,
       'constant expression lowering ${constant.runtimeType}',
+    );
+  }
+
+  EsmExpressionIr? _lowerSdkStaticTearOffConstant(
+    EsmRuntimeHelperUseSet helpers,
+    k.Reference reference,
+  ) {
+    final target = kernelReferencePath(reference);
+    if (target ==
+        'dart:collection::ListBase::@methods::dart:collection::_compareAny') {
+      helpers.add(EsmRuntimeHelper.compare);
+      return EsmArrowFunctionIr(
+        parameters: const ['left', 'right'],
+        body: EsmCallIr(
+          callee: runtimeHelpers.reference(EsmRuntimeHelper.compare),
+          arguments: const [EsmIdentifierIr('left'), EsmIdentifierIr('right')],
+        ),
+      );
+    }
+
+    final mathSymbol = dartMathStaticInvocationSymbol(reference);
+    final mathMethod = mathSymbol == null
+        ? null
+        : _jsMathStaticFunctionName(mathSymbol);
+    if (mathMethod == null || mathSymbol == null) {
+      return null;
+    }
+    final parameters = switch (_jsMathStaticFunctionArity(mathSymbol)) {
+      1 => const ['value'],
+      2 => const ['left', 'right'],
+      _ => null,
+    };
+    if (parameters == null) {
+      return null;
+    }
+    return EsmArrowFunctionIr(
+      parameters: parameters,
+      body: EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: const EsmIdentifierIr('Math'),
+          property: mathMethod,
+        ),
+        arguments: [
+          for (final parameter in parameters) EsmIdentifierIr(parameter),
+        ],
+      ),
     );
   }
 
@@ -4839,6 +4991,28 @@ final class KernelToEsmIrLoweringStage
     if (collectionInvocation != null) {
       return collectionInvocation;
     }
+    final mixinCollectionInvocation = _lowerMixinCollectionInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      memberName,
+      thisExpression: thisExpression,
+    );
+    if (mixinCollectionInvocation != null) {
+      return mixinCollectionInvocation;
+    }
+    final typedDataInvocation = _lowerTypedDataInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (typedDataInvocation != null) {
+      return typedDataInvocation;
+    }
     final uriInvocation = _lowerCoreUriInstanceInvocation(
       world,
       helpers,
@@ -5716,6 +5890,177 @@ final class KernelToEsmIrLoweringStage
       return EsmCallIr(
         callee: const EsmIdentifierIr('String'),
         arguments: [receiver],
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerMixinCollectionInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target,
+    String memberName, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final isListMixin = target.contains('ListMixin::@methods::$memberName');
+    final isIterableMixin = target.contains(
+      'IterableMixin::@methods::$memberName',
+    );
+    if (!isListMixin && !isIterableMixin) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    if (memberName == 'join' && positional.length <= 1) {
+      helpers.add(EsmRuntimeHelper.iterableJoin);
+      return EsmCallIr(
+        callee: runtimeHelpers.reference(EsmRuntimeHelper.iterableJoin),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          if (positional case [final separator])
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              separator,
+              thisExpression: thisExpression,
+            )
+          else
+            const EsmStringLiteralIr(''),
+        ],
+      );
+    }
+    if (memberName == 'insert' && positional.length == 2) {
+      if (!isListMixin) {
+        return null;
+      }
+      helpers.add(EsmRuntimeHelper.listMixin);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartListMixinInsert'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerTypedDataInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final name = expression.name.text;
+    if (!isDartTypedDataMember(expression.interfaceTargetReference, name)) {
+      return null;
+    }
+    final positional = expression.arguments.positional;
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    EsmExpressionIr lower(k.Expression argument) => _lowerExpression(
+      world,
+      helpers,
+      locals,
+      argument,
+      thisExpression: thisExpression,
+    );
+
+    if (name == 'sublist' && positional.isNotEmpty && positional.length <= 2) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(receiver: receiver, property: 'slice'),
+        arguments: [for (final argument in positional) lower(argument)],
+      );
+    }
+    if (name == 'getRange' && positional.length == 2) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(receiver: receiver, property: 'slice'),
+        arguments: [for (final argument in positional) lower(argument)],
+      );
+    }
+    if (name == 'setAll' && positional.length == 2) {
+      helpers.add(EsmRuntimeHelper.listMutation);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartListSetAll'),
+        arguments: [receiver, lower(positional[0]), lower(positional[1])],
+      );
+    }
+    if (name == 'setRange' &&
+        positional.length >= 3 &&
+        positional.length <= 4) {
+      helpers.add(EsmRuntimeHelper.listRangeOps);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartListSetRange'),
+        arguments: [
+          receiver,
+          for (final argument in positional) lower(argument),
+        ],
+      );
+    }
+    if (name == 'fillRange' &&
+        positional.length >= 2 &&
+        positional.length <= 3) {
+      helpers.add(EsmRuntimeHelper.listMutation);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartListFillRange'),
+        arguments: [
+          receiver,
+          lower(positional[0]),
+          lower(positional[1]),
+          positional.length == 3
+              ? lower(positional[2])
+              : const EsmNumberLiteralIr(0),
+        ],
+      );
+    }
+    if (name == 'asMap' && positional.isEmpty) {
+      helpers.add(EsmRuntimeHelper.listMutation);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartListAsMap'),
+        arguments: [receiver],
+      );
+    }
+    if ((name == 'indexOf' || name == 'lastIndexOf') &&
+        positional.isNotEmpty &&
+        positional.length <= 2) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(receiver: receiver, property: name),
+        arguments: [for (final argument in positional) lower(argument)],
       );
     }
     return null;
@@ -7929,6 +8274,25 @@ final class KernelToEsmIrLoweringStage
     if (!isDartCoreUriMember(expression.interfaceTargetReference, property)) {
       return null;
     }
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    if (property == 'hashCode') {
+      helpers.add(EsmRuntimeHelper.objectHash);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartHashValue'),
+        arguments: [
+          EsmCallIr(
+            callee: const EsmIdentifierIr('String'),
+            arguments: [receiver],
+          ),
+        ],
+      );
+    }
     final allowed = switch (property) {
       'scheme' ||
       'host' ||
@@ -7952,16 +8316,54 @@ final class KernelToEsmIrLoweringStage
     if (!allowed) {
       return null;
     }
-    return EsmPropertyAccessIr(
-      receiver: _lowerExpression(
-        world,
-        helpers,
-        locals,
-        expression.receiver,
-        thisExpression: thisExpression,
+    return EsmPropertyAccessIr(receiver: receiver, property: property);
+  }
+
+  EsmExpressionIr? _lowerMixinCollectionInstanceGet(
+    String target,
+    String memberName,
+    EsmExpressionIr receiver,
+    EsmRuntimeHelperUseSet helpers,
+  ) {
+    if (!target.contains('ListMixin::@getters::$memberName') &&
+        !target.contains('IterableMixin::@getters::$memberName')) {
+      return null;
+    }
+    return switch (memberName) {
+      'length' => EsmPropertyAccessIr(receiver: receiver, property: 'length'),
+      'isEmpty' => EsmBinaryIr(
+        left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
+        operator: '===',
+        right: const EsmNumberLiteralIr(0),
       ),
-      property: property,
-    );
+      'isNotEmpty' => EsmBinaryIr(
+        left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
+        operator: '>',
+        right: const EsmNumberLiteralIr(0),
+      ),
+      'first' => () {
+        helpers.add(EsmRuntimeHelper.listMixin);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartListMixinFirst'),
+          arguments: [receiver],
+        );
+      }(),
+      'last' => () {
+        helpers.add(EsmRuntimeHelper.listMixin);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartListMixinLast'),
+          arguments: [receiver],
+        );
+      }(),
+      'single' => () {
+        helpers.add(EsmRuntimeHelper.listMixin);
+        return EsmCallIr(
+          callee: const EsmIdentifierIr('__dartListMixinSingle'),
+          arguments: [receiver],
+        );
+      }(),
+      _ => null,
+    };
   }
 
   EsmExpressionIr? _lowerMathInstanceGet(
@@ -8110,6 +8512,15 @@ final class KernelToEsmIrLoweringStage
       expression.interfaceTargetReference,
       memberName,
     );
+    final mixinCollectionGet = _lowerMixinCollectionInstanceGet(
+      target,
+      memberName,
+      receiver,
+      helpers,
+    );
+    if (mixinCollectionGet != null) {
+      return mixinCollectionGet;
+    }
     if (target == 'dart:core::String::@getters::runes') {
       return _stringRunes(receiver);
     }
@@ -8734,10 +9145,7 @@ final class KernelToEsmIrLoweringStage
       final symbol = world.instanceProcedureSymbolFor(target);
       if (symbol != null && symbol.kind == EsmProcedureKind.method) {
         return EsmCallIr(
-          callee: EsmPropertyAccessIr(
-            receiver: const EsmSuperIr(),
-            property: symbol.name,
-          ),
+          callee: _memberAccess(const EsmSuperIr(), symbol.name),
           arguments: _lowerArguments(
             world,
             helpers,
@@ -8763,9 +9171,9 @@ final class KernelToEsmIrLoweringStage
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'super get lowering');
     }
-    return EsmPropertyAccessIr(
-      receiver: const EsmSuperIr(),
-      property: _instanceMemberName(world, target),
+    return _memberAccess(
+      const EsmSuperIr(),
+      _instanceMemberName(world, target),
     );
   }
 
@@ -8781,9 +9189,9 @@ final class KernelToEsmIrLoweringStage
       throw NewCompilerUnsupported(expression, 'super set lowering');
     }
     return EsmAssignmentIr(
-      target: EsmPropertyAccessIr(
-        receiver: const EsmSuperIr(),
-        property: _instanceMemberName(world, target),
+      target: _memberAccess(
+        const EsmSuperIr(),
+        _instanceMemberName(world, target),
       ),
       value: _lowerExpression(
         world,
@@ -9553,6 +9961,7 @@ final class KernelToEsmIrLoweringStage
         '_WeakReference' => _lowerDartTypeTagTest(value, 'WeakReference'),
         'Finalizer' ||
         '_FinalizerImpl' => _lowerDartTypeTagTest(value, 'Finalizer'),
+        'Uri' => _lowerDartTypeTagTest(value, 'Uri'),
         'Pattern' => _lowerCorePatternTypeTest(value),
         'RegExp' => _lowerCoreRegExpTypeTest(value),
         'Record' => _lowerRecordObjectTest(helpers, value),
@@ -10141,6 +10550,16 @@ final class KernelToEsmIrLoweringStage
     );
     if (sdkCollectionStatic != null) {
       return sdkCollectionStatic;
+    }
+    final typedDataStatic = _lowerTypedDataStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (typedDataStatic != null) {
+      return typedDataStatic;
     }
     final coreStringStatic = _lowerCoreStringStaticInvocation(
       world,
@@ -11489,25 +11908,7 @@ final class KernelToEsmIrLoweringStage
     return EsmCallIr(
       callee: EsmPropertyAccessIr(
         receiver: const EsmIdentifierIr('Math'),
-        property: switch (symbol) {
-          DartMathStaticInvocationSymbol.min => 'min',
-          DartMathStaticInvocationSymbol.max => 'max',
-          DartMathStaticInvocationSymbol.pow => 'pow',
-          DartMathStaticInvocationSymbol.sqrt => 'sqrt',
-          DartMathStaticInvocationSymbol.sin => 'sin',
-          DartMathStaticInvocationSymbol.cos => 'cos',
-          DartMathStaticInvocationSymbol.tan => 'tan',
-          DartMathStaticInvocationSymbol.asin => 'asin',
-          DartMathStaticInvocationSymbol.acos => 'acos',
-          DartMathStaticInvocationSymbol.atan => 'atan',
-          DartMathStaticInvocationSymbol.atan2 => 'atan2',
-          DartMathStaticInvocationSymbol.exp => 'exp',
-          DartMathStaticInvocationSymbol.log => 'log',
-          DartMathStaticInvocationSymbol.random ||
-          DartMathStaticInvocationSymbol.randomSecure ||
-          DartMathStaticInvocationSymbol.rectangleFromPoints =>
-            throw StateError('not a Math static method'),
-        },
+        property: _jsMathStaticFunctionName(symbol)!,
       ),
       arguments: [
         for (final argument in positional)
@@ -11520,6 +11921,236 @@ final class KernelToEsmIrLoweringStage
           ),
       ],
     );
+  }
+
+  String? _jsMathStaticFunctionName(DartMathStaticInvocationSymbol symbol) {
+    return switch (symbol) {
+      DartMathStaticInvocationSymbol.min => 'min',
+      DartMathStaticInvocationSymbol.max => 'max',
+      DartMathStaticInvocationSymbol.pow => 'pow',
+      DartMathStaticInvocationSymbol.sqrt => 'sqrt',
+      DartMathStaticInvocationSymbol.sin => 'sin',
+      DartMathStaticInvocationSymbol.cos => 'cos',
+      DartMathStaticInvocationSymbol.tan => 'tan',
+      DartMathStaticInvocationSymbol.asin => 'asin',
+      DartMathStaticInvocationSymbol.acos => 'acos',
+      DartMathStaticInvocationSymbol.atan => 'atan',
+      DartMathStaticInvocationSymbol.atan2 => 'atan2',
+      DartMathStaticInvocationSymbol.exp => 'exp',
+      DartMathStaticInvocationSymbol.log => 'log',
+      DartMathStaticInvocationSymbol.random ||
+      DartMathStaticInvocationSymbol.randomSecure ||
+      DartMathStaticInvocationSymbol.rectangleFromPoints => null,
+    };
+  }
+
+  int? _jsMathStaticFunctionArity(DartMathStaticInvocationSymbol symbol) {
+    return switch (symbol) {
+      DartMathStaticInvocationSymbol.min ||
+      DartMathStaticInvocationSymbol.max ||
+      DartMathStaticInvocationSymbol.pow ||
+      DartMathStaticInvocationSymbol.atan2 => 2,
+      DartMathStaticInvocationSymbol.sqrt ||
+      DartMathStaticInvocationSymbol.sin ||
+      DartMathStaticInvocationSymbol.cos ||
+      DartMathStaticInvocationSymbol.tan ||
+      DartMathStaticInvocationSymbol.asin ||
+      DartMathStaticInvocationSymbol.acos ||
+      DartMathStaticInvocationSymbol.atan ||
+      DartMathStaticInvocationSymbol.exp ||
+      DartMathStaticInvocationSymbol.log => 1,
+      DartMathStaticInvocationSymbol.random ||
+      DartMathStaticInvocationSymbol.randomSecure ||
+      DartMathStaticInvocationSymbol.rectangleFromPoints => null,
+    };
+  }
+
+  EsmExpressionIr? _lowerTypedDataStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final target = kernelReferencePath(expression.targetReference);
+    if (!target.startsWith('dart:typed_data::')) {
+      return null;
+    }
+    final parts = target.split('::');
+    if (parts.length < 4 || parts[2] != '@factories') {
+      return null;
+    }
+    final className = parts[1];
+    final factoryName = parts.last;
+    final positional = expression.arguments.positional;
+    EsmExpressionIr lower(k.Expression argument) => _lowerExpression(
+      world,
+      helpers,
+      locals,
+      argument,
+      thisExpression: thisExpression,
+    );
+
+    if (className == 'ByteData') {
+      if (factoryName.isEmpty && positional.length == 1) {
+        return EsmNewIr(
+          callee: const EsmIdentifierIr('DataView'),
+          arguments: [
+            EsmNewIr(
+              callee: const EsmIdentifierIr('ArrayBuffer'),
+              arguments: [lower(positional.single)],
+            ),
+          ],
+        );
+      }
+      if (factoryName == 'view') {
+        return _lowerTypedDataView('DataView', positional, lower);
+      }
+      if (factoryName == 'sublistView') {
+        return _lowerTypedDataSublistView(
+          helpers,
+          'DataView',
+          bytesPerElement: 1,
+          positional: positional,
+          lower: lower,
+        );
+      }
+      return null;
+    }
+
+    final constructor = _typedDataArrayConstructorName(className);
+    if (constructor == null) {
+      return null;
+    }
+    if (factoryName.isEmpty && positional.length == 1) {
+      return EsmNewIr(
+        callee: EsmIdentifierIr(constructor),
+        arguments: [lower(positional.single)],
+      );
+    }
+    if (factoryName == 'fromList' && positional.length == 1) {
+      final arguments = <EsmExpressionIr>[lower(positional.single)];
+      if (constructor == 'BigInt64Array' || constructor == 'BigUint64Array') {
+        arguments.add(
+          const EsmArrowFunctionIr(
+            parameters: ['value'],
+            body: EsmCallIr(
+              callee: EsmIdentifierIr('BigInt'),
+              arguments: [EsmIdentifierIr('value')],
+            ),
+          ),
+        );
+      }
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: EsmIdentifierIr(constructor),
+          property: 'from',
+        ),
+        arguments: arguments,
+      );
+    }
+    if (factoryName == 'view') {
+      return _lowerTypedDataView(constructor, positional, lower);
+    }
+    if (factoryName == 'sublistView') {
+      final bytesPerElement = _typedDataArrayBytesPerElement(className);
+      if (bytesPerElement == null) {
+        return null;
+      }
+      return _lowerTypedDataSublistView(
+        helpers,
+        constructor,
+        bytesPerElement: bytesPerElement,
+        positional: positional,
+        lower: lower,
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerTypedDataView(
+    String constructor,
+    List<k.Expression> positional,
+    EsmExpressionIr Function(k.Expression argument) lower,
+  ) {
+    if (positional.isEmpty || positional.length > 3) {
+      return null;
+    }
+    final arguments = <EsmExpressionIr>[lower(positional[0])];
+    if (positional.length >= 2) {
+      arguments.add(lower(positional[1]));
+    }
+    if (positional.length >= 3 && !_isNullLiteral(positional[2])) {
+      arguments.add(lower(positional[2]));
+    }
+    return EsmNewIr(callee: EsmIdentifierIr(constructor), arguments: arguments);
+  }
+
+  EsmExpressionIr? _lowerTypedDataSublistView(
+    EsmRuntimeHelperUseSet helpers,
+    String constructor, {
+    required int bytesPerElement,
+    required List<k.Expression> positional,
+    required EsmExpressionIr Function(k.Expression argument) lower,
+  }) {
+    if (positional.isEmpty || positional.length > 3) {
+      return null;
+    }
+    helpers.add(EsmRuntimeHelper.typedDataSublistView);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.typedDataSublistView),
+      arguments: [
+        lower(positional[0]),
+        positional.length >= 2
+            ? lower(positional[1])
+            : const EsmNumberLiteralIr(0),
+        positional.length >= 3
+            ? lower(positional[2])
+            : const EsmNullLiteralIr(),
+        EsmIdentifierIr(constructor),
+        EsmNumberLiteralIr(bytesPerElement),
+      ],
+    );
+  }
+
+  String? _typedDataArrayConstructorName(String dartTypeName) {
+    return switch (dartTypeName) {
+      'Int8List' => 'Int8Array',
+      'Uint8List' => 'Uint8Array',
+      'Uint8ClampedList' => 'Uint8ClampedArray',
+      'Int16List' => 'Int16Array',
+      'Uint16List' => 'Uint16Array',
+      'Int32List' => 'Int32Array',
+      'Uint32List' => 'Uint32Array',
+      'Int64List' => 'BigInt64Array',
+      'Uint64List' => 'BigUint64Array',
+      'Float32List' => 'Float32Array',
+      'Float64List' => 'Float64Array',
+      _ => null,
+    };
+  }
+
+  int? _typedDataArrayBytesPerElement(String dartTypeName) {
+    return switch (dartTypeName) {
+      'Int8List' || 'Uint8List' || 'Uint8ClampedList' => 1,
+      'Int16List' || 'Uint16List' => 2,
+      'Int32List' || 'Uint32List' || 'Float32List' => 4,
+      'Int64List' || 'Uint64List' || 'Float64List' => 8,
+      _ => null,
+    };
+  }
+
+  bool _isNullLiteral(k.Expression expression) {
+    return switch (expression) {
+      k.NullLiteral() => true,
+      k.ConstantExpression(:final constant) when constant is k.NullConstant =>
+        true,
+      _ => false,
+    };
   }
 
   EsmExpressionIr? _lowerCoreUriStaticInvocation(
@@ -12384,11 +13015,22 @@ final class KernelToEsmIrLoweringStage
     k.StaticInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final target = kernelReferencePath(expression.targetReference);
+    final argumentCheck = _lowerArgumentErrorStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (argumentCheck != null) {
+      return argumentCheck;
+    }
     if (expression.arguments.named.isNotEmpty ||
         expression.arguments.types.isNotEmpty) {
       return null;
     }
-    final target = kernelReferencePath(expression.targetReference);
     if (target == 'dart:core::Error::@methods::safeToString' &&
         expression.arguments.positional.length == 1) {
       helpers.add(EsmRuntimeHelper.safeToString);
@@ -12422,7 +13064,106 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
+    final rangeCheck = _lowerRangeErrorStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      thisExpression: thisExpression,
+    );
+    if (rangeCheck != null) {
+      return rangeCheck;
+    }
     return null;
+  }
+
+  EsmExpressionIr? _lowerArgumentErrorStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final arguments = expression.arguments;
+    if (target != 'dart:core::ArgumentError::@methods::checkNotNull' ||
+        arguments.named.isNotEmpty ||
+        arguments.types.length > 1 ||
+        arguments.positional.isEmpty ||
+        arguments.positional.length > 2) {
+      return null;
+    }
+    helpers.add(EsmRuntimeHelper.argumentChecks);
+    return EsmCallIr(
+      callee: runtimeHelpers.reference(EsmRuntimeHelper.argumentChecks),
+      arguments: [
+        for (var i = 0; i < 2; i++)
+          if (i < arguments.positional.length)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              arguments.positional[i],
+              thisExpression: thisExpression,
+            )
+          else
+            const EsmNullLiteralIr(),
+      ],
+    );
+  }
+
+  EsmExpressionIr? _lowerRangeErrorStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression,
+    String target, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final positional = expression.arguments.positional;
+    final helperName = switch (target) {
+      'dart:core::RangeError::@methods::checkValueInInterval'
+          when positional.length >= 3 && positional.length <= 5 =>
+        '__dartCheckValueInInterval',
+      'dart:core::RangeError::@methods::checkValidIndex'
+          when positional.length >= 2 && positional.length <= 5 =>
+        '__dartCheckValidIndex',
+      'dart:core::RangeError::@methods::checkValidRange'
+          when positional.length >= 3 && positional.length <= 6 =>
+        '__dartCheckValidRange',
+      'dart:core::RangeError::@methods::checkNotNegative'
+          when positional.isNotEmpty && positional.length <= 3 =>
+        '__dartCheckNotNegative',
+      _ => null,
+    };
+    if (helperName == null) {
+      return null;
+    }
+    helpers.add(EsmRuntimeHelper.rangeChecks);
+    final expectedArity = switch (helperName) {
+      '__dartCheckValueInInterval' => 5,
+      '__dartCheckValidIndex' => 5,
+      '__dartCheckValidRange' => 6,
+      '__dartCheckNotNegative' => 3,
+      _ => throw StateError('unreachable range check helper'),
+    };
+    return EsmCallIr(
+      callee: EsmIdentifierIr(helperName),
+      arguments: [
+        for (var i = 0; i < expectedArity; i++)
+          if (i < positional.length)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional[i],
+              thisExpression: thisExpression,
+            )
+          else
+            const EsmNullLiteralIr(),
+      ],
+    );
   }
 
   EsmExpressionIr _lowerCoreIdentical(

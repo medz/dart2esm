@@ -64,7 +64,7 @@ EsmClassRuntimePlan buildEsmClassRuntimePlan(Iterable<k.Class> classes) {
     if (superclass != null) {
       jsInterfaceSuperclasses[klass] = superclass;
     }
-    final interfaces = _implementedInterfaceClasses(klass, classSet);
+    final interfaces = _interfaceMarkerClasses(klass, classSet);
     if (interfaces.isNotEmpty) {
       interfaceMarkersByClass[klass] = Set.unmodifiable(interfaces);
       interfaceBaseClasses.addAll(interfaces);
@@ -86,7 +86,7 @@ k.Class? _jsInterfaceSuperclassFor(k.Class klass, Set<k.Class> classes) {
   return localClassFromSupertype(klass.mixedInType, classes);
 }
 
-Set<k.Class> _implementedInterfaceClasses(k.Class klass, Set<k.Class> classes) {
+Set<k.Class> _interfaceMarkerClasses(k.Class klass, Set<k.Class> classes) {
   final result = <k.Class>{};
   void visit(k.Supertype? supertype) {
     final interface = localClassFromSupertype(supertype, classes);
@@ -101,6 +101,23 @@ Set<k.Class> _implementedInterfaceClasses(k.Class klass, Set<k.Class> classes) {
   for (final supertype in klass.implementedTypes) {
     visit(supertype);
   }
+  visit(klass.mixedInType);
+  final visitedMixins = <k.Class>{};
+  void visitAnonymousMixinChain(k.Class? current) {
+    while (current != null && current.isAnonymousMixin) {
+      if (!visitedMixins.add(current)) {
+        break;
+      }
+      visit(current.mixedInType);
+      for (final supertype in current.implementedTypes) {
+        visit(supertype);
+      }
+      current = localClassFromSupertype(current.supertype, classes);
+    }
+  }
+
+  visitAnonymousMixinChain(klass);
+  visitAnonymousMixinChain(localClassFromSupertype(klass.supertype, classes));
   return result;
 }
 

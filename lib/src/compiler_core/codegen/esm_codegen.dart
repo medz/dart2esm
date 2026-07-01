@@ -351,7 +351,7 @@ final class _EsmIrPrinter {
       EsmFunctionExpressionIr() => _emitFunctionExpression(expression),
       EsmArrowBlockFunctionIr() => _emitArrowBlockFunction(expression),
       EsmCallIr() =>
-        '${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
+        '${_emitCallCallee(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmNewIr() =>
         'new ${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmPropertyAccessIr() =>
@@ -365,6 +365,22 @@ final class _EsmIrPrinter {
       EsmThisIr() => 'this',
       EsmNewTargetIr() => 'new.target',
       EsmSuperIr() => 'super',
+    };
+  }
+
+  String _emitCallCallee(EsmExpressionIr expression) {
+    return switch (expression) {
+      EsmIdentifierIr() ||
+      EsmPropertyAccessIr() ||
+      EsmComputedPropertyAccessIr() ||
+      EsmOptionalPropertyAccessIr() ||
+      EsmOptionalMethodCallIr() ||
+      EsmCallIr() ||
+      EsmNewIr() ||
+      EsmThisIr() ||
+      EsmSuperIr() ||
+      EsmParenthesizedIr() => _emitExpression(expression),
+      _ => '(${_emitExpression(expression)})',
     };
   }
 

@@ -188,12 +188,14 @@ final class EsmClassSymbol {
     required this.export,
     required this.interfaceMarkerName,
     required this.jsSuperclass,
+    required List<k.Class> interfaceMarkerClasses,
     required List<EsmConstructorSymbol> constructors,
     required List<EsmInstanceFieldSymbol> fields,
     required List<EsmStaticFieldSymbol> staticFields,
     required List<EsmInstanceProcedureSymbol> procedures,
     required List<EsmStaticProcedureSymbol> staticProcedures,
   }) : constructors = List.unmodifiable(constructors),
+       interfaceMarkerClasses = List.unmodifiable(interfaceMarkerClasses),
        fields = List.unmodifiable(fields),
        staticFields = List.unmodifiable(staticFields),
        procedures = List.unmodifiable(procedures),
@@ -204,6 +206,7 @@ final class EsmClassSymbol {
   final bool export;
   final String? interfaceMarkerName;
   final k.Class? jsSuperclass;
+  final List<k.Class> interfaceMarkerClasses;
   final List<EsmConstructorSymbol> constructors;
   final List<EsmInstanceFieldSymbol> fields;
   final List<EsmStaticFieldSymbol> staticFields;
@@ -393,6 +396,9 @@ final class SemanticWorldStage
             model.module.classRuntime,
             klass.node,
           ),
+          interfaceMarkerClasses: model.module.classRuntime
+              .interfaceMarkersFor(klass.node)
+              .toList(growable: false),
         ),
       );
     }
@@ -469,6 +475,7 @@ final class SemanticWorldStage
     k.Class klass, {
     required bool export,
     required k.Class? jsSuperclass,
+    required List<k.Class> interfaceMarkerClasses,
   }) {
     final usedNames = <String>{};
     final usedStaticNames = <String>{};
@@ -478,10 +485,12 @@ final class SemanticWorldStage
       node: klass,
       name: allocator.freshGlobal(klass.name),
       export: export,
-      interfaceMarkerName: klass.isAbstract || klass.isInterface
+      interfaceMarkerName:
+          klass.isAbstract || klass.isInterface || klass.isMixinDeclaration
           ? allocator.freshGlobal('\$${klass.name}_interface')
           : null,
       jsSuperclass: jsSuperclass,
+      interfaceMarkerClasses: interfaceMarkerClasses,
       constructors: [
         for (final constructor in klass.constructors)
           if (!constructor.isExternal && !constructor.isSynthetic)
@@ -489,7 +498,10 @@ final class SemanticWorldStage
               node: constructor,
               name: constructor.name.text.isEmpty
                   ? ''
-                  : _freshMemberName(usedStaticNames, constructor.name.text),
+                  : _freshMemberName(
+                      usedStaticNames,
+                      _memberJsBaseName(constructor.name),
+                    ),
             ),
       ],
       fields: [
@@ -497,7 +509,7 @@ final class SemanticWorldStage
           if (!field.isStatic && !field.isExternal)
             EsmInstanceFieldSymbol(
               node: field,
-              name: _freshMemberName(usedNames, field.name.text),
+              name: _freshMemberName(usedNames, _memberJsBaseName(field.name)),
             ),
       ],
       staticFields: [
@@ -505,7 +517,10 @@ final class SemanticWorldStage
           if (field.isStatic && !field.isExternal)
             EsmStaticFieldSymbol(
               node: field,
-              name: _freshMemberName(usedStaticNames, field.name.text),
+              name: _freshMemberName(
+                usedStaticNames,
+                _memberJsBaseName(field.name),
+              ),
               backingName: allocator.freshGlobal(
                 '\$${klass.name}_${field.name.text}',
               ),
@@ -520,7 +535,7 @@ final class SemanticWorldStage
               name: _freshProcedureMemberName(
                 usedNames,
                 accessorNames,
-                procedure.name.text,
+                _memberJsBaseName(procedure.name),
                 kind,
               ),
               kind: kind,
@@ -534,7 +549,7 @@ final class SemanticWorldStage
               name: _freshProcedureMemberName(
                 usedStaticNames,
                 staticAccessorNames,
-                procedure.name.text,
+                _memberJsBaseName(procedure.name),
                 kind,
               ),
               kind: kind,
@@ -679,6 +694,17 @@ final class SemanticWorldStage
       suffix++;
     }
     return candidate;
+  }
+
+  String _memberJsBaseName(k.Name name) {
+    if (!name.isPrivate) {
+      return name.text;
+    }
+    final libraryKey = name.libraryReference?.toStringInternal();
+    if (libraryKey == null || libraryKey.isEmpty) {
+      return name.text;
+    }
+    return '${name.text}_${sanitizeJsIdentifier(libraryKey)}';
   }
 
   String _freshProcedureMemberName(

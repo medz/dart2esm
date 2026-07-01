@@ -8978,12 +8978,12 @@ class _YamlMap_YamlNode_MapMixin extends YamlNode {
   }
   forEach(action) {
     {
-      let _sync_for_iterator = __dartIterator(this.keys);
+      let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
       for (; _sync_for_iterator.moveNext(); ) {
         {
           let key = _sync_for_iterator.current;
           {
-            (action)(key, (this["[]"](key) ?? v));
+            (action)(key, (__dartMapGet(this, key) ?? v));
           }
         }
       }
@@ -8991,17 +8991,17 @@ class _YamlMap_YamlNode_MapMixin extends YamlNode {
   }
   addAll(other) {
     __dartMapForEach(other, (key, value) => {
-      this["[]="](key, value);
+      __dartMapSet(this, key, value);
 });
   }
   containsValue(value) {
     {
-      let _sync_for_iterator = __dartIterator(this.keys);
+      let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
       for (; _sync_for_iterator.moveNext(); ) {
         {
           let key = _sync_for_iterator.current;
           {
-            if (__dartEquals(this["[]"](key), value)) {
+            if (__dartEquals(__dartMapGet(this, key), value)) {
               return true;
             }
           }
@@ -9011,51 +9011,51 @@ class _YamlMap_YamlNode_MapMixin extends YamlNode {
     return false;
   }
   putIfAbsent(key, ifAbsent) {
-    if (this.containsKey(key)) {
+    if (__dartMapContainsKey(this, key)) {
       {
-        return (this["[]"](key) ?? v);
+        return (__dartMapGet(this, key) ?? v);
       }
     }
-    return (() => { let v_1 = key; return (() => { let v_2 = (ifAbsent)(); return (() => { let v_3 = this["[]="](v_1, v_2); return v_2; })(); })(); })();
+    return (() => { let v_1 = key; return (() => { let v_2 = (ifAbsent)(); return (() => { let v_3 = __dartMapSet(this, v_1, v_2); return v_2; })(); })(); })();
   }
   update(key, update, { ifAbsent = null } = {}) {
-    if (this.containsKey(key)) {
+    if (__dartMapContainsKey(this, key)) {
       {
-        return (() => { let v = key; return (() => { let v_1 = (update)((this["[]"](key) ?? v_2)); return (() => { let v_3 = this["[]="](v, v_1); return v_1; })(); })(); })();
+        return (() => { let v = key; return (() => { let v_1 = (update)((__dartMapGet(this, key) ?? v_2)); return (() => { let v_3 = __dartMapSet(this, v, v_1); return v_1; })(); })(); })();
       }
     }
     if (!((ifAbsent === null))) {
       {
-        return (() => { let v_4 = key; return (() => { let v_5 = (ifAbsent)(); return (() => { let v_6 = this["[]="](v_4, v_5); return v_5; })(); })(); })();
+        return (() => { let v_4 = key; return (() => { let v_5 = (ifAbsent)(); return (() => { let v_6 = __dartMapSet(this, v_4, v_5); return v_5; })(); })(); })();
       }
     }
     (() => { throw __dartCoreError("ArgumentError", key); })();
   }
   updateAll(update) {
     {
-      let _sync_for_iterator = __dartIterator(this.keys);
+      let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
       for (; _sync_for_iterator.moveNext(); ) {
         {
           let key = _sync_for_iterator.current;
           {
-            this["[]="](key, (update)(key, (this["[]"](key) ?? v)));
+            __dartMapSet(this, key, (update)(key, (__dartMapGet(this, key) ?? v)));
           }
         }
       }
     }
   }
   get entries() {
-    return Array.from(this.keys, (key) => { return Object.freeze({ key: key, value: (this["[]"](key) ?? v) }); });
+    return Array.from(Array.from(this.keys()), (key) => { return Object.freeze({ key: key, value: (__dartMapGet(this, key) ?? v) }); });
   }
   map(transform) {
     let result = new Map([]);
     {
-      let _sync_for_iterator = __dartIterator(this.keys);
+      let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
       for (; _sync_for_iterator.moveNext(); ) {
         {
           let key = _sync_for_iterator.current;
           {
-            let entry = (transform)(key, (this["[]"](key) ?? v));
+            let entry = (transform)(key, (__dartMapGet(this, key) ?? v));
             __dartMapSet(result, entry.key, entry.value);
           }
         }
@@ -9070,7 +9070,7 @@ class _YamlMap_YamlNode_MapMixin extends YamlNode {
         {
           let entry = _sync_for_iterator.current;
           {
-            this["[]="](entry.key, entry.value);
+            __dartMapSet(this, entry.key, entry.value);
           }
         }
       }
@@ -9079,12 +9079,12 @@ class _YamlMap_YamlNode_MapMixin extends YamlNode {
   removeWhere(test) {
     let keysToRemove = new Array(0).fill(null);
     {
-      let _sync_for_iterator = __dartIterator(this.keys);
+      let _sync_for_iterator = __dartIterator(Array.from(this.keys()));
       for (; _sync_for_iterator.moveNext(); ) {
         {
           let key = _sync_for_iterator.current;
           {
-            if ((test)(key, (this["[]"](key) ?? v))) {
+            if ((test)(key, (__dartMapGet(this, key) ?? v))) {
               (keysToRemove.push(key), null);
             }
           }
@@ -9097,23 +9097,23 @@ class _YamlMap_YamlNode_MapMixin extends YamlNode {
         {
           let key_1 = _sync_for_iterator_1.current;
           {
-            this.remove(key_1);
+            __dartMapRemove(this, key_1);
           }
         }
       }
     }
   }
   containsKey(key) {
-    return __dartIterableContains(this.keys, key);
+    return __dartIterableContains(Array.from(this.keys()), key);
   }
   get length() {
-    return __dartIterableLength(this.keys);
+    return __dartIterableLength(Array.from(this.keys()));
   }
   get isEmpty() {
-    return __dartIterableIsEmpty(this.keys);
+    return __dartIterableIsEmpty(Array.from(this.keys()));
   }
   get isNotEmpty() {
-    return !__dartIterableIsEmpty(this.keys);
+    return !__dartIterableIsEmpty(Array.from(this.keys()));
   }
   get values() {
     return __dartMapBaseValues(this);

@@ -1653,6 +1653,47 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
+  test('compiles dart:collection base views through the new core', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-dart-collection-views-core-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+import 'dart:collection';
+
+void main() {
+  final mapView = UnmodifiableMapView<String, int>({'a': 1, 'b': 2});
+  final listView = UnmodifiableListView<int>([1, 2, 3]);
+  final set = LinkedHashSet<String>.of(['x', 'y']);
+  print(
+    'views \${MapBase.mapToString(mapView)} '
+    '\${ListBase.listToString(listView)} '
+    '\${SetBase.setToString(set)} '
+    '\${mapView['a']} \${listView.join('|')}',
+  );
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        allowLegacyOracle: false,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
+    final code = output.readAsStringSync();
+    expect(code, contains('__dartUnmodifiableMapView'));
+    expect(code, contains('__dartUnmodifiableListView'));
+    expect(code, isNot(contains('MapBase.mapToString')));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
   test(
     'compiles package libraries through the new core without adapters',
     () async {

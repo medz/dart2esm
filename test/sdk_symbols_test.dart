@@ -267,6 +267,20 @@ void main() {
       isTrue,
     );
     expect(
+      isDartCoreMapMember(
+        _reference('dart:collection::MapBase::@methods::[]'),
+        '[]',
+      ),
+      isTrue,
+    );
+    expect(
+      isDartCoreMapMember(
+        _reference('dart:collection::MapView::@methods::containsKey'),
+        'containsKey',
+      ),
+      isTrue,
+    );
+    expect(
       isDartCoreCollectionMember(
         _reference('dart:async::Stream::@methods::map'),
         'map',

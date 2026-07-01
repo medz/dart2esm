@@ -479,6 +479,10 @@ bool isDartCoreMapMember(k.Reference reference, String name) {
   final path = kernelReferencePath(reference);
   return isDartCoreMember(reference, 'Map', name) ||
       path.contains('::_Map::') ||
+      path.contains('::MapBase::') ||
+      path.contains('::MapMixin::') ||
+      path.contains('::MapView::') ||
+      path.contains('::UnmodifiableMapView::') ||
       path.contains('::SplayTreeMap::') ||
       path.contains('::_SplayTreeMap::') ||
       path.contains('::_SplayTreeMap');

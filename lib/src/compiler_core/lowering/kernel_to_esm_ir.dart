@@ -5102,7 +5102,8 @@ final class KernelToEsmIrLoweringStage
         ),
       );
     }
-    if (target == 'dart:core::Map::@methods::addAll' &&
+    if (isMapMember &&
+        memberName == 'addAll' &&
         expression.arguments.positional.length == 1) {
       helpers.add(EsmRuntimeHelper.mapAddAll);
       return EsmCallIr(
@@ -5125,7 +5126,8 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if (target == 'dart:core::Map::@methods::addEntries' &&
+    if (isMapMember &&
+        memberName == 'addEntries' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
       helpers.add(EsmRuntimeHelper.mapOps);
@@ -5149,7 +5151,7 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if ((target == 'dart:core::Map::@methods::containsKey' ||
+    if (((isMapMember && memberName == 'containsKey') ||
             target == 'dart:_compact_hash::_ConstMap::@methods::containsKey' ||
             target == 'dart:_compact_hash::_Map::@methods::containsKey') &&
         expression.arguments.positional.length == 1) {
@@ -5174,7 +5176,7 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if ((target == 'dart:core::Map::@methods::containsValue' ||
+    if (((isMapMember && memberName == 'containsValue') ||
             target == 'dart:_compact_hash::_Map::@methods::containsValue') &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
@@ -5199,7 +5201,8 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if (target == 'dart:core::Map::@methods::putIfAbsent' &&
+    if (isMapMember &&
+        memberName == 'putIfAbsent' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 2) {
       helpers.add(EsmRuntimeHelper.mapOps);
@@ -5224,7 +5227,7 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if ((target == 'dart:core::Map::@methods::update' ||
+    if (((isMapMember && memberName == 'update') ||
             target == 'dart:_compact_hash::_Map::@methods::update') &&
         _hasOnlyNamedArguments(expression.arguments, {'ifAbsent'}) &&
         expression.arguments.positional.length == 2) {
@@ -5259,7 +5262,8 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if (target == 'dart:core::Map::@methods::forEach' &&
+    if (isMapMember &&
+        memberName == 'forEach' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
       helpers.add(EsmRuntimeHelper.mapOps);
@@ -5283,7 +5287,8 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if (target == 'dart:core::Map::@methods::map' &&
+    if (isMapMember &&
+        memberName == 'map' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
       helpers.add(EsmRuntimeHelper.mapOps);
@@ -5307,7 +5312,7 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if ((target == 'dart:core::Map::@methods::cast' ||
+    if (((isMapMember && memberName == 'cast') ||
             target == 'dart:_compact_hash::_Map::@methods::cast') &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.isEmpty) {
@@ -5319,13 +5324,14 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       );
     }
-    final mapMutationHelper = switch (target) {
-      'dart:core::Map::@methods::remove' ||
-      'dart:_compact_hash::_Map::@methods::remove' => '__dartMapRemove',
-      'dart:core::Map::@methods::updateAll' ||
-      'dart:_compact_hash::_Map::@methods::updateAll' => '__dartMapUpdateAll',
-      'dart:core::Map::@methods::removeWhere' ||
-      'dart:_compact_hash::_Map::@methods::removeWhere' =>
+    final mapMutationHelper = switch ((target, memberName)) {
+      (_, 'remove') when isMapMember => '__dartMapRemove',
+      ('dart:_compact_hash::_Map::@methods::remove', _) => '__dartMapRemove',
+      (_, 'updateAll') when isMapMember => '__dartMapUpdateAll',
+      ('dart:_compact_hash::_Map::@methods::updateAll', _) =>
+        '__dartMapUpdateAll',
+      (_, 'removeWhere') when isMapMember => '__dartMapRemoveWhere',
+      ('dart:_compact_hash::_Map::@methods::removeWhere', _) =>
         '__dartMapRemoveWhere',
       _ => null,
     };
@@ -5353,7 +5359,7 @@ final class KernelToEsmIrLoweringStage
         ],
       );
     }
-    if ((target == 'dart:core::Map::@methods::clear' ||
+    if (((isMapMember && memberName == 'clear') ||
             target == 'dart:_compact_hash::_Map::@methods::clear') &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.isEmpty) {
@@ -8864,6 +8870,42 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::Object::@constructors::' && positional.isEmpty) {
       return const EsmObjectLiteralIr([]);
     }
+    if (target.startsWith(
+          'dart:collection::UnmodifiableListView::@constructors::',
+        ) &&
+        positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.unmodifiableViews);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartUnmodifiableListView'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (target.startsWith(
+          'dart:collection::UnmodifiableMapView::@constructors::',
+        ) &&
+        positional.length == 1) {
+      helpers.add(EsmRuntimeHelper.unmodifiableViews);
+      return EsmCallIr(
+        callee: const EsmIdentifierIr('__dartUnmodifiableMapView'),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
     if (isDartCoreWeakReferenceConstructorReference(
           expression.targetReference,
         ) &&
@@ -10347,9 +10389,127 @@ final class KernelToEsmIrLoweringStage
               ),
           ],
         );
+      case DartSdkStaticInvocationSymbol.collectionListBaseToString
+          when positional.length == 1 && expression.arguments.named.isEmpty:
+        helpers.add(EsmRuntimeHelper.stringify);
+        return _dartCollectionToString(
+          '[',
+          _joinMappedIterable(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.single,
+              thisExpression: thisExpression,
+            ),
+            const EsmArrowFunctionIr(
+              parameters: ['value'],
+              body: EsmCallIr(
+                callee: EsmIdentifierIr('__dartStr'),
+                arguments: [EsmIdentifierIr('value')],
+              ),
+            ),
+          ),
+          ']',
+        );
+      case DartSdkStaticInvocationSymbol.collectionSetBaseToString
+          when positional.length == 1 && expression.arguments.named.isEmpty:
+        helpers.add(EsmRuntimeHelper.stringify);
+        return _dartCollectionToString(
+          '{',
+          _joinMappedIterable(
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              positional.single,
+              thisExpression: thisExpression,
+            ),
+            const EsmArrowFunctionIr(
+              parameters: ['value'],
+              body: EsmCallIr(
+                callee: EsmIdentifierIr('__dartStr'),
+                arguments: [EsmIdentifierIr('value')],
+              ),
+            ),
+          ),
+          '}',
+        );
+      case DartSdkStaticInvocationSymbol.collectionMapBaseToString
+          when positional.length == 1 && expression.arguments.named.isEmpty:
+        helpers.add(EsmRuntimeHelper.stringify);
+        return _dartCollectionToString(
+          '{',
+          _join(
+            EsmCallIr(
+              callee: const EsmPropertyAccessIr(
+                receiver: EsmIdentifierIr('Array'),
+                property: 'from',
+              ),
+              arguments: [
+                _lowerExpression(
+                  world,
+                  helpers,
+                  locals,
+                  positional.single,
+                  thisExpression: thisExpression,
+                ),
+                const EsmArrowFunctionIr(
+                  parameters: ['[key, value]'],
+                  body: EsmStringConcatenationIr([
+                    EsmCallIr(
+                      callee: EsmIdentifierIr('__dartStr'),
+                      arguments: [EsmIdentifierIr('key')],
+                    ),
+                    EsmStringLiteralIr(': '),
+                    EsmCallIr(
+                      callee: EsmIdentifierIr('__dartStr'),
+                      arguments: [EsmIdentifierIr('value')],
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+          '}',
+        );
       default:
         return null;
     }
+  }
+
+  EsmStringConcatenationIr _dartCollectionToString(
+    String open,
+    EsmExpressionIr body,
+    String close,
+  ) {
+    return EsmStringConcatenationIr([
+      EsmStringLiteralIr(open),
+      body,
+      EsmStringLiteralIr(close),
+    ]);
+  }
+
+  EsmCallIr _joinMappedIterable(
+    EsmExpressionIr iterable,
+    EsmExpressionIr callback,
+  ) {
+    return _join(
+      EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _arrayFrom(iterable),
+          property: 'map',
+        ),
+        arguments: [callback],
+      ),
+    );
+  }
+
+  EsmCallIr _join(EsmExpressionIr iterable) {
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(receiver: iterable, property: 'join'),
+      arguments: const [EsmStringLiteralIr(', ')],
+    );
   }
 
   EsmExpressionIr? _lowerCoreCollectionStaticInvocation(
@@ -12429,6 +12589,12 @@ final class _VariableReferenceVisitor extends k.RecursiveVisitor {
   void visitInstanceInvocation(k.InstanceInvocation node) {
     node.receiver.accept(this);
     node.arguments.accept(this);
+  }
+
+  @override
+  void visitEqualsCall(k.EqualsCall node) {
+    node.left.accept(this);
+    node.right.accept(this);
   }
 
   @override

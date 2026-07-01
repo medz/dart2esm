@@ -67,6 +67,7 @@ enum EsmRuntimeHelper {
   throwWithStackTrace,
   type,
   typeCast,
+  unmodifiableViews,
   uri,
   weakReference,
 }
@@ -238,6 +239,8 @@ final class EsmRuntimeHelperRegistry {
     '__dartThrowWithStackTrace',
     '__dartType',
     '__dartTypeCache',
+    '__dartUnmodifiableListView',
+    '__dartUnmodifiableMapView',
     '__dartUtf8Codec',
     '__dartUri',
     '__dartUriBuild',
@@ -322,6 +325,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.throwWithStackTrace => '__dartThrowWithStackTrace',
       EsmRuntimeHelper.type => '__dartType',
       EsmRuntimeHelper.typeCast => '__dartAs',
+      EsmRuntimeHelper.unmodifiableViews => '__dartUnmodifiableListView',
       EsmRuntimeHelper.uri => '__dartUriParse',
       EsmRuntimeHelper.weakReference => '__dartWeakReference',
     };
@@ -1128,6 +1132,38 @@ function __dartMapRemoveWhere(map, test) {
 function __dartMapClear(map) {
   map.clear();
   return null;
+}
+'''),
+      EsmRuntimeHelper.unmodifiableViews => EsmRawModuleItemIr('''
+function __dartUnmodifiableListView(source) {
+  const list = Array.isArray(source) ? source : Array.from(source);
+  const readonly = new Set(["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"]);
+  return new Proxy(list, {
+    get(target, property, receiver) {
+      if (readonly.has(property)) return () => { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); };
+      return Reflect.get(target, property, receiver);
+    },
+    set() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
+    deleteProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
+    defineProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
+  });
+}
+function __dartUnmodifiableMapView(source) {
+  const mapLike = source != null && typeof source === "object" && (source instanceof Map || typeof source["[]"] === "function");
+  const map = mapLike ? source : new Map(source);
+  const readonly = new Set(["set", "delete", "clear", "[]=", "addAll", "addEntries", "remove", "removeWhere", "update", "updateAll", "putIfAbsent"]);
+  return new Proxy(map, {
+    get(target, property) {
+      if (readonly.has(property)) return () => { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); };
+      const descriptor = Reflect.getOwnPropertyDescriptor(target, property);
+      if (descriptor != null && "value" in descriptor) return descriptor.value;
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+    set() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); },
+    deleteProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); },
+    defineProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable map"); },
+  });
 }
 '''),
       EsmRuntimeHelper.recordShape => const EsmRawModuleItemIr(
@@ -2435,6 +2471,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.throwWithStackTrace:
       case EsmRuntimeHelper.type:
       case EsmRuntimeHelper.typeCast:
+      case EsmRuntimeHelper.unmodifiableViews:
         break;
       case EsmRuntimeHelper.uri:
         _helpers.add(EsmRuntimeHelper.coreError);

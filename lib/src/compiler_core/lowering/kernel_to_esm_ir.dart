@@ -5225,6 +5225,14 @@ final class KernelToEsmIrLoweringStage
     if (developerGet != null) {
       return developerGet;
     }
+    final sdkGet = sdkIntrinsics.lowerStaticGet(
+      expression: expression,
+      helpers: helpers,
+      runtimeHelpers: runtimeHelpers,
+    );
+    if (sdkGet != null) {
+      return sdkGet;
+    }
     final target = kernelReferencePath(expression.targetReference);
     final bigIntConstant = switch (target) {
       'dart:core::BigInt::@getters::zero' => 0,
@@ -5242,28 +5250,6 @@ final class KernelToEsmIrLoweringStage
           property: 'stack',
         ),
         right: EsmStringLiteralIr(''),
-      );
-    }
-    if (target == 'dart:core::Uri::@getters::base') {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.uri),
-        arguments: const [
-          EsmNullishCoalesceIr(
-            left: EsmOptionalPropertyAccessIr(
-              receiver: EsmPropertyAccessIr(
-                receiver: EsmIdentifierIr('globalThis'),
-                property: 'location',
-              ),
-              property: 'href',
-            ),
-            right: EsmPropertyAccessIr(
-              receiver: EsmImportMetaIr(),
-              property: 'url',
-            ),
-          ),
-          EsmBooleanLiteralIr(false),
-        ],
       );
     }
     return null;
@@ -5649,6 +5635,39 @@ final class KernelToEsmIrLoweringStage
     k.InstanceInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final sdkIntrinsic = sdkIntrinsics.lowerInstanceInvocation(
+      reference: expression.interfaceTargetReference,
+      name: expression.name.text,
+      arguments: expression.arguments,
+      helpers: helpers,
+      runtimeHelpers: runtimeHelpers,
+      lowerReceiver: () => _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
+      lower: (argument) => _lowerExpression(
+        world,
+        helpers,
+        locals,
+        argument,
+        thisExpression: thisExpression,
+      ),
+      lowerNamedArgument: (arguments, argumentName) => _lowerNamedArgument(
+        world,
+        helpers,
+        locals,
+        arguments,
+        argumentName,
+        thisExpression: thisExpression,
+      ),
+      arrayFrom: (value) => _arrayFrom(helpers, value),
+    );
+    if (sdkIntrinsic != null) {
+      return sdkIntrinsic;
+    }
     final coreTimeInvocation = _lowerCoreTimeInstanceInvocation(
       world,
       helpers,
@@ -6146,17 +6165,6 @@ final class KernelToEsmIrLoweringStage
     );
     if (typedDataInvocation != null) {
       return typedDataInvocation;
-    }
-    final uriInvocation = _lowerCoreUriInstanceInvocation(
-      world,
-      helpers,
-      locals,
-      expression,
-      target,
-      thisExpression: thisExpression,
-    );
-    if (uriInvocation != null) {
-      return uriInvocation;
     }
     final bigIntInvocation = _lowerBigIntInstanceInvocation(
       world,
@@ -7210,131 +7218,6 @@ final class KernelToEsmIrLoweringStage
       arrayFrom: (value) => _arrayFrom(helpers, value),
     );
     return sdkIntrinsic;
-  }
-
-  EsmExpressionIr? _lowerCoreUriInstanceInvocation(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.InstanceInvocation expression,
-    String target, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    final name = expression.name.text;
-    if (!isDartCoreUriMember(expression.interfaceTargetReference, name) ||
-        expression.arguments.types.isNotEmpty) {
-      return null;
-    }
-    final receiver = _lowerExpression(
-      world,
-      helpers,
-      locals,
-      expression.receiver,
-      thisExpression: thisExpression,
-    );
-    final positional = expression.arguments.positional;
-    if ((name == 'resolve' || name == 'resolveUri') &&
-        positional.length == 1 &&
-        expression.arguments.named.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriResolve'),
-        arguments: [
-          receiver,
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if (name == 'removeFragment' &&
-        positional.isEmpty &&
-        expression.arguments.named.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriReplace'),
-        arguments: [
-          receiver,
-          EsmObjectLiteralIr([
-            EsmObjectLiteralPropertyIr.static(
-              key: '__removeFragment',
-              value: EsmBooleanLiteralIr(true),
-            ),
-          ]),
-        ],
-      );
-    }
-    if (name == 'replace' && positional.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriReplace'),
-        arguments: [
-          receiver,
-          _lowerUriOptionsObject(
-            world,
-            helpers,
-            locals,
-            expression.arguments,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if (name == 'normalizePath' &&
-        positional.isEmpty &&
-        expression.arguments.named.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriNormalizePath'),
-        arguments: [receiver],
-      );
-    }
-    if (name == 'toFilePath' &&
-        positional.isEmpty &&
-        _hasOnlyNamedArguments(expression.arguments, {'windows'})) {
-      helpers.require(EsmRuntimeHelper.uriToFilePath);
-      final windows =
-          _lowerNamedArgument(
-            world,
-            helpers,
-            locals,
-            expression.arguments,
-            'windows',
-            thisExpression: thisExpression,
-          ) ??
-          const EsmBooleanLiteralIr(false);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriToFilePath'),
-        arguments: [receiver, windows],
-      );
-    }
-    return null;
-  }
-
-  EsmObjectLiteralIr _lowerUriOptionsObject(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.Arguments arguments, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    return EsmObjectLiteralIr([
-      for (final argument in arguments.named)
-        EsmObjectLiteralPropertyIr.static(
-          key: argument.name,
-          value: _lowerExpression(
-            world,
-            helpers,
-            locals,
-            argument.value,
-            thisExpression: thisExpression,
-          ),
-        ),
-    ]);
   }
 
   EsmExpressionIr? _lowerCoreStringInstanceInvocation(
@@ -9377,6 +9260,7 @@ final class KernelToEsmIrLoweringStage
     final sdkIntrinsic = sdkIntrinsics.lowerInstanceGet(
       reference: expression.interfaceTargetReference,
       name: expression.name.text,
+      helpers: helpers,
       lowerReceiver: () => _lowerExpression(
         world,
         helpers,
@@ -9388,14 +9272,7 @@ final class KernelToEsmIrLoweringStage
     if (sdkIntrinsic != null) {
       return sdkIntrinsic;
     }
-    return _lowerCoreUriInstanceGet(
-          world,
-          helpers,
-          locals,
-          expression,
-          thisExpression: thisExpression,
-        ) ??
-        _lowerWebInstanceGet(
+    return _lowerWebInstanceGet(
           world,
           helpers,
           locals,
@@ -9434,62 +9311,6 @@ final class KernelToEsmIrLoweringStage
       return EsmPropertyAccessIr(receiver: receiver, property: property);
     }
     return null;
-  }
-
-  EsmExpressionIr? _lowerCoreUriInstanceGet(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.InstanceGet expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    final property = expression.name.text;
-    if (!isDartCoreUriMember(expression.interfaceTargetReference, property)) {
-      return null;
-    }
-    final receiver = _lowerExpression(
-      world,
-      helpers,
-      locals,
-      expression.receiver,
-      thisExpression: thisExpression,
-    );
-    if (property == 'hashCode') {
-      helpers.require(EsmRuntimeHelper.objectHash);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartHashValue'),
-        arguments: [
-          EsmCallIr(
-            callee: const EsmIdentifierIr('String'),
-            arguments: [receiver],
-          ),
-        ],
-      );
-    }
-    final allowed = switch (property) {
-      'scheme' ||
-      'host' ||
-      'authority' ||
-      'userInfo' ||
-      'port' ||
-      'path' ||
-      'pathSegments' ||
-      'query' ||
-      'queryParameters' ||
-      'queryParametersAll' ||
-      'fragment' ||
-      'hasScheme' ||
-      'hasAuthority' ||
-      'hasPort' ||
-      'hasQuery' ||
-      'hasFragment' ||
-      'isAbsolute' => true,
-      _ => false,
-    };
-    if (!allowed) {
-      return null;
-    }
-    return EsmPropertyAccessIr(receiver: receiver, property: property);
   }
 
   EsmExpressionIr? _lowerMixinCollectionInstanceGet(
@@ -9671,6 +9492,7 @@ final class KernelToEsmIrLoweringStage
     final queueGet = sdkIntrinsics.lowerInstanceGet(
       reference: expression.interfaceTargetReference,
       name: expression.name.text,
+      helpers: helpers,
       lowerReceiver: () => receiver,
     );
     if (queueGet != null) {
@@ -12526,6 +12348,14 @@ final class KernelToEsmIrLoweringStage
         argument,
         thisExpression: thisExpression,
       ),
+      lowerNamedArgument: (arguments, argumentName) => _lowerNamedArgument(
+        world,
+        helpers,
+        locals,
+        arguments,
+        argumentName,
+        thisExpression: thisExpression,
+      ),
       arrayFrom: (value) => _arrayFrom(helpers, value),
     );
     if (sdkStatic != null) {
@@ -12550,16 +12380,6 @@ final class KernelToEsmIrLoweringStage
     );
     if (coreRegExpStatic != null) {
       return coreRegExpStatic;
-    }
-    final coreUriStatic = _lowerCoreUriStaticInvocation(
-      world,
-      helpers,
-      locals,
-      expression,
-      thisExpression: thisExpression,
-    );
-    if (coreUriStatic != null) {
-      return coreUriStatic;
     }
     final coreTimeStatic = _lowerCoreTimeStaticInvocation(
       world,
@@ -13657,358 +13477,6 @@ final class KernelToEsmIrLoweringStage
       DartMathStaticInvocationSymbol.randomSecure ||
       DartMathStaticInvocationSymbol.rectangleFromPoints => null,
     };
-  }
-
-  EsmExpressionIr? _lowerCoreUriStaticInvocation(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    if (expression.arguments.types.isNotEmpty) {
-      return null;
-    }
-    final target = kernelReferencePath(expression.targetReference);
-    final positional = expression.arguments.positional;
-    if (target == 'dart:core::Uri::@methods::parse' &&
-        positional.length == 1 &&
-        expression.arguments.named.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.uri),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          const EsmBooleanLiteralIr(false),
-        ],
-      );
-    }
-    if (target == 'dart:core::Uri::@methods::tryParse' &&
-        positional.length == 1 &&
-        expression.arguments.named.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.uri),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          const EsmBooleanLiteralIr(true),
-        ],
-      );
-    }
-    if ((target == 'dart:core::_Uri::@factories::' ||
-            target == 'dart:core::Uri::@factories::') &&
-        positional.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUri'),
-        arguments: [
-          _lowerUriOptionsObject(
-            world,
-            helpers,
-            locals,
-            expression.arguments,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if ((target == 'dart:core::_Uri::@factories::http' ||
-            target == 'dart:core::Uri::@factories::http' ||
-            target == 'dart:core::_Uri::@factories::https' ||
-            target == 'dart:core::Uri::@factories::https') &&
-        positional.length >= 2 &&
-        positional.length <= 3 &&
-        expression.arguments.named.isEmpty) {
-      helpers.require(EsmRuntimeHelper.uri);
-      final scheme = target.endsWith('::https') ? 'https' : 'http';
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriBuild'),
-        arguments: [
-          EsmStringLiteralIr(scheme),
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional[0],
-            thisExpression: thisExpression,
-          ),
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional[1],
-            thisExpression: thisExpression,
-          ),
-          positional.length == 3
-              ? _lowerExpression(
-                  world,
-                  helpers,
-                  locals,
-                  positional[2],
-                  thisExpression: thisExpression,
-                )
-              : const EsmNullLiteralIr(),
-        ],
-      );
-    }
-    if ((target == 'dart:core::_Uri::@factories::file' ||
-            target == 'dart:core::Uri::@factories::file' ||
-            target == 'dart:core::_Uri::@factories::directory' ||
-            target == 'dart:core::Uri::@factories::directory') &&
-        positional.length == 1 &&
-        _hasOnlyNamedArguments(expression.arguments, {'windows'})) {
-      helpers.require(EsmRuntimeHelper.uri);
-      final windows =
-          _lowerNamedArgument(
-            world,
-            helpers,
-            locals,
-            expression.arguments,
-            'windows',
-            thisExpression: thisExpression,
-          ) ??
-          const EsmBooleanLiteralIr(false);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriFile'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          windows,
-          EsmBooleanLiteralIr(target.endsWith('::directory')),
-        ],
-      );
-    }
-    if ((target == 'dart:core::_Uri::@factories::dataFromString' ||
-            target == 'dart:core::Uri::@factories::dataFromString') &&
-        positional.length == 1 &&
-        _hasOnlyNamedArguments(expression.arguments, {
-          'mimeType',
-          'encoding',
-          'parameters',
-          'base64',
-        })) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriDataFromString'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'mimeType',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'encoding',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'parameters',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'base64',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmBooleanLiteralIr(false),
-        ],
-      );
-    }
-    if ((target == 'dart:core::_Uri::@factories::dataFromBytes' ||
-            target == 'dart:core::Uri::@factories::dataFromBytes') &&
-        positional.length == 1 &&
-        _hasOnlyNamedArguments(expression.arguments, {
-          'mimeType',
-          'parameters',
-          'percentEncoded',
-        })) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriDataFromBytes'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'mimeType',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'parameters',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'percentEncoded',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmBooleanLiteralIr(false),
-        ],
-      );
-    }
-    if (!target.startsWith('dart:core::Uri::@methods::')) {
-      return null;
-    }
-    final name = target.split('::@methods::').last;
-    if (name == 'encodeQueryComponent' &&
-        positional.length == 1 &&
-        _hasOnlyNamedArguments(expression.arguments, {'encoding'})) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriEncodeQueryComponent'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'encoding',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-        ],
-      );
-    }
-    if (name == 'decodeQueryComponent' &&
-        positional.length == 1 &&
-        _hasOnlyNamedArguments(expression.arguments, {'encoding'})) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriDecodeQueryComponent'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'encoding',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-        ],
-      );
-    }
-    if (name == 'splitQueryString' &&
-        positional.length == 1 &&
-        _hasOnlyNamedArguments(expression.arguments, {'encoding'})) {
-      helpers.require(EsmRuntimeHelper.uri);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartUriSplitQueryString'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'encoding',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmNullLiteralIr(),
-        ],
-      );
-    }
-    if (expression.arguments.named.isEmpty && positional.length == 1) {
-      final jsFunction = switch (name) {
-        'encodeComponent' => 'encodeURIComponent',
-        'decodeComponent' => 'decodeURIComponent',
-        'encodeFull' => 'encodeURI',
-        'decodeFull' => 'decodeURI',
-        _ => null,
-      };
-      if (jsFunction != null) {
-        return EsmCallIr(
-          callee: EsmIdentifierIr(jsFunction),
-          arguments: [
-            _lowerExpression(
-              world,
-              helpers,
-              locals,
-              positional.single,
-              thisExpression: thisExpression,
-            ),
-          ],
-        );
-      }
-    }
-    return null;
   }
 
   EsmExpressionIr? _lowerCoreTimeStaticInvocation(

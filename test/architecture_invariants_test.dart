@@ -189,6 +189,9 @@ void main() {
     final coreIterable = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
     );
+    final coreUri = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_uri_intrinsics.dart',
+    );
     final internal = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_internal_intrinsics.dart',
     );
@@ -198,19 +201,21 @@ void main() {
     final typedDataInvocation = _sliceBetween(
       lowering,
       '  EsmExpressionIr? _lowerTypedDataInstanceInvocation(',
-      '  EsmExpressionIr? _lowerCoreUriInstanceInvocation(',
+      '  EsmExpressionIr? _lowerCoreStringInstanceInvocation(',
     );
 
     expect(registry, contains('final class DartSdkIntrinsicRegistry'));
     expect(registry, contains('lowerInstanceConstant'));
     expect(registry, contains('lowerInstanceInvocation'));
     expect(registry, contains('lowerInstanceGet'));
+    expect(registry, contains('lowerStaticGet'));
     expect(registry, contains('lowerConstructorInvocation'));
     expect(registry, contains('lowerStaticInvocation'));
     expect(lowering, contains('final DartSdkIntrinsicRegistry sdkIntrinsics'));
     expect(lowering, contains('sdkIntrinsics.lowerInstanceConstant'));
     expect(lowering, contains('sdkIntrinsics.lowerInstanceInvocation'));
     expect(lowering, contains('sdkIntrinsics.lowerInstanceGet'));
+    expect(lowering, contains('sdkIntrinsics.lowerStaticGet'));
     expect(lowering, contains('sdkIntrinsics.lowerConstructorInvocation'));
     expect(lowering, contains('sdkIntrinsics.lowerStaticInvocation'));
     expect(lowering, isNot(contains('_lowerByteDataInstanceInvocation')));
@@ -225,6 +230,10 @@ void main() {
     expect(lowering, isNot(contains('_lowerTypedDataInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataStaticInvocation')));
     expect(lowering, isNot(contains('_lowerTypedDataSublistView')));
+    expect(lowering, isNot(contains('_lowerCoreUriInstanceInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreUriInstanceGet')));
+    expect(lowering, isNot(contains('_lowerCoreUriStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerUriOptionsObject')));
     expect(
       lowering,
       isNot(contains('_typedDataByteBufferViewConstructorName')),
@@ -257,6 +266,8 @@ void main() {
     expect(lowering, isNot(contains('dart:typed_data::Endian')));
     expect(lowering, isNot(contains('dart:typed_data::ByteData')));
     expect(lowering, isNot(contains('dart:typed_data::ByteBuffer')));
+    expect(lowering, isNot(contains('dart:core::Uri::')));
+    expect(lowering, isNot(contains('dart:core::_Uri::')));
     expect(typedDataInvocation, isNot(contains('__dartListSetAll')));
     expect(typedDataInvocation, isNot(contains('__dartListSetRange')));
     expect(typedDataInvocation, isNot(contains('__dartListFillRange')));
@@ -277,6 +288,15 @@ void main() {
     expect(typedData, contains('__dartListSetRange'));
     expect(typedData, contains('__dartListFillRange'));
     expect(typedData, contains('__dartListAsMap'));
+    expect(coreUri, contains('lowerDartCoreUriStaticGet'));
+    expect(coreUri, contains('lowerDartCoreUriInstanceInvocation'));
+    expect(coreUri, contains('lowerDartCoreUriInstanceGet'));
+    expect(coreUri, contains('lowerDartCoreUriStaticInvocation'));
+    expect(coreUri, contains('dart:core::Uri::@getters::base'));
+    expect(coreUri, contains('dart:core::Uri::@methods::parse'));
+    expect(coreUri, contains('dart:core::_Uri::@factories::'));
+    expect(coreUri, contains('__dartUriReplace'));
+    expect(coreUri, contains('queryParametersAll'));
     expect(collection, contains('lowerDartCollectionQueueInstanceInvocation'));
     expect(collection, contains('lowerDartCollectionQueueInstanceGet'));
     expect(collection, contains('lowerDartCollectionStaticInvocation'));

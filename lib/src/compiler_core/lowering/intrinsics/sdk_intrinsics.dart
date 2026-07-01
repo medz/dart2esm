@@ -5,6 +5,7 @@ import '../../runtime/runtime_helpers.dart';
 import 'dart_collection_intrinsics.dart';
 import 'dart_convert_intrinsics.dart';
 import 'dart_core_iterable_intrinsics.dart';
+import 'dart_core_uri_intrinsics.dart';
 import 'dart_internal_intrinsics.dart';
 import 'dart_typed_data_intrinsics.dart';
 
@@ -41,7 +42,7 @@ final class DartSdkIntrinsicRegistry {
     if (collectionQueue != null) {
       return collectionQueue;
     }
-    return lowerTypedDataInstanceInvocation(
+    final typedData = lowerTypedDataInstanceInvocation(
       reference: reference,
       name: name,
       arguments: arguments,
@@ -49,11 +50,24 @@ final class DartSdkIntrinsicRegistry {
       lowerReceiver: lowerReceiver,
       lower: lower,
     );
+    if (typedData != null) {
+      return typedData;
+    }
+    return lowerDartCoreUriInstanceInvocation(
+      reference: reference,
+      name: name,
+      arguments: arguments,
+      helpers: helpers,
+      lowerReceiver: lowerReceiver,
+      lower: lower,
+      lowerNamedArgument: lowerNamedArgument,
+    );
   }
 
   EsmExpressionIr? lowerInstanceGet({
     required k.Reference reference,
     required String name,
+    required EsmRuntimeHelperUseSet helpers,
     required EsmExpressionIr Function() lowerReceiver,
   }) {
     return lowerDartCollectionQueueInstanceGet(
@@ -65,7 +79,25 @@ final class DartSdkIntrinsicRegistry {
           reference: reference,
           name: name,
           lowerReceiver: lowerReceiver,
+        ) ??
+        lowerDartCoreUriInstanceGet(
+          reference: reference,
+          name: name,
+          helpers: helpers,
+          lowerReceiver: lowerReceiver,
         );
+  }
+
+  EsmExpressionIr? lowerStaticGet({
+    required k.StaticGet expression,
+    required EsmRuntimeHelperUseSet helpers,
+    required EsmRuntimeHelperRegistry runtimeHelpers,
+  }) {
+    return lowerDartCoreUriStaticGet(
+      expression: expression,
+      helpers: helpers,
+      runtimeHelpers: runtimeHelpers,
+    );
   }
 
   EsmExpressionIr? lowerConstructorInvocation({
@@ -85,6 +117,8 @@ final class DartSdkIntrinsicRegistry {
     required EsmRuntimeHelperUseSet helpers,
     required EsmRuntimeHelperRegistry runtimeHelpers,
     required EsmExpressionIr Function(k.Expression argument) lower,
+    required EsmExpressionIr? Function(k.Arguments arguments, String name)
+    lowerNamedArgument,
     required EsmExpressionIr Function(EsmExpressionIr value) arrayFrom,
   }) {
     return lowerDartInternalStaticInvocation(
@@ -111,6 +145,13 @@ final class DartSdkIntrinsicRegistry {
           helpers: helpers,
           runtimeHelpers: runtimeHelpers,
           lower: lower,
+        ) ??
+        lowerDartCoreUriStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
+          lower: lower,
+          lowerNamedArgument: lowerNamedArgument,
         );
   }
 }

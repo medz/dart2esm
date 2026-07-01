@@ -71,7 +71,7 @@ final class _EsmIrPrinter {
     final exportPrefix = klass.export ? 'export ' : '';
     final superclass = klass.superclass == null
         ? ''
-        : ' extends ${klass.superclass}';
+        : ' extends ${_emitExpression(klass.superclass!)}';
     _writeIndented('${exportPrefix}class ${klass.name}$superclass {');
     _indent++;
     final constructor = klass.constructor;

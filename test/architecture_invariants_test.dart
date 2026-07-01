@@ -196,6 +196,16 @@ void main() {
     expect(codegen, isNot(contains('expression.parameters.join')));
   });
 
+  test('ESM class superclass uses expression IR', () {
+    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+
+    expect(ir, contains('final EsmExpressionIr? superclass;'));
+    expect(ir, isNot(contains('final String? superclass;')));
+    expect(codegen, contains('extends \${_emitExpression(klass.superclass!)}'));
+    expect(codegen, isNot(contains('extends \${klass.superclass}')));
+  });
+
   test('ESM identifier IR is not used for member expressions', () {
     final dottedIdentifierLiteral = RegExp(
       r'''EsmIdentifierIr\(\s*['"][^'"]+\.[^'"]*['"]''',

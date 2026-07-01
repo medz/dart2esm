@@ -312,7 +312,7 @@ final class KernelToEsmIrLoweringStage
     return EsmClassIr(
       name: klass.name,
       export: klass.export,
-      superclass: superclass?.name,
+      superclass: superclass == null ? null : EsmIdentifierIr(superclass.name),
       constructor: constructor,
       methods: methods,
     );

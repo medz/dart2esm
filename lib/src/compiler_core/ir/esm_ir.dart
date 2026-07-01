@@ -29,7 +29,7 @@ final class EsmClassIr extends EsmModuleItemIr {
 
   final String name;
   final bool export;
-  final String? superclass;
+  final EsmExpressionIr? superclass;
   final EsmClassConstructorIr? constructor;
   final List<EsmClassMethodIr> methods;
 }

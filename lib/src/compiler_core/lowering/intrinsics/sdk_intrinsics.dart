@@ -88,12 +88,19 @@ final class DartSdkIntrinsicRegistry {
     required EsmRuntimeHelperUseSet helpers,
     required EsmRuntimeHelperRegistry runtimeHelpers,
     required EsmExpressionIr Function(k.Expression argument) lower,
+    required EsmExpressionIr Function(EsmExpressionIr value) arrayFrom,
   }) {
-    return lowerTypedDataStaticInvocation(
-      expression: expression,
-      helpers: helpers,
-      runtimeHelpers: runtimeHelpers,
-      lower: lower,
-    );
+    return lowerDartCollectionStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          lower: lower,
+          arrayFrom: arrayFrom,
+        ) ??
+        lowerTypedDataStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
+          lower: lower,
+        );
   }
 }

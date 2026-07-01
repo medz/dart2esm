@@ -213,6 +213,20 @@ void main() {
     expect(lowering, isNot(contains('_lowerTypedDataInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataStaticInvocation')));
     expect(lowering, isNot(contains('_lowerTypedDataSublistView')));
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.collectionNonNulls')),
+    );
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.collectionIndexed')),
+    );
+    expect(
+      lowering,
+      isNot(
+        contains('DartSdkStaticInvocationSymbol.collectionListBaseToString'),
+      ),
+    );
     expect(lowering, isNot(contains('dart:convert::_Byte')));
     expect(lowering, isNot(contains('dart:typed_data::Endian')));
     expect(lowering, isNot(contains('dart:typed_data::ByteData')));
@@ -222,6 +236,15 @@ void main() {
     expect(typedData, contains('lowerTypedDataStaticInvocation'));
     expect(collection, contains('lowerDartCollectionQueueInstanceInvocation'));
     expect(collection, contains('lowerDartCollectionQueueInstanceGet'));
+    expect(collection, contains('lowerDartCollectionStaticInvocation'));
+    expect(
+      collection,
+      contains('DartSdkStaticInvocationSymbol.collectionNonNulls'),
+    );
+    expect(
+      collection,
+      contains('DartSdkStaticInvocationSymbol.collectionListBaseToString'),
+    );
     expect(convert, contains('dart:convert::_ByteAdapterSink'));
     expect(convert, contains('dart:convert::_ByteCallbackSink'));
   });

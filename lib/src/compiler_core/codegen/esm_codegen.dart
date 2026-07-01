@@ -510,7 +510,14 @@ final class _EsmIrPrinter {
   }
 
   String _emitObjectLiteralProperty(EsmObjectLiteralPropertyIr property) {
-    return '${_emitObjectPropertyName(property.name)}: ${_emitExpression(property.value)}';
+    return '${_emitPropertyKey(property.key)}: ${_emitExpression(property.value)}';
+  }
+
+  String _emitPropertyKey(EsmPropertyKeyIr key) {
+    return switch (key) {
+      EsmStaticPropertyKeyIr() => _emitObjectPropertyName(key.value),
+      EsmComputedPropertyKeyIr() => '[${_emitExpression(key.expression)}]',
+    };
   }
 
   String _emitFunctionExpression(EsmFunctionExpressionIr expression) {

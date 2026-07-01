@@ -218,9 +218,9 @@ final class KernelToEsmIrLoweringStage
           receiver,
           EsmStringLiteralIr(property),
           EsmObjectLiteralIr([
-            EsmObjectLiteralPropertyIr(name: 'value', value: value),
-            EsmObjectLiteralPropertyIr(
-              name: 'enumerable',
+            EsmObjectLiteralPropertyIr.static(key: 'value', value: value),
+            EsmObjectLiteralPropertyIr.static(
+              key: 'enumerable',
               value: EsmBooleanLiteralIr(enumerable),
             ),
           ]),
@@ -472,8 +472,8 @@ final class KernelToEsmIrLoweringStage
       if (function.namedParameters.isNotEmpty)
         EsmObjectLiteralIr([
           for (final parameter in function.namedParameters)
-            EsmObjectLiteralPropertyIr(
-              name: parameter.name!,
+            EsmObjectLiteralPropertyIr.static(
+              key: parameter.name!,
               value: EsmIdentifierIr(locals[parameter]!),
             ),
         ]),
@@ -1036,8 +1036,8 @@ final class KernelToEsmIrLoweringStage
             EsmIdentifierIr(klass.name),
             EsmStringLiteralIr(field.name),
             EsmObjectLiteralIr([
-              EsmObjectLiteralPropertyIr(
-                name: 'get',
+              EsmObjectLiteralPropertyIr.static(
+                key: 'get',
                 value: EsmFunctionExpressionIr(
                   parameters: const [],
                   body: [
@@ -1053,8 +1053,8 @@ final class KernelToEsmIrLoweringStage
                   ],
                 ),
               ),
-              EsmObjectLiteralPropertyIr(
-                name: 'set',
+              EsmObjectLiteralPropertyIr.static(
+                key: 'set',
                 value: EsmFunctionExpressionIr(
                   parameters: const [EsmIdentifierParameterIr(name: 'value')],
                   body: [
@@ -1070,8 +1070,8 @@ final class KernelToEsmIrLoweringStage
                   ],
                 ),
               ),
-              const EsmObjectLiteralPropertyIr(
-                name: 'enumerable',
+              EsmObjectLiteralPropertyIr.static(
+                key: 'enumerable',
                 value: EsmBooleanLiteralIr(true),
               ),
             ]),
@@ -1143,8 +1143,8 @@ final class KernelToEsmIrLoweringStage
               receiver,
               EsmStringLiteralIr(field.name),
               EsmObjectLiteralIr([
-                EsmObjectLiteralPropertyIr(
-                  name: 'get',
+                EsmObjectLiteralPropertyIr.static(
+                  key: 'get',
                   value: EsmFunctionExpressionIr(
                     parameters: const [],
                     body: [
@@ -1160,8 +1160,8 @@ final class KernelToEsmIrLoweringStage
                     ],
                   ),
                 ),
-                EsmObjectLiteralPropertyIr(
-                  name: 'set',
+                EsmObjectLiteralPropertyIr.static(
+                  key: 'set',
                   value: EsmFunctionExpressionIr(
                     parameters: const [EsmIdentifierParameterIr(name: 'value')],
                     body: [
@@ -1177,8 +1177,8 @@ final class KernelToEsmIrLoweringStage
                     ],
                   ),
                 ),
-                const EsmObjectLiteralPropertyIr(
-                  name: 'enumerable',
+                EsmObjectLiteralPropertyIr.static(
+                  key: 'enumerable',
                   value: EsmBooleanLiteralIr(true),
                 ),
               ]),
@@ -1231,17 +1231,17 @@ final class KernelToEsmIrLoweringStage
           receiver,
           EsmStringLiteralIr(property),
           EsmObjectLiteralIr([
-            EsmObjectLiteralPropertyIr(name: 'value', value: value),
-            const EsmObjectLiteralPropertyIr(
-              name: 'writable',
+            EsmObjectLiteralPropertyIr.static(key: 'value', value: value),
+            EsmObjectLiteralPropertyIr.static(
+              key: 'writable',
               value: EsmBooleanLiteralIr(true),
             ),
-            const EsmObjectLiteralPropertyIr(
-              name: 'enumerable',
+            EsmObjectLiteralPropertyIr.static(
+              key: 'enumerable',
               value: EsmBooleanLiteralIr(true),
             ),
-            const EsmObjectLiteralPropertyIr(
-              name: 'configurable',
+            EsmObjectLiteralPropertyIr.static(
+              key: 'configurable',
               value: EsmBooleanLiteralIr(true),
             ),
           ]),
@@ -1305,8 +1305,8 @@ final class KernelToEsmIrLoweringStage
             property: 'hasInstance',
           ),
           EsmObjectLiteralIr([
-            EsmObjectLiteralPropertyIr(
-              name: 'value',
+            EsmObjectLiteralPropertyIr.static(
+              key: 'value',
               value: EsmFunctionExpressionIr(
                 parameters: const [EsmIdentifierParameterIr(name: 'value')],
                 body: [
@@ -1379,9 +1379,9 @@ final class KernelToEsmIrLoweringStage
             arguments: [
               receiver,
               EsmIdentifierIr(markerName),
-              const EsmObjectLiteralIr([
-                EsmObjectLiteralPropertyIr(
-                  name: 'value',
+              EsmObjectLiteralIr([
+                EsmObjectLiteralPropertyIr.static(
+                  key: 'value',
                   value: EsmBooleanLiteralIr(true),
                 ),
               ]),
@@ -2241,8 +2241,8 @@ final class KernelToEsmIrLoweringStage
       if (arguments.named.isNotEmpty)
         EsmObjectLiteralIr([
           for (final argument in arguments.named)
-            EsmObjectLiteralPropertyIr(
-              name: argument.name,
+            EsmObjectLiteralPropertyIr.static(
+              key: argument.name,
               value: _lowerExpression(
                 world,
                 helpers,
@@ -3716,8 +3716,8 @@ final class KernelToEsmIrLoweringStage
         ]),
         EsmObjectLiteralIr([
           for (final field in expression.named)
-            EsmObjectLiteralPropertyIr(
-              name: field.name,
+            EsmObjectLiteralPropertyIr.static(
+              key: field.name,
               value: _lowerExpression(
                 world,
                 helpers,
@@ -4164,8 +4164,8 @@ final class KernelToEsmIrLoweringStage
             ]),
             EsmObjectLiteralIr([
               for (final entry in constant.named.entries)
-                EsmObjectLiteralPropertyIr(
-                  name: entry.key,
+                EsmObjectLiteralPropertyIr.static(
+                  key: entry.key,
                   value: _lowerConstant(world, helpers, entry.value, context),
                 ),
             ]),
@@ -4425,20 +4425,26 @@ final class KernelToEsmIrLoweringStage
         switch (enumBackingName) {
           case 'index':
             fields.add(
-              EsmObjectLiteralPropertyIr(name: 'index', value: loweredValue),
+              EsmObjectLiteralPropertyIr.static(
+                key: 'index',
+                value: loweredValue,
+              ),
             );
           case '_name':
             enumName = entry.value is k.StringConstant
                 ? (entry.value as k.StringConstant).value
                 : null;
             fields.add(
-              EsmObjectLiteralPropertyIr(
-                name: '__dartEnumName',
+              EsmObjectLiteralPropertyIr.static(
+                key: '__dartEnumName',
                 value: loweredValue,
               ),
             );
             fields.add(
-              EsmObjectLiteralPropertyIr(name: 'name', value: loweredValue),
+              EsmObjectLiteralPropertyIr.static(
+                key: 'name',
+                value: loweredValue,
+              ),
             );
           default:
             throw NewCompilerUnsupported(
@@ -4457,16 +4463,16 @@ final class KernelToEsmIrLoweringStage
         throw NewCompilerUnsupported(context, 'constant expression lowering');
       }
       fields.add(
-        EsmObjectLiteralPropertyIr(
-          name: fieldSymbol.name,
+        EsmObjectLiteralPropertyIr.static(
+          key: fieldSymbol.name,
           value: _lowerConstant(world, helpers, entry.value, context),
         ),
       );
     }
     if (klass.isEnum && enumName != null) {
       fields.add(
-        EsmObjectLiteralPropertyIr(
-          name: 'toString',
+        EsmObjectLiteralPropertyIr.static(
+          key: 'toString',
           value: EsmFunctionExpressionIr(
             parameters: const [],
             body: [
@@ -4742,8 +4748,8 @@ final class KernelToEsmIrLoweringStage
       if (function.namedParameters.isNotEmpty)
         EsmObjectLiteralIr([
           for (final parameter in function.namedParameters)
-            EsmObjectLiteralPropertyIr(
-              name: parameter.name ?? 'arg',
+            EsmObjectLiteralPropertyIr.static(
+              key: parameter.name ?? 'arg',
               value: EsmIdentifierIr(locals[parameter]!),
             ),
         ]),
@@ -5040,9 +5046,9 @@ final class KernelToEsmIrLoweringStage
       case DartDeveloperStaticGetSymbol.nativeRuntimeBuildId:
         return const EsmNullLiteralIr();
       case DartDeveloperStaticGetSymbol.userTagDefaultTag:
-        return const EsmObjectLiteralIr([
-          EsmObjectLiteralPropertyIr(
-            name: 'label',
+        return EsmObjectLiteralIr([
+          EsmObjectLiteralPropertyIr.static(
+            key: 'label',
             value: EsmStringLiteralIr('Default'),
           ),
         ]);
@@ -5531,8 +5537,8 @@ final class KernelToEsmIrLoweringStage
         else
           EsmObjectLiteralIr([
             for (final argument in expression.arguments.named)
-              EsmObjectLiteralPropertyIr(
-                name: argument.name,
+              EsmObjectLiteralPropertyIr.static(
+                key: argument.name,
                 value: _lowerExpression(
                   world,
                   helpers,
@@ -5764,7 +5770,7 @@ final class KernelToEsmIrLoweringStage
                 thisExpression: thisExpression,
               ),
             EsmObjectLiteralIr([
-              EsmObjectLiteralPropertyIr(name: 'detach', value: detach),
+              EsmObjectLiteralPropertyIr.static(key: 'detach', value: detach),
             ]),
           ],
         );
@@ -6781,9 +6787,9 @@ final class KernelToEsmIrLoweringStage
         callee: const EsmIdentifierIr('__dartUriReplace'),
         arguments: [
           receiver,
-          const EsmObjectLiteralIr([
-            EsmObjectLiteralPropertyIr(
-              name: '__removeFragment',
+          EsmObjectLiteralIr([
+            EsmObjectLiteralPropertyIr.static(
+              key: '__removeFragment',
               value: EsmBooleanLiteralIr(true),
             ),
           ]),
@@ -6846,8 +6852,8 @@ final class KernelToEsmIrLoweringStage
   }) {
     return EsmObjectLiteralIr([
       for (final argument in arguments.named)
-        EsmObjectLiteralPropertyIr(
-          name: argument.name,
+        EsmObjectLiteralPropertyIr.static(
+          key: argument.name,
           value: _lowerExpression(
             world,
             helpers,
@@ -13082,8 +13088,8 @@ final class KernelToEsmIrLoweringStage
             thisExpression: thisExpression,
           ),
           EsmObjectLiteralIr([
-            EsmObjectLiteralPropertyIr(
-              name: 'caseSensitive',
+            EsmObjectLiteralPropertyIr.static(
+              key: 'caseSensitive',
               value:
                   _lowerNamedArgument(
                     world,
@@ -13095,8 +13101,8 @@ final class KernelToEsmIrLoweringStage
                   ) ??
                   const EsmBooleanLiteralIr(true),
             ),
-            EsmObjectLiteralPropertyIr(
-              name: 'multiLine',
+            EsmObjectLiteralPropertyIr.static(
+              key: 'multiLine',
               value:
                   _lowerNamedArgument(
                     world,
@@ -13108,8 +13114,8 @@ final class KernelToEsmIrLoweringStage
                   ) ??
                   const EsmBooleanLiteralIr(false),
             ),
-            EsmObjectLiteralPropertyIr(
-              name: 'unicode',
+            EsmObjectLiteralPropertyIr.static(
+              key: 'unicode',
               value:
                   _lowerNamedArgument(
                     world,
@@ -13121,8 +13127,8 @@ final class KernelToEsmIrLoweringStage
                   ) ??
                   const EsmBooleanLiteralIr(false),
             ),
-            EsmObjectLiteralPropertyIr(
-              name: 'dotAll',
+            EsmObjectLiteralPropertyIr.static(
+              key: 'dotAll',
               value:
                   _lowerNamedArgument(
                     world,
@@ -13893,8 +13899,8 @@ final class KernelToEsmIrLoweringStage
         );
       case DartDeveloperStaticInvocationSymbol.flowBegin:
         return EsmObjectLiteralIr([
-          EsmObjectLiteralPropertyIr(
-            name: 'id',
+          EsmObjectLiteralPropertyIr.static(
+            key: 'id',
             value:
                 _lowerNamedArgument(
                   world,
@@ -13910,8 +13916,8 @@ final class KernelToEsmIrLoweringStage
       case DartDeveloperStaticInvocationSymbol.flowStep:
       case DartDeveloperStaticInvocationSymbol.flowEnd:
         return EsmObjectLiteralIr([
-          EsmObjectLiteralPropertyIr(
-            name: 'id',
+          EsmObjectLiteralPropertyIr.static(
+            key: 'id',
             value: expression.arguments.positional.isEmpty
                 ? const EsmNumberLiteralIr(0)
                 : _lowerExpression(
@@ -13925,15 +13931,15 @@ final class KernelToEsmIrLoweringStage
         ]);
       case DartDeveloperStaticInvocationSymbol.serviceGetInfo:
       case DartDeveloperStaticInvocationSymbol.serviceControlWebServer:
-        return const EsmCallIr(
+        return EsmCallIr(
           callee: EsmPropertyAccessIr(
             receiver: EsmIdentifierIr('Promise'),
             property: 'resolve',
           ),
           arguments: [
             EsmObjectLiteralIr([
-              EsmObjectLiteralPropertyIr(
-                name: 'type',
+              EsmObjectLiteralPropertyIr.static(
+                key: 'type',
                 value: EsmStringLiteralIr('VM'),
               ),
             ]),

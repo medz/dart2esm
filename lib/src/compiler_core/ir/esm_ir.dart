@@ -347,10 +347,34 @@ final class EsmObjectLiteralIr extends EsmExpressionIr {
   final List<EsmObjectLiteralPropertyIr> properties;
 }
 
-final class EsmObjectLiteralPropertyIr extends EsmIrNode {
-  const EsmObjectLiteralPropertyIr({required this.name, required this.value});
+sealed class EsmPropertyKeyIr extends EsmIrNode {
+  const EsmPropertyKeyIr();
+}
 
-  final String name;
+final class EsmStaticPropertyKeyIr extends EsmPropertyKeyIr {
+  const EsmStaticPropertyKeyIr(this.value);
+
+  final String value;
+}
+
+final class EsmComputedPropertyKeyIr extends EsmPropertyKeyIr {
+  const EsmComputedPropertyKeyIr(this.expression);
+
+  final EsmExpressionIr expression;
+}
+
+final class EsmObjectLiteralPropertyIr extends EsmIrNode {
+  const EsmObjectLiteralPropertyIr({required this.key, required this.value});
+
+  EsmObjectLiteralPropertyIr.static({required String key, required this.value})
+    : key = EsmStaticPropertyKeyIr(key);
+
+  EsmObjectLiteralPropertyIr.computed({
+    required EsmExpressionIr key,
+    required this.value,
+  }) : key = EsmComputedPropertyKeyIr(key);
+
+  final EsmPropertyKeyIr key;
   final EsmExpressionIr value;
 }
 

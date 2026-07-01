@@ -221,6 +221,27 @@ void main() {
     expect(lowering, contains('catchParameter: EsmIdentifierParameterIr'));
   });
 
+  test('ESM object literal properties use property key IR', () {
+    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final lowering = _read(
+      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
+    );
+
+    expect(ir, contains('sealed class EsmPropertyKeyIr'));
+    expect(ir, contains('final class EsmStaticPropertyKeyIr'));
+    expect(ir, contains('final class EsmComputedPropertyKeyIr'));
+    expect(ir, contains('final EsmPropertyKeyIr key;'));
+    expect(
+      ir,
+      isNot(contains('final String name;\n  final EsmExpressionIr value;')),
+    );
+    expect(codegen, contains('_emitPropertyKey(property.key)'));
+    expect(codegen, isNot(contains('_emitObjectPropertyName(property.name)')));
+    expect(lowering, contains('EsmObjectLiteralPropertyIr.static'));
+    expect(lowering, isNot(contains('EsmObjectLiteralPropertyIr(name:')));
+  });
+
   test('ESM identifier IR is not used for member expressions', () {
     final dottedIdentifierLiteral = RegExp(
       r'''EsmIdentifierIr\(\s*['"][^'"]+\.[^'"]*['"]''',

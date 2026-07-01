@@ -15,7 +15,13 @@ import 'package:test/test.dart';
 
 void main() {
   test('compiler core exposes the ordered stage contract', () {
-    expect(dart2EsmCompilerStageOrder, [
+    expect(
+      dart2EsmCompilerStageOrder,
+      dart2EsmCompilerStageContracts
+          .map((contract) => contract.stageId)
+          .toList(),
+    );
+    expect(dart2EsmCompilerStageContracts.map((contract) => contract.stageId), [
       Dart2EsmCompilerStageId.kernelFrontend,
       Dart2EsmCompilerStageId.semanticWorld,
       Dart2EsmCompilerStageId.dartLowering,
@@ -35,6 +41,22 @@ void main() {
     );
     expect(const RuntimeLinkerStage().stageId, dart2EsmCompilerStageOrder[4]);
     expect(const EsmCodegenStage().stageId, dart2EsmCompilerStageOrder[5]);
+    expect(
+      dart2EsmStageContractFor(Dart2EsmCompilerStageId.kernelFrontend).output,
+      'KernelFrontendResult',
+    );
+    expect(
+      dart2EsmStageContractFor(
+        Dart2EsmCompilerStageId.dartLowering,
+      ).allowsRuntimeHelperReference,
+      isTrue,
+    );
+    expect(
+      dart2EsmStageContractFor(
+        Dart2EsmCompilerStageId.esmCodegen,
+      ).allowsKernelAccess,
+      isFalse,
+    );
   });
 
   test('compiles supported Kernel through the new compiler core', () {

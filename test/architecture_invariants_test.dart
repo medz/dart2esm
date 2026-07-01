@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dart2esm/src/compiler_core/compiler_stage.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -26,6 +27,9 @@ void main() {
     );
 
     expect(stages, contains('enum Dart2EsmCompilerStageId'));
+    expect(stages, contains('enum Dart2EsmStageCapability'));
+    expect(stages, contains('final class Dart2EsmStageContract'));
+    expect(stages, contains('dart2EsmCompilerStageContracts'));
     expect(stages, contains('dart2EsmCompilerStageOrder'));
     expect(stages, contains('abstract interface class Dart2EsmCompilerStage'));
     expect(stages, contains('final class Dart2EsmStageContext'));
@@ -42,6 +46,84 @@ void main() {
     expect(pipeline, isNot(contains('Directory(')));
     expect(pipeline, isNot(contains('Process.run')));
     expect(pipeline, isNot(contains('writeAsStringSync')));
+  });
+
+  test('compiler core stage contracts own source capabilities', () {
+    final compilerCoreRoot = p.join(
+      Directory.current.path,
+      'lib/src/compiler_core',
+    );
+    final contractsByOwnerDirectory = {
+      for (final contract in dart2EsmCompilerStageContracts)
+        contract.ownerDirectory: contract,
+    };
+
+    expect(contractsByOwnerDirectory.keys, hasLength(6));
+    for (final contract in dart2EsmCompilerStageContracts) {
+      final owner = Directory(
+        p.join(compilerCoreRoot, contract.ownerDirectory),
+      );
+      expect(owner.existsSync(), isTrue, reason: contract.ownerDirectory);
+      expect(
+        owner
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.dart')),
+        isNotEmpty,
+        reason: contract.ownerDirectory,
+      );
+    }
+
+    for (final file in _dartFiles('lib/src/compiler_core')) {
+      final relative = p.relative(file.path, from: compilerCoreRoot);
+      final ownerDirectory = p.split(relative).first;
+      final contract = contractsByOwnerDirectory[ownerDirectory];
+      if (contract == null) {
+        continue;
+      }
+      final source = file.readAsStringSync();
+
+      if (!contract.allowsKernelAccess) {
+        expect(
+          source,
+          isNot(contains("package:kernel/kernel.dart")),
+          reason: '${contract.stageId} must not read Kernel in ${file.path}',
+        );
+      }
+      if (!contract.allowsRuntimeHelperReference &&
+          !contract.allowsRuntimeHelperDeclaration) {
+        expect(
+          source,
+          isNot(contains('runtime_helpers.dart')),
+          reason:
+              '${contract.stageId} must not discover runtime helpers in ${file.path}',
+        );
+        expect(
+          source,
+          isNot(contains('EsmRuntimeHelper')),
+          reason:
+              '${contract.stageId} must not depend on runtime helpers in ${file.path}',
+        );
+      }
+      if (!contract.isCodePrinter) {
+        expect(
+          source,
+          isNot(contains('CodegenStageResult')),
+          reason: '${contract.stageId} must not print ESM in ${file.path}',
+        );
+        expect(
+          source,
+          isNot(contains('_EsmIrPrinter')),
+          reason: '${contract.stageId} must not print ESM in ${file.path}',
+        );
+      }
+      expect(
+        source,
+        isNot(contains('backend/esm_backend.dart')),
+        reason:
+            '${contract.stageId} must not call legacy backend in ${file.path}',
+      );
+    }
   });
 
   test('codegen only consumes prepared ESM IR', () {

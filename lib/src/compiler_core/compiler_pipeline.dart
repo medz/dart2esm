@@ -3,6 +3,7 @@ import 'package:kernel/kernel.dart' as k;
 import 'codegen/esm_codegen.dart';
 import 'compiler_stage.dart';
 import 'frontend/kernel_frontend.dart';
+import 'ir/esm_ir.dart';
 import 'legacy_oracle.dart';
 import 'lowering/kernel_to_esm_ir.dart';
 import 'new_compiler_unsupported.dart';
@@ -68,12 +69,14 @@ final class Dart2EsmCompilerPipeline {
   });
 
   final Dart2EsmPipelineOptions options;
-  final KernelFrontendStage kernelFrontend;
-  final SemanticWorldStage semanticWorld;
-  final KernelToEsmIrLoweringStage lowering;
-  final ModuleNormalizerStage normalizer;
-  final RuntimeLinkerStage runtimeLinker;
-  final EsmCodegenStage codegen;
+  final Dart2EsmCompilerStage<k.Component, KernelFrontendResult> kernelFrontend;
+  final Dart2EsmCompilerStage<KernelFrontendResult, SemanticWorldResult>
+  semanticWorld;
+  final Dart2EsmCompilerStage<SemanticWorldResult, LoweringResult> lowering;
+  final Dart2EsmCompilerStage<LoweringResult, NormalizationResult> normalizer;
+  final Dart2EsmCompilerStage<NormalizationResult, RuntimeLinkResult>
+  runtimeLinker;
+  final Dart2EsmCompilerStage<EsmModuleIr, CodegenStageResult> codegen;
   final LegacyBackendOracle legacyOracle;
 
   Dart2EsmPipelineResult compile(k.Component component) {

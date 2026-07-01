@@ -183,6 +183,9 @@ void main() {
     final typedData = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_typed_data_intrinsics.dart',
     );
+    final collection = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_collection_intrinsics.dart',
+    );
     final convert = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_convert_intrinsics.dart',
     );
@@ -202,6 +205,11 @@ void main() {
     expect(lowering, isNot(contains('_lowerByteDataInstanceInvocation')));
     expect(lowering, isNot(contains('_lowerDartConvertConstructorInvocation')));
     expect(lowering, isNot(contains('_lowerDartTypedDataInstanceConstant')));
+    expect(
+      lowering,
+      isNot(contains('_lowerDartCollectionQueueInstanceInvocation')),
+    );
+    expect(lowering, isNot(contains('_lowerDartCollectionQueueInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataInstanceGet')));
     expect(lowering, isNot(contains('_lowerTypedDataStaticInvocation')));
     expect(lowering, isNot(contains('_lowerTypedDataSublistView')));
@@ -212,6 +220,8 @@ void main() {
     expect(typedData, contains('lowerByteDataInstanceInvocation'));
     expect(typedData, contains('lowerTypedDataInstanceGet'));
     expect(typedData, contains('lowerTypedDataStaticInvocation'));
+    expect(collection, contains('lowerDartCollectionQueueInstanceInvocation'));
+    expect(collection, contains('lowerDartCollectionQueueInstanceGet'));
     expect(convert, contains('dart:convert::_ByteAdapterSink'));
     expect(convert, contains('dart:convert::_ByteCallbackSink'));
   });

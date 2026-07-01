@@ -76,6 +76,11 @@ EsmExpressionIr? lowerByteDataInstanceInvocation({
   return call;
 }
 
+bool isByteDataInstanceInvocationIntrinsic(k.Reference reference, String name) {
+  return isDartTypedDataClassMember(reference, 'ByteData', name) &&
+      _byteDataNativeMethodName(name) != null;
+}
+
 EsmExpressionIr? lowerTypedDataInstanceGet({
   required k.Reference reference,
   required String name,

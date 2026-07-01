@@ -7197,9 +7197,20 @@ final class KernelToEsmIrLoweringStage
     final sdkIntrinsic = sdkIntrinsics.lowerInstanceInvocation(
       reference: expression.interfaceTargetReference,
       name: name,
-      receiver: receiver,
-      positional: positional,
+      arguments: expression.arguments,
+      helpers: helpers,
+      runtimeHelpers: runtimeHelpers,
+      lowerReceiver: () => receiver,
       lower: lower,
+      lowerNamedArgument: (arguments, argumentName) => _lowerNamedArgument(
+        world,
+        helpers,
+        locals,
+        arguments,
+        argumentName,
+        thisExpression: thisExpression,
+      ),
+      arrayFrom: (value) => _arrayFrom(helpers, value),
     );
     if (sdkIntrinsic != null) {
       return sdkIntrinsic;
@@ -8001,12 +8012,30 @@ final class KernelToEsmIrLoweringStage
     String target, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    final queueInvocation = _lowerDartCollectionQueueInstanceInvocation(
+    EsmExpressionIr lower(k.Expression argument) => _lowerExpression(
       world,
       helpers,
       locals,
-      expression,
+      argument,
       thisExpression: thisExpression,
+    );
+    final queueInvocation = sdkIntrinsics.lowerInstanceInvocation(
+      reference: expression.interfaceTargetReference,
+      name: expression.name.text,
+      arguments: expression.arguments,
+      helpers: helpers,
+      runtimeHelpers: runtimeHelpers,
+      lowerReceiver: () => lower(expression.receiver),
+      lower: lower,
+      lowerNamedArgument: (arguments, name) => _lowerNamedArgument(
+        world,
+        helpers,
+        locals,
+        arguments,
+        name,
+        thisExpression: thisExpression,
+      ),
+      arrayFrom: (value) => _arrayFrom(helpers, value),
     );
     if (queueInvocation != null) {
       return queueInvocation;
@@ -8990,221 +9019,6 @@ final class KernelToEsmIrLoweringStage
     );
   }
 
-  EsmExpressionIr? _lowerDartCollectionQueueInstanceInvocation(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.InstanceInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    final name = expression.name.text;
-    if (!isDartCollectionQueueMember(
-      expression.interfaceTargetReference,
-      name,
-    )) {
-      return null;
-    }
-    final receiver = _lowerExpression(
-      world,
-      helpers,
-      locals,
-      expression.receiver,
-      thisExpression: thisExpression,
-    );
-    final positional = expression.arguments.positional;
-    if ((name == 'add' || name == 'addLast') &&
-        expression.arguments.named.isEmpty &&
-        positional.length == 1) {
-      helpers.require(EsmRuntimeHelper.listAdd);
-      return EsmCallIr(
-        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listAdd),
-        arguments: [
-          receiver,
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if (name == 'addFirst' &&
-        expression.arguments.named.isEmpty &&
-        positional.length == 1) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(receiver: receiver, property: 'unshift'),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if (name == 'addAll' &&
-        expression.arguments.named.isEmpty &&
-        positional.length == 1) {
-      helpers.require(EsmRuntimeHelper.listAddAll);
-      return EsmCallIr(
-        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listAddAll),
-        arguments: [
-          receiver,
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if (name == 'removeFirst' &&
-        expression.arguments.named.isEmpty &&
-        positional.isEmpty) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(receiver: receiver, property: 'shift'),
-        arguments: const [],
-      );
-    }
-    if (name == 'removeLast' &&
-        expression.arguments.named.isEmpty &&
-        positional.isEmpty) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(receiver: receiver, property: 'pop'),
-        arguments: const [],
-      );
-    }
-    if (name == 'remove' &&
-        expression.arguments.named.isEmpty &&
-        positional.length == 1) {
-      helpers.require(EsmRuntimeHelper.listMutation);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartListRemove'),
-        arguments: [
-          receiver,
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if ((name == 'removeWhere' || name == 'retainWhere') &&
-        expression.arguments.named.isEmpty &&
-        positional.length == 1) {
-      helpers.require(EsmRuntimeHelper.listMutation);
-      return EsmCallIr(
-        callee: EsmIdentifierIr(
-          name == 'removeWhere'
-              ? '__dartListRemoveWhere'
-              : '__dartListRetainWhere',
-        ),
-        arguments: [
-          receiver,
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if (name == 'clear' &&
-        expression.arguments.named.isEmpty &&
-        positional.isEmpty) {
-      return EsmAssignmentIr(
-        target: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        value: const EsmNumberLiteralIr(0),
-      );
-    }
-    if (name == 'toList' &&
-        positional.isEmpty &&
-        _hasOnlyNamedArguments(expression.arguments, {'growable'})) {
-      helpers.require(EsmRuntimeHelper.listFactory);
-      return EsmCallIr(
-        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listFactory),
-        arguments: [
-          receiver,
-          _lowerNamedArgument(
-                world,
-                helpers,
-                locals,
-                expression.arguments,
-                'growable',
-                thisExpression: thisExpression,
-              ) ??
-              const EsmBooleanLiteralIr(true),
-        ],
-      );
-    }
-    if (name == 'join' &&
-        expression.arguments.named.isEmpty &&
-        positional.length <= 1) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(
-          receiver: _arrayFrom(helpers, receiver),
-          property: 'join',
-        ),
-        arguments: [
-          positional.isEmpty
-              ? const EsmStringLiteralIr('')
-              : _lowerExpression(
-                  world,
-                  helpers,
-                  locals,
-                  positional.single,
-                  thisExpression: thisExpression,
-                ),
-        ],
-      );
-    }
-    if ((name == 'any' || name == 'every') &&
-        expression.arguments.named.isEmpty &&
-        positional.length == 1) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(
-          receiver: _arrayFrom(helpers, receiver),
-          property: name == 'any' ? 'some' : 'every',
-        ),
-        arguments: [
-          _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-        ],
-      );
-    }
-    if (name == 'elementAt' &&
-        expression.arguments.named.isEmpty &&
-        positional.length == 1) {
-      return EsmComputedPropertyAccessIr(
-        receiver: _arrayFrom(helpers, receiver),
-        property: _lowerExpression(
-          world,
-          helpers,
-          locals,
-          positional.single,
-          thisExpression: thisExpression,
-        ),
-      );
-    }
-    return null;
-  }
-
   EsmExpressionIr? _lowerCoreNumberInstanceInvocation(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -9943,10 +9757,10 @@ final class KernelToEsmIrLoweringStage
       expression.receiver,
       thisExpression: thisExpression,
     );
-    final queueGet = _lowerDartCollectionQueueInstanceGet(
-      expression.interfaceTargetReference,
-      expression.name.text,
-      receiver,
+    final queueGet = sdkIntrinsics.lowerInstanceGet(
+      reference: expression.interfaceTargetReference,
+      name: expression.name.text,
+      lowerReceiver: () => receiver,
     );
     if (queueGet != null) {
       return queueGet;
@@ -10257,38 +10071,6 @@ final class KernelToEsmIrLoweringStage
       return bigIntGet;
     }
     return null;
-  }
-
-  EsmExpressionIr? _lowerDartCollectionQueueInstanceGet(
-    k.Reference reference,
-    String name,
-    EsmExpressionIr receiver,
-  ) {
-    if (!isDartCollectionQueueMember(reference, name)) {
-      return null;
-    }
-    return switch (name) {
-      'length' => EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-      'isEmpty' => EsmBinaryIr(
-        left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: EsmBinaryOperatorIr.strictEquals,
-        right: const EsmNumberLiteralIr(0),
-      ),
-      'isNotEmpty' => EsmBinaryIr(
-        left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: EsmBinaryOperatorIr.greaterThan,
-        right: const EsmNumberLiteralIr(0),
-      ),
-      'first' => EsmComputedPropertyAccessIr(
-        receiver: receiver,
-        property: const EsmNumberLiteralIr(0),
-      ),
-      'last' => EsmCallIr(
-        callee: EsmPropertyAccessIr(receiver: receiver, property: 'at'),
-        arguments: const [EsmNumberLiteralIr(-1)],
-      ),
-      _ => null,
-    };
   }
 
   String? _coreErrorInstanceGetterProperty(k.Reference reference, String name) {

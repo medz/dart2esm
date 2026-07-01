@@ -802,17 +802,17 @@ export function main() {
   __dartListAddAll(values, [5, 6]);
   __dartPrint(`list ${__dartStr(values.length)} ${__dartStr(Array.from(values)[0])} ${__dartStr(Array.from(values).at(-1))}`);
   __dartPrint(`list contains ${__dartStr(values.includes(3))} ${__dartStr(values.includes(4))}`);
-  __dartPrint(`list join ${__dartStr(Array.from(values).join(","))}`);
+  __dartPrint(`list join ${__dartStr(__dartIterableToArray(values).join(","))}`);
   const generated = __dartListGenerate(4, (index) => {
     return index * index;
   }, true);
-  __dartPrint(`generated ${__dartStr(Array.from(generated).join(":"))}`);
+  __dartPrint(`generated ${__dartStr(__dartIterableToArray(generated).join(":"))}`);
   const iterableGenerated = __dartListGenerate(3, (index) => {
     return index + 1;
   }, false);
   const iterableGeneratedDefault = __dartListGenerate(3, (index) => index, false);
   const iterableEmpty = [];
-  __dartPrint(`iterableFactory ${__dartStr(Array.from(iterableGenerated).join(","))} ${__dartStr(Array.from(iterableGeneratedDefault).join(","))} ${__dartStr(__dartIterableToArray(iterableEmpty).length === 0)}`);
+  __dartPrint(`iterableFactory ${__dartStr(__dartIterableToArray(iterableGenerated).join(","))} ${__dartStr(__dartIterableToArray(iterableGeneratedDefault).join(","))} ${__dartStr(__dartIterableToArray(iterableEmpty).length === 0)}`);
   const castList = [1, 2];
   const castSet = (() => {
     const v = __dartSetFrom([]);
@@ -825,13 +825,13 @@ export function main() {
   __dartListCopyRange(copyTarget, 1, [7, 8, 9], 0, 2);
   const writeTarget = [0, 0, 0];
   __dartListWriteIterable(writeTarget, 0, [4, 5]);
-  __dartPrint(`staticCollections ${__dartStr(Array.from(castList).join(","))} ${__dartStr(Array.from(castSet).join(","))} ${__dartStr(__dartMapGet(castMap, "a"))} ${__dartStr(Array.from(copyTarget).join(","))} ${__dartStr(Array.from(writeTarget).join(","))}`);
+  __dartPrint(`staticCollections ${__dartStr(__dartIterableToArray(castList).join(","))} ${__dartStr(__dartIterableToArray(castSet).join(","))} ${__dartStr(__dartMapGet(castMap, "a"))} ${__dartStr(__dartIterableToArray(copyTarget).join(","))} ${__dartStr(__dartIterableToArray(writeTarget).join(","))}`);
   const filtered = __dartListOf(Array.from(__dartIterableToArray(values).filter((value) => {
     return __dartEquals(value % 2, 0);
   }), (value) => {
     return value * 10;
   }), true);
-  __dartPrint(`filtered ${__dartStr(Array.from(filtered).join("|"))}`);
+  __dartPrint(`filtered ${__dartStr(__dartIterableToArray(filtered).join("|"))}`);
   __dartPrint(`fold ${__dartStr(__dartIterableToArray(values).reduce((total, value) => {
     return total + value;
   }, 0))} ${__dartStr(__dartIterableToArray(values).some((value) => {
@@ -839,21 +839,21 @@ export function main() {
   }))} ${__dartStr(__dartIterableToArray(values).every((value) => {
     return value > 0;
   }))}`);
-  __dartPrint(`iter ${__dartStr(Array.from(__dartIterableToArray(__dartIterableToArray(values).slice(2)).slice(0, 3)).join(","))} ${__dartStr(__dartIterableToArray(values)[2])} ${__dartStr(__dartIterableToArray(values).reduce((total, value) => {
+  __dartPrint(`iter ${__dartStr(__dartIterableToArray(__dartIterableToArray(__dartIterableToArray(values).slice(2)).slice(0, 3)).join(","))} ${__dartStr(__dartIterableToArray(values)[2])} ${__dartStr(__dartIterableToArray(values).reduce((total, value) => {
     return total + value;
   }))}`);
-  __dartPrint(`iterMore ${__dartStr(Array.from(__dartIterableTakeWhile(values, (value) => {
+  __dartPrint(`iterMore ${__dartStr(__dartIterableToArray(__dartIterableTakeWhile(values, (value) => {
     return value < 4;
-  })).join(","))} ${__dartStr(Array.from(__dartIterableSkipWhile(values, (value) => {
+  })).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableSkipWhile(values, (value) => {
     return value < 4;
-  })).join(","))} ${__dartStr(Array.from(__dartIterableToArray(values).concat(__dartIterableToArray([7]))).join(","))} ${__dartStr(Array.from(__dartIterableToArray(__dartIterableToArray(values).flatMap((value) => __dartIterableToArray(((value) => {
+  })).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(values).concat(__dartIterableToArray([7]))).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(__dartIterableToArray(values).flatMap((value) => __dartIterableToArray(((value) => {
     return [value, value * 10];
   })(value)))).slice(0, 4)).join(","))}`);
   __dartPrint(`listQuery ${__dartStr(__dartListIndexWhere(values, (value) => {
     return __dartEquals(value, 4);
   }))} ${__dartStr(__dartListLastIndexWhere(values, (value) => {
     return __dartEquals(value, 1);
-  }))} ${__dartStr(Array.from(__dartIterableToArray(values).slice(1, 4)).join(","))}`);
+  }))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(values).slice(1, 4)).join(","))}`);
   const boxes = [new EqBox(1), new EqBox(2), new EqBox(1)];
   __dartPrint(`listEquality ${__dartStr(__dartListIndexOf(boxes, new EqBox(1)))} ${__dartStr(__dartListIndexOf(boxes, new EqBox(1), 1))} ${__dartStr(__dartListLastIndexOf(boxes, new EqBox(1)))} ${__dartStr(__dartListLastIndexOf(boxes, new EqBox(1), 1))}`);
   __dartPrint(`where ${__dartStr(__dartIterableFirstWhere(values, (value) => {
@@ -868,10 +868,10 @@ export function main() {
     return -1;
   }))}`);
   const mixedValues = [1, "two", null, 3, "four"];
-  __dartPrint(`typed ${__dartStr(Array.from(__dartIterableToArray(mixedValues).filter((value) => typeof value === "number")).join(","))} ${__dartStr(Array.from(__dartIterableToArray(mixedValues).filter((value) => value != null)).join("|"))} ${__dartStr(Array.from(Array.from(values, (value) => {
+  __dartPrint(`typed ${__dartStr(__dartIterableToArray(__dartIterableToArray(mixedValues).filter((value) => typeof value === "number")).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(mixedValues).filter((value) => value != null)).join("|"))} ${__dartStr(__dartIterableToArray(Array.from(values, (value) => {
     return value + 1;
   })).join(","))}`);
-  __dartPrint(`indexed ${__dartStr(Array.from(__dartIterableToArray(Array.from(__dartIterableToArray(values).map((value, index) => __dartRecord([index, value], {  })), (entry) => {
+  __dartPrint(`indexed ${__dartStr(__dartIterableToArray(__dartIterableToArray(Array.from(__dartIterableToArray(values).map((value, index) => __dartRecord([index, value], {  })), (entry) => {
     return `${__dartStr(entry.$1)}:${__dartStr(entry.$2)}`;
   })).slice(0, 3)).join("|"))}`);
   const singleValue = [42];
@@ -888,7 +888,7 @@ export function main() {
   __dartListShuffle(shuffled, __dartRandom(1, false));
   const removed = __dartListRemoveAt(mutable, 1);
   __dartListInsert(mutable, 1, 9);
-  __dartPrint(`mutable ${__dartStr(Array.from(mutable).join(","))} ${__dartStr(removed)} ${__dartStr(Array.from(mutable.slice(1)).join(","))} ${__dartStr(Array.from(__dartIterableToArray(mutable).reverse()).join(","))}`);
+  __dartPrint(`mutable ${__dartStr(__dartIterableToArray(mutable).join(","))} ${__dartStr(removed)} ${__dartStr(__dartIterableToArray(mutable.slice(1)).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(mutable).reverse()).join(","))}`);
   __dartPrint(`shuffle ${__dartStr(shuffled.length)} ${__dartStr(__dartIterableToArray(__dartSetFrom(shuffled)).length)} ${__dartStr(__dartIterableToArray(shuffled).every((value) => {
     return (value >= 1 && value <= 5);
   }))}`);
@@ -897,7 +897,7 @@ export function main() {
   const removedValue = __dartListRemove(mutable, 9);
   const removedMissing = __dartListRemove(mutable, 99);
   const removedLast = __dartListRemoveLast(mutable);
-  __dartPrint(`list remove ${__dartStr(removedValue)} ${__dartStr(removedMissing)} ${__dartStr(removedLast)} ${__dartStr(Array.from(mutable).join(","))}`);
+  __dartPrint(`list remove ${__dartStr(removedValue)} ${__dartStr(removedMissing)} ${__dartStr(removedLast)} ${__dartStr(__dartIterableToArray(mutable).join(","))}`);
   __dartListInsertAll(mutable, 1, [8, 7]);
   __dartListSetAll(mutable, 0, [4, 5]);
   __dartListFillRange(mutable, 1, 2, 6);
@@ -909,7 +909,7 @@ export function main() {
   __dartListRetainWhere(mutable, (value) => {
     return value >= 6;
   });
-  __dartPrint(`list bulk ${__dartStr(Array.from(mutable).join(","))}`);
+  __dartPrint(`list bulk ${__dartStr(__dartIterableToArray(mutable).join(","))}`);
   const names = (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "ada");
@@ -920,7 +920,7 @@ export function main() {
   __dartSetRemove(names, "bob");
   __dartPrint(`set ${__dartStr(__dartIterableToArray(names).length)} ${__dartStr(__dartSetContains(names, "ada"))} ${__dartStr(__dartSetContains(names, "bob"))}`);
   __dartPrint(`set lookup ${__dartStr(__dartSetLookup(names, "ada"))} ${__dartStr(__dartSetLookup(names, "missing"))}`);
-  __dartPrint(`set join ${__dartStr(Array.from(names).join("/"))}`);
+  __dartPrint(`set join ${__dartStr(__dartIterableToArray(names).join("/"))}`);
   const setBulk = (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "a");
@@ -931,7 +931,7 @@ export function main() {
   const hasAll = __dartSetContainsAll(setBulk, ["a", "c"]);
   __dartSetRemoveAll(setBulk, ["b", "x"]);
   __dartSetRetainAll(setBulk, ["a", "z"]);
-  __dartPrint(`set bulk ${__dartStr(hasAll)} ${__dartStr(Array.from(setBulk).join(","))}`);
+  __dartPrint(`set bulk ${__dartStr(hasAll)} ${__dartStr(__dartIterableToArray(setBulk).join(","))}`);
   const setWhere = (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, 1);
@@ -946,7 +946,7 @@ export function main() {
   __dartSetRetainWhere(setWhere, (value) => {
     return value > 2;
   });
-  __dartPrint(`set where ${__dartStr(Array.from(setWhere).join(","))}`);
+  __dartPrint(`set where ${__dartStr(__dartIterableToArray(setWhere).join(","))}`);
   const setUnion = __dartSetUnion(names, (() => {
     const v = __dartSetFrom([]);
     __dartSetAdd(v, "ada");
@@ -965,7 +965,7 @@ export function main() {
     return v;
   })());
   const castNames = names;
-  __dartPrint(`set algebra ${__dartStr(Array.from(setUnion).join(","))} ${__dartStr(Array.from(setIntersection).join(","))} ${__dartStr(Array.from(setDifference).join(","))} ${__dartStr(__dartSetContains(castNames, "ada"))}`);
+  __dartPrint(`set algebra ${__dartStr(__dartIterableToArray(setUnion).join(","))} ${__dartStr(__dartIterableToArray(setIntersection).join(","))} ${__dartStr(__dartIterableToArray(setDifference).join(","))} ${__dartStr(__dartSetContains(castNames, "ada"))}`);
   const eqSet = (() => {
     const v = __dartSetFrom([]);
     return v;
@@ -998,9 +998,9 @@ export function main() {
   const counts = __dartMapFromEntries([["one", 1]]);
   __dartMapSet(counts, "two", 2);
   __dartPrint(`map ${__dartStr(counts.size)} ${__dartStr(__dartMapContainsKey(counts, "two"))} ${__dartStr(__dartMapGet(counts, "one"))}`);
-  __dartPrint(`map iter ${__dartStr(Array.from(__dartIterableToArray(counts.keys())).join(","))} ${__dartStr(Array.from(__dartIterableToArray(counts.values())).join(","))}`);
+  __dartPrint(`map iter ${__dartStr(__dartIterableToArray(__dartIterableToArray(counts.keys())).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(counts.values())).join(","))}`);
   const countKeys = __dartIterableToArray(counts.keys());
-  __dartPrint(`map views ${__dartStr(__dartIterableToArray(__dartIterableToArray(__dartMapFromEntries([]).keys())).length === 0)} ${__dartStr(__dartIterableToArray(countKeys).length > 0)} ${__dartStr(__dartIterableToArray(countKeys).length)} ${__dartStr(Array.from(countKeys)[0])} ${__dartStr(Array.from(__dartIterableToArray(counts.values())).at(-1))} ${__dartStr(Array.from(countKeys).join("|"))}`);
+  __dartPrint(`map views ${__dartStr(__dartIterableToArray(__dartIterableToArray(__dartMapFromEntries([]).keys())).length === 0)} ${__dartStr(__dartIterableToArray(countKeys).length > 0)} ${__dartStr(__dartIterableToArray(countKeys).length)} ${__dartStr(Array.from(countKeys)[0])} ${__dartStr(Array.from(__dartIterableToArray(counts.values())).at(-1))} ${__dartStr(__dartIterableToArray(countKeys).join("|"))}`);
   const three = __dartMapPutIfAbsent(counts, "three", () => {
     return 3;
   });
@@ -1016,7 +1016,7 @@ export function main() {
   __dartMapForEach(counts, (key, value) => {
     __dartListAdd(mapPairs, `${__dartStr(key)}=${__dartStr(value)}`);
   });
-  __dartPrint(`map ops ${__dartStr(three)} ${__dartStr(__dartMapGet(counts, "two"))} ${__dartStr(__dartMapGet(counts, "missing"))} ${__dartStr(Array.from(mapPairs).join("|"))}`);
+  __dartPrint(`map ops ${__dartStr(three)} ${__dartStr(__dartMapGet(counts, "two"))} ${__dartStr(__dartMapGet(counts, "missing"))} ${__dartStr(__dartIterableToArray(mapPairs).join("|"))}`);
   const transformSource = __dartMapFromEntries([["a", 1], ["b", 2]]);
   __dartMapAddEntries(transformSource, [["c", 3]]);
   const transformed = __dartMapMap(transformSource, (key, value) => {
@@ -1055,7 +1055,7 @@ export function main() {
   const entries = Array.from(__dartIterableToArray(counts.entries()), (entry) => {
     return `${__dartStr(entry[0])}:${__dartStr(entry[1])}`;
   });
-  __dartPrint(`map more ${__dartStr(__dartMapContainsValue(counts, 27))} ${__dartStr(Array.from(entries).join("|"))}`);
+  __dartPrint(`map more ${__dartStr(__dartMapContainsValue(counts, 27))} ${__dartStr(__dartIterableToArray(entries).join("|"))}`);
   __dartMapClear(counts);
   __dartPrint(`map cleared ${__dartStr(counts.size === 0)}`);
 }

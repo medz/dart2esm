@@ -1464,7 +1464,7 @@ class _Usage {
         } else {
           if (option.isMultiple) {
             if ((!(option.defaultsTo === null) && __dartIterableToArray(__dartAs(option.defaultsTo, (value) => (((value != null && typeof value !== "string") && !(value instanceof Map)) && typeof value[Symbol.iterator] === "function"), "Iterable")).length > 0)) {
-              let defaults = Array.from(Array.from(__dartAs(option.defaultsTo, (value) => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List"), (value) => {
+              let defaults = __dartIterableToArray(Array.from(__dartAs(option.defaultsTo, (value) => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List"), (value) => {
                 return `"${__dartStr(value)}"`;
               })).join(", ");
               this._write_package_args_src_usage_dart(2, `(defaults to ${__dartStr(defaults)})`);
@@ -1903,7 +1903,7 @@ export function main() {
   })();
   const results = parser.parse(["--mode", "release", "-v", "-Dfoo=bar", "-D", "answer=42", "serve", "--no-watch", "--host", "0.0.0.0", "web"]);
   const subcommand = __dartNullCheck(results.command);
-  __dartPrint(`args ${__dartStr(results["[]"]("mode"))} ${__dartStr(results["[]"]("verbose"))} ${__dartStr(Array.from(__dartAs(results["[]"]("define"), (value) => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List")).join("|"))} ${__dartStr(subcommand.name)} ${__dartStr(subcommand["[]"]("watch"))} ${__dartStr(subcommand["[]"]("host"))} ${__dartStr(Array.from(subcommand.rest).join(","))} ${__dartStr(results.wasParsed("mode"))}`);
+  __dartPrint(`args ${__dartStr(results["[]"]("mode"))} ${__dartStr(results["[]"]("verbose"))} ${__dartStr(__dartIterableToArray(__dartAs(results["[]"]("define"), (value) => (Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))), "List")).join("|"))} ${__dartStr(subcommand.name)} ${__dartStr(subcommand["[]"]("watch"))} ${__dartStr(subcommand["[]"]("host"))} ${__dartStr(__dartIterableToArray(subcommand.rest).join(","))} ${__dartStr(results.wasParsed("mode"))}`);
   try {
     parser.parse(["--mode", "profile"]);
   } catch ($error) {
@@ -1914,7 +1914,7 @@ export function main() {
       throw $error;
     }
   }
-  __dartPrint(`usage ${__dartStr(parser.usage.includes("--mode"))} ${__dartStr(Array.from(__dartIterableToArray(parser.commands.keys())).join(","))}`);
+  __dartPrint(`usage ${__dartStr(parser.usage.includes("--mode"))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(parser.commands.keys())).join(","))}`);
 }
 
 main();

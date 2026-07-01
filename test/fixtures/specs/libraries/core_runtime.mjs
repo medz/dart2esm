@@ -668,7 +668,7 @@ export function main() {
   const full = encodeURI("https://example.test/a b?q=ç");
   __dartPrint(`full ${__dartStr(decodeURI(full))}`);
   const parsed = __dartUriParse("https://example.test/a/b?x=1&x=2&y=z#frag", false);
-  __dartPrint(`uriParse ${__dartStr(parsed.scheme)} ${__dartStr(parsed.host)} ${__dartStr(Array.from(parsed.pathSegments).join("|"))} ${__dartStr(__dartMapGet(parsed.queryParameters, "x"))} ${__dartStr(Array.from(__dartNullCheck(__dartMapGet(parsed.queryParametersAll, "x"))).join(","))} ${__dartStr(parsed.fragment)}`);
+  __dartPrint(`uriParse ${__dartStr(parsed.scheme)} ${__dartStr(parsed.host)} ${__dartStr(__dartIterableToArray(parsed.pathSegments).join("|"))} ${__dartStr(__dartMapGet(parsed.queryParameters, "x"))} ${__dartStr(__dartIterableToArray(__dartNullCheck(__dartMapGet(parsed.queryParametersAll, "x"))).join(","))} ${__dartStr(parsed.fragment)}`);
   const built = __dartUriBuild("https", "example.test", "/search", __dartMapFromEntries([["q", "dart esm"], ["page", "1"]]));
   const replaced = __dartUriReplace(parsed, { pathSegments: ["c", "d"], queryParameters: __dartMapFromEntries([["n", "1"]]), fragment: null });
   const resolved = __dartUriResolve(__dartUriParse("https://example.test/a/b/", false), "../c?d=1");

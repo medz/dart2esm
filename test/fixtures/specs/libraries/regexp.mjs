@@ -404,7 +404,7 @@ export function main() {
   const digits = __dartRegExp("\\d+", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
   const mixed = "a1 b22";
   __dartPrint(`stringPattern ${__dartStr(__dartStringContains(mixed, digits, 0))} ${__dartStr(__dartStringContains(mixed, digits, 2))} ${__dartStr(__dartStringStartsWith(mixed, __dartRegExp("a\\d", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }), 0))} ${__dartStr(__dartStringIndexOf(mixed, digits, 2))} ${__dartStr(__dartStringLastIndexOf(mixed, digits, null))} ${__dartStr(__dartStringLastIndexOf(mixed, digits, 2))}`);
-  __dartPrint(`stringReplace ${__dartStr(Array.from(__dartStringSplit(mixed, digits)).join("|"))} ${__dartStr(__dartStringReplaceAll(mixed, digits, "#"))} ${__dartStr(__dartStringReplaceFirstPattern(mixed, digits, "#", 0))}`);
+  __dartPrint(`stringReplace ${__dartStr(__dartIterableToArray(__dartStringSplit(mixed, digits)).join("|"))} ${__dartStr(__dartStringReplaceAll(mixed, digits, "#"))} ${__dartStr(__dartStringReplaceFirstPattern(mixed, digits, "#", 0))}`);
   __dartPrint(`mapped ${__dartStr(__dartStringReplaceAllMapped(mixed, digits, (match) => {
     return `[${__dartStr(match.group(0))}:${__dartStr(match.start)}]`;
   }))} ${__dartStr(__dartStringReplaceFirstMapped(mixed, digits, (match) => {
@@ -424,17 +424,17 @@ export function main() {
   }))}`);
   const stringPatternMatches = __dartPatternAllMatches("aa", "aa bb aa", 1);
   const stringPrefix = __dartNullCheck(__dartPatternMatchAsPrefix("bb", "aa bb aa", 3));
-  __dartPrint(`stringPatternDirect ${__dartStr(Array.from(Array.from(stringPatternMatches, (match) => {
+  __dartPrint(`stringPatternDirect ${__dartStr(__dartIterableToArray(Array.from(stringPatternMatches, (match) => {
     return match.start;
   })).join(","))} ${__dartStr(stringPrefix.group(0))} ${__dartStr(stringPrefix.start)} ${__dartStr(stringPrefix.end)}`);
   const prefix = __dartNullCheck(__dartPatternMatchAsPrefix(digits, mixed, 1));
   __dartPrint(`meta ${__dartStr(pattern.pattern)} ${__dartStr(pattern.isCaseSensitive)} ${__dartStr(pattern.isMultiLine)} ${__dartStr(pattern.isUnicode)} ${__dartStr(pattern.isDotAll)}`);
   __dartPrint(`matchMeta ${__dartStr(first.input)} ${__dartStr(first.pattern)} ${__dartStr(__dartSafeToString(pattern))}`);
   __dartPrint(`prefix ${__dartStr(prefix.group(0))} ${__dartStr(prefix.start)} ${__dartStr(prefix.end)}`);
-  __dartPrint(`groups ${__dartStr(Array.from(first.groups([0, 1, 2])).join("|"))}`);
+  __dartPrint(`groups ${__dartStr(__dartIterableToArray(first.groups([0, 1, 2])).join("|"))}`);
   const named = __dartRegExp("(?<word>[a-z]+)(?<digits>\\d+)", { caseSensitive: true, multiLine: false, unicode: false, dotAll: false });
   const namedMatch = __dartNullCheck(named.firstMatch("ab12"));
-  __dartPrint(`named ${__dartStr(namedMatch.namedGroup("word"))} ${__dartStr(namedMatch.namedGroup("digits"))} ${__dartStr(Array.from(namedMatch.groupNames).join(","))}`);
+  __dartPrint(`named ${__dartStr(namedMatch.namedGroup("word"))} ${__dartStr(namedMatch.namedGroup("digits"))} ${__dartStr(__dartIterableToArray(namedMatch.groupNames).join(","))}`);
   const escaped = __dartRegExpEscape("[a-z]+");
   __dartPrint(`escape ${__dartStr(__dartRegExp(escaped, { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }).hasMatch("[a-z]+"))} ${__dartStr(__dartRegExp(escaped, { caseSensitive: true, multiLine: false, unicode: false, dotAll: false }).hasMatch("abc"))}`);
 }

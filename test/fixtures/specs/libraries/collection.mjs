@@ -401,17 +401,17 @@ export function main() {
   __dartSetAdd(set, "a");
   __dartSetAdd(set, "b");
   __dartSetAdd(set, "a");
-  __dartPrint(`hashSet ${__dartStr(__dartIterableToArray(set).length)} ${__dartStr(__dartSetContains(set, "a"))} ${__dartStr(Array.from(set).join(","))}`);
+  __dartPrint(`hashSet ${__dartStr(__dartIterableToArray(set).length)} ${__dartStr(__dartSetContains(set, "a"))} ${__dartStr(__dartIterableToArray(set).join(","))}`);
   const queue = [];
   __dartListAdd(queue, 1);
   queue.unshift(0);
   __dartListAdd(queue, 2);
-  __dartPrint(`queue ${__dartStr(__dartIterableToArray(queue).length)} ${__dartStr(Array.from(queue)[0])} ${__dartStr(Array.from(queue).at(-1))} ${__dartStr(Array.from(queue).join(","))}`);
-  __dartPrint(`remove ${__dartStr(queue.shift())} ${__dartStr(queue.pop())} ${__dartStr(Array.from(queue).join(","))}`);
+  __dartPrint(`queue ${__dartStr(__dartIterableToArray(queue).length)} ${__dartStr(Array.from(queue)[0])} ${__dartStr(Array.from(queue).at(-1))} ${__dartStr(__dartIterableToArray(queue).join(","))}`);
+  __dartPrint(`remove ${__dartStr(queue.shift())} ${__dartStr(queue.pop())} ${__dartStr(__dartIterableToArray(queue).join(","))}`);
   const linked = [];
   __dartListAddAll(linked, ["b", "c"]);
   linked.unshift("a");
-  __dartPrint(`linkedQueue ${__dartStr(linked.length)} ${__dartStr(__dartListRemove(linked, "b"))} ${__dartStr(Array.from(linked).join(","))}`);
+  __dartPrint(`linkedQueue ${__dartStr(linked.length)} ${__dartStr(__dartListRemove(linked, "b"))} ${__dartStr(__dartIterableToArray(linked).join(","))}`);
   const copied = __dartIterableToArray([1, 2, 3, 4]);
   __dartListRemoveWhere(copied, (value) => {
     return Math.trunc(value) % 2 !== 0;
@@ -420,8 +420,8 @@ export function main() {
     return value > 2;
   });
   __dartListAddAll(copied, __dartIterableToArray([5, 6]));
-  __dartPrint(`listQueue ${__dartStr(copied[0])} ${__dartStr(copied.at(-1))} ${__dartStr(__dartIterableToArray(copied).length > 0)} ${__dartStr(Array.from(copied).join(","))}`);
-  __dartPrint(`queueIter ${__dartStr(__dartIterableToArray(copied)[1])} ${__dartStr(Array.from(__dartListOf(copied, true)).join("|"))} ${__dartStr(__dartIterableToArray(copied).some((value) => {
+  __dartPrint(`listQueue ${__dartStr(copied[0])} ${__dartStr(copied.at(-1))} ${__dartStr(__dartIterableToArray(copied).length > 0)} ${__dartStr(__dartIterableToArray(copied).join(","))}`);
+  __dartPrint(`queueIter ${__dartStr(__dartIterableToArray(copied)[1])} ${__dartStr(__dartIterableToArray(__dartListOf(copied, true)).join("|"))} ${__dartStr(__dartIterableToArray(copied).some((value) => {
     return __dartEquals(value, 5);
   }))} ${__dartStr(__dartIterableToArray(copied).every((value) => {
     return value > 0;
@@ -430,19 +430,19 @@ export function main() {
   __dartPrint(`queueClear ${__dartStr(copied.length)} ${__dartStr(copied.length === 0)}`);
   const sortedSet = __dartSplayTreeSet(null, null);
   __dartSetAddAll(sortedSet, [3, 1, 2]);
-  __dartPrint(`splaySet ${__dartStr(Array.from(sortedSet).join(","))} ${__dartStr(__dartSetContains(sortedSet, 2))}`);
+  __dartPrint(`splaySet ${__dartStr(__dartIterableToArray(sortedSet).join(","))} ${__dartStr(__dartSetContains(sortedSet, 2))}`);
   const sortedMap = __dartSplayTreeMap(null, null);
   __dartMapSet(sortedMap, "b", 2);
   __dartMapSet(sortedMap, "a", 1);
-  __dartPrint(`splayMap ${__dartStr(Array.from(__dartIterableToArray(sortedMap.keys())).join(","))} ${__dartStr(Array.from(__dartIterableToArray(sortedMap.values())).join(","))} ${__dartStr(__dartMapGet(sortedMap, "b"))}`);
+  __dartPrint(`splayMap ${__dartStr(__dartIterableToArray(__dartIterableToArray(sortedMap.keys())).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(sortedMap.values())).join(","))} ${__dartStr(__dartMapGet(sortedMap, "b"))}`);
   const reversedSet = __dartSplayTreeSetFrom([1, 3, 2], descendingInt, null);
   const duplicateAdded = __dartSetAdd(reversedSet, 2);
   const newAdded = __dartSetAdd(reversedSet, 0);
-  __dartPrint(`splaySetOf ${__dartStr(Array.from(reversedSet).join(","))} ${__dartStr(duplicateAdded)} ${__dartStr(newAdded)}`);
+  __dartPrint(`splaySetOf ${__dartStr(__dartIterableToArray(reversedSet).join(","))} ${__dartStr(duplicateAdded)} ${__dartStr(newAdded)}`);
   const reversedMap = __dartSplayTreeMapFromEntries(__dartMapFromEntries([["a", 1], ["c", 3], ["b", 2]]), descendingString, null);
   __dartMapSet(reversedMap, "d", 4);
   __dartMapSet(reversedMap, "a", 10);
-  __dartPrint(`splayMapOf ${__dartStr(Array.from(__dartIterableToArray(reversedMap.keys())).join(","))} ${__dartStr(Array.from(__dartIterableToArray(reversedMap.values())).join(","))} ${__dartStr(__dartMapGet(reversedMap, "a"))}`);
+  __dartPrint(`splayMapOf ${__dartStr(__dartIterableToArray(__dartIterableToArray(reversedMap.keys())).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(reversedMap.values())).join(","))} ${__dartStr(__dartMapGet(reversedMap, "a"))}`);
 }
 
 main();

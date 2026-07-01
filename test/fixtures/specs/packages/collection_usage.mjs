@@ -1229,7 +1229,7 @@ export function main() {
     })();
   })();
   const ordered = [queue.removeFirst(), queue.removeFirst(), queue.removeFirst()];
-  __dartPrint(`collection ${__dartStr(firstEven)} ${__dartStr(Array.from(__dartNullCheck(__dartMapGet(groups, 2))).join("|"))} ${__dartStr(deepEqual)} ${__dartStr(Array.from(ordered).join(","))}`);
+  __dartPrint(`collection ${__dartStr(firstEven)} ${__dartStr(__dartIterableToArray(__dartNullCheck(__dartMapGet(groups, 2))).join("|"))} ${__dartStr(deepEqual)} ${__dartStr(__dartIterableToArray(ordered).join(","))}`);
 }
 
 main();

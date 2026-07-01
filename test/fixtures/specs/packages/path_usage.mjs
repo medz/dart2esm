@@ -2333,7 +2333,7 @@ function _validateArgList(method, args) {
       }
       const message = __dartStringBuffer("");
       message.write(`${__dartStr(method)}(`);
-      message.write(Array.from(Array.from(__dartIterableToArray(args).slice(0, numArgs), (arg) => {
+      message.write(__dartIterableToArray(Array.from(__dartIterableToArray(args).slice(0, numArgs), (arg) => {
         return (arg === null ? "null" : `"${__dartStr(arg)}"`);
       })).join(", "));
       message.write(`): part ${__dartStr(i - 1)} was null, but part ${__dartStr(i)} was not.`);

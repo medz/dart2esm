@@ -1241,7 +1241,7 @@ class VersionUnion {
     return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.assign(Object.create(ListEquality.prototype), { _elementEquality_package_collection_src_equality_dart: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.assign(Object.create(DefaultEquality.prototype), {  }))) }))).hash(this.ranges);
   }
   toString() {
-    return Array.from(this.ranges).join(" or ");
+    return __dartIterableToArray(this.ranges).join(" or ");
   }
 }
 
@@ -1899,7 +1899,7 @@ class Version {
     return this._text_package_pub_semver_src_version_dart;
   }
   get canonicalizedVersion() {
-    return new Version(this.major, this.minor, this.patch, { pre: (__dartIterableToArray(this.preRelease).length > 0 ? Array.from(this.preRelease).join(".") : null), build: (__dartIterableToArray(this.build).length > 0 ? Array.from(this.build).join(".") : null) }).toString();
+    return new Version(this.major, this.minor, this.patch, { pre: (__dartIterableToArray(this.preRelease).length > 0 ? __dartIterableToArray(this.preRelease).join(".") : null), build: (__dartIterableToArray(this.build).length > 0 ? __dartIterableToArray(this.build).join(".") : null) }).toString();
   }
   _compareLists_package_pub_semver_src_version_dart(a, b) {
     for (let i = 0; i < Math.max(a.length, b.length); i = i + 1) {

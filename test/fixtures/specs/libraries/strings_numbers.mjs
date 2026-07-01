@@ -623,10 +623,10 @@ export function main() {
   const text = "  hello,dart  ";
   const trimmed = text.trim();
   __dartPrint(`strings ${__dartStr(char)} ${__dartStr(chars)} ${__dartStr(trimmed.charCodeAt(0))} ${__dartStr(trimmed.substring(1, 4))}`);
-  __dartPrint(`checks ${__dartStr(trimmed.startsWith("he"))} ${__dartStr(trimmed.endsWith("rt"))} ${__dartStr(trimmed.indexOf("dart"))} ${__dartStr(Array.from(trimmed.split(",")).join("|"))}`);
+  __dartPrint(`checks ${__dartStr(trimmed.startsWith("he"))} ${__dartStr(trimmed.endsWith("rt"))} ${__dartStr(trimmed.indexOf("dart"))} ${__dartStr(__dartIterableToArray(trimmed.split(",")).join("|"))}`);
   __dartPrint(`replace ${__dartStr(trimmed.replaceAll("l", "L").toUpperCase())}`);
   __dartPrint(`stringMeta ${__dartStr(trimmed.length)} ${__dartStr(trimmed.length > 0)} ${__dartStr("".length === 0)} ${__dartStr(trimmed.includes("l", 3))} ${__dartStr("7".padStart(3, "0"))} ${__dartStr("x".padEnd(3, "."))} ${__dartStr("  left".trimStart())} ${__dartStr("right  ".trimEnd())} ${__dartStr(__dartCompare("abc", "abd"))}`);
-  __dartPrint(`stringOps ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L"))} ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 3))} ${__dartStr(__dartStringReplaceRange(trimmed, 1, 4, "EL"))} ${__dartStr(Array.from(__dartIterableToArray(__dartStringCodeUnits(trimmed)).slice(0, 3)).join("-"))}`);
+  __dartPrint(`stringOps ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L"))} ${__dartStr(__dartStringReplaceFirst(trimmed, "l", "L", 3))} ${__dartStr(__dartStringReplaceRange(trimmed, 1, 4, "EL"))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(__dartStringCodeUnits(trimmed)).slice(0, 3)).join("-"))}`);
   const numeric = -3.6;
   __dartPrint(`numOps ${__dartStr(Math.abs(numeric))} ${__dartStr((Number.isNaN(numeric) ? NaN : (numeric < 0 ? -1 : (numeric > 0 ? 1 : numeric))) < 0)} ${__dartStr(Math.round(numeric))} ${__dartStr(Math.floor(numeric))} ${__dartStr(Math.ceil(numeric))} ${__dartStr(Math.trunc(numeric))}`);
   __dartPrint(`numFormat ${__dartStr(Math.min(Math.max(numeric, -3), 2))} ${__dartStr(numeric % 2)} ${__dartStr(Number(3.14159).toFixed(2))} ${__dartStr(Number(3.14159).toPrecision(3))}`);
@@ -657,8 +657,8 @@ export function main() {
   }
   const uri = __dartUriParse("https://user:pass@example.test:8443/a/b?x=1&x=2&empty=#frag", false);
   __dartPrint(`uri ${__dartStr(uri.scheme)} ${__dartStr(uri.host)} ${__dartStr(uri.path)} ${__dartStr(uri.query)} ${__dartStr(uri.fragment)}`);
-  __dartPrint(`uri meta ${__dartStr(uri.authority)} ${__dartStr(uri.userInfo)} ${__dartStr(uri.port)} ${__dartStr(Array.from(uri.pathSegments).join("|"))} ${__dartStr(uri.hasScheme)} ${__dartStr(uri.hasAuthority)} ${__dartStr(uri.hasPort)} ${__dartStr(uri.hasQuery)} ${__dartStr(uri.hasFragment)} ${__dartStr(uri.isAbsolute)}`);
-  __dartPrint(`uri query ${__dartStr(__dartMapGet(uri.queryParameters, "x"))} ${__dartStr(__dartMapGet(uri.queryParameters, "empty"))} ${__dartStr(Array.from(__dartNullCheck(__dartMapGet(uri.queryParametersAll, "x"))).join("|"))}`);
+  __dartPrint(`uri meta ${__dartStr(uri.authority)} ${__dartStr(uri.userInfo)} ${__dartStr(uri.port)} ${__dartStr(__dartIterableToArray(uri.pathSegments).join("|"))} ${__dartStr(uri.hasScheme)} ${__dartStr(uri.hasAuthority)} ${__dartStr(uri.hasPort)} ${__dartStr(uri.hasQuery)} ${__dartStr(uri.hasFragment)} ${__dartStr(uri.isAbsolute)}`);
+  __dartPrint(`uri query ${__dartStr(__dartMapGet(uri.queryParameters, "x"))} ${__dartStr(__dartMapGet(uri.queryParameters, "empty"))} ${__dartStr(__dartIterableToArray(__dartNullCheck(__dartMapGet(uri.queryParametersAll, "x"))).join("|"))}`);
   const queryEncoded = __dartUriEncodeQueryComponent("a b/é", null);
   const queryDecoded = __dartUriDecodeQueryComponent("a+b%2F%C3%A9", null);
   const latinEncoded = __dartUriEncodeQueryComponent("é", __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Latin1Codec{Latin1Codec._allowInvalid: false})\"]", () => __dartLatin1Codec(false)));

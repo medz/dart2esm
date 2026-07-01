@@ -5708,6 +5708,29 @@ final class KernelToEsmIrLoweringStage
       expression.interfaceTargetReference,
       memberName,
     );
+    final sinkInvocation = _lowerSinkInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      target,
+      memberName,
+      thisExpression: thisExpression,
+    );
+    if (sinkInvocation != null) {
+      return sinkInvocation;
+    }
+    final convertInvocation = _lowerDartConvertInterfaceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      memberName,
+      thisExpression: thisExpression,
+    );
+    if (convertInvocation != null) {
+      return convertInvocation;
+    }
     final collectionInvocation = _lowerCoreCollectionInstanceInvocation(
       world,
       helpers,
@@ -6530,20 +6553,15 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.positional.length <= 1) {
       return EsmCallIr(
         callee: EsmPropertyAccessIr(
-          receiver: EsmCallIr(
-            callee: const EsmPropertyAccessIr(
-              receiver: EsmIdentifierIr('Array'),
-              property: 'from',
+          receiver: _arrayFrom(
+            helpers,
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              expression.receiver,
+              thisExpression: thisExpression,
             ),
-            arguments: [
-              _lowerExpression(
-                world,
-                helpers,
-                locals,
-                expression.receiver,
-                thisExpression: thisExpression,
-              ),
-            ],
           ),
           property: 'join',
         ),
@@ -8453,6 +8471,110 @@ final class KernelToEsmIrLoweringStage
     return null;
   }
 
+  EsmExpressionIr? _lowerSinkInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String target,
+    String memberName, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final isSinkTarget =
+        target.startsWith('dart:core::Sink::') ||
+        (target.startsWith('dart:convert::') &&
+            target.contains('Sink::@methods::'));
+    if (!isSinkTarget) {
+      return null;
+    }
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final allowed = switch (memberName) {
+      'add' || 'addSlice' || 'addCharCode' || 'close' => true,
+      _ => false,
+    };
+    if (!allowed) {
+      return null;
+    }
+    return EsmCallIr(
+      callee: _memberAccess(
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        memberName,
+      ),
+      arguments: [
+        for (final argument in expression.arguments.positional)
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+      ],
+    );
+  }
+
+  EsmExpressionIr? _lowerDartConvertInterfaceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression,
+    String memberName, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (!isDartConvertConverterMember(
+      expression.interfaceTargetReference,
+      memberName,
+    )) {
+      return null;
+    }
+    if (expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final allowed = switch (memberName) {
+      'bind' ||
+      'cast' ||
+      'convert' ||
+      'decode' ||
+      'encode' ||
+      'fuse' ||
+      'startChunkedConversion' => true,
+      _ => false,
+    };
+    if (!allowed) {
+      return null;
+    }
+    return EsmCallIr(
+      callee: _memberAccess(
+        _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.receiver,
+          thisExpression: thisExpression,
+        ),
+        memberName,
+      ),
+      arguments: _lowerArguments(
+        world,
+        helpers,
+        locals,
+        expression.arguments,
+        thisExpression: thisExpression,
+        contextNode: expression,
+        context: 'dart:convert interface invocation arguments',
+      ),
+    );
+  }
+
   EsmExpressionIr? _lowerDartCollectionQueueInstanceInvocation(
     EsmSemanticWorld world,
     EsmRuntimeHelperUseSet helpers,
@@ -9401,6 +9523,14 @@ final class KernelToEsmIrLoweringStage
       return queueGet;
     }
     final memberName = expression.name.text;
+    final typedDataGet = _lowerTypedDataInstanceGet(
+      expression.interfaceTargetReference,
+      memberName,
+      receiver,
+    );
+    if (typedDataGet != null) {
+      return typedDataGet;
+    }
     final isMapMember = isDartCoreMapMember(
       expression.interfaceTargetReference,
       memberName,
@@ -9758,6 +9888,40 @@ final class KernelToEsmIrLoweringStage
       }
     }
     return null;
+  }
+
+  EsmExpressionIr? _lowerTypedDataInstanceGet(
+    k.Reference reference,
+    String name,
+    EsmExpressionIr receiver,
+  ) {
+    if (!isDartTypedDataMember(reference, name)) {
+      return null;
+    }
+    return switch (name) {
+      'buffer' => EsmPropertyAccessIr(receiver: receiver, property: 'buffer'),
+      'lengthInBytes' => EsmPropertyAccessIr(
+        receiver: receiver,
+        property: 'byteLength',
+      ),
+      'offsetInBytes' => EsmPropertyAccessIr(
+        receiver: receiver,
+        property: 'byteOffset',
+      ),
+      'elementSizeInBytes' => EsmConditionalIr(
+        condition: EsmBinaryIr(
+          left: receiver,
+          operator: EsmBinaryOperatorIr.instanceOf,
+          right: const EsmIdentifierIr('DataView'),
+        ),
+        thenExpression: const EsmNumberLiteralIr(1),
+        otherwiseExpression: EsmPropertyAccessIr(
+          receiver: receiver,
+          property: 'BYTES_PER_ELEMENT',
+        ),
+      ),
+      _ => null,
+    };
   }
 
   EsmExpressionIr? _lowerCoreNumberInstanceGet(

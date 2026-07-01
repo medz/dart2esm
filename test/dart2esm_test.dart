@@ -3756,7 +3756,6 @@ const _legacyOracleFixtureIds = {
   'packages/http_parser_usage',
   'packages/mime_usage',
   'packages/source_span_usage',
-  'packages/typed_data_usage',
 };
 
 Future<void> _expectNodeOutput(File output, String stdout) async {

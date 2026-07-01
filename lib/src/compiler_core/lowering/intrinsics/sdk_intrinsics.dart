@@ -4,6 +4,7 @@ import '../../ir/esm_ir.dart';
 import '../../runtime/runtime_helpers.dart';
 import 'dart_collection_intrinsics.dart';
 import 'dart_convert_intrinsics.dart';
+import 'dart_core_enum_intrinsics.dart';
 import 'dart_core_iterable_intrinsics.dart';
 import 'dart_core_runtime_intrinsics.dart';
 import 'dart_core_text_intrinsics.dart';
@@ -137,6 +138,12 @@ final class DartSdkIntrinsicRegistry {
           expression: expression,
           lower: lower,
           lowerNamedArgument: lowerNamedArgument,
+        ) ??
+        lowerDartCoreEnumStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
+          lower: lower,
         ) ??
         lowerDartMathStaticInvocation(
           expression: expression,

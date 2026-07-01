@@ -186,6 +186,9 @@ void main() {
     final collection = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_collection_intrinsics.dart',
     );
+    final coreEnum = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_enum_intrinsics.dart',
+    );
     final coreIterable = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
     );
@@ -258,6 +261,7 @@ void main() {
     expect(lowering, isNot(contains('_lowerCoreIdentical')));
     expect(lowering, isNot(contains('_lowerCoreIdentityHashCode')));
     expect(lowering, isNot(contains('_lowerCorePrint')));
+    expect(lowering, isNot(contains('_lowerCoreEnumStaticInvocation')));
     expect(lowering, isNot(contains('_jsMathStaticFunctionName')));
     expect(lowering, isNot(contains('_jsMathStaticFunctionArity')));
     expect(
@@ -315,6 +319,10 @@ void main() {
     expect(
       lowering,
       isNot(contains('DartSdkStaticInvocationSymbol.coreFunctionApply')),
+    );
+    expect(
+      lowering,
+      isNot(contains('DartSdkStaticInvocationSymbol.coreEnumName')),
     );
     expect(typedDataInvocation, isNot(contains('__dartListSetAll')));
     expect(typedDataInvocation, isNot(contains('__dartListSetRange')));
@@ -379,6 +387,13 @@ void main() {
     expect(
       collection,
       contains('DartSdkStaticInvocationSymbol.collectionListBaseToString'),
+    );
+    expect(coreEnum, contains('lowerDartCoreEnumStaticInvocation'));
+    expect(coreEnum, contains('DartSdkStaticInvocationSymbol.coreEnumName'));
+    expect(coreEnum, contains('DartSdkStaticInvocationSymbol.coreEnumByName'));
+    expect(
+      coreEnum,
+      contains('DartSdkStaticInvocationSymbol.coreEnumAsNameMap'),
     );
     expect(coreIterable, contains('lowerDartCoreIterableStaticInvocation'));
     expect(

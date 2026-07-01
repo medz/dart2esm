@@ -12193,16 +12193,6 @@ final class KernelToEsmIrLoweringStage
     k.StaticInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    final enumStatic = _lowerCoreEnumStaticInvocation(
-      world,
-      helpers,
-      locals,
-      expression,
-      thisExpression: thisExpression,
-    );
-    if (enumStatic != null) {
-      return enumStatic;
-    }
     final coreErrorFactoryName = dartCoreErrorFactoryName(
       expression.targetReference,
     );
@@ -13326,72 +13316,6 @@ final class KernelToEsmIrLoweringStage
         ),
       ],
     );
-  }
-
-  EsmExpressionIr? _lowerCoreEnumStaticInvocation(
-    EsmSemanticWorld world,
-    EsmRuntimeHelperUseSet helpers,
-    Map<k.VariableDeclaration, String> locals,
-    k.StaticInvocation expression, {
-    EsmExpressionIr thisExpression = const EsmThisIr(),
-  }) {
-    if (expression.arguments.named.isNotEmpty) {
-      return null;
-    }
-    final positional = expression.arguments.positional;
-    switch (dartSdkStaticInvocationSymbol(expression.targetReference)) {
-      case DartSdkStaticInvocationSymbol.coreEnumName
-          when positional.length == 1:
-        return EsmPropertyAccessIr(
-          receiver: _lowerExpression(
-            world,
-            helpers,
-            locals,
-            positional.single,
-            thisExpression: thisExpression,
-          ),
-          property: 'name',
-        );
-      case DartSdkStaticInvocationSymbol.coreEnumByName
-          when positional.length == 2:
-        helpers.require(EsmRuntimeHelper.enumByName);
-        return EsmCallIr(
-          callee: helpers.reference(
-            runtimeHelpers,
-            EsmRuntimeHelper.enumByName,
-          ),
-          arguments: [
-            for (final argument in positional)
-              _lowerExpression(
-                world,
-                helpers,
-                locals,
-                argument,
-                thisExpression: thisExpression,
-              ),
-          ],
-        );
-      case DartSdkStaticInvocationSymbol.coreEnumAsNameMap
-          when positional.length == 1:
-        helpers.require(EsmRuntimeHelper.enumAsNameMap);
-        return EsmCallIr(
-          callee: helpers.reference(
-            runtimeHelpers,
-            EsmRuntimeHelper.enumAsNameMap,
-          ),
-          arguments: [
-            _lowerExpression(
-              world,
-              helpers,
-              locals,
-              positional.single,
-              thisExpression: thisExpression,
-            ),
-          ],
-        );
-      default:
-        return null;
-    }
   }
 
   EsmExpressionIr? _lowerCoreErrorStaticInvocation(

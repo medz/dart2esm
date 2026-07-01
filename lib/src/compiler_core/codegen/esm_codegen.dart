@@ -338,7 +338,8 @@ final class _EsmIrPrinter {
             : '${parameter.name} = ${_emitExpression(parameter.defaultValue!)}',
       EsmObjectPatternParameterIr() =>
         '{ ${parameter.bindings.map(_emitObjectPatternBinding).join(', ')} } = {}',
-      EsmArrayPatternParameterIr() => '[${parameter.bindings.join(', ')}]',
+      EsmArrayPatternParameterIr() =>
+        '[${parameter.elements.map(_emitParameter).join(', ')}]',
     };
   }
 

@@ -182,7 +182,12 @@ main();
           EsmCallIr(
             callee: EsmArrowFunctionIr(
               parameters: [
-                EsmArrayPatternParameterIr(bindings: ['key', 'value']),
+                EsmArrayPatternParameterIr(
+                  elements: [
+                    EsmIdentifierParameterIr(name: 'key'),
+                    EsmIdentifierParameterIr(name: 'value'),
+                  ],
+                ),
               ],
               body: EsmIdentifierIr('key'),
             ),

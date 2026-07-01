@@ -91,9 +91,9 @@ final class EsmObjectPatternParameterIr extends EsmParameterIr {
 }
 
 final class EsmArrayPatternParameterIr extends EsmParameterIr {
-  const EsmArrayPatternParameterIr({required this.bindings});
+  const EsmArrayPatternParameterIr({required this.elements});
 
-  final List<String> bindings;
+  final List<EsmParameterIr> elements;
 }
 
 final class EsmObjectPatternBindingIr extends EsmIrNode {

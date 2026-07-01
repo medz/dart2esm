@@ -12263,7 +12263,12 @@ final class KernelToEsmIrLoweringStage
                 ),
                 const EsmArrowFunctionIr(
                   parameters: [
-                    EsmArrayPatternParameterIr(bindings: ['key', 'value']),
+                    EsmArrayPatternParameterIr(
+                      elements: [
+                        EsmIdentifierParameterIr(name: 'key'),
+                        EsmIdentifierParameterIr(name: 'value'),
+                      ],
+                    ),
                   ],
                   body: EsmStringConcatenationIr([
                     EsmCallIr(

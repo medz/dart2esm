@@ -186,9 +186,12 @@ void main() {
     final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
 
     expect(ir, contains('final class EsmArrayPatternParameterIr'));
+    expect(ir, contains('final List<EsmParameterIr> elements;'));
+    expect(ir, isNot(contains('final List<String> bindings;')));
     expect(ir, contains('final List<EsmParameterIr> parameters;'));
     expect(ir, isNot(contains('final List<String> parameters;')));
     expect(codegen, contains('EsmArrayPatternParameterIr()'));
+    expect(codegen, contains('parameter.elements.map(_emitParameter)'));
     expect(codegen, contains('expression.parameters.map(_emitParameter)'));
     expect(codegen, isNot(contains('expression.parameters.join')));
   });

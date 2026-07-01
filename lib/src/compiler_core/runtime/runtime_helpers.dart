@@ -19,6 +19,7 @@ enum EsmRuntimeHelper {
   equals,
   enumAsNameMap,
   enumByName,
+  expando,
   extensionTypeRep,
   functionApply,
   intGcd,
@@ -49,10 +50,12 @@ enum EsmRuntimeHelper {
   recordShape,
   isRecord,
   record,
+  objectRuntimeType,
   safeToString,
   setAddAll,
   setOps,
   splayTree,
+  stringBuffer,
   stringFactory,
   stringOps,
   stringify,
@@ -87,6 +90,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartEnumAsNameMap',
     '__dartEnumByName',
     '__dartEquals',
+    '__dartExpando',
     '__dartExtensionTypeRep',
     '__dartFunctionApply',
     '__dartIntGcd',
@@ -173,6 +177,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartPrint',
     '__dartRecord',
     '__dartRecordShape',
+    '__dartRuntimeType',
     '__dartSafeToString',
     '__dartSetAddAll',
     '__dartSetAdd',
@@ -194,6 +199,7 @@ final class EsmRuntimeHelperRegistry {
     '__dartSplayTreeMapFromEntries',
     '__dartSplayTreeSet',
     '__dartSplayTreeSetFrom',
+    '__dartStringBuffer',
     '__dartStringCodeUnits',
     '__dartStringFromCharCodes',
     '__dartStringReplaceFirst',
@@ -239,6 +245,7 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.equals => '__dartEquals',
       EsmRuntimeHelper.enumAsNameMap => '__dartEnumAsNameMap',
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
+      EsmRuntimeHelper.expando => '__dartExpando',
       EsmRuntimeHelper.extensionTypeRep => '__dartExtensionTypeRep',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.intGcd => '__dartIntGcd',
@@ -269,10 +276,12 @@ final class EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.print => '__dartPrint',
       EsmRuntimeHelper.record => '__dartRecord',
       EsmRuntimeHelper.recordShape => '__dartRecordShape',
+      EsmRuntimeHelper.objectRuntimeType => '__dartRuntimeType',
       EsmRuntimeHelper.safeToString => '__dartSafeToString',
       EsmRuntimeHelper.setAddAll => '__dartSetAddAll',
       EsmRuntimeHelper.setOps => '__dartSetLookup',
       EsmRuntimeHelper.splayTree => '__dartSplayTreeSet',
+      EsmRuntimeHelper.stringBuffer => '__dartStringBuffer',
       EsmRuntimeHelper.stringFactory => '__dartStringFromCharCodes',
       EsmRuntimeHelper.stringOps => '__dartStringReplaceFirst',
       EsmRuntimeHelper.stringify => '__dartStr',
@@ -549,6 +558,25 @@ function __dartEnumByName(values, name) {
     if (value.name === name) return value;
   }
   throw new RangeError("No enum value with name " + name);
+}
+'''),
+      EsmRuntimeHelper.expando => EsmRawModuleItemIr('''
+function __dartExpando(name = null) {
+  const values = new WeakMap();
+  const expando = {
+    get(object) {
+      return values.has(object) ? values.get(object) : null;
+    },
+    set(object, value) {
+      values.set(object, value);
+      return null;
+    },
+    toString() {
+      return name == null ? "Expando" : "Expando:" + String(name);
+    },
+  };
+  Object.defineProperty(expando, "__dartType", { value: "Expando" });
+  return Object.freeze(expando);
 }
 '''),
       EsmRuntimeHelper.mathPoint => EsmRawModuleItemIr('''
@@ -1063,6 +1091,22 @@ function __dartRecord(positional, named) {
   return Object.freeze(record);
 }
 '''),
+      EsmRuntimeHelper.objectRuntimeType => EsmRawModuleItemIr('''
+function __dartRuntimeType(value) {
+  if (value == null) return __dartType("Null");
+  if (typeof value === "number") return __dartType(Number.isInteger(value) ? "int" : "double");
+  if (value.__dartType === "double") return __dartType("double");
+  if (typeof value === "string") return __dartType("String");
+  if (typeof value === "boolean") return __dartType("bool");
+  if (typeof value === "bigint") return __dartType("BigInt");
+  if (Array.isArray(value)) return __dartType("List");
+  if (value instanceof Set) return __dartType("Set");
+  if (value instanceof Map) return __dartType("Map");
+  if (value.__dartType != null) return __dartType(String(value.__dartType));
+  const constructor = value.constructor;
+  return __dartType(constructor && constructor.name ? constructor.name : "Object");
+}
+'''),
       EsmRuntimeHelper.safeToString => EsmRawModuleItemIr('''
 function __dartSafeToString(value) {
   try {
@@ -1213,10 +1257,50 @@ function __dartSplayTreeMapFromEntries(entries, compare = null, isValidKey = nul
   return map;
 }
 '''),
+      EsmRuntimeHelper.stringBuffer => EsmRawModuleItemIr('''
+function __dartStringBuffer(initial = "") {
+  let value = initial == null ? "" : __dartStr(initial);
+  return {
+    write(next) {
+      value += __dartStr(next);
+      return null;
+    },
+    writeln(next = "") {
+      value += __dartStr(next) + "\\n";
+      return null;
+    },
+    writeAll(values, separator = "") {
+      const parts = Array.from(values, (item) => __dartStr(item));
+      value += parts.join(__dartStr(separator));
+      return null;
+    },
+    writeCharCode(charCode) {
+      value += String.fromCodePoint(Number(charCode));
+      return null;
+    },
+    clear() {
+      value = "";
+      return null;
+    },
+    toString() {
+      return value;
+    },
+    get length() {
+      return value.length;
+    },
+    get isEmpty() {
+      return value.length === 0;
+    },
+    get isNotEmpty() {
+      return value.length !== 0;
+    },
+  };
+}
+'''),
       EsmRuntimeHelper.stringFactory => EsmRawModuleItemIr('''
 function __dartStringFromCharCodes(codes, start = 0, end = null) {
   const values = Array.from(codes).slice(Number(start), end == null ? undefined : Number(end));
-  return String.fromCharCode(...values);
+  return String.fromCodePoint(...values);
 }
 '''),
       EsmRuntimeHelper.stringOps => EsmRawModuleItemIr('''
@@ -1875,6 +1959,7 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.enumAsNameMap:
       case EsmRuntimeHelper.enumByName:
       case EsmRuntimeHelper.encoding:
+      case EsmRuntimeHelper.expando:
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.listFactory:
       case EsmRuntimeHelper.listRangeOps:
@@ -1886,6 +1971,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.stringFactory:
       case EsmRuntimeHelper.stringOps:
         break;
+      case EsmRuntimeHelper.stringBuffer:
+        _helpers.add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.constMap:
         _helpers.add(EsmRuntimeHelper.mapFactories);
         _helpers.add(EsmRuntimeHelper.mapAddAll);
@@ -1909,6 +1996,8 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.record:
         _helpers.add(EsmRuntimeHelper.recordShape);
         _helpers.add(EsmRuntimeHelper.isRecord);
+      case EsmRuntimeHelper.objectRuntimeType:
+        _helpers.add(EsmRuntimeHelper.type);
       case EsmRuntimeHelper.functionApply:
       case EsmRuntimeHelper.intParse:
       case EsmRuntimeHelper.iterator:

@@ -4,6 +4,22 @@ function __dartPrint(value) {
   console.log(__dartStr(value));
 }
 
+function __dartSafeToString(value) {
+  try {
+    if (value == null) return "null";
+    if (typeof value === "object") {
+      const toString = value.toString;
+      if (typeof toString === "function" && toString !== Object.prototype.toString) return String(toString.call(value));
+      const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+      return "Instance of '" + typeName + "'";
+    }
+    return String(value);
+  } catch (_) {
+    const typeName = value != null && value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+}
+
 function __dartStr(value) {
   if (value == null) return "null";
   if (Array.isArray(value)) {
@@ -36,7 +52,7 @@ export function failed() {
   } catch ($error) {
     if ($error != null) {
       const error = $error;
-      return `caught:${__dartStr(String(error).includes("boom"))}:${__dartStr(messageEvaluated)}`;
+      return `caught:${__dartStr(__dartSafeToString(error).includes("boom"))}:${__dartStr(messageEvaluated)}`;
     } else {
       throw $error;
     }

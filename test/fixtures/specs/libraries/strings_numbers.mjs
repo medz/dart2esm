@@ -278,9 +278,25 @@ function __dartIsRecord(value) {
   return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
 }
 
+function __dartSafeToString(value) {
+  try {
+    if (value == null) return "null";
+    if (typeof value === "object") {
+      const toString = value.toString;
+      if (typeof toString === "function" && toString !== Object.prototype.toString) return String(toString.call(value));
+      const typeName = value.constructor && value.constructor.name ? value.constructor.name : "Object";
+      return "Instance of '" + typeName + "'";
+    }
+    return String(value);
+  } catch (_) {
+    const typeName = value != null && value.constructor && value.constructor.name ? value.constructor.name : "Object";
+    return "Instance of '" + typeName + "'";
+  }
+}
+
 function __dartStringFromCharCodes(codes, start = 0, end = null) {
   const values = Array.from(codes).slice(Number(start), end == null ? undefined : Number(end));
-  return String.fromCharCode(...values);
+  return String.fromCodePoint(...values);
 }
 
 function __dartStringCodeUnits(source) {
@@ -594,7 +610,7 @@ export function main() {
   const maybeDouble = (__dartDoubleTryParse("bad") ?? 1.25);
   const parsedNum = __dartNumParse("7.25");
   __dartPrint(`nums ${__dartStr(parsedDouble)} ${__dartStr(maybeDouble)} ${__dartStr(parsedNum)}`);
-  const char = String.fromCharCode(65);
+  const char = String.fromCodePoint(65);
   const chars = __dartStringFromCharCodes([68, 97, 114, 116]);
   const text = "  hello,dart  ";
   const trimmed = text.trim();
@@ -617,7 +633,7 @@ export function main() {
   } catch ($error) {
     if (__dartIsCoreError($error, "Exception")) {
       const error = $error;
-      __dartPrint(`modInverseError ${__dartStr(String(error).includes("Not coprime"))}`);
+      __dartPrint(`modInverseError ${__dartStr(__dartSafeToString(error).includes("Not coprime"))}`);
     } else {
       throw $error;
     }

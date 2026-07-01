@@ -1741,7 +1741,7 @@ void main() {
     expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
     expect(result.compilerPath, Dart2EsmCompilerPath.newCore);
     final code = output.readAsStringSync();
-    expect(code, contains('String.fromCharCode(65)'));
+    expect(code, contains('String.fromCodePoint(65)'));
     expect(code, contains('__dartStringFromCharCodes'));
     await _expectSameDartAndNodeOutput(input, output);
   });
@@ -2877,7 +2877,6 @@ const _legacyOracleFixtureIds = {
   'libraries/async',
   'libraries/concurrent',
   'libraries/convert',
-  'libraries/core_runtime',
   'libraries/ffi',
   'libraries/html',
   'libraries/indexed_db',

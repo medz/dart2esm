@@ -128,7 +128,7 @@ export function classify(kind) {
     } else {
       if (__dartIsCoreError($error, "Exception")) {
         const error = $error;
-        return `exception:${__dartStr(String(error))}`;
+        return `exception:${__dartStr(__dartSafeToString(error))}`;
       } else {
         if (__dartIsCoreError($error, "Error")) {
           const __wc0_formal = $error;
@@ -176,7 +176,7 @@ export function classifyConstructed(kind) {
         } else {
           if (__dartIsCoreError($error, "Error")) {
             const error = $error;
-            return `error:${__dartStr(String(error).includes((__dartEquals(kind, "unsupported") ? "nope" : "later")))}`;
+            return `error:${__dartStr(__dartSafeToString(error).includes((__dartEquals(kind, "unsupported") ? "nope" : "later")))}`;
           } else {
             throw $error;
           }

@@ -3192,7 +3192,12 @@ final class KernelToEsmIrLoweringStage
       if (target is k.Member) {
         return EsmOptionalPropertyAccessIr(
           receiver: receiver,
-          property: _instanceMemberName(world, target),
+          property:
+              _sdkInstanceGetterPropertyName(
+                otherwise.interfaceTargetReference,
+                otherwise.name.text,
+              ) ??
+              _instanceMemberName(world, target),
         );
       }
     }
@@ -3205,7 +3210,12 @@ final class KernelToEsmIrLoweringStage
       if (target is k.Member) {
         return EsmOptionalMethodCallIr(
           receiver: receiver,
-          property: _instanceMemberName(world, target),
+          property:
+              _sdkInstanceMethodName(
+                otherwise.interfaceTargetReference,
+                otherwise.name.text,
+              ) ??
+              _instanceMemberName(world, target),
           arguments: _lowerArguments(
             world,
             helpers,
@@ -4454,6 +4464,16 @@ final class KernelToEsmIrLoweringStage
     k.InstanceInvocation expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
+    final webInvocation = _lowerWebInstanceInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (webInvocation != null) {
+      return webInvocation;
+    }
     return _lowerMathInstanceInvocation(
       world,
       helpers,
@@ -4461,6 +4481,76 @@ final class KernelToEsmIrLoweringStage
       expression,
       thisExpression: thisExpression,
     );
+  }
+
+  EsmExpressionIr? _lowerWebInstanceInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty) {
+      return null;
+    }
+    final name = expression.name.text;
+    final positional = expression.arguments.positional;
+    final methodName = _sdkInstanceMethodName(
+      expression.interfaceTargetReference,
+      name,
+    );
+    if (methodName == null) {
+      return null;
+    }
+    if (name == 'append' && positional.length == 1) {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          property: methodName,
+        ),
+        arguments: [
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (name == 'getAttribute' || name == 'setAttribute') {
+      return EsmCallIr(
+        callee: EsmPropertyAccessIr(
+          receiver: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          property: methodName,
+        ),
+        arguments: [
+          for (final argument in positional)
+            _lowerExpression(
+              world,
+              helpers,
+              locals,
+              argument,
+              thisExpression: thisExpression,
+            ),
+        ],
+      );
+    }
+    return null;
   }
 
   EsmExpressionIr? _lowerMathInstanceInvocation(
@@ -7242,6 +7332,13 @@ final class KernelToEsmIrLoweringStage
           expression,
           thisExpression: thisExpression,
         ) ??
+        _lowerWebInstanceGet(
+          world,
+          helpers,
+          locals,
+          expression,
+          thisExpression: thisExpression,
+        ) ??
         _lowerMathInstanceGet(
           world,
           helpers,
@@ -7249,6 +7346,31 @@ final class KernelToEsmIrLoweringStage
           expression,
           thisExpression: thisExpression,
         );
+  }
+
+  EsmExpressionIr? _lowerWebInstanceGet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceGet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final name = expression.name.text;
+    final receiver = _lowerExpression(
+      world,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    final property = _sdkInstanceGetterPropertyName(
+      expression.interfaceTargetReference,
+      name,
+    );
+    if (property != null) {
+      return EsmPropertyAccessIr(receiver: receiver, property: property);
+    }
+    return null;
   }
 
   EsmExpressionIr? _lowerCoreUriInstanceGet(
@@ -7896,6 +8018,16 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       );
     }
+    final sdkIntrinsic = _lowerSdkInstanceSet(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (sdkIntrinsic != null) {
+      return sdkIntrinsic;
+    }
     final target = expression.interfaceTargetReference.node;
     if (target is! k.Member) {
       throw NewCompilerUnsupported(expression, 'instance set lowering');
@@ -7919,6 +8051,42 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       ),
     );
+  }
+
+  EsmExpressionIr? _lowerSdkInstanceSet(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.InstanceSet expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final name = expression.name.text;
+    final property = _sdkInstanceSetterPropertyName(
+      expression.interfaceTargetReference,
+      name,
+    );
+    if (property != null) {
+      return EsmAssignmentIr(
+        target: EsmPropertyAccessIr(
+          receiver: _lowerExpression(
+            world,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          property: property,
+        ),
+        value: _lowerExpression(
+          world,
+          helpers,
+          locals,
+          expression.value,
+          thisExpression: thisExpression,
+        ),
+      );
+    }
+    return null;
   }
 
   EsmExpressionIr _lowerExtensionTypeInstanceSet(
@@ -8669,6 +8837,9 @@ final class KernelToEsmIrLoweringStage
       if (target == 'dart:math::Rectangle') {
         return _lowerDartTypeTagTest(value, 'Rectangle');
       }
+      if (target == 'dart:svg::SvgElement') {
+        return _lowerGlobalInstanceTypeTest(value, 'SVGElement');
+      }
       return switch (typeName) {
         'String' => _typeofEquals(value, 'string'),
         'BigInt' => _typeofEquals(value, 'bigint'),
@@ -8782,6 +8953,81 @@ final class KernelToEsmIrLoweringStage
       };
     }
     throw NewCompilerUnsupported(type, 'type test lowering ${_typeName(type)}');
+  }
+
+  EsmExpressionIr _lowerGlobalInstanceTypeTest(
+    EsmExpressionIr value,
+    String constructorName,
+  ) {
+    final constructor = EsmComputedPropertyAccessIr(
+      receiver: const EsmIdentifierIr('globalThis'),
+      property: EsmStringLiteralIr(constructorName),
+    );
+    return _andAll([
+      _typeofEquals(constructor, 'function'),
+      EsmBinaryIr(left: value, operator: 'instanceof', right: constructor),
+    ]);
+  }
+
+  bool _isDartWebNodeMember(k.Reference reference, String name) {
+    return isDartSdkLibraryClassMember(reference, 'dart:html', 'Node', name) ||
+        isDartSdkLibraryClassMember(reference, 'dart:svg', 'Node', name) ||
+        isDartSdkLibraryClassMember(reference, 'dart:svg', 'SvgElement', name);
+  }
+
+  bool _isDartWebElementMember(k.Reference reference, String name) {
+    return isDartSdkLibraryClassMember(
+          reference,
+          'dart:html',
+          'Element',
+          name,
+        ) ||
+        isDartSdkLibraryClassMember(reference, 'dart:svg', 'SvgElement', name);
+  }
+
+  bool _isDartWebCollectionMember(k.Reference reference, String name) {
+    return isDartSdkLibraryClassMember(
+          reference,
+          'dart:html',
+          'HtmlCollection',
+          name,
+        ) ||
+        isDartSdkLibraryClassMember(reference, 'dart:html', 'NodeList', name);
+  }
+
+  String? _sdkInstanceGetterPropertyName(k.Reference reference, String name) {
+    if (name == 'text' && _isDartWebNodeMember(reference, name)) {
+      return 'textContent';
+    }
+    if ((name == 'id' || name == 'children') &&
+        _isDartWebElementMember(reference, name)) {
+      return name;
+    }
+    if (name == 'length' && _isDartWebCollectionMember(reference, name)) {
+      return 'length';
+    }
+    return null;
+  }
+
+  String? _sdkInstanceSetterPropertyName(k.Reference reference, String name) {
+    if (name == 'text' && _isDartWebNodeMember(reference, name)) {
+      return 'textContent';
+    }
+    if (name == 'id' && _isDartWebElementMember(reference, name)) {
+      return 'id';
+    }
+    return null;
+  }
+
+  String? _sdkInstanceMethodName(k.Reference reference, String name) {
+    if (name == 'append' && _isDartWebNodeMember(reference, name)) {
+      return 'appendChild';
+    }
+    if ((name == 'getAttribute' || name == 'setAttribute') &&
+        _isDartWebElementMember(reference, name)) {
+      return name;
+    }
+    return null;
   }
 
   EsmExpressionIr _lowerCoreErrorTypeTest(
@@ -9265,6 +9511,16 @@ final class KernelToEsmIrLoweringStage
     if (mathStatic != null) {
       return mathStatic;
     }
+    final webStatic = _lowerWebStaticInvocation(
+      world,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (webStatic != null) {
+      return webStatic;
+    }
     final developerStatic = _lowerDeveloperStaticInvocation(
       world,
       helpers,
@@ -9318,6 +9574,42 @@ final class KernelToEsmIrLoweringStage
         locals,
         expression,
         thisExpression: thisExpression,
+      );
+    }
+    return null;
+  }
+
+  EsmExpressionIr? _lowerWebStaticInvocation(
+    EsmSemanticWorld world,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpressionIr thisExpression = const EsmThisIr(),
+  }) {
+    final positional = expression.arguments.positional;
+    if (kernelReferencePath(expression.targetReference) ==
+            'dart:svg::SvgElement::@factories::tag' &&
+        positional.length == 1 &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.types.isEmpty) {
+      return EsmCallIr(
+        callee: const EsmPropertyAccessIr(
+          receiver: EsmPropertyAccessIr(
+            receiver: EsmIdentifierIr('globalThis'),
+            property: 'document',
+          ),
+          property: 'createElementNS',
+        ),
+        arguments: [
+          const EsmStringLiteralIr('http://www.w3.org/2000/svg'),
+          _lowerExpression(
+            world,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
       );
     }
     return null;
@@ -11339,7 +11631,10 @@ final class KernelToEsmIrLoweringStage
         return symbol.name;
       }
     }
-    throw NewCompilerUnsupported(member, 'instance member lowering');
+    throw NewCompilerUnsupported(
+      member,
+      'instance member lowering ${kernelReferencePath(member.reference)}',
+    );
   }
 
   EsmExpressionIr _memberAccess(EsmExpressionIr receiver, String memberName) {

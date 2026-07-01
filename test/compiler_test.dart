@@ -1,21 +1,20 @@
-import 'package:dart2esm/src/compiler/codegen/esm_codegen.dart';
-import 'package:dart2esm/src/compiler/compiler.dart';
-import 'package:dart2esm/src/compiler/component.dart';
-import 'package:dart2esm/src/compiler/parser/kernel_parser.dart';
-import 'package:dart2esm/src/compiler/module_builder/module_builder.dart';
-import 'package:dart2esm/src/compiler/ir/esm_ir.dart';
-import 'package:dart2esm/src/compiler/lowering/kernel_to_esm_ir.dart';
-import 'package:dart2esm/src/compiler/unsupported.dart';
-import 'package:dart2esm/src/compiler/runtime/runtime_helpers.dart';
-import 'package:dart2esm/src/compiler/runtime/runtime_linker.dart';
-import 'package:dart2esm/src/compiler/semantic/semantic_world.dart';
-import 'package:dart2esm/src/compiler/transformer/module_transformer.dart';
+import 'package:dart2esm/src/codegen/esm_codegen.dart';
+import 'package:dart2esm/src/compiler.dart';
+import 'package:dart2esm/src/component.dart';
+import 'package:dart2esm/src/parser/kernel_parser.dart';
+import 'package:dart2esm/src/ast/esm_ast.dart';
+import 'package:dart2esm/src/lowering/kernel_to_esm_ast.dart';
+import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
+import 'package:dart2esm/src/runtime/runtime_helpers.dart';
+import 'package:dart2esm/src/runtime/runtime_linker.dart';
+import 'package:dart2esm/src/semantic/semantic_world.dart';
+import 'package:dart2esm/src/transformer/module_transformer.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_kernel_node.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {
-  test('compiler core exposes the ordered component contract', () {
+  test('compiler components expose the ordered component contract', () {
     expect(
       compilerComponentOrder,
       compilerComponentContracts.map((contract) => contract.id).toList(),
@@ -24,7 +23,6 @@ void main() {
       CompilerComponentId.parser,
       CompilerComponentId.semantic,
       CompilerComponentId.lowerer,
-      CompilerComponentId.moduleBuilder,
       CompilerComponentId.transformer,
       CompilerComponentId.runtime,
       CompilerComponentId.codegen,
@@ -32,13 +30,12 @@ void main() {
     expect(const KernelParser().parse, isA<Function>());
     expect(const SemanticBuilder().build, isA<Function>());
     expect(const Lowerer().lower, isA<Function>());
-    expect(const ModuleBuilder().build, isA<Function>());
     expect(const Transformer().transform, isA<Function>());
     expect(const RuntimeLinker().link, isA<Function>());
     expect(const Codegen().generate, isA<Function>());
     expect(
       compilerComponentContractFor(CompilerComponentId.parser).output,
-      'KernelParseResult',
+      'ParserReturn',
     );
     expect(
       compilerComponentContractFor(
@@ -54,7 +51,7 @@ void main() {
     );
   });
 
-  test('compiles supported Kernel through the new compiler core', () {
+  test('compiles supported Kernel through the compiler components', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
     final helperParameter = k.VariableDeclaration('value');
@@ -88,14 +85,12 @@ void main() {
 
     expect(result.completedComponents, compilerComponentOrder);
     expect(result.kernel.component, same(component));
-    expect(result.semantic?.world.main, same(main));
-    expect(result.lowering?.items, hasLength(3));
-    expect(result.moduleBuild?.module.items, hasLength(3));
+    expect(result.semantic?.semantic.main, same(main));
+    expect(result.lowering?.module.items, hasLength(3));
     expect(result.lowering?.runtimeHelpers, isEmpty);
-    expect(result.moduleBuild?.runtimeHelpers, isEmpty);
-    expect(result.transform?.moduleBuild, same(result.moduleBuild));
+    expect(result.transform?.lowering, same(result.lowering));
     expect(result.transform?.runtimeHelpers, isEmpty);
-    expect(result.transform?.invalidatesSemanticWorld, isFalse);
+    expect(result.transform?.invalidatesSemantic, isFalse);
     expect(result.runtime?.linkedHelpers, isEmpty);
     expect(result.codegen?.code, same(result.code));
     expect(result.code, '''
@@ -115,15 +110,15 @@ main();
   });
 
   test('codegen parenthesizes expression callees', () {
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmExpressionStatementIr(
-          EsmCallIr(
-            callee: EsmArrowFunctionIr(
-              parameters: [EsmIdentifierParameterIr(name: 'value')],
-              body: EsmIdentifierIr('value'),
+        EsmExpressionStatement(
+          EsmCall(
+            callee: EsmArrowFunction(
+              parameters: [EsmIdentifierParameter(name: 'value')],
+              body: EsmIdentifier('value'),
             ),
-            arguments: [EsmStringLiteralIr('ok')],
+            arguments: [EsmStringLiteral('ok')],
           ),
         ),
       ],
@@ -137,17 +132,17 @@ main();
   });
 
   test('codegen parenthesizes arrow functions in nullish coalescing', () {
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmExpressionStatementIr(
-          EsmNullishCoalesceIr(
-            left: EsmIdentifierIr('compare'),
-            right: EsmArrowFunctionIr(
+        EsmExpressionStatement(
+          EsmNullishCoalesce(
+            left: EsmIdentifier('compare'),
+            right: EsmArrowFunction(
               parameters: [
-                EsmIdentifierParameterIr(name: 'left'),
-                EsmIdentifierParameterIr(name: 'right'),
+                EsmIdentifierParameter(name: 'left'),
+                EsmIdentifierParameter(name: 'right'),
               ],
-              body: EsmNumberLiteralIr(0),
+              body: EsmNumberLiteral(0),
             ),
           ),
         ),
@@ -162,25 +157,25 @@ main();
   });
 
   test('codegen emits arrow array binding parameters structurally', () {
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmExpressionStatementIr(
-          EsmCallIr(
-            callee: EsmArrowFunctionIr(
+        EsmExpressionStatement(
+          EsmCall(
+            callee: EsmArrowFunction(
               parameters: [
-                EsmArrayPatternParameterIr(
+                EsmArrayPatternParameter(
                   elements: [
-                    EsmIdentifierParameterIr(name: 'key'),
-                    EsmIdentifierParameterIr(name: 'value'),
+                    EsmIdentifierParameter(name: 'key'),
+                    EsmIdentifierParameter(name: 'value'),
                   ],
                 ),
               ],
-              body: EsmIdentifierIr('key'),
+              body: EsmIdentifier('key'),
             ),
             arguments: [
-              EsmArrayLiteralIr([
-                EsmStringLiteralIr('left'),
-                EsmStringLiteralIr('right'),
+              EsmArrayLiteral([
+                EsmStringLiteral('left'),
+                EsmStringLiteral('right'),
               ]),
             ],
           ),
@@ -195,24 +190,24 @@ main();
 ''');
   });
 
-  test('codegen emits object literal properties from key IR', () {
-    const module = EsmModuleIr(
+  test('codegen emits object literal properties from key AST', () {
+    const module = EsmModule(
       items: [
-        EsmVariableDeclarationIr(
-          binding: EsmIdentifierBindingIr('object'),
+        EsmVariableDeclaration(
+          binding: EsmIdentifierBinding('object'),
           mutable: false,
-          initializer: EsmObjectLiteralIr([
-            EsmObjectLiteralPropertyIr(
-              key: EsmStaticPropertyKeyIr('alpha'),
-              value: EsmNumberLiteralIr(1),
+          initializer: EsmObjectLiteral([
+            EsmObjectLiteralProperty(
+              key: EsmStaticPropertyKey('alpha'),
+              value: EsmNumberLiteral(1),
             ),
-            EsmObjectLiteralPropertyIr(
-              key: EsmStaticPropertyKeyIr('not-valid'),
-              value: EsmNumberLiteralIr(2),
+            EsmObjectLiteralProperty(
+              key: EsmStaticPropertyKey('not-valid'),
+              value: EsmNumberLiteral(2),
             ),
-            EsmObjectLiteralPropertyIr(
-              key: EsmComputedPropertyKeyIr(EsmIdentifierIr('dynamicKey')),
-              value: EsmNumberLiteralIr(3),
+            EsmObjectLiteralProperty(
+              key: EsmComputedPropertyKey(EsmIdentifier('dynamicKey')),
+              value: EsmNumberLiteral(3),
             ),
           ]),
         ),
@@ -226,30 +221,30 @@ const object = { alpha: 1, "not-valid": 2, [dynamicKey]: 3 };
 ''');
   });
 
-  test('codegen emits variable declarations from binding IR', () {
-    const module = EsmModuleIr(
+  test('codegen emits variable declarations from binding AST', () {
+    const module = EsmModule(
       items: [
-        EsmVariableDeclarationIr(
-          binding: EsmArrayBindingPatternIr(
+        EsmVariableDeclaration(
+          binding: EsmArrayBindingPattern(
             elements: [
-              EsmIdentifierBindingIr('first'),
-              EsmIdentifierBindingIr('second'),
+              EsmIdentifierBinding('first'),
+              EsmIdentifierBinding('second'),
             ],
           ),
-          initializer: EsmIdentifierIr('pair'),
+          initializer: EsmIdentifier('pair'),
           mutable: false,
         ),
-        EsmVariableDeclarationIr(
-          binding: EsmObjectBindingPatternIr(
+        EsmVariableDeclaration(
+          binding: EsmObjectBindingPattern(
             bindings: [
-              EsmObjectPatternBindingIr(
+              EsmObjectPatternBinding(
                 property: 'alpha',
                 name: 'value',
-                defaultValue: EsmNumberLiteralIr(1),
+                defaultValue: EsmNumberLiteral(1),
               ),
             ],
           ),
-          initializer: EsmIdentifierIr('source'),
+          initializer: EsmIdentifier('source'),
           mutable: true,
         ),
       ],
@@ -264,28 +259,28 @@ let { alpha: value = 1 } = source;
   });
 
   test('codegen preserves nested binary expression semantics', () {
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmFunctionIr(
+        EsmFunction(
           name: 'main',
           export: true,
           parameters: [],
           body: [
-            EsmVariableDeclarationIr(
-              binding: EsmIdentifierBindingIr('value'),
+            EsmVariableDeclaration(
+              binding: EsmIdentifierBinding('value'),
               mutable: true,
-              initializer: EsmNumberLiteralIr(10),
+              initializer: EsmNumberLiteral(10),
             ),
-            EsmExpressionStatementIr(
-              EsmAssignmentIr(
-                target: EsmIdentifierIr('value'),
-                value: EsmBinaryIr(
-                  left: EsmIdentifierIr('value'),
-                  operator: EsmBinaryOperatorIr.subtract,
-                  right: EsmBinaryIr(
-                    left: EsmIdentifierIr('oldPosition'),
-                    operator: EsmBinaryOperatorIr.subtract,
-                    right: EsmIdentifierIr('newPosition'),
+            EsmExpressionStatement(
+              EsmAssignment(
+                target: EsmIdentifier('value'),
+                value: EsmBinary(
+                  left: EsmIdentifier('value'),
+                  operator: EsmBinaryOperator.subtract,
+                  right: EsmBinary(
+                    left: EsmIdentifier('oldPosition'),
+                    operator: EsmBinaryOperator.subtract,
+                    right: EsmIdentifier('newPosition'),
                   ),
                 ),
               ),
@@ -305,26 +300,26 @@ export function main() {
 ''');
   });
 
-  test('codegen emits binary and unary operator IR', () {
-    const module = EsmModuleIr(
+  test('codegen emits binary and unary operator AST', () {
+    const module = EsmModule(
       items: [
-        EsmExpressionStatementIr(
-          EsmBinaryIr(
-            left: EsmUnaryIr(
-              operator: EsmUnaryOperatorIr.typeOf,
-              operand: EsmIdentifierIr('value'),
+        EsmExpressionStatement(
+          EsmBinary(
+            left: EsmUnary(
+              operator: EsmUnaryOperator.typeOf,
+              operand: EsmIdentifier('value'),
             ),
-            operator: EsmBinaryOperatorIr.strictEquals,
-            right: EsmStringLiteralIr('string'),
+            operator: EsmBinaryOperator.strictEquals,
+            right: EsmStringLiteral('string'),
           ),
         ),
-        EsmExpressionStatementIr(
-          EsmUnaryIr(
-            operator: EsmUnaryOperatorIr.logicalNot,
-            operand: EsmBinaryIr(
-              left: EsmIdentifierIr('value'),
-              operator: EsmBinaryOperatorIr.instanceOf,
-              right: EsmIdentifierIr('Box'),
+        EsmExpressionStatement(
+          EsmUnary(
+            operator: EsmUnaryOperator.logicalNot,
+            operand: EsmBinary(
+              left: EsmIdentifier('value'),
+              operator: EsmBinaryOperator.instanceOf,
+              right: EsmIdentifier('Box'),
             ),
           ),
         ),
@@ -340,10 +335,10 @@ typeof value === "string";
   });
 
   test('codegen emits import meta as a structured meta property', () {
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmExpressionStatementIr(
-          EsmPropertyAccessIr(receiver: EsmImportMetaIr(), property: 'url'),
+        EsmExpressionStatement(
+          EsmPropertyAccess(receiver: EsmImportMeta(), property: 'url'),
         ),
       ],
     );
@@ -356,14 +351,14 @@ import.meta.url;
   });
 
   test('codegen emits class superclass as an expression', () {
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmClassIr(
+        EsmClass(
           name: 'Derived',
           export: true,
-          superclass: EsmCallIr(
-            callee: EsmIdentifierIr('mixin'),
-            arguments: [EsmIdentifierIr('Base')],
+          superclass: EsmCall(
+            callee: EsmIdentifier('mixin'),
+            arguments: [EsmIdentifier('Base')],
           ),
           constructor: null,
           methods: [],
@@ -379,25 +374,25 @@ export class Derived extends mixin(Base) {
 ''');
   });
 
-  test('codegen emits class method keys from property key IR', () {
-    const module = EsmModuleIr(
+  test('codegen emits class method keys from property key AST', () {
+    const module = EsmModule(
       items: [
-        EsmClassIr(
+        EsmClass(
           name: 'Box',
           export: true,
           superclass: null,
           constructor: null,
           methods: [
-            EsmClassMethodIr(
-              key: EsmStaticPropertyKeyIr('not-valid'),
-              kind: EsmClassMethodKindIr.method,
+            EsmClassMethod(
+              key: EsmStaticPropertyKey('not-valid'),
+              kind: EsmClassMethodKind.method,
               isStatic: false,
               parameters: [],
               body: [],
             ),
-            EsmClassMethodIr(
-              key: EsmComputedPropertyKeyIr(EsmIdentifierIr('dynamicKey')),
-              kind: EsmClassMethodKindIr.method,
+            EsmClassMethod(
+              key: EsmComputedPropertyKey(EsmIdentifier('dynamicKey')),
+              kind: EsmClassMethodKind.method,
               isStatic: true,
               parameters: [],
               body: [],
@@ -419,17 +414,17 @@ export class Box {
 ''');
   });
 
-  test('codegen emits catch parameters as binding IR', () {
-    const module = EsmModuleIr(
+  test('codegen emits catch parameters as binding AST', () {
+    const module = EsmModule(
       items: [
-        EsmTryStatementIr(
-          body: [EsmThrowStatementIr(EsmStringLiteralIr('boom'))],
-          catchParameter: EsmIdentifierParameterIr(name: 'error'),
+        EsmTryStatement(
+          body: [EsmThrowStatement(EsmStringLiteral('boom'))],
+          catchParameter: EsmIdentifierParameter(name: 'error'),
           catchBody: [
-            EsmExpressionStatementIr(
-              EsmCallIr(
-                callee: EsmIdentifierIr('handle'),
-                arguments: [EsmIdentifierIr('error')],
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('handle'),
+                arguments: [EsmIdentifier('error')],
               ),
             ),
           ],
@@ -450,36 +445,36 @@ try {
   });
 
   test('module transformer prunes empty module artifacts', () {
-    const marker = EsmExpressionStatementIr(
-      EsmCallIr(callee: EsmIdentifierIr('sideEffect'), arguments: const []),
+    const marker = EsmExpressionStatement(
+      EsmCall(callee: EsmIdentifier('sideEffect'), arguments: const []),
     );
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmRawModuleItemIr('  \n'),
-        EsmBlockStatementIr([]),
-        EsmFunctionIr(
+        EsmRawModuleItem('  \n'),
+        EsmBlockStatement([]),
+        EsmFunction(
           name: 'main',
           export: true,
           parameters: [],
-          body: [EsmBlockStatementIr([]), marker],
+          body: [EsmBlockStatement([]), marker],
         ),
-        EsmClassIr(
+        EsmClass(
           name: 'Box',
           export: true,
           superclass: null,
-          constructor: EsmClassConstructorIr(
+          constructor: EsmClassConstructor(
             parameters: [],
-            body: [EsmBlockStatementIr([])],
+            body: [EsmBlockStatement([])],
           ),
           methods: [
-            EsmClassMethodIr(
-              key: EsmStaticPropertyKeyIr('read'),
-              kind: EsmClassMethodKindIr.method,
+            EsmClassMethod(
+              key: EsmStaticPropertyKey('read'),
+              kind: EsmClassMethodKind.method,
               isStatic: false,
               parameters: [],
               body: [
-                EsmBlockStatementIr([]),
-                EsmReturnStatementIr(EsmNumberLiteralIr(1)),
+                EsmBlockStatement([]),
+                EsmReturnStatement(EsmNumberLiteral(1)),
               ],
             ),
           ],
@@ -487,33 +482,31 @@ try {
       ],
     );
 
-    final result = const Transformer().transform(
-      _transformForModule(module).moduleBuild,
-    );
+    final result = const Transformer().transform(_loweringForModule(module));
 
     expect(result.changed, isTrue);
-    expect(result.invalidatesSemanticWorld, isFalse);
+    expect(result.invalidatesSemantic, isFalse);
     expect(result.module.items, hasLength(2));
-    final main = result.module.items.first as EsmFunctionIr;
+    final main = result.module.items.first as EsmFunction;
     expect(main.body, hasLength(1));
     expect(main.body.single, same(marker));
-    final box = result.module.items.last as EsmClassIr;
+    final box = result.module.items.last as EsmClass;
     expect(box.constructor?.body, isEmpty);
-    expect(box.methods.single.body, [isA<EsmReturnStatementIr>()]);
+    expect(box.methods.single.body, [isA<EsmReturnStatement>()]);
   });
 
   test('runtime linker resolves helper declarations before codegen', () {
-    const module = EsmModuleIr(
+    const module = EsmModule(
       items: [
-        EsmFunctionIr(
+        EsmFunction(
           name: 'main',
           export: true,
           parameters: [],
           body: [
-            EsmExpressionStatementIr(
-              EsmCallIr(
-                callee: EsmIdentifierIr('__dartPrint'),
-                arguments: [EsmStringLiteralIr('linked')],
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartPrint'),
+                arguments: [EsmStringLiteral('linked')],
               ),
             ),
           ],
@@ -535,8 +528,8 @@ try {
     expect(linked.transform.runtimeHelpers, [EsmRuntimeHelper.print]);
     expect(linked.module.items, hasLength(3));
     final helper = linked.module.items.first;
-    expect(helper, isA<EsmFunctionIr>());
-    expect((helper as EsmFunctionIr).name, '__dartPrint');
+    expect(helper, isA<EsmFunction>());
+    expect((helper as EsmFunction).name, '__dartPrint');
     expect(helper.export, isFalse);
     expect(const Codegen().generate(linked.module).code, '''
 // Generated by dart2esm.
@@ -571,7 +564,7 @@ export function main() {
 ''');
   });
 
-  test('semantic world reserves compiler-provided generated global names', () {
+  test('semantic reserves compiler-provided generated global names', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
     final helperCollision = k.Procedure(
@@ -596,13 +589,13 @@ export function main() {
       options: const CompilerOptions(runMain: false),
     ).compile(component);
 
-    final collisionSymbol = result.semantic!.world.symbolForRequired(
+    final collisionSymbol = result.semantic!.semantic.symbolForRequired(
       helperCollision,
     );
     expect(collisionSymbol.name, '__dartPrint_1');
   });
 
-  test('semantic world folds anonymous mixin superclass edges', () {
+  test('semantic folds anonymous mixin superclass edges', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
     final base = k.Class(name: 'Base', fileUri: libraryUri);
@@ -636,18 +629,18 @@ export function main() {
     component.setMainMethodAndMode(main.reference, true);
 
     final semantic = const SemanticBuilder().build(
-      KernelParseResult(component: component, main: main),
+      ParserReturn(component: component, main: main),
     );
 
     expect(
-      semantic.world.classes.map((klass) => klass.node),
+      semantic.semantic.classes.map((klass) => klass.node),
       isNot(contains(mixinApplication)),
     );
-    final derivedSymbol = semantic.world.classSymbolFor(derived);
+    final derivedSymbol = semantic.semantic.classSymbolFor(derived);
     expect(derivedSymbol, isNotNull);
     expect(derivedSymbol!.jsSuperclass, same(base));
     expect(derivedSymbol.interfaceMarkerClasses, contains(mixin));
-    final loweredMixinMethod = semantic.world.instanceProcedureSymbolFor(
+    final loweredMixinMethod = semantic.semantic.instanceProcedureSymbolFor(
       mixinMethod,
     );
     expect(loweredMixinMethod, isNotNull);
@@ -656,7 +649,7 @@ export function main() {
     expect(derivedSymbol.procedures, contains(same(loweredMixinMethod)));
   });
 
-  test('compiles switch continue through the new compiler core', () {
+  test('compiles switch continue through the compiler components', () {
     final result = Compiler(
       options: const CompilerOptions(runMain: true),
     ).compile(_componentWithSwitchContinue());
@@ -666,14 +659,14 @@ export function main() {
     expect(result.code, contains(r'continue $switchLoop;'));
   });
 
-  test('rejects unsupported Kernel in the compiler core', () {
+  test('rejects unsupported Kernel in the compiler components', () {
     final component = _componentWithYieldStatement();
 
     final compiler = Compiler(options: const CompilerOptions(runMain: true));
 
     expect(
       () => compiler.compile(component),
-      throwsA(isA<NewCompilerUnsupported>()),
+      throwsA(isA<UnsupportedCompilerFeature>()),
     );
   });
 
@@ -741,8 +734,20 @@ k.Procedure _procedure(
   );
 }
 
-TransformResult _transformForModule(
-  EsmModuleIr module, {
+TransformerReturn _transformForModule(
+  EsmModule module, {
+  Iterable<EsmRuntimeHelper> runtimeHelpers = const [],
+}) {
+  return TransformerReturn(
+    lowering: _loweringForModule(module, runtimeHelpers: runtimeHelpers),
+    module: module,
+    changed: false,
+    invalidatesSemantic: false,
+  );
+}
+
+LowererReturn _loweringForModule(
+  EsmModule module, {
   Iterable<EsmRuntimeHelper> runtimeHelpers = const [],
 }) {
   final libraryUri = Uri.parse('package:sample/main.dart');
@@ -751,10 +756,10 @@ TransformResult _transformForModule(
   library.addProcedure(main);
   final component = k.Component(libraries: [library]);
   component.setMainMethodAndMode(main.reference, true);
-  final kernel = KernelParseResult(component: component, main: main);
-  final semantic = SemanticResult(
+  final kernel = ParserReturn(component: component, main: main);
+  final semantic = SemanticBuilderReturn(
     kernel: kernel,
-    world: EsmSemanticWorld(
+    semantic: Semantic(
       component: component,
       main: main,
       classes: const [],
@@ -770,17 +775,9 @@ TransformResult _transformForModule(
       ],
     ),
   );
-  return TransformResult(
-    moduleBuild: ModuleBuildResult(
-      lowering: LoweringResult(
-        semantic: semantic,
-        items: module.items,
-        runtimeHelpers: runtimeHelpers,
-      ),
-      module: module,
-    ),
-    module: module,
-    changed: false,
-    invalidatesSemanticWorld: false,
+  return LowererReturn(
+    semantic: semantic,
+    items: module.items,
+    runtimeHelpers: runtimeHelpers,
   );
 }

@@ -1,9 +1,9 @@
-import 'package:dart2esm/src/compiler/semantic/model/program_model.dart';
+import 'package:dart2esm/src/semantic/model/program_model.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {
-  test('builds roots world and ordered libraries before emission', () {
+  test('builds roots semantic plan and ordered libraries before emission', () {
     final libraryUri = Uri.parse('package:sample/main.dart');
     final library = k.Library(libraryUri, fileUri: libraryUri);
     final main = _procedure('main');
@@ -22,8 +22,8 @@ void main() {
       model.roots.exportNamesFor(library),
       containsAll(['main', 'exported']),
     );
-    expect(model.world.libraries, contains(library));
-    expect(model.world.topLevelProcedures, containsAll([main, exported]));
+    expect(model.semantic.libraries, contains(library));
+    expect(model.semantic.topLevelProcedures, containsAll([main, exported]));
     expect(model.orderedLibraries, [library]);
     expect(model.module.libraries.single.library, same(library));
     expect(

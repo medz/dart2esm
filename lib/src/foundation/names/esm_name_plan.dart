@@ -1,6 +1,6 @@
 import 'package:kernel/kernel.dart' as k;
 
-import '../../compiler/semantic/model/esm_module_plan.dart';
+import '../../semantic/model/esm_module_plan.dart';
 import 'js_names.dart';
 
 final class EsmNamePlan {

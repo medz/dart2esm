@@ -104,8 +104,10 @@ void main() {
     expect(component.mainMethod?.function.body, isNotNull);
   });
 
-  test('compiles simple real Dart through the new compiler core', () async {
-    final tempDir = await Directory.systemTemp.createTemp('dart2esm-new-core-');
+  test('compiles simple real Dart through the compiler components', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-components-',
+    );
     addTearDown(() => tempDir.deleteSync(recursive: true));
     final input = File(p.join(tempDir.path, 'main.dart'))
       ..writeAsStringSync('''
@@ -194,7 +196,7 @@ void main() {
   });
 
   test(
-    'compiles top-level field reads and writes through the new core',
+    'compiles top-level field reads and writes through compiler components',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'dart2esm-static-fields-core-',
@@ -244,13 +246,15 @@ void main() {
     },
   );
 
-  test('compiles top-level getters and setters through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-accessors-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles top-level getters and setters through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-accessors-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 int backing = 1;
 
 int get _computed {
@@ -269,43 +273,44 @@ void main() {
   print('values \$first \$_computed \$backing');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('export let backing = 1;'));
-    expect(code, contains('function _computed() {'));
-    expect(code, contains('function _computed_1(value) {'));
-    expect(
-      code,
-      contains(r'  __dartPrint(`set computed ${__dartStr(value)}`);'),
-    );
-    expect(
-      code,
-      contains(
-        r'  __dartPrint(`values ${__dartStr(first)} ${__dartStr(_computed())} ${__dartStr(backing)}`);',
-      ),
-    );
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('export let backing = 1;'));
+      expect(code, contains('function _computed() {'));
+      expect(code, contains('function _computed_1(value) {'));
+      expect(
+        code,
+        contains(r'  __dartPrint(`set computed ${__dartStr(value)}`);'),
+      );
+      expect(
+        code,
+        contains(
+          r'  __dartPrint(`values ${__dartStr(first)} ${__dartStr(_computed())} ${__dartStr(backing)}`);',
+        ),
+      );
 
-    final nodeResult = await Process.run('node', [output.path]);
-    expect(
-      nodeResult.exitCode,
-      0,
-      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
-    );
-    expect(
-      (nodeResult.stdout as String).trim(),
-      'get computed\nset computed 10\nget computed\nvalues 3 12 10',
-    );
-  });
+      final nodeResult = await Process.run('node', [output.path]);
+      expect(
+        nodeResult.exitCode,
+        0,
+        reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+      );
+      expect(
+        (nodeResult.stdout as String).trim(),
+        'get computed\nset computed 10\nget computed\nvalues 3 12 10',
+      );
+    },
+  );
 
   test('preserves inherited accessor pairs in JS classes', () async {
     final tempDir = await Directory.systemTemp.createTemp(
@@ -496,7 +501,7 @@ void main() {
     await _expectNodeOutput(output, 'implicit 2 1\n');
   });
 
-  test('compiles basic classes through the new core', () async {
+  test('compiles basic classes through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-class-core-',
     );
@@ -555,7 +560,7 @@ void main() {
     expect((nodeResult.stdout as String).trim(), 'value 7\ndouble 14');
   });
 
-  test('compiles inheritance through the new core', () async {
+  test('compiles inheritance through compiler components', () async {
     final source = File(p.join(fixtureDir.path, 'classes', 'inheritance.dart'));
     final expected = File(
       p.join(fixtureDir.path, 'classes', 'inheritance.mjs'),
@@ -594,7 +599,7 @@ void main() {
     );
   });
 
-  test('compiles interfaces through the new core', () async {
+  test('compiles interfaces through compiler components', () async {
     final source = File(p.join(fixtureDir.path, 'classes', 'interfaces.dart'));
     final expected = File(p.join(fixtureDir.path, 'classes', 'interfaces.mjs'));
     final tempDir = await Directory.systemTemp.createTemp(
@@ -623,7 +628,7 @@ void main() {
     expect((nodeResult.stdout as String).trim(), 'ada person:ada true');
   });
 
-  test('compiles static members through the new core', () async {
+  test('compiles static members through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'classes', 'static_members.dart'),
     );
@@ -667,7 +672,7 @@ void main() {
     );
   });
 
-  test('compiles named constructors through the new core', () async {
+  test('compiles named constructors through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'classes', 'named_constructors.dart'),
     );
@@ -706,84 +711,94 @@ void main() {
     );
   });
 
-  test('compiles named constructor inheritance through the new core', () async {
-    final source = File(
-      p.join(fixtureDir.path, 'classes', 'named_constructor_inheritance.dart'),
-    );
-    final expected = File(
-      p.join(fixtureDir.path, 'classes', 'named_constructor_inheritance.mjs'),
-    );
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-named-constructor-inheritance-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+  test(
+    'compiles named constructor inheritance through compiler components',
+    () async {
+      final source = File(
+        p.join(
+          fixtureDir.path,
+          'classes',
+          'named_constructor_inheritance.dart',
+        ),
+      );
+      final expected = File(
+        p.join(fixtureDir.path, 'classes', 'named_constructor_inheritance.mjs'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-named-constructor-inheritance-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: source.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    expect(output.readAsStringSync(), expected.readAsStringSync());
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(output.readAsStringSync(), expected.readAsStringSync());
 
-    final nodeResult = await Process.run('node', [output.path]);
-    expect(
-      nodeResult.exitCode,
-      0,
-      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
-    );
-    expect(
-      (nodeResult.stdout as String).trim(),
-      'animal Rex named dog! 4\n'
-      'animal Ada dog 2\n'
-      'animal Mia cat 9',
-    );
-  });
-
-  test('compiles named super constructors through the new core', () async {
-    final source = File(
-      p.join(fixtureDir.path, 'classes', 'named_super_constructors.dart'),
-    );
-    final expected = File(
-      p.join(fixtureDir.path, 'classes', 'named_super_constructors.mjs'),
-    );
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-named-super-constructors-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final output = File(p.join(tempDir.path, 'main.mjs'));
-
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: source.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
-
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    expect(output.readAsStringSync(), expected.readAsStringSync());
-
-    final nodeResult = await Process.run('node', [output.path]);
-    expect(
-      nodeResult.exitCode,
-      0,
-      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
-    );
-    expect(
-      (nodeResult.stdout as String).trim(),
-      'named animal! Rex dog! 4\n'
-      'named animal! Mia cat black!\n'
-      'named animal! Tiny dog! 1 toy ball',
-    );
-  });
+      final nodeResult = await Process.run('node', [output.path]);
+      expect(
+        nodeResult.exitCode,
+        0,
+        reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+      );
+      expect(
+        (nodeResult.stdout as String).trim(),
+        'animal Rex named dog! 4\n'
+        'animal Ada dog 2\n'
+        'animal Mia cat 9',
+      );
+    },
+  );
 
   test(
-    'compiles unnamed redirecting constructors through the new core',
+    'compiles named super constructors through compiler components',
+    () async {
+      final source = File(
+        p.join(fixtureDir.path, 'classes', 'named_super_constructors.dart'),
+      );
+      final expected = File(
+        p.join(fixtureDir.path, 'classes', 'named_super_constructors.mjs'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-named-super-constructors-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
+
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
+
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(output.readAsStringSync(), expected.readAsStringSync());
+
+      final nodeResult = await Process.run('node', [output.path]);
+      expect(
+        nodeResult.exitCode,
+        0,
+        reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+      );
+      expect(
+        (nodeResult.stdout as String).trim(),
+        'named animal! Rex dog! 4\n'
+        'named animal! Mia cat black!\n'
+        'named animal! Tiny dog! 1 toy ball',
+      );
+    },
+  );
+
+  test(
+    'compiles unnamed redirecting constructors through compiler components',
     () async {
       final source = File(
         p.join(
@@ -830,56 +845,59 @@ void main() {
     },
   );
 
-  test('compiles redirecting constructors through the new core', () async {
-    final source = File(
-      p.join(fixtureDir.path, 'classes', 'redirecting_constructors.dart'),
-    );
-    final expected = File(
-      p.join(fixtureDir.path, 'classes', 'redirecting_constructors.mjs'),
-    );
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-redirecting-constructors-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+  test(
+    'compiles redirecting constructors through compiler components',
+    () async {
+      final source = File(
+        p.join(fixtureDir.path, 'classes', 'redirecting_constructors.dart'),
+      );
+      final expected = File(
+        p.join(fixtureDir.path, 'classes', 'redirecting_constructors.mjs'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-redirecting-constructors-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: source.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    expect(output.readAsStringSync(), expected.readAsStringSync());
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(output.readAsStringSync(), expected.readAsStringSync());
 
-    final nodeResult = await Process.run('node', [output.path]);
-    expect(
-      nodeResult.exitCode,
-      0,
-      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
-    );
-    expect(
-      (nodeResult.stdout as String).trim(),
-      'point:0,0\n'
-      'alias:4,5\n'
-      'default:0,1\n'
-      'mirror:5,5\n'
-      '0..10\n'
-      '5..15\n'
-      'default:1:true\n'
-      'from:2:true\n'
-      'off:3:false\n'
-      'animal Rex dog! 4\n'
-      'animal Tiny dog! 1 toy ball\n'
-      'point:0,0 red\n'
-      'default:0,1 wrapped',
-    );
-  });
+      final nodeResult = await Process.run('node', [output.path]);
+      expect(
+        nodeResult.exitCode,
+        0,
+        reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+      );
+      expect(
+        (nodeResult.stdout as String).trim(),
+        'point:0,0\n'
+        'alias:4,5\n'
+        'default:0,1\n'
+        'mirror:5,5\n'
+        '0..10\n'
+        '5..15\n'
+        'default:1:true\n'
+        'from:2:true\n'
+        'off:3:false\n'
+        'animal Rex dog! 4\n'
+        'animal Tiny dog! 1 toy ball\n'
+        'point:0,0 red\n'
+        'default:0,1 wrapped',
+      );
+    },
+  );
 
   test(
-    'compiles redirecting factory constructors through the new core',
+    'compiles redirecting factory constructors through compiler components',
     () async {
       final source = File(
         p.join(
@@ -969,33 +987,36 @@ void main() {
     },
   );
 
-  test('compiles factory constructor bodies through the new core', () async {
-    final source = File(
-      p.join(fixtureDir.path, 'classes', 'factory_bodies.dart'),
-    );
-    final expected = File(
-      p.join(fixtureDir.path, 'classes', 'factory_bodies.mjs'),
-    );
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-factory-bodies-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final output = File(p.join(tempDir.path, 'factory_bodies.mjs'));
+  test(
+    'compiles factory constructor bodies through compiler components',
+    () async {
+      final source = File(
+        p.join(fixtureDir.path, 'classes', 'factory_bodies.dart'),
+      );
+      final expected = File(
+        p.join(fixtureDir.path, 'classes', 'factory_bodies.mjs'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-factory-bodies-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'factory_bodies.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: source.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    expect(output.readAsStringSync(), expected.readAsStringSync());
-    await _expectSameDartAndNodeOutput(source, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(output.readAsStringSync(), expected.readAsStringSync());
+      await _expectSameDartAndNodeOutput(source, output);
+    },
+  );
 
-  test('compiles function parameters through the new core', () async {
+  test('compiles function parameters through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'functions', 'parameters.dart'),
     );
@@ -1036,7 +1057,7 @@ void main() {
     );
   });
 
-  test('compiles Function.apply through the new core', () async {
+  test('compiles Function.apply through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'functions', 'function_apply.dart'),
     );
@@ -1075,7 +1096,7 @@ void main() {
     );
   });
 
-  test('compiles function values through the new core', () async {
+  test('compiles function values through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'functions', 'function_values.dart'),
     );
@@ -1108,7 +1129,7 @@ void main() {
     expect((nodeResult.stdout as String).trim(), '7\n10\n3\n8');
   });
 
-  test('compiles if/else control flow through the new core', () async {
+  test('compiles if/else control flow through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-if-core-');
     addTearDown(() => tempDir.deleteSync(recursive: true));
     final input = File(p.join(tempDir.path, 'main.dart'))
@@ -1147,7 +1168,7 @@ void main() {
     expect((nodeResult.stdout as String).trim(), 'then');
   });
 
-  test('compiles while control flow through the new core', () async {
+  test('compiles while control flow through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-while-core-',
     );
@@ -1187,7 +1208,7 @@ void main() {
     expect((nodeResult.stdout as String).trim(), 'i 0\ni 1\ni 2');
   });
 
-  test('compiles for control flow through the new core', () async {
+  test('compiles for control flow through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-for-core-');
     addTearDown(() => tempDir.deleteSync(recursive: true));
     final input = File(p.join(tempDir.path, 'main.dart'))
@@ -1225,7 +1246,7 @@ void main() {
     expect((nodeResult.stdout as String).trim(), 'total 6');
   });
 
-  test('compiles do control flow through the new core', () async {
+  test('compiles do control flow through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-do-core-');
     addTearDown(() => tempDir.deleteSync(recursive: true));
     final input = File(p.join(tempDir.path, 'main.dart'))
@@ -1263,13 +1284,15 @@ void main() {
     expect((nodeResult.stdout as String).trim(), 'do 0\ndo 1');
   });
 
-  test('compiles loop break and continue through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-loop-jumps-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles loop break and continue through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-loop-jumps-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 void main() {
   var i = 0;
   while (i < 5) {
@@ -1285,35 +1308,36 @@ void main() {
   print('done \$i');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('  label: {'));
-    expect(code, contains('      label_1: {'));
-    expect(code, contains('          break label_1;'));
-    expect(code, contains('          break label;'));
-    expect(code, contains(r'        __dartPrint(`hit ${__dartStr(i)}`);'));
-    expect(code, contains(r'  __dartPrint(`done ${__dartStr(i)}`);'));
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('  label: {'));
+      expect(code, contains('      label_1: {'));
+      expect(code, contains('          break label_1;'));
+      expect(code, contains('          break label;'));
+      expect(code, contains(r'        __dartPrint(`hit ${__dartStr(i)}`);'));
+      expect(code, contains(r'  __dartPrint(`done ${__dartStr(i)}`);'));
 
-    final nodeResult = await Process.run('node', [output.path]);
-    expect(
-      nodeResult.exitCode,
-      0,
-      reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
-    );
-    expect((nodeResult.stdout as String).trim(), 'hit 3\ndone 4');
-  });
+      final nodeResult = await Process.run('node', [output.path]);
+      expect(
+        nodeResult.exitCode,
+        0,
+        reason: '${nodeResult.stdout}\n${nodeResult.stderr}',
+      );
+      expect((nodeResult.stdout as String).trim(), 'hit 3\ndone 4');
+    },
+  );
 
-  test('compiles switch control flow through the new core', () async {
+  test('compiles switch control flow through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-switch-core-',
     );
@@ -1411,7 +1435,7 @@ void main() {
     expect(nodeResult.stderr, isEmpty);
   });
 
-  test('compiles type tests through the new core', () async {
+  test('compiles type tests through compiler components', () async {
     final source = File(p.join(fixtureDir.path, 'syntax', 'type_tests.dart'));
     final expected = File(p.join(fixtureDir.path, 'syntax', 'type_tests.mjs'));
     final tempDir = await Directory.systemTemp.createTemp(
@@ -1433,7 +1457,7 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles SDK object type tests through the new core', () async {
+  test('compiles SDK object type tests through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-sdk-type-tests-core-',
     );
@@ -1469,7 +1493,7 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
-  test('compiles typed data factories through the new core', () async {
+  test('compiles typed data factories through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-typed-data-factories-core-',
     );
@@ -1505,13 +1529,15 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
-  test('compiles typed data Endian constants through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-typed-data-endian-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles typed data Endian constants through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-typed-data-endian-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 import 'dart:typed_data';
 
 void main() {
@@ -1526,30 +1552,33 @@ void main() {
   );
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('data.setUint16(0, 2571, true);'));
-    expect(code, contains('data.setUint16(2, 3085, false);'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('data.setUint16(0, 2571, true);'));
+      expect(code, contains('data.setUint16(2, 3085, false);'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
-  test('compiles byte conversion sink adapters through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-byte-conversion-sink-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles byte conversion sink adapters through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-byte-conversion-sink-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 import 'dart:convert';
 
 void main() {
@@ -1574,24 +1603,25 @@ class _ListSink<T> implements Sink<T> {
   void close() {}
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('function __dartByteConversionSinkFrom'));
-    expect(code, contains('__dartByteConversionSinkFrom(new _ListSink'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('function __dartByteConversionSinkFrom'));
+      expect(code, contains('__dartByteConversionSinkFrom(new _ListSink'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
-  test('compiles control operators through the new core', () async {
+  test('compiles control operators through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'syntax', 'control_operators.dart'),
     );
@@ -1617,7 +1647,7 @@ class _ListSink<T> implements Sink<T> {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles pattern matching through the new core', () async {
+  test('compiles pattern matching through compiler components', () async {
     final source = File(p.join(fixtureDir.path, 'syntax', 'patterns.dart'));
     final expected = File(p.join(fixtureDir.path, 'syntax', 'patterns.mjs'));
     final tempDir = await Directory.systemTemp.createTemp(
@@ -1639,7 +1669,7 @@ class _ListSink<T> implements Sink<T> {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles core number helpers through the new core', () async {
+  test('compiles core number helpers through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-core-numbers-',
     );
@@ -1722,7 +1752,7 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
-  test('compiles core List factories through the new core', () async {
+  test('compiles core List factories through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-core-list-factories-',
     );
@@ -1826,13 +1856,15 @@ class EqBox {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
-  test('compiles core Set and Map factories through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-core-map-set-factories-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles core Set and Map factories through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-core-map-set-factories-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 import 'dart:collection';
 
 void main() {
@@ -1874,32 +1906,35 @@ void main() {
       '\${iterableMap[3]} \${iterablesMap['y']}');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('new Set'));
-    expect(code, contains('new Map'));
-    expect(code, contains('__dartMapFromIterable'));
-    expect(code, contains('__dartMapFromIterables'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('new Set'));
+      expect(code, contains('new Map'));
+      expect(code, contains('__dartMapFromIterable'));
+      expect(code, contains('__dartMapFromIterables'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
-  test('compiles ListMixin inherited getters through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-list-mixin-getters-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles ListMixin inherited getters through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-list-mixin-getters-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 import 'dart:collection';
 
 class Items<E> extends Object with ListMixin<E> {
@@ -1932,19 +1967,20 @@ void main() {
       '\${items.join(':')}');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
   test('dispatches List index operators through list-like helpers', () async {
     final tempDir = await Directory.systemTemp.createTemp(
@@ -2001,7 +2037,7 @@ void main() {
   });
 
   test(
-    'compiles mixin application super constructors through the new core',
+    'compiles mixin application super constructors through compiler components',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'dart2esm-mixin-super-core-',
@@ -2043,7 +2079,7 @@ void main() {
     },
   );
 
-  test('compiles super operator calls through the new core', () async {
+  test('compiles super operator calls through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-super-operator-core-',
     );
@@ -2092,7 +2128,7 @@ void main() {
   });
 
   test(
-    'compiles abstract superclass type tests through the new core',
+    'compiles abstract superclass type tests through compiler components',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'dart2esm-abstract-supertype-core-',
@@ -2178,7 +2214,7 @@ void main() {
     },
   );
 
-  test('compiles collections fixture through the new core', () async {
+  test('compiles collections fixture through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'libraries', 'collections.dart'),
     );
@@ -2204,38 +2240,43 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles dart:collection fixture through the new core', () async {
-    final source = File(
-      p.join(fixtureDir.path, 'libraries', 'collection.dart'),
-    );
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-dart-collection-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final output = File(p.join(tempDir.path, 'collection.mjs'));
+  test(
+    'compiles dart:collection fixture through compiler components',
+    () async {
+      final source = File(
+        p.join(fixtureDir.path, 'libraries', 'collection.dart'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-dart-collection-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'collection.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: source.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('__dartSplayTreeSet'));
-    expect(code, contains('__dartSplayTreeMap'));
-    await _expectSameDartAndNodeOutput(source, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('__dartSplayTreeSet'));
+      expect(code, contains('__dartSplayTreeMap'));
+      await _expectSameDartAndNodeOutput(source, output);
+    },
+  );
 
-  test('compiles dart:collection base views through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-dart-collection-views-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles dart:collection base views through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-dart-collection-views-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 import 'dart:collection';
 
 void main() {
@@ -2250,26 +2291,27 @@ void main() {
   );
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('__dartUnmodifiableMapView'));
-    expect(code, contains('__dartUnmodifiableListView'));
-    expect(code, isNot(contains('MapBase.mapToString')));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('__dartUnmodifiableMapView'));
+      expect(code, contains('__dartUnmodifiableListView'));
+      expect(code, isNot(contains('MapBase.mapToString')));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
   test(
-    'compiles core Iterable static toString helpers through the new core',
+    'compiles core Iterable static toString helpers through compiler components',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'dart2esm-iterable-static-string-core-',
@@ -2303,35 +2345,38 @@ void main() {
     },
   );
 
-  test('compiles core Uri.base static getter through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-uri-base-static-get-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles core Uri.base static getter through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-uri-base-static-get-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 void main() {
   print('uriBase \${Uri.base.scheme.isNotEmpty}');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('__dartUriParse'));
-    expect(code, contains('import.meta.url'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('__dartUriParse'));
+      expect(code, contains('import.meta.url'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
-  test('compiles core Uri.toFilePath through the new core', () async {
+  test('compiles core Uri.toFilePath through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-uri-to-file-path-core-',
     );
@@ -2361,7 +2406,7 @@ void main() {
   });
 
   test(
-    'compiles package libraries through the new core without adapters',
+    'compiles package libraries through compiler components without adapters',
     () async {
       final source = File(
         p.join(fixtureDir.path, 'packages', 'collection_usage.dart'),
@@ -2390,33 +2435,36 @@ void main() {
     },
   );
 
-  test('compiles strings and URI fixture through the new core', () async {
-    final source = File(
-      p.join(fixtureDir.path, 'libraries', 'strings_numbers.dart'),
-    );
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-strings-uri-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final output = File(p.join(tempDir.path, 'strings_numbers.mjs'));
+  test(
+    'compiles strings and URI fixture through compiler components',
+    () async {
+      final source = File(
+        p.join(fixtureDir.path, 'libraries', 'strings_numbers.dart'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-strings-uri-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'strings_numbers.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: source.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('__dartUriParse'));
-    expect(code, contains('__dartUriBuild'));
-    expect(code, contains('__dartLatin1Codec'));
-    await _expectSameDartAndNodeOutput(source, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('__dartUriParse'));
+      expect(code, contains('__dartUriBuild'));
+      expect(code, contains('__dartLatin1Codec'));
+      await _expectSameDartAndNodeOutput(source, output);
+    },
+  );
 
-  test('compiles core String factories through the new core', () async {
+  test('compiles core String factories through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-core-string-factories-',
     );
@@ -2447,7 +2495,7 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
-  test('compiles core String methods through the new core', () async {
+  test('compiles core String methods through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-core-string-methods-',
     );
@@ -2487,7 +2535,7 @@ void main() {
     await _expectSameDartAndNodeOutput(input, output);
   });
 
-  test('compiles const collections through the new core', () async {
+  test('compiles const collections through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'syntax', 'const_collections.dart'),
     );
@@ -2513,38 +2561,41 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles mutable collection syntax through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-mutable-collections-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-
-    for (final id in const [
-      'control_flow/loops_and_switch',
-      'syntax/collection_elements',
-      'syntax/modern_syntax',
-    ]) {
-      final source = File(p.join(fixtureDir.path, '$id.dart'));
-      final expected = File(p.join(fixtureDir.path, '$id.mjs'));
-      final output = File(
-        p.join(tempDir.path, '${id.replaceAll('/', '_')}.mjs'),
+  test(
+    'compiles mutable collection syntax through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-mutable-collections-core-',
       );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
 
-      final result = await compileDartToEsm(
-        Dart2EsmOptions(
-          inputPath: source.path,
-          outputPath: output.path,
-          workingDirectory: Directory.current,
-        ),
-      );
+      for (final id in const [
+        'control_flow/loops_and_switch',
+        'syntax/collection_elements',
+        'syntax/modern_syntax',
+      ]) {
+        final source = File(p.join(fixtureDir.path, '$id.dart'));
+        final expected = File(p.join(fixtureDir.path, '$id.mjs'));
+        final output = File(
+          p.join(tempDir.path, '${id.replaceAll('/', '_')}.mjs'),
+        );
 
-      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-      expect(output.readAsStringSync(), expected.readAsStringSync());
-      await _expectSameDartAndNodeOutput(source, output);
-    }
-  });
+        final result = await compileDartToEsm(
+          Dart2EsmOptions(
+            inputPath: source.path,
+            outputPath: output.path,
+            workingDirectory: Directory.current,
+          ),
+        );
 
-  test('compiles const value objects through the new core', () async {
+        expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+        expect(output.readAsStringSync(), expected.readAsStringSync());
+        await _expectSameDartAndNodeOutput(source, output);
+      }
+    },
+  );
+
+  test('compiles const value objects through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-const-values-core-',
     );
@@ -2576,7 +2627,7 @@ void main() {
     }
   });
 
-  test('compiles operator members through the new core', () async {
+  test('compiles operator members through compiler components', () async {
     final source = File(p.join(fixtureDir.path, 'classes', 'operators.dart'));
     final expected = File(p.join(fixtureDir.path, 'classes', 'operators.mjs'));
     final tempDir = await Directory.systemTemp.createTemp(
@@ -2598,7 +2649,7 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles Object.hash helpers through the new core', () async {
+  test('compiles Object.hash helpers through compiler components', () async {
     final source = File(
       p.join(fixtureDir.path, 'libraries', 'object_hash.dart'),
     );
@@ -2624,7 +2675,7 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles BigInt helpers through the new core', () async {
+  test('compiles BigInt helpers through compiler components', () async {
     final source = File(p.join(fixtureDir.path, 'libraries', 'bigint.dart'));
     final expected = File(p.join(fixtureDir.path, 'libraries', 'bigint.mjs'));
     final tempDir = await Directory.systemTemp.createTemp(
@@ -2646,31 +2697,36 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles dart:developer stripping through the new core', () async {
-    final source = File(p.join(fixtureDir.path, 'libraries', 'developer.dart'));
-    final expected = File(
-      p.join(fixtureDir.path, 'libraries', 'developer.mjs'),
-    );
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-developer-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final output = File(p.join(tempDir.path, 'developer.mjs'));
+  test(
+    'compiles dart:developer stripping through compiler components',
+    () async {
+      final source = File(
+        p.join(fixtureDir.path, 'libraries', 'developer.dart'),
+      );
+      final expected = File(
+        p.join(fixtureDir.path, 'libraries', 'developer.mjs'),
+      );
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-developer-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final output = File(p.join(tempDir.path, 'developer.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: source.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: source.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    expect(output.readAsStringSync(), expected.readAsStringSync());
-    await _expectSameDartAndNodeOutput(source, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      expect(output.readAsStringSync(), expected.readAsStringSync());
+      await _expectSameDartAndNodeOutput(source, output);
+    },
+  );
 
-  test('compiles dart:math helpers through the new core', () async {
+  test('compiles dart:math helpers through compiler components', () async {
     final source = File(p.join(fixtureDir.path, 'libraries', 'math.dart'));
     final expected = File(p.join(fixtureDir.path, 'libraries', 'math.mjs'));
     final tempDir = await Directory.systemTemp.createTemp(
@@ -2692,13 +2748,15 @@ void main() {
     await _expectSameDartAndNodeOutput(source, output);
   });
 
-  test('compiles SDK static tear-off constants through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-sdk-static-tearoff-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles SDK static tear-off constants through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-sdk-static-tearoff-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 import 'dart:math' as math;
 
 const pick = math.max;
@@ -2708,30 +2766,33 @@ void main() {
   print('tearOff \${pick(2, 5)} \${root(9).toStringAsFixed(1)}');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('Math.max'));
-    expect(code, contains('Math.sqrt'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('Math.max'));
+      expect(code, contains('Math.sqrt'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
-  test('compiles RangeError static checks through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-range-checks-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles RangeError static checks through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-range-checks-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 void main() {
   final end = RangeError.checkValidRange(1, null, 4);
   final index = RangeError.checkValidIndex(2, [1, 2, 3]);
@@ -2740,30 +2801,33 @@ void main() {
   print('range \$end \$index \$nonNegative \$interval');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
+      final result = await compileDartToEsm(
+        Dart2EsmOptions(
+          inputPath: input.path,
+          outputPath: output.path,
+          workingDirectory: Directory.current,
+        ),
+      );
 
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    final code = output.readAsStringSync();
-    expect(code, contains('__dartCheckValidRange'));
-    expect(code, contains('__dartCheckValidIndex'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
+      expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+      final code = output.readAsStringSync();
+      expect(code, contains('__dartCheckValidRange'));
+      expect(code, contains('__dartCheckValidIndex'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
-  test('compiles ArgumentError static checks through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-argument-checks-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-    final input = File(p.join(tempDir.path, 'main.dart'))
-      ..writeAsStringSync('''
+  test(
+    'compiles ArgumentError static checks through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-argument-checks-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final input = File(p.join(tempDir.path, 'main.dart'))
+        ..writeAsStringSync('''
 void main() {
   final value = ArgumentError.checkNotNull<String>('ok', 'value');
   var caught = false;
@@ -2775,55 +2839,59 @@ void main() {
   print('argument \$value \$caught');
 }
 ''');
-    final output = File(p.join(tempDir.path, 'main.mjs'));
-
-    final result = await compileDartToEsm(
-      Dart2EsmOptions(
-        inputPath: input.path,
-        outputPath: output.path,
-        workingDirectory: Directory.current,
-      ),
-    );
-
-    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-    expect(output.readAsStringSync(), contains('__dartCheckNotNull'));
-    await _expectSameDartAndNodeOutput(input, output);
-  });
-
-  test('compiles exception and assert flow through the new core', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'dart2esm-exceptions-core-',
-    );
-    addTearDown(() => tempDir.deleteSync(recursive: true));
-
-    for (final id in const [
-      'classes/const_instances',
-      'control_flow/core_exceptions',
-      'control_flow/exceptions',
-      'syntax/asserts',
-      'syntax/casts',
-    ]) {
-      final source = File(p.join(fixtureDir.path, '$id.dart'));
-      final expected = File(p.join(fixtureDir.path, '$id.mjs'));
-      final output = File(
-        p.join(tempDir.path, '${id.replaceAll('/', '_')}.mjs'),
-      );
+      final output = File(p.join(tempDir.path, 'main.mjs'));
 
       final result = await compileDartToEsm(
         Dart2EsmOptions(
-          inputPath: source.path,
+          inputPath: input.path,
           outputPath: output.path,
           workingDirectory: Directory.current,
         ),
       );
 
       expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
-      expect(output.readAsStringSync(), expected.readAsStringSync());
-      await _expectSameDartAndNodeOutput(source, output);
-    }
-  });
+      expect(output.readAsStringSync(), contains('__dartCheckNotNull'));
+      await _expectSameDartAndNodeOutput(input, output);
+    },
+  );
 
-  test('compiles enums through the new core', () async {
+  test(
+    'compiles exception and assert flow through compiler components',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'dart2esm-exceptions-core-',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      for (final id in const [
+        'classes/const_instances',
+        'control_flow/core_exceptions',
+        'control_flow/exceptions',
+        'syntax/asserts',
+        'syntax/casts',
+      ]) {
+        final source = File(p.join(fixtureDir.path, '$id.dart'));
+        final expected = File(p.join(fixtureDir.path, '$id.mjs'));
+        final output = File(
+          p.join(tempDir.path, '${id.replaceAll('/', '_')}.mjs'),
+        );
+
+        final result = await compileDartToEsm(
+          Dart2EsmOptions(
+            inputPath: source.path,
+            outputPath: output.path,
+            workingDirectory: Directory.current,
+          ),
+        );
+
+        expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+        expect(output.readAsStringSync(), expected.readAsStringSync());
+        await _expectSameDartAndNodeOutput(source, output);
+      }
+    },
+  );
+
+  test('compiles enums through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-enums-core-',
     );
@@ -2850,7 +2918,7 @@ void main() {
     }
   });
 
-  test('compiles local library imports through the new core', () async {
+  test('compiles local library imports through compiler components', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'dart2esm-local-imports-core-',
     );
@@ -3424,7 +3492,7 @@ Future<void> _expectGoldenFixture(_GoldenFixture fixture) async {
       result.success,
       isFalse,
       reason:
-          '${fixture.id} is listed as pending new-core coverage; remove it '
+          '${fixture.id} is listed as pending compiler component coverage; remove it '
           'from _pendingNewCoreFixtureIds when it compiles.',
     );
     expect(result.diagnostics.join('\n'), isNotEmpty);

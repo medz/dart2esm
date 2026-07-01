@@ -1,4 +1,4 @@
-import 'package:dart2esm/src/compiler/semantic/analysis/sdk_classification.dart';
+import 'package:dart2esm/src/semantic/analysis/sdk_classification.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 

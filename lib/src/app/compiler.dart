@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:dart2esm/src/foundation/diagnostics/metrics.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_kernel_node.dart';
 import 'package:dart2esm/src/foundation/kernel/kernel_header.dart';
-import 'package:dart2esm/src/compiler/compiler.dart';
-import 'package:dart2esm/src/compiler/unsupported.dart';
+import 'package:dart2esm/src/compiler.dart';
+import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 
@@ -56,7 +56,7 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
     );
   } on UnsupportedKernelNode catch (error) {
     return Dart2EsmResult(success: false, diagnostics: [error.toString()]);
-  } on NewCompilerUnsupported catch (error) {
+  } on UnsupportedCompilerFeature catch (error) {
     return Dart2EsmResult(success: false, diagnostics: [error.toString()]);
   } finally {
     await tempDir.delete(recursive: true);

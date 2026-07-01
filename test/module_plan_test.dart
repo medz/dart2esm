@@ -1,5 +1,5 @@
-import 'package:dart2esm/src/compiler/semantic/model/esm_module_plan.dart';
-import 'package:dart2esm/src/compiler/semantic/analysis/reachability.dart';
+import 'package:dart2esm/src/semantic/model/esm_module_plan.dart';
+import 'package:dart2esm/src/semantic/analysis/reachability.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
@@ -16,7 +16,7 @@ void main() {
     library.addProcedure(hiddenProcedure);
     library.addProcedure(exportedProcedure);
 
-    final world = EsmProgramPlan(
+    final program = EsmProgramPlan(
       libraries: {library},
       classes: const {},
       extensionTypes: const {},
@@ -26,7 +26,7 @@ void main() {
 
     final plan = buildEsmModulePlan(
       orderedLibraries: [library],
-      world: world,
+      program: program,
       exportNamesByLibrary: {
         library: {'exportedField', 'exportedProcedure'},
       },
@@ -61,7 +61,7 @@ void main() {
     library.addClass(derived);
     library.addClass(base);
 
-    final world = EsmProgramPlan(
+    final program = EsmProgramPlan(
       libraries: {library},
       classes: {derived, base},
       extensionTypes: const {},
@@ -71,7 +71,7 @@ void main() {
 
     final plan = buildEsmModulePlan(
       orderedLibraries: [library],
-      world: world,
+      program: program,
       exportNamesByLibrary: {
         library: {'Derived'},
       },
@@ -120,7 +120,7 @@ void main() {
       library.addClass(mixinBase);
       library.addClass(mixinApplication);
 
-      final world = EsmProgramPlan(
+      final program = EsmProgramPlan(
         libraries: {library},
         classes: {
           inheritedInterface,
@@ -136,7 +136,7 @@ void main() {
 
       final plan = buildEsmModulePlan(
         orderedLibraries: [library],
-        world: world,
+        program: program,
         exportNamesByLibrary: const {},
       );
 
@@ -180,7 +180,7 @@ void main() {
     library.addClass(base);
     library.addClass(derived);
 
-    final world = EsmProgramPlan(
+    final program = EsmProgramPlan(
       libraries: {library},
       classes: {base, derived},
       extensionTypes: const {},
@@ -190,7 +190,7 @@ void main() {
 
     final plan = buildEsmModulePlan(
       orderedLibraries: [library],
-      world: world,
+      program: program,
       exportNamesByLibrary: const {},
     );
 
@@ -223,7 +223,7 @@ void main() {
     library.addProcedure(tearOff);
     library.addExtensionTypeDeclaration(extensionType);
 
-    final world = EsmProgramPlan(
+    final program = EsmProgramPlan(
       libraries: {library},
       classes: const {},
       extensionTypes: {extensionType},
@@ -233,7 +233,7 @@ void main() {
 
     final plan = buildEsmModulePlan(
       orderedLibraries: [library],
-      world: world,
+      program: program,
       exportNamesByLibrary: const {},
     );
 

@@ -190,18 +190,28 @@ void main() {
     expect(registry, contains('final class DartSdkIntrinsicRegistry'));
     expect(registry, contains('lowerInstanceConstant'));
     expect(registry, contains('lowerInstanceInvocation'));
+    expect(registry, contains('lowerInstanceGet'));
     expect(registry, contains('lowerConstructorInvocation'));
+    expect(registry, contains('lowerStaticInvocation'));
     expect(lowering, contains('final DartSdkIntrinsicRegistry sdkIntrinsics'));
     expect(lowering, contains('sdkIntrinsics.lowerInstanceConstant'));
     expect(lowering, contains('sdkIntrinsics.lowerInstanceInvocation'));
+    expect(lowering, contains('sdkIntrinsics.lowerInstanceGet'));
     expect(lowering, contains('sdkIntrinsics.lowerConstructorInvocation'));
+    expect(lowering, contains('sdkIntrinsics.lowerStaticInvocation'));
     expect(lowering, isNot(contains('_lowerByteDataInstanceInvocation')));
     expect(lowering, isNot(contains('_lowerDartConvertConstructorInvocation')));
     expect(lowering, isNot(contains('_lowerDartTypedDataInstanceConstant')));
+    expect(lowering, isNot(contains('_lowerTypedDataInstanceGet')));
+    expect(lowering, isNot(contains('_lowerTypedDataStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerTypedDataSublistView')));
     expect(lowering, isNot(contains('dart:convert::_Byte')));
     expect(lowering, isNot(contains('dart:typed_data::Endian')));
+    expect(lowering, isNot(contains('dart:typed_data::ByteData')));
     expect(typedData, contains('dart:typed_data::Endian'));
     expect(typedData, contains('lowerByteDataInstanceInvocation'));
+    expect(typedData, contains('lowerTypedDataInstanceGet'));
+    expect(typedData, contains('lowerTypedDataStaticInvocation'));
     expect(convert, contains('dart:convert::_ByteAdapterSink'));
     expect(convert, contains('dart:convert::_ByteCallbackSink'));
   });
@@ -369,6 +379,7 @@ void main() {
           .join('\n');
       expect(nonImportSource, isNot(contains("'package:")), reason: file.path);
       expect(nonImportSource, isNot(contains('"package:')), reason: file.path);
+      expect(nonImportSource, isNot(contains('package_')), reason: file.path);
     }
   });
 

@@ -3,6 +3,7 @@ import 'package:kernel/kernel.dart' as k;
 import '../../../kernel/kernel_references.dart';
 import '../../../kernel/sdk_symbols.dart';
 import '../../ir/esm_ir.dart';
+import '../../runtime/runtime_helpers.dart';
 
 EsmExpressionIr? lowerDartTypedDataInstanceConstant(
   k.InstanceConstant constant,
@@ -75,6 +76,142 @@ EsmExpressionIr? lowerByteDataInstanceInvocation({
   return call;
 }
 
+EsmExpressionIr? lowerTypedDataInstanceGet({
+  required k.Reference reference,
+  required String name,
+  required EsmExpressionIr Function() lowerReceiver,
+}) {
+  if (!isDartTypedDataMember(reference, name)) {
+    return null;
+  }
+  final receiver = lowerReceiver();
+  return switch (name) {
+    'buffer' => EsmPropertyAccessIr(receiver: receiver, property: 'buffer'),
+    'lengthInBytes' => EsmPropertyAccessIr(
+      receiver: receiver,
+      property: 'byteLength',
+    ),
+    'offsetInBytes' => EsmPropertyAccessIr(
+      receiver: receiver,
+      property: 'byteOffset',
+    ),
+    'elementSizeInBytes' => EsmConditionalIr(
+      condition: EsmBinaryIr(
+        left: receiver,
+        operator: EsmBinaryOperatorIr.instanceOf,
+        right: const EsmIdentifierIr('DataView'),
+      ),
+      thenExpression: const EsmNumberLiteralIr(1),
+      otherwiseExpression: EsmPropertyAccessIr(
+        receiver: receiver,
+        property: 'BYTES_PER_ELEMENT',
+      ),
+    ),
+    _ => null,
+  };
+}
+
+EsmExpressionIr? lowerTypedDataStaticInvocation({
+  required k.StaticInvocation expression,
+  required EsmRuntimeHelperUseSet helpers,
+  required EsmRuntimeHelperRegistry runtimeHelpers,
+  required EsmExpressionIr Function(k.Expression argument) lower,
+}) {
+  if (expression.arguments.named.isNotEmpty ||
+      expression.arguments.types.isNotEmpty) {
+    return null;
+  }
+  final target = kernelReferencePath(expression.targetReference);
+  if (!target.startsWith('dart:typed_data::')) {
+    return null;
+  }
+  final parts = target.split('::');
+  if (parts.length < 4 || parts[2] != '@factories') {
+    return null;
+  }
+  final className = parts[1];
+  final factoryName = parts.last;
+  final positional = expression.arguments.positional;
+
+  if (className == 'ByteData') {
+    if (factoryName.isEmpty && positional.length == 1) {
+      return EsmNewIr(
+        callee: const EsmIdentifierIr('DataView'),
+        arguments: [
+          EsmNewIr(
+            callee: const EsmIdentifierIr('ArrayBuffer'),
+            arguments: [lower(positional.single)],
+          ),
+        ],
+      );
+    }
+    if (factoryName == 'view') {
+      return _lowerTypedDataView('DataView', positional, lower);
+    }
+    if (factoryName == 'sublistView') {
+      return _lowerTypedDataSublistView(
+        helpers,
+        runtimeHelpers,
+        'DataView',
+        bytesPerElement: 1,
+        positional: positional,
+        lower: lower,
+      );
+    }
+    return null;
+  }
+
+  final constructor = _typedDataArrayConstructorName(className);
+  if (constructor == null) {
+    return null;
+  }
+  if (factoryName.isEmpty && positional.length == 1) {
+    return EsmNewIr(
+      callee: EsmIdentifierIr(constructor),
+      arguments: [lower(positional.single)],
+    );
+  }
+  if (factoryName == 'fromList' && positional.length == 1) {
+    final arguments = <EsmExpressionIr>[lower(positional.single)];
+    if (constructor == 'BigInt64Array' || constructor == 'BigUint64Array') {
+      arguments.add(
+        const EsmArrowFunctionIr(
+          parameters: [EsmIdentifierParameterIr(name: 'value')],
+          body: EsmCallIr(
+            callee: EsmIdentifierIr('BigInt'),
+            arguments: [EsmIdentifierIr('value')],
+          ),
+        ),
+      );
+    }
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(
+        receiver: EsmIdentifierIr(constructor),
+        property: 'from',
+      ),
+      arguments: arguments,
+    );
+  }
+  if (factoryName == 'view') {
+    return _lowerTypedDataView(constructor, positional, lower);
+  }
+  if (factoryName == 'sublistView') {
+    final bytesPerElement = _typedDataArrayBytesPerElement(className);
+    if (bytesPerElement == null) {
+      return null;
+    }
+    return _lowerTypedDataSublistView(
+      helpers,
+      runtimeHelpers,
+      constructor,
+      bytesPerElement: bytesPerElement,
+      positional: positional,
+      lower: lower,
+    );
+  }
+  return null;
+}
+
 String? _byteDataNativeMethodName(String dartMethodName) {
   return switch (dartMethodName) {
     'getInt8' ||
@@ -98,5 +235,88 @@ String? _byteDataNativeMethodName(String dartMethodName) {
     'setInt64' => 'setBigInt64',
     'setUint64' => 'setBigUint64',
     _ => null,
+  };
+}
+
+EsmExpressionIr? _lowerTypedDataView(
+  String constructor,
+  List<k.Expression> positional,
+  EsmExpressionIr Function(k.Expression argument) lower,
+) {
+  if (positional.isEmpty || positional.length > 3) {
+    return null;
+  }
+  final arguments = <EsmExpressionIr>[lower(positional[0])];
+  if (positional.length >= 2) {
+    arguments.add(lower(positional[1]));
+  }
+  if (positional.length >= 3 && !_isNullLiteral(positional[2])) {
+    arguments.add(lower(positional[2]));
+  }
+  return EsmNewIr(callee: EsmIdentifierIr(constructor), arguments: arguments);
+}
+
+EsmExpressionIr? _lowerTypedDataSublistView(
+  EsmRuntimeHelperUseSet helpers,
+  EsmRuntimeHelperRegistry runtimeHelpers,
+  String constructor, {
+  required int bytesPerElement,
+  required List<k.Expression> positional,
+  required EsmExpressionIr Function(k.Expression argument) lower,
+}) {
+  if (positional.isEmpty || positional.length > 3) {
+    return null;
+  }
+  helpers.require(EsmRuntimeHelper.typedDataSublistView);
+  return EsmCallIr(
+    callee: helpers.reference(
+      runtimeHelpers,
+      EsmRuntimeHelper.typedDataSublistView,
+    ),
+    arguments: [
+      lower(positional[0]),
+      positional.length >= 2
+          ? lower(positional[1])
+          : const EsmNumberLiteralIr(0),
+      positional.length >= 3 ? lower(positional[2]) : const EsmNullLiteralIr(),
+      EsmIdentifierIr(constructor),
+      EsmNumberLiteralIr(bytesPerElement),
+    ],
+  );
+}
+
+String? _typedDataArrayConstructorName(String dartTypeName) {
+  return switch (dartTypeName) {
+    'Int8List' => 'Int8Array',
+    'Uint8List' => 'Uint8Array',
+    'Uint8ClampedList' => 'Uint8ClampedArray',
+    'Int16List' => 'Int16Array',
+    'Uint16List' => 'Uint16Array',
+    'Int32List' => 'Int32Array',
+    'Uint32List' => 'Uint32Array',
+    'Int64List' => 'BigInt64Array',
+    'Uint64List' => 'BigUint64Array',
+    'Float32List' => 'Float32Array',
+    'Float64List' => 'Float64Array',
+    _ => null,
+  };
+}
+
+int? _typedDataArrayBytesPerElement(String dartTypeName) {
+  return switch (dartTypeName) {
+    'Int8List' || 'Uint8List' || 'Uint8ClampedList' => 1,
+    'Int16List' || 'Uint16List' => 2,
+    'Int32List' || 'Uint32List' || 'Float32List' => 4,
+    'Int64List' || 'Uint64List' || 'Float64List' => 8,
+    _ => null,
+  };
+}
+
+bool _isNullLiteral(k.Expression expression) {
+  return switch (expression) {
+    k.NullLiteral() => true,
+    k.ConstantExpression(:final constant) when constant is k.NullConstant =>
+      true,
+    _ => false,
   };
 }

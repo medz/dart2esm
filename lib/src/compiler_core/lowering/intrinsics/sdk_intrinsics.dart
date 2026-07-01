@@ -28,6 +28,18 @@ final class DartSdkIntrinsicRegistry {
     );
   }
 
+  EsmExpressionIr? lowerInstanceGet({
+    required k.Reference reference,
+    required String name,
+    required EsmExpressionIr Function() lowerReceiver,
+  }) {
+    return lowerTypedDataInstanceGet(
+      reference: reference,
+      name: name,
+      lowerReceiver: lowerReceiver,
+    );
+  }
+
   EsmExpressionIr? lowerConstructorInvocation({
     required k.ConstructorInvocation expression,
     required EsmRuntimeHelperUseSet helpers,
@@ -36,6 +48,20 @@ final class DartSdkIntrinsicRegistry {
     return lowerDartConvertConstructorInvocation(
       expression: expression,
       helpers: helpers,
+      lower: lower,
+    );
+  }
+
+  EsmExpressionIr? lowerStaticInvocation({
+    required k.StaticInvocation expression,
+    required EsmRuntimeHelperUseSet helpers,
+    required EsmRuntimeHelperRegistry runtimeHelpers,
+    required EsmExpressionIr Function(k.Expression argument) lower,
+  }) {
+    return lowerTypedDataStaticInvocation(
+      expression: expression,
+      helpers: helpers,
+      runtimeHelpers: runtimeHelpers,
       lower: lower,
     );
   }

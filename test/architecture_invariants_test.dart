@@ -246,6 +246,29 @@ void main() {
     expect(lowering, contains('binding: EsmIdentifierBindingIr'));
   });
 
+  test('ESM operators use syntax enum IR', () {
+    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final operatorLiteral = RegExp(r'''operator:\s*['"]''');
+
+    expect(ir, contains('enum EsmBinaryOperatorIr'));
+    expect(ir, contains('enum EsmUnaryOperatorIr'));
+    expect(ir, contains('final EsmBinaryOperatorIr operator;'));
+    expect(ir, contains('final EsmUnaryOperatorIr operator;'));
+    expect(ir, isNot(contains('final String operator;')));
+    expect(codegen, contains('_emitBinaryOperator(EsmBinaryOperatorIr'));
+    expect(codegen, contains('_binaryPrecedence(EsmBinaryOperatorIr'));
+    expect(codegen, contains('_emitUnaryExpression(EsmUnaryIr'));
+    expect(codegen, isNot(contains('_binaryPrecedence(String')));
+    for (final file in _dartFiles('lib/src/compiler_core')) {
+      expect(
+        operatorLiteral.firstMatch(file.readAsStringSync()),
+        isNull,
+        reason: '${file.path} must model operators with enum IR',
+      );
+    }
+  });
+
   test('ESM object literal properties use property key IR', () {
     final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
     final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');

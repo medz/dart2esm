@@ -1314,10 +1314,10 @@ final class KernelToEsmIrLoweringStage
                     EsmBinaryIr(
                       left: EsmBinaryIr(
                         left: const EsmIdentifierIr('value'),
-                        operator: '!=',
+                        operator: EsmBinaryOperatorIr.looseNotEquals,
                         right: const EsmNullLiteralIr(),
                       ),
-                      operator: '&&',
+                      operator: EsmBinaryOperatorIr.logicalAnd,
                       right: EsmParenthesizedIr(
                         EsmBinaryIr(
                           left: EsmCallIr(
@@ -1330,13 +1330,13 @@ final class KernelToEsmIrLoweringStage
                             ),
                             arguments: const [EsmIdentifierIr('value')],
                           ),
-                          operator: '||',
+                          operator: EsmBinaryOperatorIr.logicalOr,
                           right: EsmBinaryIr(
                             left: EsmComputedPropertyAccessIr(
                               receiver: const EsmIdentifierIr('value'),
                               property: EsmIdentifierIr(markerName),
                             ),
-                            operator: '===',
+                            operator: EsmBinaryOperatorIr.strictEquals,
                             right: const EsmBooleanLiteralIr(true),
                           ),
                         ),
@@ -2750,7 +2750,7 @@ final class KernelToEsmIrLoweringStage
         statement: EsmWhileStatementIr(
           condition: EsmBinaryIr(
             left: EsmIdentifierIr(targetName),
-            operator: '!==',
+            operator: EsmBinaryOperatorIr.strictNotEquals,
             right: const EsmNumberLiteralIr(-1),
           ),
           body: [
@@ -3377,7 +3377,7 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       ),
       k.Not() => EsmUnaryIr(
-        operator: '!',
+        operator: EsmUnaryOperatorIr.logicalNot,
         operand: EsmParenthesizedIr(
           _lowerExpression(
             world,
@@ -3398,8 +3398,8 @@ final class KernelToEsmIrLoweringStage
             thisExpression: thisExpression,
           ),
           operator: expression.operatorEnum == k.LogicalExpressionOperator.AND
-              ? '&&'
-              : '||',
+              ? EsmBinaryOperatorIr.logicalAnd
+              : EsmBinaryOperatorIr.logicalOr,
           right: _lowerExpression(
             world,
             helpers,
@@ -3417,7 +3417,7 @@ final class KernelToEsmIrLoweringStage
           expression.expression,
           thisExpression: thisExpression,
         ),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNullLiteralIr(),
       ),
       k.ConditionalExpression() => EsmConditionalIr(
@@ -5034,7 +5034,7 @@ final class KernelToEsmIrLoweringStage
                 ),
                 arguments: [],
               ),
-              operator: '*',
+              operator: EsmBinaryOperatorIr.multiply,
               right: EsmNumberLiteralIr(1000),
             ),
           ],
@@ -5300,7 +5300,8 @@ final class KernelToEsmIrLoweringStage
     if (sdkIntrinsic != null) {
       return sdkIntrinsic;
     }
-    if (!_binaryOperators.contains(operator) ||
+    final binaryOperator = _binaryOperators[operator];
+    if (binaryOperator == null ||
         expression.arguments.positional.length != 1 ||
         expression.arguments.named.isNotEmpty ||
         expression.arguments.types.isNotEmpty) {
@@ -5328,7 +5329,7 @@ final class KernelToEsmIrLoweringStage
         expression.receiver,
         thisExpression: thisExpression,
       ),
-      operator: operator,
+      operator: binaryOperator,
       right: _lowerExpression(
         world,
         helpers,
@@ -6535,17 +6536,17 @@ final class KernelToEsmIrLoweringStage
       thisExpression: thisExpression,
     );
     if (target == 'dart:core::int::@methods::unary-') {
-      return EsmUnaryIr(operator: '-', operand: receiver);
+      return EsmUnaryIr(operator: EsmUnaryOperatorIr.negate, operand: receiver);
     }
     if (target == 'dart:core::num::@methods::unary-' ||
         target == 'dart:core::double::@methods::unary-') {
-      return EsmUnaryIr(operator: '-', operand: receiver);
+      return EsmUnaryIr(operator: EsmUnaryOperatorIr.negate, operand: receiver);
     }
     if (target == 'dart:core::BigInt::@methods::unary-') {
-      return EsmUnaryIr(operator: '-', operand: receiver);
+      return EsmUnaryIr(operator: EsmUnaryOperatorIr.negate, operand: receiver);
     }
     if (target == 'dart:core::int::@methods::~') {
-      return EsmUnaryIr(operator: '~', operand: receiver);
+      return EsmUnaryIr(operator: EsmUnaryOperatorIr.bitNot, operand: receiver);
     }
     if (target == 'dart:core::Object::@methods::toString') {
       helpers.require(EsmRuntimeHelper.safeToString);
@@ -8681,7 +8682,7 @@ final class KernelToEsmIrLoweringStage
             expression.receiver,
             thisExpression: thisExpression,
           ),
-          operator: '%',
+          operator: EsmBinaryOperatorIr.remainder,
           right: _lowerExpression(
             world,
             helpers,
@@ -8705,7 +8706,7 @@ final class KernelToEsmIrLoweringStage
               expression.receiver,
               thisExpression: thisExpression,
             ),
-            operator: '/',
+            operator: EsmBinaryOperatorIr.divide,
             right: _lowerExpression(
               world,
               helpers,
@@ -8887,10 +8888,13 @@ final class KernelToEsmIrLoweringStage
       return EsmConditionalIr(
         condition: EsmBinaryIr(
           left: receiver,
-          operator: '<',
+          operator: EsmBinaryOperatorIr.lessThan,
           right: _bigIntLiteral(0),
         ),
-        thenExpression: EsmUnaryIr(operator: '-', operand: receiver),
+        thenExpression: EsmUnaryIr(
+          operator: EsmUnaryOperatorIr.negate,
+          operand: receiver,
+        ),
         otherwiseExpression: receiver,
       );
     }
@@ -8898,7 +8902,7 @@ final class KernelToEsmIrLoweringStage
         positional.length == 1) {
       return EsmBinaryIr(
         left: receiver,
-        operator: '%',
+        operator: EsmBinaryOperatorIr.remainder,
         right: _lowerExpression(
           world,
           helpers,
@@ -8912,7 +8916,7 @@ final class KernelToEsmIrLoweringStage
       if (positional.length != 1) return null;
       return EsmBinaryIr(
         left: receiver,
-        operator: '/',
+        operator: EsmBinaryOperatorIr.divide,
         right: _lowerExpression(
           world,
           helpers,
@@ -9110,12 +9114,12 @@ final class KernelToEsmIrLoweringStage
       'length' => EsmPropertyAccessIr(receiver: receiver, property: 'length'),
       'isEmpty' => EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       ),
       'isNotEmpty' => EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '>',
+        operator: EsmBinaryOperatorIr.greaterThan,
         right: const EsmNumberLiteralIr(0),
       ),
       'first' => () {
@@ -9312,14 +9316,14 @@ final class KernelToEsmIrLoweringStage
     if (isListMember && memberName == 'isEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       );
     }
     if (isListMember && memberName == 'isNotEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '>',
+        operator: EsmBinaryOperatorIr.greaterThan,
         right: const EsmNumberLiteralIr(0),
       );
     }
@@ -9335,14 +9339,14 @@ final class KernelToEsmIrLoweringStage
     if (isMapMember && memberName == 'isEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'size'),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       );
     }
     if (isMapMember && memberName == 'isNotEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'size'),
-        operator: '>',
+        operator: EsmBinaryOperatorIr.greaterThan,
         right: const EsmNumberLiteralIr(0),
       );
     }
@@ -9454,14 +9458,14 @@ final class KernelToEsmIrLoweringStage
           receiver: _arrayFrom(helpers, receiver),
           property: 'length',
         ),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       );
     }
     if (isSetMember && memberName == 'isEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'size'),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       );
     }
@@ -9471,14 +9475,14 @@ final class KernelToEsmIrLoweringStage
           receiver: _arrayFrom(helpers, receiver),
           property: 'length',
         ),
-        operator: '>',
+        operator: EsmBinaryOperatorIr.greaterThan,
         right: const EsmNumberLiteralIr(0),
       );
     }
     if (isSetMember && memberName == 'isNotEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'size'),
-        operator: '>',
+        operator: EsmBinaryOperatorIr.greaterThan,
         right: const EsmNumberLiteralIr(0),
       );
     }
@@ -9548,14 +9552,14 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::String::@getters::isEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       );
     }
     if (target == 'dart:core::String::@getters::isNotEmpty') {
       return EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '>',
+        operator: EsmBinaryOperatorIr.greaterThan,
         right: const EsmNumberLiteralIr(0),
       );
     }
@@ -9589,12 +9593,12 @@ final class KernelToEsmIrLoweringStage
       'length' => EsmPropertyAccessIr(receiver: receiver, property: 'length'),
       'isEmpty' => EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       ),
       'isNotEmpty' => EsmBinaryIr(
         left: EsmPropertyAccessIr(receiver: receiver, property: 'length'),
-        operator: '>',
+        operator: EsmBinaryOperatorIr.greaterThan,
         right: const EsmNumberLiteralIr(0),
       ),
       'first' => EsmComputedPropertyAccessIr(
@@ -9618,19 +9622,19 @@ final class KernelToEsmIrLoweringStage
       'dart:core::int::@getters::isEven' => EsmBinaryIr(
         left: EsmBinaryIr(
           left: _mathTrunc(receiver),
-          operator: '%',
+          operator: EsmBinaryOperatorIr.remainder,
           right: const EsmNumberLiteralIr(2),
         ),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: const EsmNumberLiteralIr(0),
       ),
       'dart:core::int::@getters::isOdd' => EsmBinaryIr(
         left: EsmBinaryIr(
           left: _mathTrunc(receiver),
-          operator: '%',
+          operator: EsmBinaryOperatorIr.remainder,
           right: const EsmNumberLiteralIr(2),
         ),
-        operator: '!==',
+        operator: EsmBinaryOperatorIr.strictNotEquals,
         right: const EsmNumberLiteralIr(0),
       ),
       'dart:core::num::@getters::hashCode' ||
@@ -9656,14 +9660,14 @@ final class KernelToEsmIrLoweringStage
         otherwiseExpression: EsmConditionalIr(
           condition: EsmBinaryIr(
             left: receiver,
-            operator: '<',
+            operator: EsmBinaryOperatorIr.lessThan,
             right: const EsmNumberLiteralIr(0),
           ),
           thenExpression: const EsmNumberLiteralIr(-1),
           otherwiseExpression: EsmConditionalIr(
             condition: EsmBinaryIr(
               left: receiver,
-              operator: '>',
+              operator: EsmBinaryOperatorIr.greaterThan,
               right: const EsmNumberLiteralIr(0),
             ),
             thenExpression: const EsmNumberLiteralIr(1),
@@ -9691,14 +9695,14 @@ final class KernelToEsmIrLoweringStage
       'dart:core::double::@getters::isInfinite' => _or(
         EsmBinaryIr(
           left: receiver,
-          operator: '===',
+          operator: EsmBinaryOperatorIr.strictEquals,
           right: const EsmIdentifierIr('Infinity'),
         ),
         EsmBinaryIr(
           left: receiver,
-          operator: '===',
+          operator: EsmBinaryOperatorIr.strictEquals,
           right: const EsmUnaryIr(
-            operator: '-',
+            operator: EsmUnaryOperatorIr.negate,
             operand: EsmIdentifierIr('Infinity'),
           ),
         ),
@@ -9707,7 +9711,7 @@ final class KernelToEsmIrLoweringStage
       'dart:core::double::@getters::isNegative' => _or(
         EsmBinaryIr(
           left: receiver,
-          operator: '<',
+          operator: EsmBinaryOperatorIr.lessThan,
           right: const EsmNumberLiteralIr(0),
         ),
         EsmCallIr(
@@ -9717,7 +9721,10 @@ final class KernelToEsmIrLoweringStage
           ),
           arguments: [
             receiver,
-            const EsmUnaryIr(operator: '-', operand: EsmNumberLiteralIr(0)),
+            const EsmUnaryIr(
+              operator: EsmUnaryOperatorIr.negate,
+              operand: EsmNumberLiteralIr(0),
+            ),
           ],
         ),
       ),
@@ -9733,38 +9740,38 @@ final class KernelToEsmIrLoweringStage
     return switch (target) {
       'dart:core::BigInt::@getters::isNegative' => EsmBinaryIr(
         left: receiver,
-        operator: '<',
+        operator: EsmBinaryOperatorIr.lessThan,
         right: _bigIntLiteral(0),
       ),
       'dart:core::BigInt::@getters::isEven' => EsmBinaryIr(
         left: EsmBinaryIr(
           left: receiver,
-          operator: '%',
+          operator: EsmBinaryOperatorIr.remainder,
           right: _bigIntLiteral(2),
         ),
-        operator: '===',
+        operator: EsmBinaryOperatorIr.strictEquals,
         right: _bigIntLiteral(0),
       ),
       'dart:core::BigInt::@getters::isOdd' => EsmBinaryIr(
         left: EsmBinaryIr(
           left: receiver,
-          operator: '%',
+          operator: EsmBinaryOperatorIr.remainder,
           right: _bigIntLiteral(2),
         ),
-        operator: '!==',
+        operator: EsmBinaryOperatorIr.strictNotEquals,
         right: _bigIntLiteral(0),
       ),
       'dart:core::BigInt::@getters::sign' => EsmConditionalIr(
         condition: EsmBinaryIr(
           left: receiver,
-          operator: '<',
+          operator: EsmBinaryOperatorIr.lessThan,
           right: _bigIntLiteral(0),
         ),
         thenExpression: const EsmNumberLiteralIr(-1),
         otherwiseExpression: EsmConditionalIr(
           condition: EsmBinaryIr(
             left: receiver,
-            operator: '>',
+            operator: EsmBinaryOperatorIr.greaterThan,
             right: _bigIntLiteral(0),
           ),
           thenExpression: const EsmNumberLiteralIr(1),
@@ -11004,7 +11011,7 @@ final class KernelToEsmIrLoweringStage
         if (klass != null) {
           return EsmBinaryIr(
             left: value,
-            operator: 'instanceof',
+            operator: EsmBinaryOperatorIr.instanceOf,
             right: EsmIdentifierIr(klass.name),
           );
         }
@@ -11052,11 +11059,11 @@ final class KernelToEsmIrLoweringStage
               arguments: [value],
             ),
             EsmUnaryIr(
-              operator: '!',
+              operator: EsmUnaryOperatorIr.logicalNot,
               operand: EsmParenthesizedIr(
                 EsmBinaryIr(
                   left: value,
-                  operator: 'instanceof',
+                  operator: EsmBinaryOperatorIr.instanceOf,
                   right: const EsmIdentifierIr('DataView'),
                 ),
               ),
@@ -11065,34 +11072,37 @@ final class KernelToEsmIrLoweringStage
         ),
         'Set' => EsmBinaryIr(
           left: value,
-          operator: 'instanceof',
+          operator: EsmBinaryOperatorIr.instanceOf,
           right: const EsmIdentifierIr('Set'),
         ),
         'Map' => EsmBinaryIr(
           left: value,
-          operator: 'instanceof',
+          operator: EsmBinaryOperatorIr.instanceOf,
           right: const EsmIdentifierIr('Map'),
         ),
         'Iterable' => _andAll([
           _notNull(value),
           EsmBinaryIr(
-            left: EsmUnaryIr(operator: 'typeof', operand: value),
-            operator: '!==',
+            left: EsmUnaryIr(
+              operator: EsmUnaryOperatorIr.typeOf,
+              operand: value,
+            ),
+            operator: EsmBinaryOperatorIr.strictNotEquals,
             right: const EsmStringLiteralIr('string'),
           ),
           EsmUnaryIr(
-            operator: '!',
+            operator: EsmUnaryOperatorIr.logicalNot,
             operand: EsmParenthesizedIr(
               EsmBinaryIr(
                 left: value,
-                operator: 'instanceof',
+                operator: EsmBinaryOperatorIr.instanceOf,
                 right: const EsmIdentifierIr('Map'),
               ),
             ),
           ),
           EsmBinaryIr(
             left: EsmUnaryIr(
-              operator: 'typeof',
+              operator: EsmUnaryOperatorIr.typeOf,
               operand: EsmComputedPropertyAccessIr(
                 receiver: value,
                 property: const EsmPropertyAccessIr(
@@ -11101,23 +11111,26 @@ final class KernelToEsmIrLoweringStage
                 ),
               ),
             ),
-            operator: '===',
+            operator: EsmBinaryOperatorIr.strictEquals,
             right: const EsmStringLiteralIr('function'),
           ),
         ]),
         'EfficientLengthIterable' || 'HideEfficientLengthIterable' => _andAll([
           _notNull(value),
           EsmBinaryIr(
-            left: EsmUnaryIr(operator: 'typeof', operand: value),
-            operator: '!==',
+            left: EsmUnaryIr(
+              operator: EsmUnaryOperatorIr.typeOf,
+              operand: value,
+            ),
+            operator: EsmBinaryOperatorIr.strictNotEquals,
             right: const EsmStringLiteralIr('string'),
           ),
           EsmBinaryIr(
             left: EsmUnaryIr(
-              operator: 'typeof',
+              operator: EsmUnaryOperatorIr.typeOf,
               operand: EsmPropertyAccessIr(receiver: value, property: 'length'),
             ),
-            operator: '===',
+            operator: EsmBinaryOperatorIr.strictEquals,
             right: const EsmStringLiteralIr('number'),
           ),
         ]),
@@ -11129,13 +11142,13 @@ final class KernelToEsmIrLoweringStage
             _typeofEquals(value, 'bigint'),
             EsmBinaryIr(
               left: EsmUnaryIr(
-                operator: 'typeof',
+                operator: EsmUnaryOperatorIr.typeOf,
                 operand: EsmPropertyAccessIr(
                   receiver: value,
                   property: 'compareTo',
                 ),
               ),
-              operator: '===',
+              operator: EsmBinaryOperatorIr.strictEquals,
               right: const EsmStringLiteralIr('function'),
             ),
           ]),
@@ -11169,7 +11182,11 @@ final class KernelToEsmIrLoweringStage
     );
     return _andAll([
       _typeofEquals(constructor, 'function'),
-      EsmBinaryIr(left: value, operator: 'instanceof', right: constructor),
+      EsmBinaryIr(
+        left: value,
+        operator: EsmBinaryOperatorIr.instanceOf,
+        right: constructor,
+      ),
     ]);
   }
 
@@ -11334,7 +11351,7 @@ final class KernelToEsmIrLoweringStage
     return _or(
       EsmBinaryIr(
         left: value,
-        operator: 'instanceof',
+        operator: EsmBinaryOperatorIr.instanceOf,
         right: const EsmIdentifierIr('RegExp'),
       ),
       _andAll([
@@ -11387,7 +11404,7 @@ final class KernelToEsmIrLoweringStage
 
   EsmExpressionIr _typeofEquals(EsmExpressionIr value, String name) {
     return _strictEquals(
-      EsmUnaryIr(operator: 'typeof', operand: value),
+      EsmUnaryIr(operator: EsmUnaryOperatorIr.typeOf, operand: value),
       EsmStringLiteralIr(name),
     );
   }
@@ -11395,13 +11412,17 @@ final class KernelToEsmIrLoweringStage
   EsmExpressionIr _notNull(EsmExpressionIr value) {
     return EsmBinaryIr(
       left: value,
-      operator: '!=',
+      operator: EsmBinaryOperatorIr.looseNotEquals,
       right: const EsmNullLiteralIr(),
     );
   }
 
   EsmExpressionIr _strictEquals(EsmExpressionIr left, EsmExpressionIr right) {
-    return EsmBinaryIr(left: left, operator: '===', right: right);
+    return EsmBinaryIr(
+      left: left,
+      operator: EsmBinaryOperatorIr.strictEquals,
+      right: right,
+    );
   }
 
   EsmExpressionIr _bigIntLiteral(int value) {
@@ -11478,7 +11499,11 @@ final class KernelToEsmIrLoweringStage
         .fold<EsmExpressionIr>(
           expressions.first,
           (left, right) => EsmParenthesizedIr(
-            EsmBinaryIr(left: left, operator: '&&', right: right),
+            EsmBinaryIr(
+              left: left,
+              operator: EsmBinaryOperatorIr.logicalAnd,
+              right: right,
+            ),
           ),
         );
   }
@@ -11492,14 +11517,22 @@ final class KernelToEsmIrLoweringStage
         .fold<EsmExpressionIr>(
           expressions.first,
           (left, right) => EsmParenthesizedIr(
-            EsmBinaryIr(left: left, operator: '||', right: right),
+            EsmBinaryIr(
+              left: left,
+              operator: EsmBinaryOperatorIr.logicalOr,
+              right: right,
+            ),
           ),
         );
   }
 
   EsmExpressionIr _or(EsmExpressionIr left, EsmExpressionIr right) {
     return EsmParenthesizedIr(
-      EsmBinaryIr(left: left, operator: '||', right: right),
+      EsmBinaryIr(
+        left: left,
+        operator: EsmBinaryOperatorIr.logicalOr,
+        right: right,
+      ),
     );
   }
 
@@ -11946,7 +11979,7 @@ final class KernelToEsmIrLoweringStage
               parameters: [EsmIdentifierParameterIr(name: 'value')],
               body: EsmBinaryIr(
                 left: EsmIdentifierIr('value'),
-                operator: '!=',
+                operator: EsmBinaryOperatorIr.looseNotEquals,
                 right: EsmNullLiteralIr(),
               ),
             ),
@@ -14916,19 +14949,19 @@ final class _VariableReferenceVisitor extends k.RecursiveVisitor {
 }
 
 const _binaryOperators = {
-  '+',
-  '-',
-  '*',
-  '/',
-  '%',
-  '<',
-  '<=',
-  '>',
-  '>=',
-  '&',
-  '|',
-  '^',
-  '<<',
-  '>>',
-  '>>>',
+  '+': EsmBinaryOperatorIr.add,
+  '-': EsmBinaryOperatorIr.subtract,
+  '*': EsmBinaryOperatorIr.multiply,
+  '/': EsmBinaryOperatorIr.divide,
+  '%': EsmBinaryOperatorIr.remainder,
+  '<': EsmBinaryOperatorIr.lessThan,
+  '<=': EsmBinaryOperatorIr.lessThanOrEqual,
+  '>': EsmBinaryOperatorIr.greaterThan,
+  '>=': EsmBinaryOperatorIr.greaterThanOrEqual,
+  '&': EsmBinaryOperatorIr.bitAnd,
+  '|': EsmBinaryOperatorIr.bitOr,
+  '^': EsmBinaryOperatorIr.bitXor,
+  '<<': EsmBinaryOperatorIr.leftShift,
+  '>>': EsmBinaryOperatorIr.signedRightShift,
+  '>>>': EsmBinaryOperatorIr.unsignedRightShift,
 };

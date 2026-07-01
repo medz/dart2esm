@@ -384,12 +384,7 @@ final class _EsmIrPrinter {
       EsmAssignmentIr() =>
         '${_emitExpression(expression.target)} = ${_emitExpression(expression.value)}',
       EsmBinaryIr() => _emitBinaryExpression(expression),
-      EsmUnaryIr() =>
-        expression.operator == '!'
-            ? '!${_emitUnaryOperand(expression.operand)}'
-            : expression.operator == '-' || expression.operator == '~'
-            ? '${expression.operator}${_emitUnaryOperand(expression.operand)}'
-            : '${expression.operator} ${_emitUnaryOperand(expression.operand)}',
+      EsmUnaryIr() => _emitUnaryExpression(expression),
       EsmConditionalIr() =>
         '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.thenExpression)} : ${_emitExpression(expression.otherwiseExpression)})',
       EsmNullishCoalesceIr() =>
@@ -435,12 +430,12 @@ final class _EsmIrPrinter {
       expression.operator,
       isRight: true,
     );
-    return '$left ${expression.operator} $right';
+    return '$left ${_emitBinaryOperator(expression.operator)} $right';
   }
 
   String _emitBinaryOperand(
     EsmExpressionIr operand,
-    String parentOperator, {
+    EsmBinaryOperatorIr parentOperator, {
     required bool isRight,
   }) {
     final text = _emitExpression(operand);
@@ -457,30 +452,82 @@ final class _EsmIrPrinter {
     return text;
   }
 
-  int _binaryPrecedence(String operator) {
+  String _emitBinaryOperator(EsmBinaryOperatorIr operator) {
     return switch (operator) {
-      '*' || '/' || '%' => 12,
-      '+' || '-' => 11,
-      '<<' || '>>' || '>>>' => 10,
-      '<' || '<=' || '>' || '>=' || 'instanceof' || 'in' => 9,
-      '==' || '!=' || '===' || '!==' => 8,
-      '&' => 7,
-      '^' => 6,
-      '|' => 5,
-      '&&' => 4,
-      '||' => 3,
-      _ => 0,
+      EsmBinaryOperatorIr.multiply => '*',
+      EsmBinaryOperatorIr.divide => '/',
+      EsmBinaryOperatorIr.remainder => '%',
+      EsmBinaryOperatorIr.add => '+',
+      EsmBinaryOperatorIr.subtract => '-',
+      EsmBinaryOperatorIr.leftShift => '<<',
+      EsmBinaryOperatorIr.signedRightShift => '>>',
+      EsmBinaryOperatorIr.unsignedRightShift => '>>>',
+      EsmBinaryOperatorIr.lessThan => '<',
+      EsmBinaryOperatorIr.lessThanOrEqual => '<=',
+      EsmBinaryOperatorIr.greaterThan => '>',
+      EsmBinaryOperatorIr.greaterThanOrEqual => '>=',
+      EsmBinaryOperatorIr.instanceOf => 'instanceof',
+      EsmBinaryOperatorIr.inOperator => 'in',
+      EsmBinaryOperatorIr.looseEquals => '==',
+      EsmBinaryOperatorIr.looseNotEquals => '!=',
+      EsmBinaryOperatorIr.strictEquals => '===',
+      EsmBinaryOperatorIr.strictNotEquals => '!==',
+      EsmBinaryOperatorIr.bitAnd => '&',
+      EsmBinaryOperatorIr.bitXor => '^',
+      EsmBinaryOperatorIr.bitOr => '|',
+      EsmBinaryOperatorIr.logicalAnd => '&&',
+      EsmBinaryOperatorIr.logicalOr => '||',
     };
   }
 
-  bool _canFlattenRightBinary(String parentOperator, String childOperator) {
+  int _binaryPrecedence(EsmBinaryOperatorIr operator) {
+    return switch (operator) {
+      EsmBinaryOperatorIr.multiply ||
+      EsmBinaryOperatorIr.divide ||
+      EsmBinaryOperatorIr.remainder => 12,
+      EsmBinaryOperatorIr.add || EsmBinaryOperatorIr.subtract => 11,
+      EsmBinaryOperatorIr.leftShift ||
+      EsmBinaryOperatorIr.signedRightShift ||
+      EsmBinaryOperatorIr.unsignedRightShift => 10,
+      EsmBinaryOperatorIr.lessThan ||
+      EsmBinaryOperatorIr.lessThanOrEqual ||
+      EsmBinaryOperatorIr.greaterThan ||
+      EsmBinaryOperatorIr.greaterThanOrEqual ||
+      EsmBinaryOperatorIr.instanceOf ||
+      EsmBinaryOperatorIr.inOperator => 9,
+      EsmBinaryOperatorIr.looseEquals ||
+      EsmBinaryOperatorIr.looseNotEquals ||
+      EsmBinaryOperatorIr.strictEquals ||
+      EsmBinaryOperatorIr.strictNotEquals => 8,
+      EsmBinaryOperatorIr.bitAnd => 7,
+      EsmBinaryOperatorIr.bitXor => 6,
+      EsmBinaryOperatorIr.bitOr => 5,
+      EsmBinaryOperatorIr.logicalAnd => 4,
+      EsmBinaryOperatorIr.logicalOr => 3,
+    };
+  }
+
+  bool _canFlattenRightBinary(
+    EsmBinaryOperatorIr parentOperator,
+    EsmBinaryOperatorIr childOperator,
+  ) {
     return parentOperator == childOperator &&
-        (parentOperator == '*' ||
-            parentOperator == '&&' ||
-            parentOperator == '||' ||
-            parentOperator == '&' ||
-            parentOperator == '^' ||
-            parentOperator == '|');
+        (parentOperator == EsmBinaryOperatorIr.multiply ||
+            parentOperator == EsmBinaryOperatorIr.logicalAnd ||
+            parentOperator == EsmBinaryOperatorIr.logicalOr ||
+            parentOperator == EsmBinaryOperatorIr.bitAnd ||
+            parentOperator == EsmBinaryOperatorIr.bitXor ||
+            parentOperator == EsmBinaryOperatorIr.bitOr);
+  }
+
+  String _emitUnaryExpression(EsmUnaryIr expression) {
+    final operand = _emitUnaryOperand(expression.operand);
+    return switch (expression.operator) {
+      EsmUnaryOperatorIr.logicalNot => '!$operand',
+      EsmUnaryOperatorIr.negate => '-$operand',
+      EsmUnaryOperatorIr.bitNot => '~$operand',
+      EsmUnaryOperatorIr.typeOf => 'typeof $operand',
+    };
   }
 
   String _emitCallCallee(EsmExpressionIr expression) {

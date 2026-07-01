@@ -2574,7 +2574,7 @@ function __dartWeakReference(target) {
               arguments: [
                 EsmBinaryIr(
                   left: EsmStringLiteralIr('Type cast failed: expected '),
-                  operator: '+',
+                  operator: EsmBinaryOperatorIr.add,
                   right: EsmIdentifierIr('typeName'),
                 ),
               ],

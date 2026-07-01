@@ -305,16 +305,44 @@ final class EsmBinaryIr extends EsmExpressionIr {
   });
 
   final EsmExpressionIr left;
-  final String operator;
+  final EsmBinaryOperatorIr operator;
   final EsmExpressionIr right;
+}
+
+enum EsmBinaryOperatorIr {
+  multiply,
+  divide,
+  remainder,
+  add,
+  subtract,
+  leftShift,
+  signedRightShift,
+  unsignedRightShift,
+  lessThan,
+  lessThanOrEqual,
+  greaterThan,
+  greaterThanOrEqual,
+  instanceOf,
+  inOperator,
+  looseEquals,
+  looseNotEquals,
+  strictEquals,
+  strictNotEquals,
+  bitAnd,
+  bitXor,
+  bitOr,
+  logicalAnd,
+  logicalOr,
 }
 
 final class EsmUnaryIr extends EsmExpressionIr {
   const EsmUnaryIr({required this.operator, required this.operand});
 
-  final String operator;
+  final EsmUnaryOperatorIr operator;
   final EsmExpressionIr operand;
 }
+
+enum EsmUnaryOperatorIr { logicalNot, negate, bitNot, typeOf }
 
 final class EsmConditionalIr extends EsmExpressionIr {
   const EsmConditionalIr({

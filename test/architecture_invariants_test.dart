@@ -143,7 +143,7 @@ void main() {
     expect(codegen, isNot(contains('backend/esm_backend.dart')));
   });
 
-  test('ESM module construction is owned by the IR builder stage', () {
+  test('ESM module construction and normalization have separate ownership', () {
     final lowering = _read(
       'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
     );
@@ -160,8 +160,9 @@ void main() {
     expect(lowering, contains('final List<EsmModuleItemIr> items'));
     expect(lowering, isNot(contains('EsmModuleIr(items:')));
     expect(normalizer, contains('final EsmIrBuildResult irBuild'));
+    expect(normalizer, contains('EsmModuleIr(items: normalized.items)'));
+    expect(normalizer, contains('changed: normalized.changed'));
     expect(normalizer, isNot(contains('LoweringResult')));
-    expect(normalizer, isNot(contains('EsmModuleIr(items:')));
   });
 
   test('ESM IR is independent from runtime helper registry', () {

@@ -212,6 +212,59 @@ export function main() {
 ''');
   });
 
+  test('module normalizer prunes empty module artifacts', () {
+    const marker = EsmExpressionStatementIr(
+      EsmCallIr(callee: EsmIdentifierIr('sideEffect'), arguments: const []),
+    );
+    const module = EsmModuleIr(
+      items: [
+        EsmRawModuleItemIr('  \n'),
+        EsmBlockStatementIr([]),
+        EsmFunctionIr(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [EsmBlockStatementIr([]), marker],
+        ),
+        EsmClassIr(
+          name: 'Box',
+          export: true,
+          superclass: null,
+          constructor: EsmClassConstructorIr(
+            parameters: [],
+            body: [EsmBlockStatementIr([])],
+          ),
+          methods: [
+            EsmClassMethodIr(
+              name: 'read',
+              kind: EsmClassMethodKindIr.method,
+              isStatic: false,
+              parameters: [],
+              body: [
+                EsmBlockStatementIr([]),
+                EsmReturnStatementIr(EsmNumberLiteralIr(1)),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final result = const ModuleNormalizerStage().normalize(
+      _normalizationForModule(module).irBuild,
+    );
+
+    expect(result.changed, isTrue);
+    expect(result.invalidatesSemanticWorld, isFalse);
+    expect(result.module.items, hasLength(2));
+    final main = result.module.items.first as EsmFunctionIr;
+    expect(main.body, hasLength(1));
+    expect(main.body.single, same(marker));
+    final box = result.module.items.last as EsmClassIr;
+    expect(box.constructor?.body, isEmpty);
+    expect(box.methods.single.body, [isA<EsmReturnStatementIr>()]);
+  });
+
   test('runtime linker resolves helper declarations before codegen', () {
     const module = EsmModuleIr(
       items: [
@@ -533,6 +586,7 @@ NormalizationResult _normalizationForModule(
       module: module,
     ),
     module: module,
+    changed: false,
     invalidatesSemanticWorld: false,
   );
 }

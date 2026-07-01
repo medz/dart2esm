@@ -7177,14 +7177,6 @@ final class KernelToEsmIrLoweringStage
     if (!isDartTypedDataMember(expression.interfaceTargetReference, name)) {
       return null;
     }
-    final positional = expression.arguments.positional;
-    final receiver = _lowerExpression(
-      world,
-      helpers,
-      locals,
-      expression.receiver,
-      thisExpression: thisExpression,
-    );
     EsmExpressionIr lower(k.Expression argument) => _lowerExpression(
       world,
       helpers,
@@ -7199,7 +7191,13 @@ final class KernelToEsmIrLoweringStage
       arguments: expression.arguments,
       helpers: helpers,
       runtimeHelpers: runtimeHelpers,
-      lowerReceiver: () => receiver,
+      lowerReceiver: () => _lowerExpression(
+        world,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
       lower: lower,
       lowerNamedArgument: (arguments, argumentName) => _lowerNamedArgument(
         world,
@@ -7211,72 +7209,7 @@ final class KernelToEsmIrLoweringStage
       ),
       arrayFrom: (value) => _arrayFrom(helpers, value),
     );
-    if (sdkIntrinsic != null) {
-      return sdkIntrinsic;
-    }
-    if (name == 'sublist' && positional.isNotEmpty && positional.length <= 2) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(receiver: receiver, property: 'slice'),
-        arguments: [for (final argument in positional) lower(argument)],
-      );
-    }
-    if (name == 'getRange' && positional.length == 2) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(receiver: receiver, property: 'slice'),
-        arguments: [for (final argument in positional) lower(argument)],
-      );
-    }
-    if (name == 'setAll' && positional.length == 2) {
-      helpers.require(EsmRuntimeHelper.listMutation);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartListSetAll'),
-        arguments: [receiver, lower(positional[0]), lower(positional[1])],
-      );
-    }
-    if (name == 'setRange' &&
-        positional.length >= 3 &&
-        positional.length <= 4) {
-      helpers.require(EsmRuntimeHelper.listRangeOps);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartListSetRange'),
-        arguments: [
-          receiver,
-          for (final argument in positional) lower(argument),
-        ],
-      );
-    }
-    if (name == 'fillRange' &&
-        positional.length >= 2 &&
-        positional.length <= 3) {
-      helpers.require(EsmRuntimeHelper.listMutation);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartListFillRange'),
-        arguments: [
-          receiver,
-          lower(positional[0]),
-          lower(positional[1]),
-          positional.length == 3
-              ? lower(positional[2])
-              : const EsmNumberLiteralIr(0),
-        ],
-      );
-    }
-    if (name == 'asMap' && positional.isEmpty) {
-      helpers.require(EsmRuntimeHelper.listMutation);
-      return EsmCallIr(
-        callee: const EsmIdentifierIr('__dartListAsMap'),
-        arguments: [receiver],
-      );
-    }
-    if ((name == 'indexOf' || name == 'lastIndexOf') &&
-        positional.isNotEmpty &&
-        positional.length <= 2) {
-      return EsmCallIr(
-        callee: EsmPropertyAccessIr(receiver: receiver, property: name),
-        arguments: [for (final argument in positional) lower(argument)],
-      );
-    }
-    return null;
+    return sdkIntrinsic;
   }
 
   EsmExpressionIr? _lowerCoreUriInstanceInvocation(

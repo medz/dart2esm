@@ -195,6 +195,11 @@ void main() {
     final convert = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_convert_intrinsics.dart',
     );
+    final typedDataInvocation = _sliceBetween(
+      lowering,
+      '  EsmExpressionIr? _lowerTypedDataInstanceInvocation(',
+      '  EsmExpressionIr? _lowerCoreUriInstanceInvocation(',
+    );
 
     expect(registry, contains('final class DartSdkIntrinsicRegistry'));
     expect(registry, contains('lowerInstanceConstant'));
@@ -252,13 +257,26 @@ void main() {
     expect(lowering, isNot(contains('dart:typed_data::Endian')));
     expect(lowering, isNot(contains('dart:typed_data::ByteData')));
     expect(lowering, isNot(contains('dart:typed_data::ByteBuffer')));
+    expect(typedDataInvocation, isNot(contains('__dartListSetAll')));
+    expect(typedDataInvocation, isNot(contains('__dartListSetRange')));
+    expect(typedDataInvocation, isNot(contains('__dartListFillRange')));
+    expect(typedDataInvocation, isNot(contains('__dartListAsMap')));
+    expect(typedDataInvocation, isNot(contains("name == 'sublist'")));
+    expect(typedDataInvocation, isNot(contains("name == 'getRange'")));
+    expect(typedDataInvocation, isNot(contains("name == 'setRange'")));
+    expect(typedDataInvocation, isNot(contains("name == 'fillRange'")));
     expect(typedData, contains('dart:typed_data::Endian'));
     expect(typedData, contains('lowerByteDataInstanceInvocation'));
     expect(typedData, contains('lowerByteBufferInstanceInvocation'));
     expect(typedData, contains('lowerTypedDataInstanceInvocation'));
+    expect(typedData, contains('_lowerTypedDataListInstanceInvocation'));
     expect(typedData, contains('lowerTypedDataInstanceGet'));
     expect(typedData, contains('lowerTypedDataStaticInvocation'));
     expect(typedData, contains("'ByteBuffer'"));
+    expect(typedData, contains('__dartListSetAll'));
+    expect(typedData, contains('__dartListSetRange'));
+    expect(typedData, contains('__dartListFillRange'));
+    expect(typedData, contains('__dartListAsMap'));
     expect(collection, contains('lowerDartCollectionQueueInstanceInvocation'));
     expect(collection, contains('lowerDartCollectionQueueInstanceGet'));
     expect(collection, contains('lowerDartCollectionStaticInvocation'));
@@ -562,4 +580,12 @@ List<File> _dartFiles(String relativeDirectory) {
       .where((file) => file.path.endsWith('.dart'))
       .toList()
     ..sort((left, right) => left.path.compareTo(right.path));
+}
+
+String _sliceBetween(String source, String start, String end) {
+  final startIndex = source.indexOf(start);
+  expect(startIndex, isNonNegative, reason: start);
+  final endIndex = source.indexOf(end, startIndex + start.length);
+  expect(endIndex, isNonNegative, reason: end);
+  return source.substring(startIndex, endIndex);
 }

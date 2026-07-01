@@ -45,6 +45,7 @@ final class DartSdkIntrinsicRegistry {
       reference: reference,
       name: name,
       arguments: arguments,
+      helpers: helpers,
       lowerReceiver: lowerReceiver,
       lower: lower,
     );

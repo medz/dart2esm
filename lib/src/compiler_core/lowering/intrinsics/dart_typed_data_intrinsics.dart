@@ -79,7 +79,7 @@ EsmExpressionIr? lowerByteDataInstanceInvocation({
 EsmExpressionIr? lowerByteBufferInstanceInvocation({
   required k.Reference reference,
   required String name,
-  required EsmExpressionIr receiver,
+  required EsmExpressionIr Function() lowerReceiver,
   required List<k.Expression> positional,
   required EsmExpressionIr Function(k.Expression argument) lower,
 }) {
@@ -93,6 +93,7 @@ EsmExpressionIr? lowerByteBufferInstanceInvocation({
   if (constructor == null) {
     return null;
   }
+  final receiver = lowerReceiver();
   final arguments = <EsmExpressionIr>[
     receiver,
     positional.isNotEmpty ? lower(positional[0]) : const EsmNumberLiteralIr(0),
@@ -107,6 +108,7 @@ EsmExpressionIr? lowerTypedDataInstanceInvocation({
   required k.Reference reference,
   required String name,
   required k.Arguments arguments,
+  required EsmRuntimeHelperUseSet helpers,
   required EsmExpressionIr Function() lowerReceiver,
   required EsmExpressionIr Function(k.Expression argument) lower,
 }) {
@@ -126,13 +128,94 @@ EsmExpressionIr? lowerTypedDataInstanceInvocation({
       lower: lower,
     );
   }
-  return lowerByteBufferInstanceInvocation(
+  final byteBuffer = lowerByteBufferInstanceInvocation(
     reference: reference,
     name: name,
-    receiver: lowerReceiver(),
+    lowerReceiver: lowerReceiver,
     positional: positional,
     lower: lower,
   );
+  if (byteBuffer != null) {
+    return byteBuffer;
+  }
+  return _lowerTypedDataListInstanceInvocation(
+    name: name,
+    positional: positional,
+    helpers: helpers,
+    lowerReceiver: lowerReceiver,
+    lower: lower,
+  );
+}
+
+EsmExpressionIr? _lowerTypedDataListInstanceInvocation({
+  required String name,
+  required List<k.Expression> positional,
+  required EsmRuntimeHelperUseSet helpers,
+  required EsmExpressionIr Function() lowerReceiver,
+  required EsmExpressionIr Function(k.Expression argument) lower,
+}) {
+  if (name == 'sublist' && positional.isNotEmpty && positional.length <= 2) {
+    final receiver = lowerReceiver();
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(receiver: receiver, property: 'slice'),
+      arguments: [for (final argument in positional) lower(argument)],
+    );
+  }
+  if (name == 'getRange' && positional.length == 2) {
+    final receiver = lowerReceiver();
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(receiver: receiver, property: 'slice'),
+      arguments: [for (final argument in positional) lower(argument)],
+    );
+  }
+  if (name == 'setAll' && positional.length == 2) {
+    helpers.require(EsmRuntimeHelper.listMutation);
+    final receiver = lowerReceiver();
+    return EsmCallIr(
+      callee: const EsmIdentifierIr('__dartListSetAll'),
+      arguments: [receiver, lower(positional[0]), lower(positional[1])],
+    );
+  }
+  if (name == 'setRange' && positional.length >= 3 && positional.length <= 4) {
+    helpers.require(EsmRuntimeHelper.listRangeOps);
+    final receiver = lowerReceiver();
+    return EsmCallIr(
+      callee: const EsmIdentifierIr('__dartListSetRange'),
+      arguments: [receiver, for (final argument in positional) lower(argument)],
+    );
+  }
+  if (name == 'fillRange' && positional.length >= 2 && positional.length <= 3) {
+    helpers.require(EsmRuntimeHelper.listMutation);
+    final receiver = lowerReceiver();
+    return EsmCallIr(
+      callee: const EsmIdentifierIr('__dartListFillRange'),
+      arguments: [
+        receiver,
+        lower(positional[0]),
+        lower(positional[1]),
+        positional.length == 3
+            ? lower(positional[2])
+            : const EsmNumberLiteralIr(0),
+      ],
+    );
+  }
+  if (name == 'asMap' && positional.isEmpty) {
+    helpers.require(EsmRuntimeHelper.listMutation);
+    return EsmCallIr(
+      callee: const EsmIdentifierIr('__dartListAsMap'),
+      arguments: [lowerReceiver()],
+    );
+  }
+  if ((name == 'indexOf' || name == 'lastIndexOf') &&
+      positional.isNotEmpty &&
+      positional.length <= 2) {
+    final receiver = lowerReceiver();
+    return EsmCallIr(
+      callee: EsmPropertyAccessIr(receiver: receiver, property: name),
+      arguments: [for (final argument in positional) lower(argument)],
+    );
+  }
+  return null;
 }
 
 bool isByteDataInstanceInvocationIntrinsic(k.Reference reference, String name) {

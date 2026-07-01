@@ -106,7 +106,9 @@ void main() {
     expect(result.lowering?.items, hasLength(3));
     expect(result.irBuild?.module.items, hasLength(3));
     expect(result.lowering?.runtimeHelpers, isEmpty);
+    expect(result.irBuild?.runtimeHelpers, isEmpty);
     expect(result.normalization?.irBuild, same(result.irBuild));
+    expect(result.normalization?.runtimeHelpers, isEmpty);
     expect(result.normalization?.invalidatesSemanticWorld, isFalse);
     expect(result.runtime?.linkedHelpers, isEmpty);
     expect(result.codegen?.code, same(result.code));
@@ -295,6 +297,7 @@ export function main() {
       EsmRuntimeHelper.print,
       EsmRuntimeHelper.stringify,
     ]);
+    expect(linked.normalization.runtimeHelpers, [EsmRuntimeHelper.print]);
     expect(linked.module.items, hasLength(3));
     final helper = linked.module.items.first;
     expect(helper, isA<EsmFunctionIr>());

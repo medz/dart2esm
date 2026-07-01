@@ -157,11 +157,19 @@ void main() {
     expect(irBuilder, contains('final class EsmIrBuildResult'));
     expect(irBuilder, contains('final class EsmIrBuilderStage'));
     expect(irBuilder, contains('EsmModuleIr(items: lowering.items)'));
+    expect(
+      irBuilder,
+      contains('get runtimeHelpers => lowering.runtimeHelpers'),
+    );
     expect(lowering, contains('final List<EsmModuleItemIr> items'));
     expect(lowering, isNot(contains('EsmModuleIr(items:')));
     expect(normalizer, contains('final EsmIrBuildResult irBuild'));
     expect(normalizer, contains('EsmModuleIr(items: normalized.items)'));
     expect(normalizer, contains('changed: normalized.changed'));
+    expect(
+      normalizer,
+      contains('get runtimeHelpers => irBuild.runtimeHelpers'),
+    );
     expect(normalizer, isNot(contains('LoweringResult')));
   });
 
@@ -220,6 +228,8 @@ void main() {
     expect(runtime, contains('__dartPrint'));
     expect(linker, contains('final class RuntimeLinkerStage'));
     expect(linker, contains('runtimeHelpers.declaration'));
+    expect(linker, contains('normalized.runtimeHelpers'));
+    expect(linker, isNot(contains('normalized.irBuild.lowering')));
     expect(loweringContext, contains('final class DartLoweringContext'));
     expect(loweringContext, contains('EsmRuntimeHelperUseSet'));
     expect(loweringContext, contains('runtimeHelperUses'));

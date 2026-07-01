@@ -14,6 +14,8 @@ final class NormalizationResult {
   final EsmModuleIr module;
   final bool changed;
   final bool invalidatesSemanticWorld;
+
+  get runtimeHelpers => irBuild.runtimeHelpers;
 }
 
 final class ModuleNormalizerStage

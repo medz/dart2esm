@@ -7,6 +7,8 @@ final class EsmIrBuildResult {
 
   final LoweringResult lowering;
   final EsmModuleIr module;
+
+  get runtimeHelpers => lowering.runtimeHelpers;
 }
 
 final class EsmIrBuilderStage

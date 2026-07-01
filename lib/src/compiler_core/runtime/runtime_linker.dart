@@ -37,7 +37,7 @@ final class RuntimeLinkerStage
   RuntimeLinkResult link(NormalizationResult normalized) {
     final helperUseSet = EsmRuntimeHelperUseSet();
     for (final helper in normalized.irBuild.lowering.runtimeHelpers) {
-      helperUseSet.add(helper);
+      helperUseSet.require(helper);
     }
     final helpers = helperUseSet.toList();
     return RuntimeLinkResult(

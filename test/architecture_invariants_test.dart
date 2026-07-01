@@ -214,13 +214,18 @@ void main() {
 
     expect(runtime, contains('enum EsmRuntimeHelper'));
     expect(runtime, contains('final class EsmRuntimeHelperRegistry'));
+    expect(runtime, contains('bool require(EsmRuntimeHelper helper)'));
+    expect(runtime, contains('EsmIdentifierIr reference('));
     expect(runtime, contains('__dartPrint'));
     expect(linker, contains('final class RuntimeLinkerStage'));
     expect(linker, contains('runtimeHelpers.declaration'));
     expect(loweringContext, contains('final class DartLoweringContext'));
     expect(loweringContext, contains('EsmRuntimeHelperUseSet'));
     expect(loweringContext, contains('runtimeHelperUses'));
-    expect(lowering, contains('runtimeHelpers.reference'));
+    expect(lowering, contains('helpers.require('));
+    expect(lowering, contains('helpers.reference(runtimeHelpers'));
+    expect(lowering, isNot(contains('helpers.add(')));
+    expect(lowering, isNot(contains('runtimeHelpers.reference')));
     expect(lowering, contains('DartLoweringContext('));
     expect(lowering, isNot(contains('EsmRuntimeHelperUseSet()')));
     expect(lowering, isNot(contains('esmRuntimeHelperName')));

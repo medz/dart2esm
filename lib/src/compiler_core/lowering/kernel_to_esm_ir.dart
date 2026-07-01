@@ -798,9 +798,12 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr value,
     EsmExtensionTypeSymbol extensionType,
   ) {
-    helpers.add(EsmRuntimeHelper.extensionTypeRep);
+    helpers.require(EsmRuntimeHelper.extensionTypeRep);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.extensionTypeRep),
+      callee: helpers.reference(
+        runtimeHelpers,
+        EsmRuntimeHelper.extensionTypeRep,
+      ),
       arguments: [value, EsmStringLiteralIr(extensionType.representationName)],
     );
   }
@@ -828,13 +831,13 @@ final class KernelToEsmIrLoweringStage
     EsmClassSymbol klass,
     EsmStaticFieldSymbol field,
   ) {
-    helpers.add(EsmRuntimeHelper.lazyField);
+    helpers.require(EsmRuntimeHelper.lazyField);
     final initializer = field.node.initializer;
     return [
       EsmVariableDeclarationIr(
         name: field.backingName,
         initializer: EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.lazyField),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.lazyField),
           arguments: [
             EsmStringLiteralIr('${klass.node.name}.${field.node.name.text}'),
             EsmArrowFunctionIr(
@@ -928,14 +931,17 @@ final class KernelToEsmIrLoweringStage
       if (!field.node.isLate) {
         continue;
       }
-      helpers.add(EsmRuntimeHelper.lazyField);
+      helpers.require(EsmRuntimeHelper.lazyField);
       final backingName = _freshIn(usedNames, '\$${field.name}');
       final initializer = field.node.initializer;
       statements.add(
         EsmVariableDeclarationIr(
           name: backingName,
           initializer: EsmCallIr(
-            callee: runtimeHelpers.reference(EsmRuntimeHelper.lazyField),
+            callee: helpers.reference(
+              runtimeHelpers,
+              EsmRuntimeHelper.lazyField,
+            ),
             arguments: [
               EsmStringLiteralIr('${klass.node.name}.${field.node.name.text}'),
               initializer == null
@@ -1879,7 +1885,7 @@ final class KernelToEsmIrLoweringStage
     EsmFieldSymbol field,
   ) {
     if (field.node.isLate) {
-      helpers.add(EsmRuntimeHelper.lazyField);
+      helpers.require(EsmRuntimeHelper.lazyField);
       final initializer = field.node.initializer;
       return [
         EsmVariableDeclarationIr(
@@ -1891,7 +1897,10 @@ final class KernelToEsmIrLoweringStage
         EsmVariableDeclarationIr(
           name: field.backingName!,
           initializer: EsmCallIr(
-            callee: runtimeHelpers.reference(EsmRuntimeHelper.lazyField),
+            callee: helpers.reference(
+              runtimeHelpers,
+              EsmRuntimeHelper.lazyField,
+            ),
             arguments: [
               EsmStringLiteralIr(field.node.name.text),
               initializer == null
@@ -2745,11 +2754,11 @@ final class KernelToEsmIrLoweringStage
     locals[statement] = name;
     final initializer = statement.initializer;
     if (statement.isLate) {
-      helpers.add(EsmRuntimeHelper.lazyField);
+      helpers.require(EsmRuntimeHelper.lazyField);
       return EsmVariableDeclarationIr(
         name: name,
         initializer: EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.lazyField),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.lazyField),
           arguments: [
             EsmStringLiteralIr(statement.name ?? name),
             initializer == null
@@ -3030,7 +3039,7 @@ final class KernelToEsmIrLoweringStage
           ),
       ]),
       k.SetLiteral() => () {
-        helpers.add(EsmRuntimeHelper.setAddAll);
+        helpers.require(EsmRuntimeHelper.setAddAll);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartSetFrom'),
           arguments: [
@@ -3048,7 +3057,7 @@ final class KernelToEsmIrLoweringStage
         );
       }(),
       k.MapLiteral() => () {
-        helpers.add(EsmRuntimeHelper.mapFactories);
+        helpers.require(EsmRuntimeHelper.mapFactories);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartMapFromEntries'),
           arguments: [
@@ -3188,9 +3197,9 @@ final class KernelToEsmIrLoweringStage
     k.DynamicGet expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    helpers.add(EsmRuntimeHelper.dynamicGet);
+    helpers.require(EsmRuntimeHelper.dynamicGet);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.dynamicGet),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.dynamicGet),
       arguments: [
         _lowerExpression(
           world,
@@ -3211,9 +3220,9 @@ final class KernelToEsmIrLoweringStage
     k.DynamicSet expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    helpers.add(EsmRuntimeHelper.dynamicSet);
+    helpers.require(EsmRuntimeHelper.dynamicSet);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.dynamicSet),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.dynamicSet),
       arguments: [
         _lowerExpression(
           world,
@@ -3241,9 +3250,9 @@ final class KernelToEsmIrLoweringStage
     k.NullCheck expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    helpers.add(EsmRuntimeHelper.nullCheck);
+    helpers.require(EsmRuntimeHelper.nullCheck);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.nullCheck),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.nullCheck),
       arguments: [
         _lowerExpression(
           world,
@@ -3263,9 +3272,9 @@ final class KernelToEsmIrLoweringStage
     k.RecordLiteral expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    helpers.add(EsmRuntimeHelper.record);
+    helpers.require(EsmRuntimeHelper.record);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.record),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.record),
       arguments: [
         EsmArrayLiteralIr([
           for (final field in expression.positional)
@@ -3323,9 +3332,9 @@ final class KernelToEsmIrLoweringStage
     k.Expression expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    helpers.add(EsmRuntimeHelper.stringify);
+    helpers.require(EsmRuntimeHelper.stringify);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.stringify),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.stringify),
       arguments: [
         _lowerExpression(
           world,
@@ -3679,12 +3688,12 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (constant is k.SetConstant) {
-      helpers.add(EsmRuntimeHelper.constSet);
+      helpers.require(EsmRuntimeHelper.constSet);
       return _lowerCanonicalConstant(
         helpers,
         constant,
         EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.constSet),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.constSet),
           arguments: [
             EsmArrayLiteralIr([
               for (final entry in constant.entries)
@@ -3695,12 +3704,12 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (constant is k.MapConstant) {
-      helpers.add(EsmRuntimeHelper.constMap);
+      helpers.require(EsmRuntimeHelper.constMap);
       return _lowerCanonicalConstant(
         helpers,
         constant,
         EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.constMap),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.constMap),
           arguments: [
             EsmArrayLiteralIr([
               for (final entry in constant.entries)
@@ -3714,12 +3723,12 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (constant is k.RecordConstant) {
-      helpers.add(EsmRuntimeHelper.record);
+      helpers.require(EsmRuntimeHelper.record);
       return _lowerCanonicalConstant(
         helpers,
         constant,
         EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.record),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.record),
           arguments: [
             EsmArrayLiteralIr([
               for (final entry in constant.positional)
@@ -3819,11 +3828,11 @@ final class KernelToEsmIrLoweringStage
     final target = kernelReferencePath(reference);
     if (target ==
         'dart:collection::ListBase::@methods::dart:collection::_compareAny') {
-      helpers.add(EsmRuntimeHelper.compare);
+      helpers.require(EsmRuntimeHelper.compare);
       return EsmArrowFunctionIr(
         parameters: const ['left', 'right'],
         body: EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.compare),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.compare),
           arguments: const [EsmIdentifierIr('left'), EsmIdentifierIr('right')],
         ),
       );
@@ -3871,7 +3880,7 @@ final class KernelToEsmIrLoweringStage
     if (helperName == null) {
       return null;
     }
-    helpers.add(EsmRuntimeHelper.encoding);
+    helpers.require(EsmRuntimeHelper.encoding);
     bool? allowMalformed;
     for (final value in constant.fieldValues.values) {
       if (value is k.BoolConstant) {
@@ -3890,12 +3899,12 @@ final class KernelToEsmIrLoweringStage
     String name, {
     k.Reference? libraryReference,
   }) {
-    helpers.add(EsmRuntimeHelper.symbol);
+    helpers.require(EsmRuntimeHelper.symbol);
     final key = libraryReference == null
         ? name
         : '${kernelReferencePath(libraryReference)}::$name';
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.symbol),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.symbol),
       arguments: [EsmStringLiteralIr(key), EsmStringLiteralIr(name)],
     );
   }
@@ -3904,9 +3913,9 @@ final class KernelToEsmIrLoweringStage
     EsmRuntimeHelperUseSet helpers,
     k.DartType type,
   ) {
-    helpers.add(EsmRuntimeHelper.type);
+    helpers.require(EsmRuntimeHelper.type);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.type),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.type),
       arguments: [EsmStringLiteralIr(_dartTypeName(type))],
     );
   }
@@ -4083,9 +4092,9 @@ final class KernelToEsmIrLoweringStage
     }
     final errorTypeName = _dartCoreErrorConstantTypeName(constant);
     if (errorTypeName != null) {
-      helpers.add(EsmRuntimeHelper.coreError);
+      helpers.require(EsmRuntimeHelper.coreError);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.coreError),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.coreError),
         arguments: [
           EsmStringLiteralIr(errorTypeName),
           _lowerOptionalConstantField(
@@ -4125,9 +4134,9 @@ final class KernelToEsmIrLoweringStage
   ) {
     final classPath = kernelReferencePath(constant.classReference);
     if (classPath == 'dart:math::Point') {
-      helpers.add(EsmRuntimeHelper.mathPoint);
+      helpers.require(EsmRuntimeHelper.mathPoint);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathPoint),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.mathPoint),
         arguments: [
           _lowerConstantField(world, helpers, constant, 'x', context),
           _lowerConstantField(world, helpers, constant, 'y', context),
@@ -4135,9 +4144,12 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (classPath == 'dart:math::Rectangle') {
-      helpers.add(EsmRuntimeHelper.mathRectangle);
+      helpers.require(EsmRuntimeHelper.mathRectangle);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathRectangle),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.mathRectangle,
+        ),
         arguments: [
           _lowerConstantField(world, helpers, constant, 'left', context),
           _lowerConstantField(world, helpers, constant, 'top', context),
@@ -4309,9 +4321,9 @@ final class KernelToEsmIrLoweringStage
     k.Constant constant,
     EsmExpressionIr value,
   ) {
-    helpers.add(EsmRuntimeHelper.constValue);
+    helpers.require(EsmRuntimeHelper.constValue);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.constValue),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.constValue),
       arguments: [
         EsmStringLiteralIr(_constantKey(constant)),
         EsmArrowFunctionIr(parameters: const [], body: value),
@@ -4519,9 +4531,9 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (target == 'dart:core::Uri::@getters::base') {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.uri),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.uri),
         arguments: const [
           EsmNullishCoalesceIr(
             left: EsmOptionalPropertyAccessIr(
@@ -5052,13 +5064,12 @@ final class KernelToEsmIrLoweringStage
       throw NewCompilerUnsupported(expression, 'expression lowering');
     }
     final isCall = expression.name.text == 'call';
-    helpers.add(
-      isCall ? EsmRuntimeHelper.dynamicCall : EsmRuntimeHelper.dynamicInvoke,
-    );
+    final helper = isCall
+        ? EsmRuntimeHelper.dynamicCall
+        : EsmRuntimeHelper.dynamicInvoke;
+    helpers.require(helper);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(
-        isCall ? EsmRuntimeHelper.dynamicCall : EsmRuntimeHelper.dynamicInvoke,
-      ),
+      callee: helpers.reference(runtimeHelpers, helper),
       arguments: [
         _lowerExpression(
           world,
@@ -5414,14 +5425,14 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       );
       if (isMapMember) {
-        helpers.add(EsmRuntimeHelper.mapGet);
+        helpers.require(EsmRuntimeHelper.mapGet);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.mapGet),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.mapGet),
           arguments: [receiver, property],
         );
       }
       if (isListMember) {
-        helpers.add(EsmRuntimeHelper.listMixin);
+        helpers.require(EsmRuntimeHelper.listMixin);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartListLikeGet'),
           arguments: [receiver, property],
@@ -5435,9 +5446,9 @@ final class KernelToEsmIrLoweringStage
     if (memberName == '[]=' &&
         expression.arguments.positional.length == 2 &&
         isMapMember) {
-      helpers.add(EsmRuntimeHelper.mapSet);
+      helpers.require(EsmRuntimeHelper.mapSet);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mapSet),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.mapSet),
         arguments: [
           _lowerExpression(
             world,
@@ -5459,7 +5470,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (memberName == '[]=' && expression.arguments.positional.length == 2) {
       if (isListMember) {
-        helpers.add(EsmRuntimeHelper.listMixin);
+        helpers.require(EsmRuntimeHelper.listMixin);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartListLikeSet'),
           arguments: [
@@ -5510,9 +5521,9 @@ final class KernelToEsmIrLoweringStage
     if (isMapMember &&
         memberName == 'addAll' &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.mapAddAll);
+      helpers.require(EsmRuntimeHelper.mapAddAll);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mapAddAll),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.mapAddAll),
         arguments: [
           _lowerExpression(
             world,
@@ -5535,7 +5546,7 @@ final class KernelToEsmIrLoweringStage
         memberName == 'addEntries' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapAddEntries'),
         arguments: [
@@ -5560,9 +5571,12 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:_compact_hash::_ConstMap::@methods::containsKey' ||
             target == 'dart:_compact_hash::_Map::@methods::containsKey') &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.mapContainsKey);
+      helpers.require(EsmRuntimeHelper.mapContainsKey);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mapContainsKey),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.mapContainsKey,
+        ),
         arguments: [
           _lowerExpression(
             world,
@@ -5585,7 +5599,7 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:_compact_hash::_Map::@methods::containsValue') &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapContainsValue'),
         arguments: [
@@ -5610,7 +5624,7 @@ final class KernelToEsmIrLoweringStage
         memberName == 'putIfAbsent' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 2) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapPutIfAbsent'),
         arguments: [
@@ -5636,7 +5650,7 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:_compact_hash::_Map::@methods::update') &&
         _hasOnlyNamedArguments(expression.arguments, {'ifAbsent'}) &&
         expression.arguments.positional.length == 2) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       final ifAbsent = _lowerNamedArgument(
         world,
         helpers,
@@ -5671,7 +5685,7 @@ final class KernelToEsmIrLoweringStage
         memberName == 'forEach' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapForEach'),
         arguments: [
@@ -5696,7 +5710,7 @@ final class KernelToEsmIrLoweringStage
         memberName == 'map' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapMap'),
         arguments: [
@@ -5743,7 +5757,7 @@ final class KernelToEsmIrLoweringStage
     if (mapMutationHelper != null &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       return EsmCallIr(
         callee: EsmIdentifierIr(mapMutationHelper),
         arguments: [
@@ -5768,7 +5782,7 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:_compact_hash::_Map::@methods::clear') &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.isEmpty) {
-      helpers.add(EsmRuntimeHelper.mapOps);
+      helpers.require(EsmRuntimeHelper.mapOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapClear'),
         arguments: [
@@ -5789,7 +5803,7 @@ final class KernelToEsmIrLoweringStage
     if (isSetMember &&
         expression.name.text == 'add' &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.setAddAll);
+      helpers.require(EsmRuntimeHelper.setAddAll);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSetAdd'),
         arguments: [
@@ -5813,7 +5827,7 @@ final class KernelToEsmIrLoweringStage
     if (isSetMember &&
         expression.name.text == 'contains' &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.setAddAll);
+      helpers.require(EsmRuntimeHelper.setAddAll);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSetContains'),
         arguments: [
@@ -5852,7 +5866,7 @@ final class KernelToEsmIrLoweringStage
     if (setHelper != null &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.setOps);
+      helpers.require(EsmRuntimeHelper.setOps);
       return EsmCallIr(
         callee: EsmIdentifierIr(setHelper),
         arguments: [
@@ -5876,9 +5890,9 @@ final class KernelToEsmIrLoweringStage
     if (isSetMember &&
         expression.name.text == 'addAll' &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.setAddAll);
+      helpers.require(EsmRuntimeHelper.setAddAll);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.setAddAll),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.setAddAll),
         arguments: [
           _lowerExpression(
             world,
@@ -5899,9 +5913,9 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::List::@methods::add' &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.listAdd);
+      helpers.require(EsmRuntimeHelper.listAdd);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listAdd),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listAdd),
         arguments: [
           _lowerExpression(
             world,
@@ -5922,9 +5936,9 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::List::@methods::addAll' &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.listAddAll);
+      helpers.require(EsmRuntimeHelper.listAddAll);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listAddAll),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listAddAll),
         arguments: [
           _lowerExpression(
             world,
@@ -6085,9 +6099,12 @@ final class KernelToEsmIrLoweringStage
       return EsmUnaryIr(operator: '~', operand: receiver);
     }
     if (target == 'dart:core::Object::@methods::toString') {
-      helpers.add(EsmRuntimeHelper.safeToString);
+      helpers.require(EsmRuntimeHelper.safeToString);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.safeToString),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.safeToString,
+        ),
         arguments: [receiver],
       );
     }
@@ -6122,9 +6139,12 @@ final class KernelToEsmIrLoweringStage
     }
     final positional = expression.arguments.positional;
     if (memberName == 'join' && positional.length <= 1) {
-      helpers.add(EsmRuntimeHelper.iterableJoin);
+      helpers.require(EsmRuntimeHelper.iterableJoin);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.iterableJoin),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.iterableJoin,
+        ),
         arguments: [
           _lowerExpression(
             world,
@@ -6150,7 +6170,7 @@ final class KernelToEsmIrLoweringStage
       if (!isListMixin) {
         return null;
       }
-      helpers.add(EsmRuntimeHelper.listMixin);
+      helpers.require(EsmRuntimeHelper.listMixin);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListMixinInsert'),
         arguments: [
@@ -6219,7 +6239,7 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (name == 'setAll' && positional.length == 2) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListSetAll'),
         arguments: [receiver, lower(positional[0]), lower(positional[1])],
@@ -6228,7 +6248,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'setRange' &&
         positional.length >= 3 &&
         positional.length <= 4) {
-      helpers.add(EsmRuntimeHelper.listRangeOps);
+      helpers.require(EsmRuntimeHelper.listRangeOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListSetRange'),
         arguments: [
@@ -6240,7 +6260,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'fillRange' &&
         positional.length >= 2 &&
         positional.length <= 3) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListFillRange'),
         arguments: [
@@ -6254,7 +6274,7 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (name == 'asMap' && positional.isEmpty) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListAsMap'),
         arguments: [receiver],
@@ -6295,7 +6315,7 @@ final class KernelToEsmIrLoweringStage
     if ((name == 'resolve' || name == 'resolveUri') &&
         positional.length == 1 &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriResolve'),
         arguments: [
@@ -6313,7 +6333,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'removeFragment' &&
         positional.isEmpty &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriReplace'),
         arguments: [
@@ -6328,7 +6348,7 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (name == 'replace' && positional.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriReplace'),
         arguments: [
@@ -6346,7 +6366,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'normalizePath' &&
         positional.isEmpty &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriNormalizePath'),
         arguments: [receiver],
@@ -6355,7 +6375,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'toFilePath' &&
         positional.isEmpty &&
         _hasOnlyNamedArguments(expression.arguments, {'windows'})) {
-      helpers.add(EsmRuntimeHelper.uriToFilePath);
+      helpers.require(EsmRuntimeHelper.uriToFilePath);
       final windows =
           _lowerNamedArgument(
             world,
@@ -6547,9 +6567,9 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.named.isEmpty &&
         positional.length >= 2 &&
         positional.length <= 3) {
-      helpers.add(EsmRuntimeHelper.stringOps);
+      helpers.require(EsmRuntimeHelper.stringOps);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.stringOps),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.stringOps),
         arguments: [
           receiver,
           for (final argument in positional)
@@ -6566,7 +6586,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::String::@methods::replaceRange' &&
         expression.arguments.named.isEmpty &&
         positional.length == 3) {
-      helpers.add(EsmRuntimeHelper.stringOps);
+      helpers.require(EsmRuntimeHelper.stringOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartStringReplaceRange'),
         arguments: [
@@ -6607,7 +6627,7 @@ final class KernelToEsmIrLoweringStage
       String name,
       List<EsmExpressionIr> arguments,
     ) {
-      helpers.add(EsmRuntimeHelper.pattern);
+      helpers.require(EsmRuntimeHelper.pattern);
       return EsmCallIr(callee: EsmIdentifierIr(name), arguments: arguments);
     }
 
@@ -6846,7 +6866,7 @@ final class KernelToEsmIrLoweringStage
     if (helperName == null) {
       return null;
     }
-    helpers.add(EsmRuntimeHelper.pattern);
+    helpers.require(EsmRuntimeHelper.pattern);
     return EsmCallIr(
       callee: EsmIdentifierIr(helperName),
       arguments: [
@@ -6995,7 +7015,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::Iterable::@methods::toList' &&
         expression.arguments.positional.isEmpty &&
         _hasOnlyNamedArguments(expression.arguments, {'growable'})) {
-      helpers.add(EsmRuntimeHelper.listFactory);
+      helpers.require(EsmRuntimeHelper.listFactory);
       final growable =
           _lowerNamedArgument(
             world,
@@ -7007,7 +7027,7 @@ final class KernelToEsmIrLoweringStage
           ) ??
           const EsmBooleanLiteralIr(true);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listFactory),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listFactory),
         arguments: [
           _lowerExpression(
             world,
@@ -7024,7 +7044,7 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:core::List::@methods::toSet') &&
         expression.arguments.positional.isEmpty &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.setAddAll);
+      helpers.require(EsmRuntimeHelper.setAddAll);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSetFrom'),
         arguments: [
@@ -7185,7 +7205,7 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:core::List::@methods::singleWhere') &&
         _hasOnlyNamedArguments(expression.arguments, {'orElse'}) &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.iterableSearch);
+      helpers.require(EsmRuntimeHelper.iterableSearch);
       final helperName = switch (target) {
         'dart:core::Iterable::@methods::firstWhere' ||
         'dart:core::List::@methods::firstWhere' => '__dartIterableFirstWhere',
@@ -7345,7 +7365,7 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.isNotEmpty &&
         expression.arguments.positional.length <= 2) {
-      helpers.add(EsmRuntimeHelper.listSearch);
+      helpers.require(EsmRuntimeHelper.listSearch);
       final helperName = switch (target) {
         'dart:core::List::@methods::indexOf' => '__dartListIndexOf',
         'dart:core::List::@methods::lastIndexOf' => '__dartListLastIndexOf',
@@ -7378,13 +7398,16 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::List::@methods::sort' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length <= 1) {
-      helpers.add(EsmRuntimeHelper.compare);
+      helpers.require(EsmRuntimeHelper.compare);
       final compare = expression.arguments.positional.isEmpty
-          ? runtimeHelpers.reference(EsmRuntimeHelper.compare)
+          ? helpers.reference(runtimeHelpers, EsmRuntimeHelper.compare)
           : EsmArrowFunctionIr(
               parameters: const ['left', 'right'],
               body: EsmCallIr(
-                callee: runtimeHelpers.reference(EsmRuntimeHelper.compare),
+                callee: helpers.reference(
+                  runtimeHelpers,
+                  EsmRuntimeHelper.compare,
+                ),
                 arguments: [
                   const EsmIdentifierIr('left'),
                   const EsmIdentifierIr('right'),
@@ -7415,7 +7438,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::List::@methods::shuffle' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length <= 1) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListShuffle'),
         arguments: [
@@ -7455,7 +7478,7 @@ final class KernelToEsmIrLoweringStage
     if (listMutationHelper != null &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.isNotEmpty) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: EsmIdentifierIr(listMutationHelper),
         arguments: [
@@ -7481,7 +7504,7 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length >= 3 &&
         expression.arguments.positional.length <= 4) {
-      helpers.add(EsmRuntimeHelper.listRangeOps);
+      helpers.require(EsmRuntimeHelper.listRangeOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListSetRange'),
         arguments: [
@@ -7506,7 +7529,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::List::@methods::removeLast' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.isEmpty) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListRemoveLast'),
         arguments: [
@@ -7523,7 +7546,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::List::@methods::asMap' &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.isEmpty) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListAsMap'),
         arguments: [
@@ -7625,9 +7648,12 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:core::List::@methods::takeWhile') &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.iterableWindow);
+      helpers.require(EsmRuntimeHelper.iterableWindow);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.iterableWindow),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.iterableWindow,
+        ),
         arguments: [
           _lowerExpression(
             world,
@@ -7650,7 +7676,7 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:core::List::@methods::skipWhile') &&
         expression.arguments.named.isEmpty &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.iterableWindow);
+      helpers.require(EsmRuntimeHelper.iterableWindow);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartIterableSkipWhile'),
         arguments: [
@@ -7795,9 +7821,9 @@ final class KernelToEsmIrLoweringStage
     if ((name == 'add' || name == 'addLast') &&
         expression.arguments.named.isEmpty &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.listAdd);
+      helpers.require(EsmRuntimeHelper.listAdd);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listAdd),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listAdd),
         arguments: [
           receiver,
           _lowerExpression(
@@ -7829,9 +7855,9 @@ final class KernelToEsmIrLoweringStage
     if (name == 'addAll' &&
         expression.arguments.named.isEmpty &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.listAddAll);
+      helpers.require(EsmRuntimeHelper.listAddAll);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listAddAll),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listAddAll),
         arguments: [
           receiver,
           _lowerExpression(
@@ -7863,7 +7889,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'remove' &&
         expression.arguments.named.isEmpty &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListRemove'),
         arguments: [
@@ -7881,7 +7907,7 @@ final class KernelToEsmIrLoweringStage
     if ((name == 'removeWhere' || name == 'retainWhere') &&
         expression.arguments.named.isEmpty &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.listMutation);
+      helpers.require(EsmRuntimeHelper.listMutation);
       return EsmCallIr(
         callee: EsmIdentifierIr(
           name == 'removeWhere'
@@ -7911,9 +7937,9 @@ final class KernelToEsmIrLoweringStage
     if (name == 'toList' &&
         positional.isEmpty &&
         _hasOnlyNamedArguments(expression.arguments, {'growable'})) {
-      helpers.add(EsmRuntimeHelper.listFactory);
+      helpers.require(EsmRuntimeHelper.listFactory);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listFactory),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listFactory),
         arguments: [
           receiver,
           _lowerNamedArgument(
@@ -8014,9 +8040,12 @@ final class KernelToEsmIrLoweringStage
         _ => null,
       };
       if (doubleResultMethod != null) {
-        helpers.add(EsmRuntimeHelper.doubleValue);
+        helpers.require(EsmRuntimeHelper.doubleValue);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.doubleValue),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.doubleValue,
+          ),
           arguments: [
             EsmCallIr(
               callee: EsmPropertyAccessIr(
@@ -8150,9 +8179,9 @@ final class KernelToEsmIrLoweringStage
       if (target == 'dart:core::int::@methods::gcd' &&
           positional.length == 1 &&
           expression.arguments.named.isEmpty) {
-        helpers.add(EsmRuntimeHelper.intGcd);
+        helpers.require(EsmRuntimeHelper.intGcd);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.intGcd),
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.intGcd),
           arguments: [
             _lowerExpression(
               world,
@@ -8174,9 +8203,12 @@ final class KernelToEsmIrLoweringStage
       if (target == 'dart:core::int::@methods::modInverse' &&
           positional.length == 1 &&
           expression.arguments.named.isEmpty) {
-        helpers.add(EsmRuntimeHelper.intModular);
+        helpers.require(EsmRuntimeHelper.intModular);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.intModular),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.intModular,
+          ),
           arguments: [
             _lowerExpression(
               world,
@@ -8198,7 +8230,7 @@ final class KernelToEsmIrLoweringStage
       if (target == 'dart:core::int::@methods::modPow' &&
           positional.length == 2 &&
           expression.arguments.named.isEmpty) {
-        helpers.add(EsmRuntimeHelper.intModular);
+        helpers.require(EsmRuntimeHelper.intModular);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartIntModPow'),
           arguments: [
@@ -8249,9 +8281,9 @@ final class KernelToEsmIrLoweringStage
       }
       return null;
     }
-    helpers.add(EsmRuntimeHelper.compare);
+    helpers.require(EsmRuntimeHelper.compare);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.compare),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.compare),
       arguments: [
         _lowerExpression(
           world,
@@ -8487,7 +8519,7 @@ final class KernelToEsmIrLoweringStage
       thisExpression: thisExpression,
     );
     if (property == 'hashCode') {
-      helpers.add(EsmRuntimeHelper.objectHash);
+      helpers.require(EsmRuntimeHelper.objectHash);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartHashValue'),
         arguments: [
@@ -8547,21 +8579,21 @@ final class KernelToEsmIrLoweringStage
         right: const EsmNumberLiteralIr(0),
       ),
       'first' => () {
-        helpers.add(EsmRuntimeHelper.listMixin);
+        helpers.require(EsmRuntimeHelper.listMixin);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartListMixinFirst'),
           arguments: [receiver],
         );
       }(),
       'last' => () {
-        helpers.add(EsmRuntimeHelper.listMixin);
+        helpers.require(EsmRuntimeHelper.listMixin);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartListMixinLast'),
           arguments: [receiver],
         );
       }(),
       'single' => () {
-        helpers.add(EsmRuntimeHelper.listMixin);
+        helpers.require(EsmRuntimeHelper.listMixin);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartListMixinSingle'),
           arguments: [receiver],
@@ -8796,16 +8828,19 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (_isCoreHashCodeGetter(target)) {
-      helpers.add(EsmRuntimeHelper.objectHash);
+      helpers.require(EsmRuntimeHelper.objectHash);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartHashValue'),
         arguments: [receiver],
       );
     }
     if (target == 'dart:core::Object::@getters::runtimeType') {
-      helpers.add(EsmRuntimeHelper.objectRuntimeType);
+      helpers.require(EsmRuntimeHelper.objectRuntimeType);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.objectRuntimeType),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.objectRuntimeType,
+        ),
         arguments: [receiver],
       );
     }
@@ -8893,9 +8928,9 @@ final class KernelToEsmIrLoweringStage
       return EsmPropertyAccessIr(receiver: receiver, property: 'name');
     }
     if (target == 'dart:core::Iterable::@getters::iterator') {
-      helpers.add(EsmRuntimeHelper.iterator);
+      helpers.require(EsmRuntimeHelper.iterator);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.iterator),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.iterator),
         arguments: [receiver],
       );
     }
@@ -8940,7 +8975,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::Iterable::@getters::single' ||
         target == 'dart:core::List::@getters::single') {
-      helpers.add(EsmRuntimeHelper.iterableSearch);
+      helpers.require(EsmRuntimeHelper.iterableSearch);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartIterableSingle'),
         arguments: [receiver],
@@ -8964,7 +8999,7 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (target == 'dart:core::String::@getters::codeUnits') {
-      helpers.add(EsmRuntimeHelper.stringOps);
+      helpers.require(EsmRuntimeHelper.stringOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartStringCodeUnits'),
         arguments: [receiver],
@@ -9040,7 +9075,7 @@ final class KernelToEsmIrLoweringStage
       'dart:core::num::@getters::hashCode' ||
       'dart:core::int::@getters::hashCode' ||
       'dart:core::double::@getters::hashCode' => () {
-        helpers.add(EsmRuntimeHelper.objectHash);
+        helpers.require(EsmRuntimeHelper.objectHash);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartHashValue'),
           arguments: [receiver],
@@ -9176,9 +9211,12 @@ final class KernelToEsmIrLoweringStage
         ),
       ),
       'dart:core::BigInt::@getters::bitLength' => () {
-        helpers.add(EsmRuntimeHelper.bigIntBitLength);
+        helpers.require(EsmRuntimeHelper.bigIntBitLength);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.bigIntBitLength),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.bigIntBitLength,
+          ),
           arguments: [receiver],
         );
       }(),
@@ -9532,7 +9570,7 @@ final class KernelToEsmIrLoweringStage
           'dart:collection::UnmodifiableListView::@constructors::',
         ) &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.unmodifiableViews);
+      helpers.require(EsmRuntimeHelper.unmodifiableViews);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUnmodifiableListView'),
         arguments: [
@@ -9550,7 +9588,7 @@ final class KernelToEsmIrLoweringStage
           'dart:collection::UnmodifiableMapView::@constructors::',
         ) &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.unmodifiableViews);
+      helpers.require(EsmRuntimeHelper.unmodifiableViews);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUnmodifiableMapView'),
         arguments: [
@@ -9568,9 +9606,12 @@ final class KernelToEsmIrLoweringStage
           expression.targetReference,
         ) &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.weakReference);
+      helpers.require(EsmRuntimeHelper.weakReference);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.weakReference),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.weakReference,
+        ),
         arguments: [
           _lowerExpression(
             world,
@@ -9584,9 +9625,9 @@ final class KernelToEsmIrLoweringStage
     }
     if (isDartCoreFinalizerConstructorReference(expression.targetReference) &&
         positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.finalizer);
+      helpers.require(EsmRuntimeHelper.finalizer);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.finalizer),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.finalizer),
         arguments: [
           _lowerExpression(
             world,
@@ -9600,9 +9641,9 @@ final class KernelToEsmIrLoweringStage
     }
     if (isDartCoreExpandoConstructorReference(expression.targetReference) &&
         positional.length <= 1) {
-      helpers.add(EsmRuntimeHelper.expando);
+      helpers.require(EsmRuntimeHelper.expando);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.expando),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.expando),
         arguments: [
           if (positional.isEmpty)
             const EsmNullLiteralIr()
@@ -9619,7 +9660,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:collection::SplayTreeSet::@constructors::' &&
         positional.length <= 2) {
-      helpers.add(EsmRuntimeHelper.splayTree);
+      helpers.require(EsmRuntimeHelper.splayTree);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSplayTreeSet'),
         arguments: [
@@ -9644,7 +9685,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:collection::SplayTreeMap::@constructors::' &&
         positional.length <= 2) {
-      helpers.add(EsmRuntimeHelper.splayTree);
+      helpers.require(EsmRuntimeHelper.splayTree);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSplayTreeMap'),
         arguments: [
@@ -9668,9 +9709,12 @@ final class KernelToEsmIrLoweringStage
       );
     }
     if (_isCoreStringBufferConstructor(target) && positional.length <= 1) {
-      helpers.add(EsmRuntimeHelper.stringBuffer);
+      helpers.require(EsmRuntimeHelper.stringBuffer);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.stringBuffer),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.stringBuffer,
+        ),
         arguments: [
           if (positional.isEmpty)
             const EsmStringLiteralIr('')
@@ -9698,7 +9742,7 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:_compact_hash::_Set::@constructors::' &&
         expression.arguments.positional.isEmpty) {
-      helpers.add(EsmRuntimeHelper.setAddAll);
+      helpers.require(EsmRuntimeHelper.setAddAll);
       return const EsmCallIr(
         callee: EsmIdentifierIr('__dartSetFrom'),
         arguments: [EsmArrayLiteralIr([])],
@@ -9728,9 +9772,9 @@ final class KernelToEsmIrLoweringStage
       if (argument is k.StringLiteral) {
         return _lowerSymbolLiteral(helpers, argument.value);
       }
-      helpers.add(EsmRuntimeHelper.symbol);
+      helpers.require(EsmRuntimeHelper.symbol);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.symbol),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.symbol),
         arguments: [
           _lowerExpression(
             world,
@@ -9762,9 +9806,9 @@ final class KernelToEsmIrLoweringStage
     final positional = expression.arguments.positional;
     if (isDartMathPointConstructorReference(expression.targetReference) &&
         positional.length == 2) {
-      helpers.add(EsmRuntimeHelper.mathPoint);
+      helpers.require(EsmRuntimeHelper.mathPoint);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathPoint),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.mathPoint),
         arguments: [
           for (final argument in positional)
             _lowerExpression(
@@ -9779,9 +9823,12 @@ final class KernelToEsmIrLoweringStage
     }
     if (isDartMathRectangleConstructorReference(expression.targetReference) &&
         positional.length == 4) {
-      helpers.add(EsmRuntimeHelper.mathRectangle);
+      helpers.require(EsmRuntimeHelper.mathRectangle);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mathRectangle),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.mathRectangle,
+        ),
         arguments: [
           for (final argument in positional)
             _lowerExpression(
@@ -9805,9 +9852,9 @@ final class KernelToEsmIrLoweringStage
     List<k.Expression> positionalArguments, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    helpers.add(EsmRuntimeHelper.coreError);
+    helpers.require(EsmRuntimeHelper.coreError);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.coreError),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.coreError),
       arguments: [
         EsmStringLiteralIr(typeName),
         positionalArguments.isEmpty
@@ -9834,9 +9881,9 @@ final class KernelToEsmIrLoweringStage
     k.EqualsCall expression, {
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
-    helpers.add(EsmRuntimeHelper.equals);
+    helpers.require(EsmRuntimeHelper.equals);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.equals),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.equals),
       arguments: [
         _lowerExpression(
           world,
@@ -9961,9 +10008,9 @@ final class KernelToEsmIrLoweringStage
     if (type is k.DynamicType || type is k.VoidType) {
       return operand;
     }
-    helpers.add(EsmRuntimeHelper.typeCast);
+    helpers.require(EsmRuntimeHelper.typeCast);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.typeCast),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.typeCast),
       arguments: [
         operand,
         EsmArrowFunctionIr(
@@ -10259,7 +10306,7 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr value,
     String typeName,
   ) {
-    helpers.add(EsmRuntimeHelper.coreError);
+    helpers.require(EsmRuntimeHelper.coreError);
     return EsmCallIr(
       callee: const EsmIdentifierIr('__dartIsCoreError'),
       arguments: [value, EsmStringLiteralIr(typeName)],
@@ -10301,7 +10348,7 @@ final class KernelToEsmIrLoweringStage
     }
     final recordShape = EsmComputedPropertyAccessIr(
       receiver: value,
-      property: runtimeHelpers.reference(EsmRuntimeHelper.recordShape),
+      property: helpers.reference(runtimeHelpers, EsmRuntimeHelper.recordShape),
     );
     checks.insert(
       1,
@@ -10329,9 +10376,9 @@ final class KernelToEsmIrLoweringStage
     EsmRuntimeHelperUseSet helpers,
     EsmExpressionIr value,
   ) {
-    helpers.add(EsmRuntimeHelper.isRecord);
+    helpers.require(EsmRuntimeHelper.isRecord);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.isRecord),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.isRecord),
       arguments: [value],
     );
   }
@@ -10967,7 +11014,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionIndexed
           when positional.length == 1 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.record);
+        helpers.require(EsmRuntimeHelper.record);
         return EsmCallIr(
           callee: EsmPropertyAccessIr(
             receiver: _arrayFrom(
@@ -10999,7 +11046,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionFirstOrNull
           when positional.length == 1 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.iterableSearch);
+        helpers.require(EsmRuntimeHelper.iterableSearch);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartIterableFirstOrNull'),
           arguments: [
@@ -11014,7 +11061,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionLastOrNull
           when positional.length == 1 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.iterableSearch);
+        helpers.require(EsmRuntimeHelper.iterableSearch);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartIterableLastOrNull'),
           arguments: [
@@ -11029,7 +11076,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionSingleOrNull
           when positional.length == 1 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.iterableSearch);
+        helpers.require(EsmRuntimeHelper.iterableSearch);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartIterableSingleOrNull'),
           arguments: [
@@ -11044,7 +11091,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionElementAtOrNull
           when positional.length == 2 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.iterableSearch);
+        helpers.require(EsmRuntimeHelper.iterableSearch);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartIterableElementAtOrNull'),
           arguments: [
@@ -11064,7 +11111,7 @@ final class KernelToEsmIrLoweringStage
               positional.length <= 3 &&
               expression.arguments.named.isEmpty &&
               expression.arguments.types.isEmpty:
-        helpers.add(EsmRuntimeHelper.stringify);
+        helpers.require(EsmRuntimeHelper.stringify);
         return _dartDelimitedCollectionToString(
           positional.length >= 2
               ? _lowerExpression(
@@ -11103,7 +11150,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionListBaseToString
           when positional.length == 1 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.stringify);
+        helpers.require(EsmRuntimeHelper.stringify);
         return _dartCollectionToString(
           '[',
           _joinMappedIterable(
@@ -11126,7 +11173,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionSetBaseToString
           when positional.length == 1 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.stringify);
+        helpers.require(EsmRuntimeHelper.stringify);
         return _dartCollectionToString(
           '{',
           _joinMappedIterable(
@@ -11149,7 +11196,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.collectionMapBaseToString
           when positional.length == 1 && expression.arguments.named.isEmpty:
-        helpers.add(EsmRuntimeHelper.stringify);
+        helpers.require(EsmRuntimeHelper.stringify);
         return _dartCollectionToString(
           '{',
           _join(
@@ -11250,7 +11297,7 @@ final class KernelToEsmIrLoweringStage
     if (listCopyFactory &&
         positional.length == 1 &&
         _hasOnlyNamedArguments(arguments, {'growable'})) {
-      helpers.add(EsmRuntimeHelper.listFactory);
+      helpers.require(EsmRuntimeHelper.listFactory);
       final growable = _lowerNamedArgument(
         world,
         helpers,
@@ -11260,7 +11307,7 @@ final class KernelToEsmIrLoweringStage
         thisExpression: thisExpression,
       );
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listFactory),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listFactory),
         arguments: [
           _lowerExpression(
             world,
@@ -11276,7 +11323,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::List::@factories::unmodifiable' &&
         positional.length == 1 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.listFactory);
+      helpers.require(EsmRuntimeHelper.listFactory);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUnmodifiableList'),
         arguments: [
@@ -11299,7 +11346,7 @@ final class KernelToEsmIrLoweringStage
     if (listFilledFactory &&
         positional.length == 2 &&
         _hasOnlyNamedArguments(arguments, {'growable'})) {
-      helpers.add(EsmRuntimeHelper.listFactory);
+      helpers.require(EsmRuntimeHelper.listFactory);
       final growable =
           _lowerNamedArgument(
             world,
@@ -11335,7 +11382,7 @@ final class KernelToEsmIrLoweringStage
     if (listEmptyFactory &&
         positional.isEmpty &&
         _hasOnlyNamedArguments(arguments, {'growable'})) {
-      helpers.add(EsmRuntimeHelper.listFactory);
+      helpers.require(EsmRuntimeHelper.listFactory);
       final growable =
           _lowerNamedArgument(
             world,
@@ -11347,7 +11394,7 @@ final class KernelToEsmIrLoweringStage
           ) ??
           EsmBooleanLiteralIr(_isCoreGrowableListFactory(target));
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listFactory),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.listFactory),
         arguments: [const EsmArrayLiteralIr([]), growable],
       );
     }
@@ -11405,9 +11452,12 @@ final class KernelToEsmIrLoweringStage
         positional.length >= 3 &&
         positional.length <= 5 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.listRangeOps);
+      helpers.require(EsmRuntimeHelper.listRangeOps);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.listRangeOps),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.listRangeOps,
+        ),
         arguments: [
           for (final argument in positional)
             _lowerExpression(
@@ -11423,7 +11473,7 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::List::@methods::writeIterable' &&
         positional.length == 3 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.listRangeOps);
+      helpers.require(EsmRuntimeHelper.listRangeOps);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartListWriteIterable'),
         arguments: [
@@ -11448,7 +11498,7 @@ final class KernelToEsmIrLoweringStage
         positional.length >= 1 &&
         positional.length <= 2 &&
         _hasOnlyNamedArguments(arguments, {'growable'})) {
-      helpers.add(EsmRuntimeHelper.listFactory);
+      helpers.require(EsmRuntimeHelper.listFactory);
       final generator = positional.length == 1
           ? const EsmArrowFunctionIr(
               parameters: ['index'],
@@ -11489,7 +11539,7 @@ final class KernelToEsmIrLoweringStage
     if (_isSplayTreeSetEmptyFactory(target) &&
         positional.length <= 2 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.splayTree);
+      helpers.require(EsmRuntimeHelper.splayTree);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSplayTreeSet'),
         arguments: [
@@ -11516,7 +11566,7 @@ final class KernelToEsmIrLoweringStage
         positional.isNotEmpty &&
         positional.length <= 3 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.splayTree);
+      helpers.require(EsmRuntimeHelper.splayTree);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSplayTreeSetFrom'),
         arguments: [
@@ -11549,7 +11599,7 @@ final class KernelToEsmIrLoweringStage
     if (_isCoreSetFactory(target) &&
         positional.length == 1 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.setAddAll);
+      helpers.require(EsmRuntimeHelper.setAddAll);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSetFrom'),
         arguments: [
@@ -11574,7 +11624,7 @@ final class KernelToEsmIrLoweringStage
     if (_isCoreSetEmptyFactory(target) &&
         positional.isEmpty &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.setAddAll);
+      helpers.require(EsmRuntimeHelper.setAddAll);
       return const EsmCallIr(
         callee: EsmIdentifierIr('__dartSetFrom'),
         arguments: [EsmArrayLiteralIr([])],
@@ -11583,9 +11633,12 @@ final class KernelToEsmIrLoweringStage
     if (_isCoreMapFromIterableFactory(target) &&
         positional.length == 1 &&
         _hasOnlyNamedArguments(arguments, {'key', 'value'})) {
-      helpers.add(EsmRuntimeHelper.mapFactories);
+      helpers.require(EsmRuntimeHelper.mapFactories);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.mapFactories),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.mapFactories,
+        ),
         arguments: [
           _lowerExpression(
             world,
@@ -11618,7 +11671,7 @@ final class KernelToEsmIrLoweringStage
     if (_isCoreMapFromIterablesFactory(target) &&
         positional.length == 2 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.mapFactories);
+      helpers.require(EsmRuntimeHelper.mapFactories);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapFromIterables'),
         arguments: [
@@ -11636,7 +11689,7 @@ final class KernelToEsmIrLoweringStage
     if (_isSplayTreeMapEmptyFactory(target) &&
         positional.length <= 2 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.splayTree);
+      helpers.require(EsmRuntimeHelper.splayTree);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSplayTreeMap'),
         arguments: [
@@ -11663,7 +11716,7 @@ final class KernelToEsmIrLoweringStage
         positional.isNotEmpty &&
         positional.length <= 3 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.splayTree);
+      helpers.require(EsmRuntimeHelper.splayTree);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartSplayTreeMapFromEntries'),
         arguments: [
@@ -11696,7 +11749,7 @@ final class KernelToEsmIrLoweringStage
     if (_isCoreMapFactory(target) &&
         positional.length == 1 &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.mapGet);
+      helpers.require(EsmRuntimeHelper.mapGet);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartMapFromEntries'),
         arguments: [
@@ -11725,7 +11778,7 @@ final class KernelToEsmIrLoweringStage
           'hashCode',
           'isValidKey',
         })) {
-      helpers.add(EsmRuntimeHelper.customHashMap);
+      helpers.require(EsmRuntimeHelper.customHashMap);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartCustomHashMap'),
         arguments: [
@@ -11762,7 +11815,7 @@ final class KernelToEsmIrLoweringStage
     if (_isCoreMapEmptyFactory(target) &&
         positional.isEmpty &&
         arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.mapGet);
+      helpers.require(EsmRuntimeHelper.mapGet);
       return const EsmCallIr(
         callee: EsmIdentifierIr('__dartMapFromEntries'),
         arguments: [EsmArrayLiteralIr([])],
@@ -11907,9 +11960,12 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::String::@factories::fromCharCodes' &&
         positional.isNotEmpty &&
         positional.length <= 3) {
-      helpers.add(EsmRuntimeHelper.stringFactory);
+      helpers.require(EsmRuntimeHelper.stringFactory);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.stringFactory),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.stringFactory,
+        ),
         arguments: [
           for (final argument in positional)
             _lowerExpression(
@@ -11945,9 +12001,9 @@ final class KernelToEsmIrLoweringStage
           'unicode',
           'dotAll',
         })) {
-      helpers.add(EsmRuntimeHelper.regExp);
+      helpers.require(EsmRuntimeHelper.regExp);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.regExp),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.regExp),
         arguments: [
           _lowerExpression(
             world,
@@ -12016,9 +12072,12 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::RegExp::@methods::escape' &&
         positional.length == 1 &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.regExpEscape);
+      helpers.require(EsmRuntimeHelper.regExpEscape);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.regExpEscape),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.regExpEscape,
+        ),
         arguments: [
           _lowerExpression(
             world,
@@ -12054,9 +12113,12 @@ final class KernelToEsmIrLoweringStage
         if (positional.length > 1) {
           return null;
         }
-        helpers.add(EsmRuntimeHelper.mathRandom);
+        helpers.require(EsmRuntimeHelper.mathRandom);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.mathRandom),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.mathRandom,
+          ),
           arguments: [
             positional.isEmpty
                 ? const EsmNullLiteralIr()
@@ -12076,7 +12138,7 @@ final class KernelToEsmIrLoweringStage
         if (positional.length != 2) {
           return null;
         }
-        helpers.add(EsmRuntimeHelper.mathRectangle);
+        helpers.require(EsmRuntimeHelper.mathRectangle);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartRectangleFromPoints'),
           arguments: [
@@ -12305,9 +12367,12 @@ final class KernelToEsmIrLoweringStage
     if (positional.isEmpty || positional.length > 3) {
       return null;
     }
-    helpers.add(EsmRuntimeHelper.typedDataSublistView);
+    helpers.require(EsmRuntimeHelper.typedDataSublistView);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.typedDataSublistView),
+      callee: helpers.reference(
+        runtimeHelpers,
+        EsmRuntimeHelper.typedDataSublistView,
+      ),
       arguments: [
         lower(positional[0]),
         positional.length >= 2
@@ -12373,9 +12438,9 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::Uri::@methods::parse' &&
         positional.length == 1 &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.uri),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.uri),
         arguments: [
           _lowerExpression(
             world,
@@ -12391,9 +12456,9 @@ final class KernelToEsmIrLoweringStage
     if (target == 'dart:core::Uri::@methods::tryParse' &&
         positional.length == 1 &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.uri),
+        callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.uri),
         arguments: [
           _lowerExpression(
             world,
@@ -12409,7 +12474,7 @@ final class KernelToEsmIrLoweringStage
     if ((target == 'dart:core::_Uri::@factories::' ||
             target == 'dart:core::Uri::@factories::') &&
         positional.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUri'),
         arguments: [
@@ -12430,7 +12495,7 @@ final class KernelToEsmIrLoweringStage
         positional.length >= 2 &&
         positional.length <= 3 &&
         expression.arguments.named.isEmpty) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       final scheme = target.endsWith('::https') ? 'https' : 'http';
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriBuild'),
@@ -12468,7 +12533,7 @@ final class KernelToEsmIrLoweringStage
             target == 'dart:core::Uri::@factories::directory') &&
         positional.length == 1 &&
         _hasOnlyNamedArguments(expression.arguments, {'windows'})) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       final windows =
           _lowerNamedArgument(
             world,
@@ -12503,7 +12568,7 @@ final class KernelToEsmIrLoweringStage
           'parameters',
           'base64',
         })) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriDataFromString'),
         arguments: [
@@ -12561,7 +12626,7 @@ final class KernelToEsmIrLoweringStage
           'parameters',
           'percentEncoded',
         })) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriDataFromBytes'),
         arguments: [
@@ -12609,7 +12674,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'encodeQueryComponent' &&
         positional.length == 1 &&
         _hasOnlyNamedArguments(expression.arguments, {'encoding'})) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriEncodeQueryComponent'),
         arguments: [
@@ -12635,7 +12700,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'decodeQueryComponent' &&
         positional.length == 1 &&
         _hasOnlyNamedArguments(expression.arguments, {'encoding'})) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriDecodeQueryComponent'),
         arguments: [
@@ -12661,7 +12726,7 @@ final class KernelToEsmIrLoweringStage
     if (name == 'splitQueryString' &&
         positional.length == 1 &&
         _hasOnlyNamedArguments(expression.arguments, {'encoding'})) {
-      helpers.add(EsmRuntimeHelper.uri);
+      helpers.require(EsmRuntimeHelper.uri);
       return EsmCallIr(
         callee: const EsmIdentifierIr('__dartUriSplitQueryString'),
         arguments: [
@@ -12897,11 +12962,11 @@ final class KernelToEsmIrLoweringStage
       return null;
     }
     final radix = radixArguments.isEmpty ? null : radixArguments.single;
-    helpers.add(EsmRuntimeHelper.intParse);
+    helpers.require(EsmRuntimeHelper.intParse);
     return EsmCallIr(
       callee: isTryParse
           ? const EsmIdentifierIr('__dartIntTryParse')
-          : runtimeHelpers.reference(EsmRuntimeHelper.intParse),
+          : helpers.reference(runtimeHelpers, EsmRuntimeHelper.intParse),
       arguments: [
         _lowerExpression(
           world,
@@ -12931,7 +12996,8 @@ final class KernelToEsmIrLoweringStage
     EsmExpressionIr thisExpression = const EsmThisIr(),
   }) {
     final callee = switch (target) {
-      'dart:core::double::@methods::parse' => runtimeHelpers.reference(
+      'dart:core::double::@methods::parse' => helpers.reference(
+        runtimeHelpers,
         EsmRuntimeHelper.doubleParse,
       ),
       'dart:core::double::@methods::tryParse' => const EsmIdentifierIr(
@@ -12952,7 +13018,7 @@ final class KernelToEsmIrLoweringStage
     if (positional.length != 1 || expression.arguments.named.isNotEmpty) {
       return null;
     }
-    helpers.add(EsmRuntimeHelper.doubleParse);
+    helpers.require(EsmRuntimeHelper.doubleParse);
     return EsmCallIr(
       callee: callee,
       arguments: [
@@ -13025,9 +13091,9 @@ final class KernelToEsmIrLoweringStage
       return null;
     }
     final radix = radixArguments.isEmpty ? null : radixArguments.single;
-    helpers.add(EsmRuntimeHelper.bigIntParse);
+    helpers.require(EsmRuntimeHelper.bigIntParse);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.bigIntParse),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.bigIntParse),
       arguments: [
         _lowerExpression(
           world,
@@ -13066,9 +13132,12 @@ final class KernelToEsmIrLoweringStage
     switch (dartCoreObjectStaticInvocationSymbol(expression.targetReference)) {
       case DartCoreObjectStaticInvocationSymbol.hash
           when positional.length >= 2:
-        helpers.add(EsmRuntimeHelper.objectHash);
+        helpers.require(EsmRuntimeHelper.objectHash);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.objectHash),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.objectHash,
+          ),
           arguments: [
             EsmArrayLiteralIr([
               for (final argument in positional)
@@ -13084,9 +13153,12 @@ final class KernelToEsmIrLoweringStage
         );
       case DartCoreObjectStaticInvocationSymbol.hashAll
           when positional.length == 1:
-        helpers.add(EsmRuntimeHelper.objectHash);
+        helpers.require(EsmRuntimeHelper.objectHash);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.objectHash),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.objectHash,
+          ),
           arguments: [
             _arrayFrom(
               _lowerExpression(
@@ -13101,7 +13173,7 @@ final class KernelToEsmIrLoweringStage
         );
       case DartCoreObjectStaticInvocationSymbol.hashAllUnordered
           when positional.length == 1:
-        helpers.add(EsmRuntimeHelper.objectHash);
+        helpers.require(EsmRuntimeHelper.objectHash);
         return EsmCallIr(
           callee: const EsmIdentifierIr('__dartObjectHashUnordered'),
           arguments: [
@@ -13179,9 +13251,12 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.coreEnumByName
           when positional.length == 2:
-        helpers.add(EsmRuntimeHelper.enumByName);
+        helpers.require(EsmRuntimeHelper.enumByName);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.enumByName),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.enumByName,
+          ),
           arguments: [
             for (final argument in positional)
               _lowerExpression(
@@ -13195,9 +13270,12 @@ final class KernelToEsmIrLoweringStage
         );
       case DartSdkStaticInvocationSymbol.coreEnumAsNameMap
           when positional.length == 1:
-        helpers.add(EsmRuntimeHelper.enumAsNameMap);
+        helpers.require(EsmRuntimeHelper.enumAsNameMap);
         return EsmCallIr(
-          callee: runtimeHelpers.reference(EsmRuntimeHelper.enumAsNameMap),
+          callee: helpers.reference(
+            runtimeHelpers,
+            EsmRuntimeHelper.enumAsNameMap,
+          ),
           arguments: [
             _lowerExpression(
               world,
@@ -13238,9 +13316,12 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::Error::@methods::safeToString' &&
         expression.arguments.positional.length == 1) {
-      helpers.add(EsmRuntimeHelper.safeToString);
+      helpers.require(EsmRuntimeHelper.safeToString);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.safeToString),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.safeToString,
+        ),
         arguments: [
           _lowerExpression(
             world,
@@ -13254,9 +13335,12 @@ final class KernelToEsmIrLoweringStage
     }
     if (target == 'dart:core::Error::@methods::throwWithStackTrace' &&
         expression.arguments.positional.length == 2) {
-      helpers.add(EsmRuntimeHelper.throwWithStackTrace);
+      helpers.require(EsmRuntimeHelper.throwWithStackTrace);
       return EsmCallIr(
-        callee: runtimeHelpers.reference(EsmRuntimeHelper.throwWithStackTrace),
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.throwWithStackTrace,
+        ),
         arguments: [
           for (final argument in expression.arguments.positional)
             _lowerExpression(
@@ -13299,9 +13383,12 @@ final class KernelToEsmIrLoweringStage
         arguments.positional.length > 2) {
       return null;
     }
-    helpers.add(EsmRuntimeHelper.argumentChecks);
+    helpers.require(EsmRuntimeHelper.argumentChecks);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.argumentChecks),
+      callee: helpers.reference(
+        runtimeHelpers,
+        EsmRuntimeHelper.argumentChecks,
+      ),
       arguments: [
         for (var i = 0; i < 2; i++)
           if (i < arguments.positional.length)
@@ -13345,7 +13432,7 @@ final class KernelToEsmIrLoweringStage
     if (helperName == null) {
       return null;
     }
-    helpers.add(EsmRuntimeHelper.rangeChecks);
+    helpers.require(EsmRuntimeHelper.rangeChecks);
     final expectedArity = switch (helperName) {
       '__dartCheckValueInInterval' => 5,
       '__dartCheckValidIndex' => 5,
@@ -13416,7 +13503,7 @@ final class KernelToEsmIrLoweringStage
         'identityHashCode argument shape',
       );
     }
-    helpers.add(EsmRuntimeHelper.objectHash);
+    helpers.require(EsmRuntimeHelper.objectHash);
     return EsmCallIr(
       callee: const EsmIdentifierIr('__dartHashValue'),
       arguments: [
@@ -13443,7 +13530,7 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.types.isNotEmpty) {
       throw NewCompilerUnsupported(expression, 'print argument shape');
     }
-    helpers.add(EsmRuntimeHelper.print);
+    helpers.require(EsmRuntimeHelper.print);
     final argument = expression.arguments.positional.single;
     final loweredArgument = _lowerExpression(
       world,
@@ -13453,7 +13540,7 @@ final class KernelToEsmIrLoweringStage
       thisExpression: thisExpression,
     );
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.print),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.print),
       arguments: [loweredArgument],
     );
   }
@@ -13500,9 +13587,9 @@ final class KernelToEsmIrLoweringStage
         expression.arguments.types.isNotEmpty) {
       throw NewCompilerUnsupported(expression, 'Function.apply argument shape');
     }
-    helpers.add(EsmRuntimeHelper.functionApply);
+    helpers.require(EsmRuntimeHelper.functionApply);
     return EsmCallIr(
-      callee: runtimeHelpers.reference(EsmRuntimeHelper.functionApply),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.functionApply),
       arguments: [
         for (final argument in positional)
           _lowerExpression(

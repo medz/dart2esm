@@ -2488,6 +2488,18 @@ function __dartWeakReference(target) {
 final class EsmRuntimeHelperUseSet {
   final _helpers = <EsmRuntimeHelper>{};
 
+  bool require(EsmRuntimeHelper helper) {
+    return add(helper);
+  }
+
+  EsmIdentifierIr reference(
+    EsmRuntimeHelperRegistry registry,
+    EsmRuntimeHelper helper,
+  ) {
+    require(helper);
+    return registry.reference(helper);
+  }
+
   bool add(EsmRuntimeHelper helper) {
     switch (helper) {
       case EsmRuntimeHelper.bigIntBitLength:

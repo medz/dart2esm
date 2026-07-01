@@ -195,6 +195,9 @@ void main() {
     final coreIterable = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
     );
+    final coreNumber = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_core_number_intrinsics.dart',
+    );
     final coreRuntime = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_core_runtime_intrinsics.dart',
     );
@@ -259,6 +262,9 @@ void main() {
     expect(lowering, isNot(contains('_lowerCoreStringStaticInvocation')));
     expect(lowering, isNot(contains('_lowerCoreRegExpStaticInvocation')));
     expect(lowering, isNot(contains('_lowerCoreTimeStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreNumberStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerCoreDoubleStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerBigIntStaticInvocation')));
     expect(lowering, isNot(contains('_lowerDeveloperStaticGet')));
     expect(lowering, isNot(contains('_lowerDeveloperStaticInvocation')));
     expect(lowering, isNot(contains('_lowerMathStaticGet')));
@@ -318,6 +324,11 @@ void main() {
     );
     expect(lowering, isNot(contains('dart:core::RegExp::@methods::escape')));
     expect(lowering, isNot(contains('dart:core::DateTime::@methods::parse')));
+    expect(lowering, isNot(contains('dart:core::int::@methods::parse')));
+    expect(lowering, isNot(contains('dart:core::double::@methods::parse')));
+    expect(lowering, isNot(contains('dart:core::num::@methods::parse')));
+    expect(lowering, isNot(contains('dart:core::BigInt::@methods::parse')));
+    expect(lowering, isNot(contains('dart:core::BigInt::@factories::from')));
     expect(
       lowering,
       isNot(contains('DartSdkStaticInvocationSymbol.coreDateTimeCopyWith')),
@@ -444,6 +455,15 @@ void main() {
       coreIterable,
       contains('DartSdkStaticInvocationSymbol.coreIterableToFullString'),
     );
+    expect(coreNumber, contains('lowerDartCoreNumberStaticInvocation'));
+    expect(coreNumber, contains('dart:core::int::@methods::parse'));
+    expect(coreNumber, contains('dart:core::double::@methods::parse'));
+    expect(coreNumber, contains('dart:core::num::@methods::parse'));
+    expect(coreNumber, contains('dart:core::BigInt::@methods::parse'));
+    expect(coreNumber, contains('dart:core::BigInt::@factories::from'));
+    expect(coreNumber, contains('EsmRuntimeHelper.intParse'));
+    expect(coreNumber, contains('EsmRuntimeHelper.doubleParse'));
+    expect(coreNumber, contains('EsmRuntimeHelper.bigIntParse'));
     expect(coreRuntime, contains('lowerDartCoreRuntimeStaticInvocation'));
     expect(
       coreRuntime,

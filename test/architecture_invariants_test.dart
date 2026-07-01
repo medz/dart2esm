@@ -198,6 +198,9 @@ void main() {
     final developer = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_developer_intrinsics.dart',
     );
+    final math = _read(
+      'lib/src/compiler_core/lowering/intrinsics/dart_math_intrinsics.dart',
+    );
     final internal = _read(
       'lib/src/compiler_core/lowering/intrinsics/dart_internal_intrinsics.dart',
     );
@@ -212,6 +215,7 @@ void main() {
 
     expect(registry, contains('final class DartSdkIntrinsicRegistry'));
     expect(registry, contains('lowerInstanceConstant'));
+    expect(registry, contains('lowerStaticTearOffConstant'));
     expect(registry, contains('lowerInstanceInvocation'));
     expect(registry, contains('lowerInstanceGet'));
     expect(registry, contains('lowerStaticGet'));
@@ -244,6 +248,10 @@ void main() {
     expect(lowering, isNot(contains('_lowerCoreRegExpStaticInvocation')));
     expect(lowering, isNot(contains('_lowerDeveloperStaticGet')));
     expect(lowering, isNot(contains('_lowerDeveloperStaticInvocation')));
+    expect(lowering, isNot(contains('_lowerMathStaticGet')));
+    expect(lowering, isNot(contains('_lowerMathStaticInvocation')));
+    expect(lowering, isNot(contains('_jsMathStaticFunctionName')));
+    expect(lowering, isNot(contains('_jsMathStaticFunctionArity')));
     expect(
       lowering,
       isNot(contains('_typedDataByteBufferViewConstructorName')),
@@ -289,6 +297,8 @@ void main() {
     expect(lowering, isNot(contains('dart:core::RegExp::@methods::escape')));
     expect(lowering, isNot(contains('DartDeveloperStaticGetSymbol')));
     expect(lowering, isNot(contains('DartDeveloperStaticInvocationSymbol')));
+    expect(lowering, isNot(contains('DartMathStaticGetSymbol')));
+    expect(lowering, isNot(contains('DartMathStaticInvocationSymbol')));
     expect(typedDataInvocation, isNot(contains('__dartListSetAll')));
     expect(typedDataInvocation, isNot(contains('__dartListSetRange')));
     expect(typedDataInvocation, isNot(contains('__dartListFillRange')));
@@ -333,6 +343,15 @@ void main() {
       contains('DartDeveloperStaticInvocationSymbol.timelineTimeSync'),
     );
     expect(developer, contains('DartDeveloperStaticInvocationSymbol.log'));
+    expect(math, contains('lowerDartMathStaticTearOffConstant'));
+    expect(math, contains('lowerDartMathStaticGet'));
+    expect(math, contains('lowerDartMathStaticInvocation'));
+    expect(math, contains('DartMathStaticGetSymbol.pi'));
+    expect(math, contains('DartMathStaticInvocationSymbol.random'));
+    expect(
+      math,
+      contains('DartMathStaticInvocationSymbol.rectangleFromPoints'),
+    );
     expect(collection, contains('lowerDartCollectionQueueInstanceInvocation'));
     expect(collection, contains('lowerDartCollectionQueueInstanceGet'));
     expect(collection, contains('lowerDartCollectionStaticInvocation'));

@@ -9,6 +9,7 @@ import 'dart_core_text_intrinsics.dart';
 import 'dart_core_uri_intrinsics.dart';
 import 'dart_developer_intrinsics.dart';
 import 'dart_internal_intrinsics.dart';
+import 'dart_math_intrinsics.dart';
 import 'dart_typed_data_intrinsics.dart';
 
 final class DartSdkIntrinsicRegistry {
@@ -16,6 +17,12 @@ final class DartSdkIntrinsicRegistry {
 
   EsmExpressionIr? lowerInstanceConstant(k.InstanceConstant constant) {
     return lowerDartTypedDataInstanceConstant(constant);
+  }
+
+  EsmExpressionIr? lowerStaticTearOffConstant({
+    required k.Reference reference,
+  }) {
+    return lowerDartMathStaticTearOffConstant(reference: reference);
   }
 
   EsmExpressionIr? lowerInstanceInvocation({
@@ -95,7 +102,8 @@ final class DartSdkIntrinsicRegistry {
     required EsmRuntimeHelperUseSet helpers,
     required EsmRuntimeHelperRegistry runtimeHelpers,
   }) {
-    return lowerDartCoreUriStaticGet(
+    return lowerDartMathStaticGet(expression) ??
+        lowerDartCoreUriStaticGet(
           expression: expression,
           helpers: helpers,
           runtimeHelpers: runtimeHelpers,
@@ -128,6 +136,12 @@ final class DartSdkIntrinsicRegistry {
           expression: expression,
           lower: lower,
           lowerNamedArgument: lowerNamedArgument,
+        ) ??
+        lowerDartMathStaticInvocation(
+          expression: expression,
+          helpers: helpers,
+          runtimeHelpers: runtimeHelpers,
+          lower: lower,
         ) ??
         lowerDartInternalStaticInvocation(
           expression: expression,

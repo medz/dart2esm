@@ -1,4 +1,4 @@
-import 'package:dart2esm/src/kernel/kernel_references.dart';
+import 'package:dart2esm/src/foundation/kernel/kernel_references.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 

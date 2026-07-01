@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dart2esm/src/cli.dart';
-import 'package:dart2esm/src/compiler.dart';
+import 'package:dart2esm/src/app/cli.dart';
+import 'package:dart2esm/src/app/compiler.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';

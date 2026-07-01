@@ -1,4 +1,4 @@
-import 'package:dart2esm/src/world/kernel_analysis.dart';
+import 'package:dart2esm/src/compiler/semantic/analysis/kernel_analysis.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 

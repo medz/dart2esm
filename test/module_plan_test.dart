@@ -1,5 +1,5 @@
-import 'package:dart2esm/src/module/esm_module_plan.dart';
-import 'package:dart2esm/src/world/reachability.dart';
+import 'package:dart2esm/src/compiler/semantic/model/esm_module_plan.dart';
+import 'package:dart2esm/src/compiler/semantic/analysis/reachability.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 

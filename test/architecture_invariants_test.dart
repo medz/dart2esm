@@ -1,29 +1,53 @@
 import 'dart:io';
 
-import 'package:dart2esm/src/compiler_core/compiler_stage.dart';
+import 'package:dart2esm/src/compiler/stage.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  test('CLI compiler enters the new compiler core', () {
-    final compiler = _read('lib/src/compiler.dart');
+  test('application compiler enters the compiler core', () {
+    final compiler = _read('lib/src/app/compiler.dart');
 
     expect(
       compiler,
-      contains(
-        "import 'package:dart2esm/src/compiler_core/compiler_pipeline.dart';",
-      ),
+      contains("import 'package:dart2esm/src/compiler/pipeline.dart';"),
     );
     expect(compiler, contains('Dart2EsmCompilerPipeline('));
-    expect(compiler, isNot(contains("src/pipeline/compiler_pipeline.dart")));
+    expect(compiler, isNot(contains("src/pipeline/pipeline.dart")));
     expect(Directory('lib/src/pipeline').existsSync(), isFalse);
   });
 
+  test('source tree follows application foundation compiler layers', () {
+    expect(Directory('lib/src/app').existsSync(), isTrue);
+    expect(Directory('lib/src/foundation').existsSync(), isTrue);
+    expect(Directory('lib/src/compiler').existsSync(), isTrue);
+
+    for (final removedTopLevel in [
+      'backend',
+      'compiler_core',
+      'diagnostics',
+      'js_ast',
+      'kernel',
+      'lowering',
+      'module',
+      'names',
+      'optimizer',
+      'program',
+      'world',
+    ]) {
+      expect(
+        Directory('lib/src/$removedTopLevel').existsSync(),
+        isFalse,
+        reason: removedTopLevel,
+      );
+    }
+  });
+
   test('compiler core has explicit Oxc-style stage result boundaries', () {
-    final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
-    final stages = _read('lib/src/compiler_core/compiler_stage.dart');
+    final pipeline = _read('lib/src/compiler/pipeline.dart');
+    final stages = _read('lib/src/compiler/stage.dart');
     final normalizer = _read(
-      'lib/src/compiler_core/transform/module_normalizer.dart',
+      'lib/src/compiler/transform/module_normalizer.dart',
     );
 
     expect(stages, contains('enum Dart2EsmCompilerStageId'));
@@ -50,10 +74,7 @@ void main() {
   });
 
   test('compiler core stage contracts own source capabilities', () {
-    final compilerCoreRoot = p.join(
-      Directory.current.path,
-      'lib/src/compiler_core',
-    );
+    final compilerCoreRoot = p.join(Directory.current.path, 'lib/src/compiler');
     final contractsByOwnerDirectory = {
       for (final contract in dart2EsmCompilerStageContracts)
         contract.ownerDirectory: contract,
@@ -75,7 +96,7 @@ void main() {
       );
     }
 
-    for (final file in _dartFiles('lib/src/compiler_core')) {
+    for (final file in _dartFiles('lib/src/compiler')) {
       final relative = p.relative(file.path, from: compilerCoreRoot);
       final ownerDirectory = p.split(relative).first;
       final contract = contractsByOwnerDirectory[ownerDirectory];
@@ -128,7 +149,7 @@ void main() {
   });
 
   test('codegen only consumes prepared ESM IR', () {
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
 
     expect(codegen, contains('CodegenStageResult emit(EsmModuleIr'));
     expect(codegen, contains('EsmModuleIr'));
@@ -144,14 +165,10 @@ void main() {
   });
 
   test('ESM module construction and normalization have separate ownership', () {
-    final lowering = _read(
-      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
-    );
-    final irBuilder = _read(
-      'lib/src/compiler_core/ir_builder/esm_ir_builder.dart',
-    );
+    final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
+    final irBuilder = _read('lib/src/compiler/ir_builder/esm_ir_builder.dart');
     final normalizer = _read(
-      'lib/src/compiler_core/transform/module_normalizer.dart',
+      'lib/src/compiler/transform/module_normalizer.dart',
     );
 
     expect(irBuilder, contains('final class EsmIrBuildResult'));
@@ -174,53 +191,51 @@ void main() {
   });
 
   test('SDK intrinsic lowering is routed through a registry', () {
-    final lowering = _read(
-      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
-    );
+    final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
     final registry = _read(
-      'lib/src/compiler_core/lowering/intrinsics/sdk_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/sdk_intrinsics.dart',
     );
     final typedData = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_typed_data_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_typed_data_intrinsics.dart',
     );
     final collection = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_collection_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_collection_intrinsics.dart',
     );
     final coreEnum = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_enum_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_enum_intrinsics.dart',
     );
     final coreError = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_error_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_error_intrinsics.dart',
     );
     final coreIterable = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_iterable_intrinsics.dart',
     );
     final coreNumber = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_number_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_number_intrinsics.dart',
     );
     final coreRuntime = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_runtime_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_runtime_intrinsics.dart',
     );
     final coreText = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_text_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_text_intrinsics.dart',
     );
     final coreTime = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_time_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_time_intrinsics.dart',
     );
     final coreUri = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_core_uri_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_core_uri_intrinsics.dart',
     );
     final developer = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_developer_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_developer_intrinsics.dart',
     );
     final math = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_math_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_math_intrinsics.dart',
     );
     final internal = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_internal_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_internal_intrinsics.dart',
     );
     final convert = _read(
-      'lib/src/compiler_core/lowering/intrinsics/dart_convert_intrinsics.dart',
+      'lib/src/compiler/lowering/intrinsics/dart_convert_intrinsics.dart',
     );
     final typedDataInvocation = _sliceBetween(
       lowering,
@@ -516,7 +531,7 @@ void main() {
 
   test('compiler core does not lower pub packages by package URI', () {
     final compilerCoreSources = _dartFiles(
-      'lib/src/compiler_core',
+      'lib/src/compiler',
     ).map((file) => file.readAsStringSync()).join('\n');
 
     for (final packageUri in [
@@ -532,7 +547,7 @@ void main() {
   });
 
   test('ESM IR is independent from runtime helper registry', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
 
     expect(ir, isNot(contains('runtime_helpers.dart')));
     expect(ir, isNot(contains('EsmRuntimeHelper')));
@@ -540,8 +555,8 @@ void main() {
   });
 
   test('ESM arrow function parameters use structured binding IR', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
 
     expect(ir, contains('final class EsmArrayPatternParameterIr'));
     expect(ir, contains('final List<EsmParameterIr> elements;'));
@@ -556,8 +571,8 @@ void main() {
   });
 
   test('ESM class superclass uses expression IR', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
 
     expect(ir, contains('final EsmExpressionIr? superclass;'));
     expect(ir, isNot(contains('final String? superclass;')));
@@ -566,11 +581,9 @@ void main() {
   });
 
   test('ESM catch parameter uses binding IR', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
-    final lowering = _read(
-      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
-    );
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
+    final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
 
     expect(ir, contains('final EsmParameterIr? catchParameter;'));
     expect(ir, isNot(contains('final String? catchParameter;')));
@@ -580,11 +593,9 @@ void main() {
   });
 
   test('ESM variable declarations use binding IR', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
-    final lowering = _read(
-      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
-    );
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
+    final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
 
     expect(ir, contains('sealed class EsmBindingIr'));
     expect(ir, contains('final class EsmIdentifierBindingIr'));
@@ -605,8 +616,8 @@ void main() {
   });
 
   test('ESM operators use syntax enum IR', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
     final operatorLiteral = RegExp(r'''operator:\s*['"]''');
 
     expect(ir, contains('enum EsmBinaryOperatorIr'));
@@ -618,7 +629,7 @@ void main() {
     expect(codegen, contains('_binaryPrecedence(EsmBinaryOperatorIr'));
     expect(codegen, contains('_emitUnaryExpression(EsmUnaryIr'));
     expect(codegen, isNot(contains('_binaryPrecedence(String')));
-    for (final file in _dartFiles('lib/src/compiler_core')) {
+    for (final file in _dartFiles('lib/src/compiler')) {
       expect(
         operatorLiteral.firstMatch(file.readAsStringSync()),
         isNull,
@@ -628,11 +639,9 @@ void main() {
   });
 
   test('ESM object literal properties use property key IR', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
-    final lowering = _read(
-      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
-    );
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
+    final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
 
     expect(ir, contains('sealed class EsmPropertyKeyIr'));
     expect(ir, contains('final class EsmStaticPropertyKeyIr'));
@@ -649,13 +658,11 @@ void main() {
   });
 
   test('ESM class methods use property key IR', () {
-    final ir = _read('lib/src/compiler_core/ir/esm_ir.dart');
-    final codegen = _read('lib/src/compiler_core/codegen/esm_codegen.dart');
-    final lowering = _read(
-      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
-    );
+    final ir = _read('lib/src/compiler/ir/esm_ir.dart');
+    final codegen = _read('lib/src/compiler/codegen/esm_codegen.dart');
+    final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
     final normalizer = _read(
-      'lib/src/compiler_core/transform/module_normalizer.dart',
+      'lib/src/compiler/transform/module_normalizer.dart',
     );
 
     expect(
@@ -675,7 +682,7 @@ void main() {
       r'''EsmIdentifierIr\(\s*['"][^'"]+\.[^'"]*['"]''',
     );
 
-    for (final file in _dartFiles('lib/src/compiler_core')) {
+    for (final file in _dartFiles('lib/src/compiler')) {
       final source = file.readAsStringSync();
       expect(
         dottedIdentifierLiteral.firstMatch(source),
@@ -687,7 +694,7 @@ void main() {
   });
 
   test('compiler core does not adapt third-party packages by API path', () {
-    for (final file in _dartFiles('lib/src/compiler_core')) {
+    for (final file in _dartFiles('lib/src/compiler')) {
       final nonImportSource = file
           .readAsLinesSync()
           .where((line) => !line.trimLeft().startsWith('import '))
@@ -701,10 +708,8 @@ void main() {
   test(
     'semantic world accepts name reservations without runtime dependency',
     () {
-      final semantic = _read(
-        'lib/src/compiler_core/semantic/semantic_world.dart',
-      );
-      final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
+      final semantic = _read('lib/src/compiler/semantic/semantic_world.dart');
+      final pipeline = _read('lib/src/compiler/pipeline.dart');
 
       expect(semantic, contains('generatedGlobalNames'));
       expect(semantic, isNot(contains('runtime_helpers.dart')));
@@ -717,15 +722,13 @@ void main() {
   );
 
   test('runtime helpers are owned by compiler core', () {
-    final runtime = _read('lib/src/compiler_core/runtime/runtime_helpers.dart');
-    final linker = _read('lib/src/compiler_core/runtime/runtime_linker.dart');
-    final lowering = _read(
-      'lib/src/compiler_core/lowering/kernel_to_esm_ir.dart',
-    );
+    final runtime = _read('lib/src/compiler/runtime/runtime_helpers.dart');
+    final linker = _read('lib/src/compiler/runtime/runtime_linker.dart');
+    final lowering = _read('lib/src/compiler/lowering/kernel_to_esm_ir.dart');
     final loweringContext = _read(
-      'lib/src/compiler_core/lowering/lowering_context.dart',
+      'lib/src/compiler/lowering/lowering_context.dart',
     );
-    final coreFiles = _dartFiles('lib/src/compiler_core');
+    final coreFiles = _dartFiles('lib/src/compiler');
 
     expect(runtime, contains('enum EsmRuntimeHelper'));
     expect(runtime, contains('final class EsmRuntimeHelperRegistry'));
@@ -757,10 +760,7 @@ void main() {
 
   test('old backend entrypoints are deleted from the architecture', () {
     expect(Directory('lib/src/backend').existsSync(), isFalse);
-    expect(
-      File('lib/src/compiler_core/legacy_oracle.dart').existsSync(),
-      isFalse,
-    );
+    expect(File('lib/src/compiler/legacy_oracle.dart').existsSync(), isFalse);
 
     for (final file in _dartFiles('lib/src')) {
       final source = file.readAsStringSync();
@@ -775,9 +775,9 @@ void main() {
   });
 
   test('compiler exposes no old backend oracle entrypoint', () {
-    final cli = _read('lib/src/cli.dart');
-    final compiler = _read('lib/src/compiler.dart');
-    final pipeline = _read('lib/src/compiler_core/compiler_pipeline.dart');
+    final cli = _read('lib/src/app/cli.dart');
+    final compiler = _read('lib/src/app/compiler.dart');
+    final pipeline = _read('lib/src/compiler/pipeline.dart');
 
     expect(compiler, isNot(contains('allowLegacyOracle')));
     expect(pipeline, isNot(contains('allowLegacyOracle')));

@@ -1,4 +1,4 @@
-import 'package:dart2esm/src/program/program_model.dart';
+import 'package:dart2esm/src/compiler/semantic/model/program_model.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 

@@ -1,7 +1,7 @@
-import 'package:dart2esm/src/module/class_runtime_plan.dart';
-import 'package:dart2esm/src/module/esm_module_plan.dart';
-import 'package:dart2esm/src/module/extension_type_member_plan.dart';
-import 'package:dart2esm/src/names/esm_name_plan.dart';
+import 'package:dart2esm/src/compiler/semantic/model/class_runtime_plan.dart';
+import 'package:dart2esm/src/compiler/semantic/model/esm_module_plan.dart';
+import 'package:dart2esm/src/compiler/semantic/model/extension_type_member_plan.dart';
+import 'package:dart2esm/src/foundation/names/esm_name_plan.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 

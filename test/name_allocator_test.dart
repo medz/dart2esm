@@ -1,4 +1,4 @@
-import 'package:dart2esm/src/names/js_names.dart';
+import 'package:dart2esm/src/foundation/names/js_names.dart';
 import 'package:test/test.dart';
 
 void main() {

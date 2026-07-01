@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:dart2esm/src/diagnostics/metrics.dart';
+import 'package:dart2esm/src/foundation/diagnostics/metrics.dart';
 import 'package:test/test.dart';
 
 void main() {

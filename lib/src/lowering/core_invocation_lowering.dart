@@ -847,31 +847,29 @@ extension _CoreInvocationLowering on Lowerer {
           'join',
         ) &&
         expression.arguments.positional.length <= 1) {
+      helpers.require(EsmRuntimeHelper.iterableJoin);
       return EsmCall(
-        callee: EsmPropertyAccess(
-          receiver: _arrayFrom(
-            helpers,
-            _lowerExpression(
-              semantic,
-              helpers,
-              locals,
-              expression.receiver,
-              thisExpression: thisExpression,
-            ),
-          ),
-          property: 'join',
+        callee: helpers.reference(
+          runtimeHelpers,
+          EsmRuntimeHelper.iterableJoin,
         ),
         arguments: [
-          if (expression.arguments.positional.isEmpty)
-            const EsmStringLiteral('')
-          else
-            _lowerExpression(
-              semantic,
-              helpers,
-              locals,
-              expression.arguments.positional.single,
-              thisExpression: thisExpression,
-            ),
+          _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          expression.arguments.positional.isEmpty
+              ? const EsmStringLiteral('')
+              : _lowerExpression(
+                  semantic,
+                  helpers,
+                  locals,
+                  expression.arguments.positional.single,
+                  thisExpression: thisExpression,
+                ),
         ],
       );
     }

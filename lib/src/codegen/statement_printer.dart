@@ -42,6 +42,9 @@ extension _StatementPrinter on _EsmPrinter {
               ? 'return;'
               : 'return ${_emitExpression(expression)};',
         );
+      case EsmYieldStatement():
+        final marker = statement.delegate ? 'yield*' : 'yield';
+        _writeIndented('$marker ${_emitExpression(statement.expression)};');
       case EsmThrowStatement():
         _writeIndented('throw ${_emitExpression(statement.expression)};');
       case EsmTryStatement():

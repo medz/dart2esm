@@ -5,6 +5,7 @@ import 'package:kernel/kernel.dart' as k;
 import '../foundation/kernel/kernel_references.dart';
 import '../foundation/kernel/sdk_symbols.dart';
 import '../foundation/names/js_names.dart';
+import '../options.dart';
 import '../semantic/analysis/sdk_classification.dart';
 import '../ast/esm_ast.dart';
 import '../foundation/diagnostics/unsupported_compiler_feature.dart';
@@ -60,10 +61,12 @@ final class Lowerer {
   LowererReturn lower(
     SemanticBuilderReturn semanticReturn, {
     required bool runMain,
+    Dart2EsmPlatform platform = Dart2EsmPlatform.auto,
   }) {
     final context = DartLoweringContext(
       semantic: semanticReturn.semantic,
       runtimeHelpers: runtimeHelpers,
+      platform: platform,
     );
     final semantic = context.semantic;
     final helpers = context.helpers;
@@ -78,12 +81,21 @@ final class Lowerer {
         _lowerProcedure(semantic, helpers, procedure),
       if (runMain)
         EsmExpressionStatement(
-          EsmCall(
-            callee: EsmIdentifier(
-              semantic.symbolForRequired(semantic.main).name,
-            ),
-            arguments: const [],
-          ),
+          semantic.main.function.asyncMarker == k.AsyncMarker.Async
+              ? EsmAwait(
+                  EsmCall(
+                    callee: EsmIdentifier(
+                      semantic.symbolForRequired(semantic.main).name,
+                    ),
+                    arguments: const [],
+                  ),
+                )
+              : EsmCall(
+                  callee: EsmIdentifier(
+                    semantic.symbolForRequired(semantic.main).name,
+                  ),
+                  arguments: const [],
+                ),
         ),
     ];
     return LowererReturn(

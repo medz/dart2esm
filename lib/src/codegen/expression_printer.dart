@@ -27,6 +27,7 @@ extension _ExpressionPrinter on _EsmPrinter {
         '(${expression.parameters.map(_emitParameter).join(', ')}) => ${_emitExpression(expression.body)}',
       EsmFunctionExpression() => _emitFunctionExpression(expression),
       EsmArrowBlockFunction() => _emitArrowBlockFunction(expression),
+      EsmAwait() => 'await ${_emitAwaitOperand(expression.expression)}',
       EsmCall() =>
         '${_emitCallCallee(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
       EsmNew() =>
@@ -205,28 +206,43 @@ extension _ExpressionPrinter on _EsmPrinter {
 
   String _emitFunctionExpression(EsmFunctionExpression expression) {
     final parameters = expression.parameters.map(_emitParameter).join(', ');
+    final asyncPrefix = expression.isAsync ? 'async ' : '';
+    final generatorMarker = expression.isGenerator ? '*' : '';
     if (expression.body.isEmpty) {
-      return 'function($parameters) {}';
+      return '${asyncPrefix}function$generatorMarker($parameters) {}';
     }
     final bodyPrinter = _EsmPrinter().._indent = _indent + 1;
     for (final statement in expression.body) {
       bodyPrinter._emitStatement(statement);
     }
     final body = bodyPrinter._buffer.toString().trimRight();
-    return 'function($parameters) {\n$body\n${'  ' * _indent}}';
+    return '${asyncPrefix}function$generatorMarker($parameters) {\n$body\n${'  ' * _indent}}';
   }
 
   String _emitArrowBlockFunction(EsmArrowBlockFunction expression) {
     final parameters = expression.parameters.map(_emitParameter).join(', ');
+    final asyncPrefix = expression.isAsync ? 'async ' : '';
     if (expression.body.isEmpty) {
-      return '($parameters) => {}';
+      return '${asyncPrefix}($parameters) => {}';
     }
     final bodyPrinter = _EsmPrinter().._indent = _indent + 1;
     for (final statement in expression.body) {
       bodyPrinter._emitStatement(statement);
     }
     final body = bodyPrinter._buffer.toString().trimRight();
-    return '($parameters) => {\n$body\n${'  ' * _indent}}';
+    return '${asyncPrefix}($parameters) => {\n$body\n${'  ' * _indent}}';
+  }
+
+  String _emitAwaitOperand(EsmExpression expression) {
+    return switch (expression) {
+      EsmAssignment() ||
+      EsmBinary() ||
+      EsmConditional() ||
+      EsmNullishCoalesce() ||
+      EsmArrowFunction() ||
+      EsmArrowBlockFunction() => '(${_emitExpression(expression)})',
+      _ => _emitExpression(expression),
+    };
   }
 
   String _emitObjectPropertyName(String name) {

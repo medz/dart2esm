@@ -104,6 +104,22 @@ final class _VariableReferenceVisitor extends k.RecursiveVisitor {
   }
 
   @override
+  void visitInstanceGet(k.InstanceGet node) {
+    node.receiver.accept(this);
+  }
+
+  @override
+  void visitInstanceSet(k.InstanceSet node) {
+    node.receiver.accept(this);
+    node.value.accept(this);
+  }
+
+  @override
+  void visitInstanceTearOff(k.InstanceTearOff node) {
+    node.receiver.accept(this);
+  }
+
+  @override
   void visitEqualsCall(k.EqualsCall node) {
     node.left.accept(this);
     node.right.accept(this);

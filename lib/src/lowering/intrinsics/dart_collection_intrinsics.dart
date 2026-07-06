@@ -542,12 +542,11 @@ EsmExpression? lowerDartCollectionQueueInstanceInvocation({
     );
   }
   if (name == 'join' && arguments.named.isEmpty && positional.length <= 1) {
+    helpers.require(EsmRuntimeHelper.iterableJoin);
     return EsmCall(
-      callee: EsmPropertyAccess(
-        receiver: arrayFrom(receiver),
-        property: 'join',
-      ),
+      callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.iterableJoin),
       arguments: [
+        receiver,
         positional.isEmpty
             ? const EsmStringLiteral('')
             : lower(positional.single),

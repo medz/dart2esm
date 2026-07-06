@@ -286,6 +286,7 @@ extension _MemberLowering on Lowerer {
           klass,
           const EsmThis(),
         ),
+        ..._lowerCoreExceptionInterfaceDefinitions(klass, const EsmThis()),
         ..._lowerInterfaceMarkerDefinitions(const EsmThis(), interfaceMarkers),
       ],
     );
@@ -391,6 +392,28 @@ extension _MemberLowering on Lowerer {
             ],
           ),
         ),
+    ];
+  }
+
+  List<EsmStatement> _lowerCoreExceptionInterfaceDefinitions(
+    EsmClassSymbol klass,
+    EsmExpression receiver,
+  ) {
+    final typeName = directDartCoreExceptionInterfaceName(klass.node);
+    if (typeName == null) {
+      return const [];
+    }
+    return [
+      _lowerOwnDataPropertyDefinition(
+        receiver,
+        '__dartCoreErrorType',
+        EsmStringLiteral(typeName),
+      ),
+      _lowerOwnDataPropertyDefinition(
+        receiver,
+        'name',
+        EsmStringLiteral(typeName),
+      ),
     ];
   }
 
@@ -590,6 +613,7 @@ extension _MemberLowering on Lowerer {
       if (function.body case final body?) ...[
         ..._lowerStatementList(semantic, helpers, locals, labels, body),
       ],
+      ..._lowerCoreExceptionInterfaceDefinitions(klass, const EsmThis()),
       ..._lowerInterfaceMarkerDefinitions(const EsmThis(), interfaceMarkers),
     ];
     return EsmClassConstructor(parameters: parameters, body: body);
@@ -703,6 +727,7 @@ extension _MemberLowering on Lowerer {
           thisExpression: self,
         ),
       ],
+      ..._lowerCoreExceptionInterfaceDefinitions(klass, self),
       ..._lowerInterfaceMarkerDefinitions(self, interfaceMarkers),
       EsmReturnStatement(self),
     ];
@@ -1124,7 +1149,7 @@ extension _MemberLowering on Lowerer {
     bool isStatic = false,
   }) {
     final function = procedure.node.function;
-    if (function.asyncMarker != k.AsyncMarker.Sync) {
+    if (!_canLowerFunctionAsyncMarker(function.asyncMarker)) {
       throw UnsupportedCompilerFeature(function, 'async function lowering');
     }
     final locals = <k.VariableDeclaration, String>{};
@@ -1138,6 +1163,14 @@ extension _MemberLowering on Lowerer {
       function,
     );
     final body = function.body;
+    final loweredBody = body == null
+        ? _lowerAbstractMemberBody(klass, procedure)
+        : _lowerStatementList(semantic, helpers, locals, labels, body);
+    final isGenerator =
+        function.asyncMarker == k.AsyncMarker.SyncStar ||
+        function.asyncMarker == k.AsyncMarker.AsyncStar;
+    final isGetterGenerator =
+        procedure.kind == EsmProcedureKind.getter && isGenerator;
     return EsmClassMethod(
       key: EsmStaticPropertyKey(procedure.name),
       kind: switch (procedure.kind) {
@@ -1146,10 +1179,33 @@ extension _MemberLowering on Lowerer {
         EsmProcedureKind.setter => EsmClassMethodKind.setter,
       },
       isStatic: isStatic,
+      isAsync:
+          !isGetterGenerator &&
+          (function.asyncMarker == k.AsyncMarker.Async ||
+              function.asyncMarker == k.AsyncMarker.AsyncStar),
+      isGenerator: !isGetterGenerator && isGenerator,
       parameters: parameters,
-      body: body == null
-          ? _lowerAbstractMemberBody(klass, procedure)
-          : _lowerStatementList(semantic, helpers, locals, labels, body),
+      body: isGetterGenerator
+          ? [
+              EsmReturnStatement(
+                EsmCall(
+                  callee: EsmPropertyAccess(
+                    receiver: EsmParenthesized(
+                      EsmFunctionExpression(
+                        parameters: const [],
+                        isAsync:
+                            function.asyncMarker == k.AsyncMarker.AsyncStar,
+                        isGenerator: true,
+                        body: loweredBody,
+                      ),
+                    ),
+                    property: 'call',
+                  ),
+                  arguments: const [EsmThis()],
+                ),
+              ),
+            ]
+          : loweredBody,
     );
   }
 
@@ -1244,7 +1300,7 @@ extension _MemberLowering on Lowerer {
     EsmProcedureSymbol procedure,
   ) {
     final function = procedure.node.function;
-    if (function.asyncMarker != k.AsyncMarker.Sync) {
+    if (!_canLowerFunctionAsyncMarker(function.asyncMarker)) {
       throw UnsupportedCompilerFeature(function, 'async function lowering');
     }
     final locals = <k.VariableDeclaration, String>{};
@@ -1264,9 +1320,22 @@ extension _MemberLowering on Lowerer {
     return EsmFunction(
       name: procedure.name,
       export: procedure.export,
+      isAsync:
+          function.asyncMarker == k.AsyncMarker.Async ||
+          function.asyncMarker == k.AsyncMarker.AsyncStar,
+      isGenerator:
+          function.asyncMarker == k.AsyncMarker.SyncStar ||
+          function.asyncMarker == k.AsyncMarker.AsyncStar,
       parameters: parameters,
       body: _lowerStatementList(semantic, helpers, locals, labels, body),
     );
+  }
+
+  bool _canLowerFunctionAsyncMarker(k.AsyncMarker marker) {
+    return marker == k.AsyncMarker.Sync ||
+        marker == k.AsyncMarker.SyncStar ||
+        marker == k.AsyncMarker.Async ||
+        marker == k.AsyncMarker.AsyncStar;
   }
 
   List<EsmParameter> _bindParameters(

@@ -5,6 +5,7 @@ import 'package:dart2esm/src/foundation/diagnostics/unsupported_kernel_node.dart
 import 'package:dart2esm/src/foundation/kernel/kernel_header.dart';
 import 'package:dart2esm/src/compiler.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
+import 'package:dart2esm/src/options.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 
@@ -32,7 +33,11 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
     final component = kernel.loadComponentFromBytes(kernelBytes);
 
     final compilerResult = Compiler(
-      options: CompilerOptions(runMain: options.runMain),
+      options: CompilerOptions(
+        runMain: options.runMain,
+        platform: options.platform,
+        target: options.target,
+      ),
     ).compile(component);
     output.parent.createSync(recursive: true);
     output.writeAsStringSync(compilerResult.code);
@@ -85,11 +90,20 @@ Future<File> _loadOrBuildKernel(
   }
 
   final output = File(p.join(tempDir.path, 'input.dill'));
+  if (options.platform == Dart2EsmPlatform.browser) {
+    final ddcResult = await _buildDdcKernel(input, output, options);
+    if (ddcResult.exitCode != 0) {
+      throw _kernelBuildException(input, ddcResult);
+    }
+    return output;
+  }
+
   final vmResult = await _buildVmKernel(input, output, options);
   if (vmResult.exitCode == 0) {
     return output;
   }
-  if (!_shouldRetryWithDdc(vmResult)) {
+  if (options.platform != Dart2EsmPlatform.auto ||
+      !_shouldRetryWithDdc(vmResult)) {
     throw _kernelBuildException(input, vmResult);
   }
 
@@ -249,6 +263,8 @@ final class Dart2EsmOptions {
     this.packagesPath,
     this.environmentDefines = const [],
     this.runMain = true,
+    this.platform = Dart2EsmPlatform.auto,
+    this.target = Dart2EsmTarget.esnext,
     this.collectMetrics = false,
     this.compareDart2JsMetrics = false,
   });
@@ -259,6 +275,8 @@ final class Dart2EsmOptions {
   final String? packagesPath;
   final List<String> environmentDefines;
   final bool runMain;
+  final Dart2EsmPlatform platform;
+  final Dart2EsmTarget target;
   final bool collectMetrics;
   final bool compareDart2JsMetrics;
 }

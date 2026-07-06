@@ -268,6 +268,18 @@ extension _InvocationLowering on Lowerer {
         ],
       );
     }
+    if (name == 'unary-' && positional.isEmpty) {
+      return _durationFromMicros(
+        helpers,
+        EsmUnary(
+          operator: EsmUnaryOperator.negate,
+          operand: EsmPropertyAccess(
+            receiver: receiver,
+            property: 'inMicroseconds',
+          ),
+        ),
+      );
+    }
     if (positional.length != 1) {
       return null;
     }
@@ -361,12 +373,57 @@ extension _InvocationLowering on Lowerer {
     k.InstanceInvocation expression, {
     EsmExpression thisExpression = const EsmThis(),
   }) {
-    if (expression.arguments.named.isNotEmpty ||
-        expression.arguments.types.isNotEmpty) {
-      return null;
-    }
     final name = expression.name.text;
     final positional = expression.arguments.positional;
+    final target = kernelReferencePath(expression.interfaceTargetReference);
+    final receiver = _lowerExpression(
+      semantic,
+      helpers,
+      locals,
+      expression.receiver,
+      thisExpression: thisExpression,
+    );
+    if (target.startsWith('dart:html::Storage::') &&
+        name == '[]' &&
+        positional.length == 1 &&
+        expression.arguments.named.isEmpty) {
+      return EsmCall(
+        callee: EsmPropertyAccess(receiver: receiver, property: 'getItem'),
+        arguments: [
+          _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (target.startsWith('dart:html::Storage::') &&
+        name == '[]=' &&
+        positional.length == 2 &&
+        expression.arguments.named.isEmpty) {
+      return EsmCall(
+        callee: EsmPropertyAccess(receiver: receiver, property: 'setItem'),
+        arguments: [
+          _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            positional[0],
+            thisExpression: thisExpression,
+          ),
+          _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            positional[1],
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
     final methodName = _sdkInstanceMethodName(
       expression.interfaceTargetReference,
       name,
@@ -374,18 +431,54 @@ extension _InvocationLowering on Lowerer {
     if (methodName == null) {
       return null;
     }
+    if (expression.arguments.named.isNotEmpty &&
+        !(target.startsWith('dart:indexed_db::IdbFactory::') &&
+            name == 'open')) {
+      return null;
+    }
+    if (target.startsWith('dart:indexed_db::') &&
+        (name == 'open' ||
+            name == 'deleteDatabase' ||
+            name == 'put' ||
+            name == 'getObject')) {
+      helpers.require(EsmRuntimeHelper.web);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartDomRequest'),
+        arguments: [
+          EsmCall(
+            callee: EsmPropertyAccess(receiver: receiver, property: methodName),
+            arguments: [
+              for (final argument in positional)
+                _lowerExpression(
+                  semantic,
+                  helpers,
+                  locals,
+                  argument,
+                  thisExpression: thisExpression,
+                ),
+            ],
+          ),
+          _lowerNamedArgument(
+                semantic,
+                helpers,
+                locals,
+                expression.arguments,
+                'onUpgradeNeeded',
+                thisExpression: thisExpression,
+              ) ??
+              const EsmNullLiteral(),
+        ],
+      );
+    }
+    if (name == 'getContext3d' && positional.isEmpty) {
+      return EsmCall(
+        callee: EsmPropertyAccess(receiver: receiver, property: methodName),
+        arguments: const [EsmStringLiteral('webgl')],
+      );
+    }
     if (name == 'append' && positional.length == 1) {
       return EsmCall(
-        callee: EsmPropertyAccess(
-          receiver: _lowerExpression(
-            semantic,
-            helpers,
-            locals,
-            expression.receiver,
-            thisExpression: thisExpression,
-          ),
-          property: methodName,
-        ),
+        callee: EsmPropertyAccess(receiver: receiver, property: methodName),
         arguments: [
           _lowerExpression(
             semantic,
@@ -399,16 +492,7 @@ extension _InvocationLowering on Lowerer {
     }
     if (name == 'getAttribute' || name == 'setAttribute') {
       return EsmCall(
-        callee: EsmPropertyAccess(
-          receiver: _lowerExpression(
-            semantic,
-            helpers,
-            locals,
-            expression.receiver,
-            thisExpression: thisExpression,
-          ),
-          property: methodName,
-        ),
+        callee: EsmPropertyAccess(receiver: receiver, property: methodName),
         arguments: [
           for (final argument in positional)
             _lowerExpression(
@@ -421,7 +505,19 @@ extension _InvocationLowering on Lowerer {
         ],
       );
     }
-    return null;
+    return EsmCall(
+      callee: EsmPropertyAccess(receiver: receiver, property: methodName),
+      arguments: [
+        for (final argument in positional)
+          _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            argument,
+            thisExpression: thisExpression,
+          ),
+      ],
+    );
   }
 
   EsmExpression? _lowerMathInstanceInvocation(
@@ -555,6 +651,36 @@ extension _InvocationLowering on Lowerer {
       throw UnsupportedCompilerFeature(
         expression,
         'extension type instance invocation',
+      );
+    }
+    final target = kernelReferencePath(expression.interfaceTargetReference);
+    final name = expression.name.text;
+    if (target.startsWith('dart:js_interop::') &&
+        (name == 'create' || name == 'defineProperty') &&
+        expression.arguments.positional.length == 1 &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.types.isEmpty) {
+      final receiver = _lowerExtensionTypeInstanceReceiver(
+        semantic,
+        helpers,
+        locals,
+        member,
+        expression.receiver,
+        thisExpression: thisExpression,
+      );
+      final method = EsmPropertyAccess(receiver: receiver, property: name);
+      return EsmCall(
+        callee: EsmPropertyAccess(receiver: method, property: 'apply'),
+        arguments: [
+          receiver,
+          _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            expression.arguments.positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
       );
     }
     return EsmCall(

@@ -22,7 +22,7 @@ extension _ConvertInvocationLowering on Lowerer {
       return null;
     }
     final allowed = switch (memberName) {
-      'add' || 'addSlice' || 'addCharCode' || 'close' => true,
+      'add' || 'addSlice' || 'addCharCode' || 'asUtf8Sink' || 'close' => true,
       _ => false,
     };
     if (!allowed) {
@@ -66,9 +66,6 @@ extension _ConvertInvocationLowering on Lowerer {
     )) {
       return null;
     }
-    if (expression.arguments.types.isNotEmpty) {
-      return null;
-    }
     final allowed = switch (memberName) {
       'bind' ||
       'cast' ||
@@ -76,6 +73,7 @@ extension _ConvertInvocationLowering on Lowerer {
       'decode' ||
       'encode' ||
       'fuse' ||
+      'normalize' ||
       'startChunkedConversion' => true,
       _ => false,
     };

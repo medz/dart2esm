@@ -1,6 +1,9 @@
 part of 'runtime_helpers.dart';
 
 final class EsmRuntimeHelperUseSet {
+  EsmRuntimeHelperUseSet({this.platform = Dart2EsmPlatform.auto});
+
+  final Dart2EsmPlatform platform;
   final _helpers = <EsmRuntimeHelper>{};
 
   bool require(EsmRuntimeHelper helper) {
@@ -16,11 +19,19 @@ final class EsmRuntimeHelperUseSet {
   }
 
   bool add(EsmRuntimeHelper helper) {
+    if (helper == EsmRuntimeHelper.ioNode &&
+        !_platformAllowsNodeBuiltins(platform)) {
+      throw UnsupportedCompilerFeature(
+        helper,
+        'Node-backed dart:io lowering on ${platform.cliName} platform',
+      );
+    }
     switch (helper) {
       case EsmRuntimeHelper.bigIntBitLength:
       case EsmRuntimeHelper.bigIntParse:
       case EsmRuntimeHelper.byteConversionSink:
       case EsmRuntimeHelper.compare:
+      case EsmRuntimeHelper.concurrent:
       case EsmRuntimeHelper.coreError:
       case EsmRuntimeHelper.constValue:
       case EsmRuntimeHelper.customHashMap:
@@ -28,24 +39,29 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.doubleParse:
       case EsmRuntimeHelper.doubleValue:
       case EsmRuntimeHelper.dynamicCall:
-      case EsmRuntimeHelper.dynamicGet:
-      case EsmRuntimeHelper.dynamicSet:
       case EsmRuntimeHelper.enumAsNameMap:
       case EsmRuntimeHelper.enumByName:
-      case EsmRuntimeHelper.encoding:
+      case EsmRuntimeHelper.completer:
       case EsmRuntimeHelper.expando:
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.finalizer:
+      case EsmRuntimeHelper.ffi:
       case EsmRuntimeHelper.intGcd:
       case EsmRuntimeHelper.intShift:
+      case EsmRuntimeHelper.io:
       case EsmRuntimeHelper.iterableToArray:
+      case EsmRuntimeHelper.jsInterop:
       case EsmRuntimeHelper.mathPoint:
       case EsmRuntimeHelper.mathRandom:
+      case EsmRuntimeHelper.stopwatch:
       case EsmRuntimeHelper.stringFactory:
       case EsmRuntimeHelper.stringOps:
+      case EsmRuntimeHelper.web:
       case EsmRuntimeHelper.weakReference:
         break;
       case EsmRuntimeHelper.argumentChecks:
+        _helpers.add(EsmRuntimeHelper.coreError);
+      case EsmRuntimeHelper.encoding:
         _helpers.add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.dateTime:
         _helpers.add(EsmRuntimeHelper.coreError);
@@ -84,21 +100,39 @@ final class EsmRuntimeHelperUseSet {
         _helpers.add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.objectRuntimeType:
         _helpers.add(EsmRuntimeHelper.type);
+      case EsmRuntimeHelper.dynamicGet:
+      case EsmRuntimeHelper.dynamicSet:
+        _helpers.add(EsmRuntimeHelper.noSuchMethodDispatch);
+      case EsmRuntimeHelper.isolate:
+        _helpers.add(EsmRuntimeHelper.future);
       case EsmRuntimeHelper.dynamicInvoke:
         _helpers.add(EsmRuntimeHelper.iterableJoin);
         _helpers.add(EsmRuntimeHelper.listMixin);
         _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.noSuchMethodDispatch);
+      case EsmRuntimeHelper.noSuchMethodDispatch:
+        _helpers.add(EsmRuntimeHelper.symbol);
       case EsmRuntimeHelper.functionApply:
       case EsmRuntimeHelper.intParse:
       case EsmRuntimeHelper.iterableJoin:
         _helpers.add(EsmRuntimeHelper.stringify);
         _helpers.add(EsmRuntimeHelper.iterableToArray);
+      case EsmRuntimeHelper.ioNode:
+        _helpers.add(EsmRuntimeHelper.io);
+        _helpers.add(EsmRuntimeHelper.dateTime);
+        _helpers.add(EsmRuntimeHelper.future);
+        _helpers.add(EsmRuntimeHelper.uri);
+        _helpers.add(EsmRuntimeHelper.uriToFilePath);
       case EsmRuntimeHelper.iterableSearch:
       case EsmRuntimeHelper.iterableWindow:
       case EsmRuntimeHelper.iterator:
       case EsmRuntimeHelper.listFactory:
       case EsmRuntimeHelper.listRangeOps:
         _helpers.add(EsmRuntimeHelper.iterableToArray);
+      case EsmRuntimeHelper.future:
+        _helpers.add(EsmRuntimeHelper.equals);
+        _helpers.add(EsmRuntimeHelper.record);
+        _helpers.add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.lazyField:
       case EsmRuntimeHelper.listAdd:
       case EsmRuntimeHelper.nullCheck:
@@ -192,4 +226,11 @@ final class EsmRuntimeHelperUseSet {
         .where(_helpers.contains)
         .toList(growable: false);
   }
+}
+
+bool _platformAllowsNodeBuiltins(Dart2EsmPlatform platform) {
+  return switch (platform) {
+    Dart2EsmPlatform.auto || Dart2EsmPlatform.node => true,
+    Dart2EsmPlatform.neutral || Dart2EsmPlatform.browser => false,
+  };
 }

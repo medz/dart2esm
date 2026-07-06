@@ -4,14 +4,24 @@ import 'codegen/esm_codegen.dart';
 import 'component.dart';
 import 'parser/kernel_parser.dart';
 import 'lowering/kernel_to_esm_ast.dart';
+import 'options.dart';
 import 'transformer/helpers/runtime_helpers.dart';
 import 'semantic/semantic_builder.dart';
 import 'transformer/module_transformer.dart';
 
 final class CompilerOptions {
-  const CompilerOptions({required this.runMain});
+  const CompilerOptions({
+    this.runMain = true,
+    this.platform = Dart2EsmPlatform.auto,
+    this.target = Dart2EsmTarget.esnext,
+  });
 
   final bool runMain;
+  final Dart2EsmPlatform platform;
+  final Dart2EsmTarget target;
+
+  Dart2EsmTargetCapabilities get targetCapabilities =>
+      Dart2EsmTargetCapabilities.forTarget(target);
 }
 
 final class CompilerReturn {
@@ -61,7 +71,11 @@ final class Compiler {
     completedComponents.add(CompilerComponentId.parser);
     final semanticResult = semantic.build(kernel);
     completedComponents.add(CompilerComponentId.semantic);
-    final lowered = lowering.lower(semanticResult, runMain: options.runMain);
+    final lowered = lowering.lower(
+      semanticResult,
+      runMain: options.runMain,
+      platform: options.platform,
+    );
     completedComponents.add(CompilerComponentId.lowerer);
     final transformed = transformer.transform(lowered);
     completedComponents.add(CompilerComponentId.transformer);

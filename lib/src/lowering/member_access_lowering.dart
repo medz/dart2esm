@@ -83,6 +83,34 @@ extension _MemberAccessLowering on Lowerer {
     if (sdkIntrinsic != null) {
       return sdkIntrinsic;
     }
+    final invocationGet = _lowerCoreInvocationInstanceGet(
+      expression.interfaceTargetReference,
+      expression.name.text,
+      () => _lowerExpression(
+        semantic,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
+    );
+    if (invocationGet != null) {
+      return invocationGet;
+    }
+    final convertGet = _lowerDartConvertInstanceGet(
+      expression.interfaceTargetReference,
+      expression.name.text,
+      () => _lowerExpression(
+        semantic,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
+    );
+    if (convertGet != null) {
+      return convertGet;
+    }
     return _lowerWebInstanceGet(
           semantic,
           helpers,
@@ -97,6 +125,49 @@ extension _MemberAccessLowering on Lowerer {
           expression,
           thisExpression: thisExpression,
         );
+  }
+
+  EsmExpression? _lowerDartConvertInstanceGet(
+    k.Reference reference,
+    String name,
+    EsmExpression Function() lowerReceiver,
+  ) {
+    if (!isDartConvertConverterMember(reference, name)) {
+      return null;
+    }
+    final property = switch (name) {
+      'encoder' || 'decoder' => name,
+      _ => null,
+    };
+    if (property == null) {
+      return null;
+    }
+    return EsmPropertyAccess(receiver: lowerReceiver(), property: property);
+  }
+
+  EsmExpression? _lowerCoreInvocationInstanceGet(
+    k.Reference reference,
+    String name,
+    EsmExpression Function() lowerReceiver,
+  ) {
+    final target = kernelReferencePath(reference);
+    if (!target.startsWith('dart:core::Invocation::@getters::')) {
+      return null;
+    }
+    final property = switch (name) {
+      'memberName' ||
+      'positionalArguments' ||
+      'namedArguments' ||
+      'isMethod' ||
+      'isGetter' ||
+      'isSetter' ||
+      'isAccessor' => name,
+      _ => null,
+    };
+    if (property == null) {
+      return null;
+    }
+    return EsmPropertyAccess(receiver: lowerReceiver(), property: property);
   }
 
   EsmExpression? _lowerWebInstanceGet(
@@ -337,6 +408,27 @@ extension _MemberAccessLowering on Lowerer {
     }
     if (target == 'dart:core::String::@getters::runes') {
       return _stringRunes(receiver);
+    }
+    if (target == 'dart:core::Runes::@getters::first') {
+      return EsmComputedPropertyAccess(
+        receiver: _arrayFrom(helpers, receiver),
+        property: const EsmNumberLiteral(0),
+      );
+    }
+    if (target == 'dart:core::Runes::@getters::last') {
+      return EsmCall(
+        callee: EsmPropertyAccess(
+          receiver: _arrayFrom(helpers, receiver),
+          property: 'at',
+        ),
+        arguments: const [EsmNumberLiteral(-1)],
+      );
+    }
+    if (target == 'dart:core::Runes::@getters::length') {
+      return EsmPropertyAccess(
+        receiver: _arrayFrom(helpers, receiver),
+        property: 'length',
+      );
     }
     if ((isListMember && memberName == 'length') ||
         target == 'dart:core::String::@getters::length') {

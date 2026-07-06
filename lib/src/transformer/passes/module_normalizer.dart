@@ -34,6 +34,8 @@ final class ModuleNormalizer implements TransformPass {
               EsmFunction(
                 name: item.name,
                 export: item.export,
+                isAsync: item.isAsync,
+                isGenerator: item.isGenerator,
                 parameters: item.parameters,
                 body: body.statements,
               ),
@@ -88,6 +90,8 @@ final class ModuleNormalizer implements TransformPass {
             key: method.key,
             kind: method.kind,
             isStatic: method.isStatic,
+            isAsync: method.isAsync,
+            isGenerator: method.isGenerator,
             parameters: method.parameters,
             body: body.statements,
           ),
@@ -225,14 +229,31 @@ final class ModuleNormalizer implements TransformPass {
         );
       case EsmForStatement():
         final body = _normalizeStatementList(statement.body);
-        if (!body.changed) {
+        final condition = statement.condition == null
+            ? null
+            : _normalizeExpression(statement.condition!);
+        final updates = [
+          for (final update in statement.updates) _normalizeExpression(update),
+        ];
+        final initializers = [
+          for (final initializer in statement.initializers)
+            _normalizeVariableDeclaration(initializer).statement
+                as EsmVariableDeclaration,
+        ];
+        final expressionChanged =
+            (condition?.changed ?? false) ||
+            updates.indexed.any((entry) => entry.$2.changed) ||
+            initializers.indexed.any(
+              (entry) => entry.$2 != statement.initializers[entry.$1],
+            );
+        if (!body.changed && !expressionChanged) {
           return (statement: statement, changed: false);
         }
         return (
           statement: EsmForStatement(
-            initializers: statement.initializers,
-            condition: statement.condition,
-            updates: statement.updates,
+            initializers: initializers,
+            condition: condition?.expression,
+            updates: [for (final update in updates) update.expression],
             body: body.statements,
           ),
           changed: true,
@@ -259,13 +280,375 @@ final class ModuleNormalizer implements TransformPass {
           ),
           changed: true,
         );
-      case EsmExpressionStatement() ||
-          EsmBreakStatement() ||
-          EsmContinueStatement() ||
-          EsmVariableDeclaration() ||
-          EsmReturnStatement() ||
-          EsmThrowStatement():
+      case EsmExpressionStatement():
+        final expression = _normalizeExpression(statement.expression);
+        if (!expression.changed) {
+          return (statement: statement, changed: false);
+        }
+        return (
+          statement: EsmExpressionStatement(expression.expression),
+          changed: true,
+        );
+      case EsmVariableDeclaration():
+        return _normalizeVariableDeclaration(statement);
+      case EsmReturnStatement():
+        final expression = statement.expression == null
+            ? null
+            : _normalizeExpression(statement.expression!);
+        if (expression == null || !expression.changed) {
+          return (statement: statement, changed: false);
+        }
+        return (
+          statement: EsmReturnStatement(expression.expression),
+          changed: true,
+        );
+      case EsmYieldStatement():
+        final expression = _normalizeExpression(statement.expression);
+        if (!expression.changed) {
+          return (statement: statement, changed: false);
+        }
+        return (
+          statement: EsmYieldStatement(
+            expression: expression.expression,
+            delegate: statement.delegate,
+          ),
+          changed: true,
+        );
+      case EsmThrowStatement():
+        final expression = _normalizeExpression(statement.expression);
+        if (!expression.changed) {
+          return (statement: statement, changed: false);
+        }
+        return (
+          statement: EsmThrowStatement(expression.expression),
+          changed: true,
+        );
+      case EsmBreakStatement() || EsmContinueStatement():
         return (statement: statement, changed: false);
     }
+  }
+
+  ({EsmStatement statement, bool changed}) _normalizeVariableDeclaration(
+    EsmVariableDeclaration statement,
+  ) {
+    final initializer = statement.initializer == null
+        ? null
+        : _normalizeExpression(statement.initializer!);
+    if (initializer == null || !initializer.changed) {
+      return (statement: statement, changed: false);
+    }
+    return (
+      statement: EsmVariableDeclaration(
+        binding: statement.binding,
+        initializer: initializer.expression,
+        mutable: statement.mutable,
+        export: statement.export,
+      ),
+      changed: true,
+    );
+  }
+
+  ({EsmExpression expression, bool changed}) _normalizeExpression(
+    EsmExpression expression,
+  ) {
+    switch (expression) {
+      case EsmCall():
+        final callee = _normalizeExpression(expression.callee);
+        final arguments = [
+          for (final argument in expression.arguments)
+            _normalizeExpression(argument),
+        ];
+        final normalized = EsmCall(
+          callee: callee.expression,
+          arguments: [for (final argument in arguments) argument.expression],
+        );
+        final varArgs = _normalizeObjectVarArgsCall(normalized);
+        final changed =
+            callee.changed ||
+            arguments.any((argument) => argument.changed) ||
+            varArgs.changed;
+        return (expression: varArgs.expression, changed: changed);
+      case EsmArrayLiteral():
+        final elements = [
+          for (final element in expression.elements)
+            _normalizeExpression(element),
+        ];
+        if (!elements.any((element) => element.changed)) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmArrayLiteral([
+            for (final element in elements) element.expression,
+          ]),
+          changed: true,
+        );
+      case EsmObjectLiteral():
+        var changed = false;
+        final properties = [
+          for (final property in expression.properties)
+            () {
+              final value = _normalizeExpression(property.value);
+              changed = changed || value.changed;
+              if (!value.changed) return property;
+              return EsmObjectLiteralProperty(
+                key: property.key,
+                value: value.expression,
+              );
+            }(),
+        ];
+        if (!changed) return (expression: expression, changed: false);
+        return (expression: EsmObjectLiteral(properties), changed: true);
+      case EsmAssignment():
+        final target = _normalizeExpression(expression.target);
+        final value = _normalizeExpression(expression.value);
+        if (!target.changed && !value.changed) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmAssignment(
+            target: target.expression,
+            value: value.expression,
+          ),
+          changed: true,
+        );
+      case EsmBinary():
+        final left = _normalizeExpression(expression.left);
+        final right = _normalizeExpression(expression.right);
+        if (!left.changed && !right.changed) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmBinary(
+            left: left.expression,
+            operator: expression.operator,
+            right: right.expression,
+          ),
+          changed: true,
+        );
+      case EsmUnary():
+        final operand = _normalizeExpression(expression.operand);
+        if (!operand.changed) return (expression: expression, changed: false);
+        return (
+          expression: EsmUnary(
+            operator: expression.operator,
+            operand: operand.expression,
+          ),
+          changed: true,
+        );
+      case EsmConditional():
+        final condition = _normalizeExpression(expression.condition);
+        final then = _normalizeExpression(expression.thenExpression);
+        final otherwise = _normalizeExpression(expression.otherwiseExpression);
+        if (!condition.changed && !then.changed && !otherwise.changed) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmConditional(
+            condition: condition.expression,
+            thenExpression: then.expression,
+            otherwiseExpression: otherwise.expression,
+          ),
+          changed: true,
+        );
+      case EsmNullishCoalesce():
+        final left = _normalizeExpression(expression.left);
+        final right = _normalizeExpression(expression.right);
+        if (!left.changed && !right.changed) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmNullishCoalesce(
+            left: left.expression,
+            right: right.expression,
+          ),
+          changed: true,
+        );
+      case EsmParenthesized():
+        final inner = _normalizeExpression(expression.expression);
+        if (!inner.changed) return (expression: expression, changed: false);
+        return (expression: EsmParenthesized(inner.expression), changed: true);
+      case EsmArrowFunction():
+        final body = _normalizeExpression(expression.body);
+        if (!body.changed) return (expression: expression, changed: false);
+        return (
+          expression: EsmArrowFunction(
+            parameters: expression.parameters,
+            body: body.expression,
+          ),
+          changed: true,
+        );
+      case EsmFunctionExpression():
+        final body = _normalizeStatementList(expression.body);
+        if (!body.changed) return (expression: expression, changed: false);
+        return (
+          expression: EsmFunctionExpression(
+            parameters: expression.parameters,
+            isAsync: expression.isAsync,
+            isGenerator: expression.isGenerator,
+            body: body.statements,
+          ),
+          changed: true,
+        );
+      case EsmArrowBlockFunction():
+        final body = _normalizeStatementList(expression.body);
+        if (!body.changed) return (expression: expression, changed: false);
+        return (
+          expression: EsmArrowBlockFunction(
+            parameters: expression.parameters,
+            isAsync: expression.isAsync,
+            body: body.statements,
+          ),
+          changed: true,
+        );
+      case EsmAwait():
+        final inner = _normalizeExpression(expression.expression);
+        if (!inner.changed) return (expression: expression, changed: false);
+        return (expression: EsmAwait(inner.expression), changed: true);
+      case EsmNew():
+        final callee = _normalizeExpression(expression.callee);
+        final arguments = [
+          for (final argument in expression.arguments)
+            _normalizeExpression(argument),
+        ];
+        if (!callee.changed && !arguments.any((argument) => argument.changed)) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmNew(
+            callee: callee.expression,
+            arguments: [for (final argument in arguments) argument.expression],
+          ),
+          changed: true,
+        );
+      case EsmPropertyAccess():
+        final receiver = _normalizeExpression(expression.receiver);
+        if (!receiver.changed) return (expression: expression, changed: false);
+        return (
+          expression: EsmPropertyAccess(
+            receiver: receiver.expression,
+            property: expression.property,
+          ),
+          changed: true,
+        );
+      case EsmComputedPropertyAccess():
+        final receiver = _normalizeExpression(expression.receiver);
+        final property = _normalizeExpression(expression.property);
+        if (!receiver.changed && !property.changed) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmComputedPropertyAccess(
+            receiver: receiver.expression,
+            property: property.expression,
+          ),
+          changed: true,
+        );
+      case EsmOptionalPropertyAccess():
+        final receiver = _normalizeExpression(expression.receiver);
+        if (!receiver.changed) return (expression: expression, changed: false);
+        return (
+          expression: EsmOptionalPropertyAccess(
+            receiver: receiver.expression,
+            property: expression.property,
+          ),
+          changed: true,
+        );
+      case EsmOptionalMethodCall():
+        final receiver = _normalizeExpression(expression.receiver);
+        final arguments = [
+          for (final argument in expression.arguments)
+            _normalizeExpression(argument),
+        ];
+        if (!receiver.changed &&
+            !arguments.any((argument) => argument.changed)) {
+          return (expression: expression, changed: false);
+        }
+        return (
+          expression: EsmOptionalMethodCall(
+            receiver: receiver.expression,
+            property: expression.property,
+            arguments: [for (final argument in arguments) argument.expression],
+          ),
+          changed: true,
+        );
+      case EsmStringLiteral() ||
+          EsmStringConcatenation() ||
+          EsmNumberLiteral() ||
+          EsmBooleanLiteral() ||
+          EsmNullLiteral() ||
+          EsmIdentifier() ||
+          EsmImportMeta() ||
+          EsmThis() ||
+          EsmNewTarget() ||
+          EsmSuper():
+        return (expression: expression, changed: false);
+    }
+  }
+
+  ({EsmExpression expression, bool changed}) _normalizeObjectVarArgsCall(
+    EsmCall call,
+  ) {
+    final method = _objectVarArgsMethod(call.callee);
+    if (method == null || call.arguments.length != 1) {
+      return (expression: call, changed: false);
+    }
+    if (call.arguments.single is! EsmArrayLiteral) {
+      return (expression: call, changed: false);
+    }
+    return (
+      expression: EsmCall(
+        callee: EsmPropertyAccess(receiver: method.callee, property: 'apply'),
+        arguments: [method.receiver, call.arguments.single],
+      ),
+      changed: true,
+    );
+  }
+
+  ({EsmExpression receiver, EsmExpression callee})? _objectVarArgsMethod(
+    EsmExpression callee,
+  ) {
+    final method = switch (callee) {
+      EsmPropertyAccess(:final receiver, :final property) => (
+        receiver: receiver,
+        methodName: property,
+      ),
+      EsmComputedPropertyAccess(
+        :final receiver,
+        property: EsmStringLiteral(:final value),
+      ) =>
+        (receiver: receiver, methodName: value),
+      _ => null,
+    };
+    if (method == null) {
+      return null;
+    }
+    if (method.methodName != 'create' &&
+        method.methodName != 'defineProperty') {
+      return null;
+    }
+    if (!_isGlobalObjectReference(method.receiver)) {
+      return null;
+    }
+    return (receiver: method.receiver, callee: callee);
+  }
+
+  bool _isGlobalObjectReference(EsmExpression expression) {
+    return switch (expression) {
+      EsmIdentifier(:final name) => name == 'Object',
+      EsmComputedPropertyAccess(
+        receiver: EsmIdentifier(name: 'globalThis'),
+        property: EsmStringLiteral(value: 'Object'),
+      ) =>
+        true,
+      EsmPropertyAccess(
+        receiver: EsmIdentifier(name: 'globalThis'),
+        property: 'Object',
+      ) =>
+        true,
+      EsmCall(callee: EsmIdentifier(name: '__dartAs'), :final arguments)
+          when arguments.isNotEmpty =>
+        _isGlobalObjectReference(arguments.first),
+      _ => false,
+    };
   }
 }

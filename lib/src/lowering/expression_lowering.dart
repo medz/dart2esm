@@ -342,11 +342,35 @@ extension _ExpressionLowering on Lowerer {
         expression,
         thisExpression: thisExpression,
       ),
+      k.AwaitExpression() => EsmAwait(
+        _lowerExpression(
+          semantic,
+          helpers,
+          locals,
+          expression.operand,
+          thisExpression: thisExpression,
+        ),
+      ),
+      k.LoadLibrary() => const EsmCall(
+        callee: EsmPropertyAccess(
+          receiver: EsmIdentifier('Promise'),
+          property: 'resolve',
+        ),
+        arguments: [EsmNullLiteral()],
+      ),
+      k.CheckLibraryIsLoaded() => const EsmNullLiteral(),
       k.InstanceTearOff() => _lowerInstanceTearOff(
         semantic,
         helpers,
         locals,
         expression,
+        thisExpression: thisExpression,
+      ),
+      k.Instantiation() => _lowerExpression(
+        semantic,
+        helpers,
+        locals,
+        expression.expression,
         thisExpression: thisExpression,
       ),
       k.FunctionExpression() => _lowerFunctionExpression(
@@ -764,7 +788,10 @@ extension _ExpressionLowering on Lowerer {
     Map<k.VariableDeclaration, String> outerLocals,
     k.FunctionNode function,
   ) {
-    if (function.asyncMarker != k.AsyncMarker.Sync) {
+    if (function.asyncMarker != k.AsyncMarker.Sync &&
+        function.asyncMarker != k.AsyncMarker.Async &&
+        function.asyncMarker != k.AsyncMarker.SyncStar &&
+        function.asyncMarker != k.AsyncMarker.AsyncStar) {
       throw UnsupportedCompilerFeature(
         function,
         'function expression async marker',
@@ -776,15 +803,27 @@ extension _ExpressionLowering on Lowerer {
     }
     final locals = Map<k.VariableDeclaration, String>.of(outerLocals);
     final usedParameters = <String>{};
+    final parameters = _bindParameters(
+      semantic,
+      helpers,
+      locals,
+      usedParameters,
+      function,
+    );
+    final statements = _lowerStatementList(semantic, helpers, locals, {}, body);
+    if (function.asyncMarker == k.AsyncMarker.SyncStar ||
+        function.asyncMarker == k.AsyncMarker.AsyncStar) {
+      return EsmFunctionExpression(
+        parameters: parameters,
+        isAsync: function.asyncMarker == k.AsyncMarker.AsyncStar,
+        isGenerator: true,
+        body: statements,
+      );
+    }
     return EsmArrowBlockFunction(
-      parameters: _bindParameters(
-        semantic,
-        helpers,
-        locals,
-        usedParameters,
-        function,
-      ),
-      body: _lowerStatementList(semantic, helpers, locals, {}, body),
+      parameters: parameters,
+      isAsync: function.asyncMarker == k.AsyncMarker.Async,
+      body: statements,
     );
   }
 

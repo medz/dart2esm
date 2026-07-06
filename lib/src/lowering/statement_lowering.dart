@@ -176,6 +176,18 @@ extension _StatementLowering on Lowerer {
                 ),
         ),
       ],
+      k.YieldStatement() => [
+        EsmYieldStatement(
+          expression: _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            statement.expression,
+            thisExpression: thisExpression,
+          ),
+          delegate: statement.isYieldStar,
+        ),
+      ],
       _ => throw UnsupportedCompilerFeature(statement, 'statement lowering'),
     };
   }

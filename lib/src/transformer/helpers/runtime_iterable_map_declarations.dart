@@ -246,6 +246,10 @@ function __dartMapUpdate(map, key, update, ifAbsent = null) {
   throw new Error("Key not found");
 }
 function __dartMapForEach(map, action) {
+  if (map != null && typeof map[Symbol.iterator] !== "function" && typeof map.forEach === "function") {
+    map.forEach(action);
+    return null;
+  }
   for (const [key, value] of map) action(key, value);
   return null;
 }

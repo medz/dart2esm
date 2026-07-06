@@ -87,6 +87,10 @@ function __dartShr(left, right) {
   return Math.floor(Number(left) / (2 ** Number(right)));
 }
 
+function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
+}
+
 function __dartIterableFirstWhere(iterable, test, orElse = null) {
   for (const value of __dartIterableToArray(iterable)) {
     if (test(value)) return value;
@@ -1245,7 +1249,7 @@ class VersionUnion {
     return __dartConst("[\"InstanceConstant\",\"InstanceConstant(const ListEquality<VersionRange>{ListEquality._elementEquality: const DefaultEquality<Never>{}})\"]", () => Object.freeze(Object.create(ListEquality.prototype, { _elementEquality_package_collection_src_equality_dart: { value: __dartConst("[\"InstanceConstant\",\"InstanceConstant(const DefaultEquality<Never>{})\"]", () => Object.freeze(Object.create(DefaultEquality.prototype, {  }))), enumerable: true } }))).hash(this.ranges);
   }
   toString() {
-    return __dartIterableToArray(this.ranges).join(" or ");
+    return __dartIterableJoin(this.ranges, " or ");
   }
 }
 
@@ -1315,7 +1319,7 @@ class VersionRange {
       return this.allows(other);
     }
     if (other instanceof VersionUnion) {
-      return __dartIterableToArray(other.ranges).every((function() {
+      return __dartIterableToArray(other.ranges).every((() => {
         const $receiver = this;
         return function(other) {
           return $receiver.allowsAll(other);
@@ -1335,7 +1339,7 @@ class VersionRange {
       return this.allows(other);
     }
     if (other instanceof VersionUnion) {
-      return __dartIterableToArray(other.ranges).some((function() {
+      return __dartIterableToArray(other.ranges).some((() => {
         const $receiver = this;
         return function(other) {
           return $receiver.allowsAny(other);
@@ -1903,7 +1907,7 @@ class Version {
     return this._text_package_pub_semver_src_version_dart;
   }
   get canonicalizedVersion() {
-    return new Version(this.major, this.minor, this.patch, { pre: (__dartIterableToArray(this.preRelease).length > 0 ? __dartIterableToArray(this.preRelease).join(".") : null), build: (__dartIterableToArray(this.build).length > 0 ? __dartIterableToArray(this.build).join(".") : null) }).toString();
+    return new Version(this.major, this.minor, this.patch, { pre: (__dartIterableToArray(this.preRelease).length > 0 ? __dartIterableJoin(this.preRelease, ".") : null), build: (__dartIterableToArray(this.build).length > 0 ? __dartIterableJoin(this.build, ".") : null) }).toString();
   }
   _compareLists_package_pub_semver_src_version_dart(a, b) {
     for (let i = 0; i < Math.max(a.length, b.length); i = i + 1) {

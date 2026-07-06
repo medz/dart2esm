@@ -97,9 +97,6 @@ extension _ConstructorLowering on Lowerer {
     if (coreTimeConstructor != null) {
       return coreTimeConstructor;
     }
-    if (expression.arguments.named.isNotEmpty) {
-      return null;
-    }
     final convertConstructor = sdkIntrinsics.lowerConstructorInvocation(
       expression: expression,
       helpers: helpers,
@@ -110,9 +107,20 @@ extension _ConstructorLowering on Lowerer {
         argument,
         thisExpression: thisExpression,
       ),
+      lowerNamedArgument: (arguments, argumentName) => _lowerNamedArgument(
+        semantic,
+        helpers,
+        locals,
+        arguments,
+        argumentName,
+        thisExpression: thisExpression,
+      ),
     );
     if (convertConstructor != null) {
       return convertConstructor;
+    }
+    if (expression.arguments.named.isNotEmpty) {
+      return null;
     }
     final mathConstructor = _lowerMathConstructorInvocation(
       semantic,

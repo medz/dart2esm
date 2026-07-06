@@ -46,13 +46,15 @@ extension _ModulePrinter on _EsmPrinter {
 
   void _emitClassMethod(EsmClassMethod method) {
     final staticPrefix = method.isStatic ? 'static ' : '';
+    final asyncPrefix = method.isAsync ? 'async ' : '';
+    final generatorMarker = method.isGenerator ? '*' : '';
     final prefix = switch (method.kind) {
       EsmClassMethodKind.method => '',
       EsmClassMethodKind.getter => 'get ',
       EsmClassMethodKind.setter => 'set ',
     };
     _writeIndented(
-      '$staticPrefix$prefix${_emitPropertyKey(method.key)}(${method.parameters.map(_emitParameter).join(', ')}) {',
+      '$staticPrefix$asyncPrefix$prefix$generatorMarker${_emitPropertyKey(method.key)}(${method.parameters.map(_emitParameter).join(', ')}) {',
     );
     _indent++;
     for (final statement in method.body) {
@@ -64,8 +66,10 @@ extension _ModulePrinter on _EsmPrinter {
 
   void _emitFunction(EsmFunction function) {
     final exportPrefix = function.export ? 'export ' : '';
+    final asyncPrefix = function.isAsync ? 'async ' : '';
+    final generatorMarker = function.isGenerator ? '*' : '';
     _writeIndented(
-      '${exportPrefix}function ${function.name}(${function.parameters.map(_emitParameter).join(', ')}) {',
+      '${exportPrefix}${asyncPrefix}function$generatorMarker ${function.name}(${function.parameters.map(_emitParameter).join(', ')}) {',
     );
     _indent++;
     for (final statement in function.body) {

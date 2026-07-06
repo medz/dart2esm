@@ -91,6 +91,12 @@ extension _TypeLowering on Lowerer {
     if (type is k.TypeParameterType) {
       return _lowerTypeTest(semantic, helpers, type.bound, value);
     }
+    if (type is k.FutureOrType) {
+      return _or(
+        _lowerTypeTest(semantic, helpers, type.typeArgument, value),
+        _lowerDartAsyncTypeTest(value, 'dart:async::Future')!,
+      );
+    }
     if (type is k.FunctionType) {
       return _typeofEquals(value, 'function');
     }
@@ -127,6 +133,34 @@ extension _TypeLowering on Lowerer {
       if (target == 'dart:core::Object') {
         return _notNull(value);
       }
+      final typedDataTest = _lowerDartTypedDataTypeTest(value, target);
+      if (typedDataTest != null) {
+        return typedDataTest;
+      }
+      final legacyJsTest = _lowerLegacyJsTypeTest(value, target);
+      if (legacyJsTest != null) {
+        return legacyJsTest;
+      }
+      final asyncTest = _lowerDartAsyncTypeTest(value, target);
+      if (asyncTest != null) {
+        return asyncTest;
+      }
+      final jsInteropTest = _lowerDartJsInteropTypeTest(value, target);
+      if (jsInteropTest != null) {
+        return jsInteropTest;
+      }
+      final isolateTest = _lowerDartIsolateTypeTest(value, target);
+      if (isolateTest != null) {
+        return isolateTest;
+      }
+      final ioTest = _lowerDartIoTypeTest(value, target);
+      if (ioTest != null) {
+        return ioTest;
+      }
+      final ffiTest = _lowerDartFfiTypeTest(value, target);
+      if (ffiTest != null) {
+        return ffiTest;
+      }
       final typeName = _typeName(type);
       if (dartCoreErrorTypeNames.contains(typeName)) {
         return _lowerCoreErrorTypeTest(helpers, value, typeName);
@@ -139,6 +173,18 @@ extension _TypeLowering on Lowerer {
       }
       if (target == 'dart:svg::SvgElement') {
         return _lowerGlobalInstanceTypeTest(value, 'SVGElement');
+      }
+      if (target == 'dart:html::Element' || target == 'dart:html::Node') {
+        return _lowerGlobalInstanceTypeTest(
+          value,
+          target.endsWith('Node') ? 'Node' : 'Element',
+        );
+      }
+      if (target == 'dart:web_audio::AudioContext') {
+        return _lowerGlobalInstanceTypeTest(value, 'AudioContext');
+      }
+      if (target == 'dart:web_gl::RenderingContext') {
+        return _lowerGlobalInstanceTypeTest(value, 'WebGLRenderingContext');
       }
       return switch (typeName) {
         'String' => _typeofEquals(value, 'string'),
@@ -256,6 +302,25 @@ extension _TypeLowering on Lowerer {
           ]),
         ]),
         'Function' => _typeofEquals(value, 'function'),
+        'JSAny' || 'JavaScriptAny' => _notNull(value),
+        'JSObject' || 'JavaScriptObject' => _andAll([
+          _notNull(value),
+          _or(_typeofEquals(value, 'object'), _typeofEquals(value, 'function')),
+        ]),
+        'JSFunction' ||
+        'JSExportedDartFunction' ||
+        'JavaScriptFunction' => _typeofEquals(value, 'function'),
+        'JSString' || 'JavaScriptString' => _typeofEquals(value, 'string'),
+        'JSNumber' || 'JavaScriptNumber' => _typeofEquals(value, 'number'),
+        'JSBoolean' || 'JavaScriptBoolean' => _typeofEquals(value, 'boolean'),
+        'JSSymbol' || 'JavaScriptSymbol' => _typeofEquals(value, 'symbol'),
+        'JSArray' || 'JavaScriptArray' => EsmCall(
+          callee: const EsmPropertyAccess(
+            receiver: EsmIdentifier('Array'),
+            property: 'isArray',
+          ),
+          arguments: [value],
+        ),
         'Expando' => _lowerDartTypeTagTest(value, 'Expando'),
         'WeakReference' ||
         '_WeakReference' => _lowerDartTypeTagTest(value, 'WeakReference'),
@@ -275,6 +340,278 @@ extension _TypeLowering on Lowerer {
       type,
       'type test lowering ${_typeName(type)}',
     );
+  }
+
+  EsmExpression? _lowerDartTypedDataTypeTest(
+    EsmExpression value,
+    String target,
+  ) {
+    if (!target.startsWith('dart:typed_data::')) {
+      return null;
+    }
+    final className = target.substring('dart:typed_data::'.length);
+    if (className == 'TypedData') {
+      return EsmCall(
+        callee: const EsmPropertyAccess(
+          receiver: EsmIdentifier('ArrayBuffer'),
+          property: 'isView',
+        ),
+        arguments: [value],
+      );
+    }
+    final constructor = switch (className) {
+      'ByteBuffer' => 'ArrayBuffer',
+      'ByteData' => 'DataView',
+      'Int8List' => 'Int8Array',
+      'Uint8List' => 'Uint8Array',
+      'Uint8ClampedList' => 'Uint8ClampedArray',
+      'Int16List' => 'Int16Array',
+      'Uint16List' => 'Uint16Array',
+      'Int32List' => 'Int32Array',
+      'Uint32List' => 'Uint32Array',
+      'Int64List' => 'BigInt64Array',
+      'Uint64List' => 'BigUint64Array',
+      'Float32List' => 'Float32Array',
+      'Float64List' => 'Float64Array',
+      _ => null,
+    };
+    if (constructor == null) {
+      return null;
+    }
+    return EsmBinary(
+      left: value,
+      operator: EsmBinaryOperator.instanceOf,
+      right: EsmIdentifier(constructor),
+    );
+  }
+
+  EsmExpression? _lowerLegacyJsTypeTest(EsmExpression value, String target) {
+    if (!target.startsWith('dart:js::')) {
+      return null;
+    }
+    final className = target.substring('dart:js::'.length);
+    return switch (className) {
+      'JsArray' => EsmCall(
+        callee: const EsmPropertyAccess(
+          receiver: EsmIdentifier('Array'),
+          property: 'isArray',
+        ),
+        arguments: [value],
+      ),
+      'JsFunction' => _typeofEquals(value, 'function'),
+      'JsObject' => _andAll([
+        _notNull(value),
+        _or(_typeofEquals(value, 'object'), _typeofEquals(value, 'function')),
+      ]),
+      _ => null,
+    };
+  }
+
+  EsmExpression? _lowerDartAsyncTypeTest(EsmExpression value, String target) {
+    if (!target.startsWith('dart:async::')) {
+      return null;
+    }
+    final className = target.substring('dart:async::'.length);
+    return switch (className) {
+      'Future' => _andAll([
+        _notNull(value),
+        _typeofEquals(
+          EsmPropertyAccess(receiver: value, property: 'then'),
+          'function',
+        ),
+      ]),
+      'Completer' ||
+      'AsyncError' ||
+      'ParallelWaitError' ||
+      'Timer' ||
+      'Zone' ||
+      'StreamSubscription' => _andAll([
+        _notNull(value),
+        _typeofEquals(value, 'object'),
+        _strictEquals(
+          EsmPropertyAccess(receiver: value, property: '__dartType'),
+          EsmStringLiteral(className),
+        ),
+      ]),
+      'Stream' ||
+      'StreamController' ||
+      'StreamSink' ||
+      'EventSink' ||
+      'StreamConsumer' => _andAll([
+        _notNull(value),
+        _typeofEquals(value, 'object'),
+        _or(
+          _strictEquals(
+            EsmPropertyAccess(receiver: value, property: '__dartType'),
+            EsmStringLiteral(className),
+          ),
+          _typeofEquals(
+            EsmComputedPropertyAccess(
+              receiver: value,
+              property: const EsmPropertyAccess(
+                receiver: EsmIdentifier('Symbol'),
+                property: 'asyncIterator',
+              ),
+            ),
+            'function',
+          ),
+        ),
+      ]),
+      _ => null,
+    };
+  }
+
+  EsmExpression? _lowerDartIsolateTypeTest(EsmExpression value, String target) {
+    if (!target.startsWith('dart:isolate::')) {
+      return null;
+    }
+    final className = target.substring('dart:isolate::'.length);
+    return switch (className) {
+      'ReceivePort' || 'RawReceivePort' || 'SendPort' => _andAll([
+        _notNull(value),
+        _typeofEquals(value, 'object'),
+        _strictEquals(
+          EsmPropertyAccess(receiver: value, property: '__dartType'),
+          EsmStringLiteral(className),
+        ),
+      ]),
+      _ => null,
+    };
+  }
+
+  EsmExpression? _lowerDartJsInteropTypeTest(
+    EsmExpression value,
+    String target,
+  ) {
+    if (!target.startsWith('dart:js_interop::')) {
+      return null;
+    }
+    final className = target.substring('dart:js_interop::'.length);
+    return switch (className) {
+      'JSAny' => _notNull(value),
+      'JSObject' => _andAll([
+        _notNull(value),
+        _or(_typeofEquals(value, 'object'), _typeofEquals(value, 'function')),
+      ]),
+      'JSFunction' ||
+      'JSExportedDartFunction' => _typeofEquals(value, 'function'),
+      'JSString' => _typeofEquals(value, 'string'),
+      'JSNumber' => _typeofEquals(value, 'number'),
+      'JSBoolean' => _typeofEquals(value, 'boolean'),
+      'JSArray' => EsmCall(
+        callee: const EsmPropertyAccess(
+          receiver: EsmIdentifier('Array'),
+          property: 'isArray',
+        ),
+        arguments: [value],
+      ),
+      'JSPromise' => _andAll([
+        _notNull(value),
+        _typeofEquals(
+          EsmPropertyAccess(receiver: value, property: 'then'),
+          'function',
+        ),
+      ]),
+      'JSSymbol' => _typeofEquals(value, 'symbol'),
+      'JSArrayBuffer' => EsmBinary(
+        left: value,
+        operator: EsmBinaryOperator.instanceOf,
+        right: const EsmIdentifier('ArrayBuffer'),
+      ),
+      'JSDataView' => EsmBinary(
+        left: value,
+        operator: EsmBinaryOperator.instanceOf,
+        right: const EsmIdentifier('DataView'),
+      ),
+      'JSUint8Array' => EsmBinary(
+        left: value,
+        operator: EsmBinaryOperator.instanceOf,
+        right: const EsmIdentifier('Uint8Array'),
+      ),
+      'JSBoxedDartObject' => _lowerDartTypeTagTest(value, 'JSBoxedDartObject'),
+      _ => null,
+    };
+  }
+
+  EsmExpression? _lowerDartFfiTypeTest(EsmExpression value, String target) {
+    if (!target.startsWith('dart:ffi::')) {
+      return null;
+    }
+    final className = target.substring('dart:ffi::'.length);
+    return switch (className) {
+      'Pointer' => _andAll([
+        _notNull(value),
+        _typeofEquals(value, 'object'),
+        _strictEquals(
+          EsmPropertyAccess(receiver: value, property: '__dartType'),
+          const EsmStringLiteral('Pointer'),
+        ),
+      ]),
+      _ => null,
+    };
+  }
+
+  EsmExpression? _lowerDartIoTypeTest(EsmExpression value, String target) {
+    if (!target.startsWith('dart:io::')) {
+      return null;
+    }
+    final className = target.substring('dart:io::'.length);
+    return switch (className) {
+      'File' ||
+      'Directory' ||
+      'Link' ||
+      'RandomAccessFile' ||
+      'FileSystemEntity' ||
+      'FileMode' ||
+      'FileLock' ||
+      'FileSystemEntityType' ||
+      'FileStat' ||
+      'OSError' ||
+      'FileSystemException' ||
+      'PathAccessException' ||
+      'PathExistsException' ||
+      'PathNotFoundException' ||
+      'ProcessResult' ||
+      'ProcessStartMode' ||
+      'ProcessSignal' ||
+      'Stdout' ||
+      'Stdin' ||
+      'IOSink' => _andAll([
+        _notNull(value),
+        _typeofEquals(value, 'object'),
+        className == 'FileSystemEntity'
+            ? _orAll([
+                _strictEquals(
+                  EsmPropertyAccess(receiver: value, property: '__dartType'),
+                  const EsmStringLiteral('File'),
+                ),
+                _strictEquals(
+                  EsmPropertyAccess(receiver: value, property: '__dartType'),
+                  const EsmStringLiteral('Directory'),
+                ),
+                _strictEquals(
+                  EsmPropertyAccess(receiver: value, property: '__dartType'),
+                  const EsmStringLiteral('Link'),
+                ),
+              ])
+            : className == 'IOSink'
+            ? _or(
+                _strictEquals(
+                  EsmPropertyAccess(receiver: value, property: '__dartType'),
+                  const EsmStringLiteral('IOSink'),
+                ),
+                _strictEquals(
+                  EsmPropertyAccess(receiver: value, property: '__dartType'),
+                  const EsmStringLiteral('Stdout'),
+                ),
+              )
+            : _strictEquals(
+                EsmPropertyAccess(receiver: value, property: '__dartType'),
+                EsmStringLiteral(className),
+              ),
+      ]),
+      _ => null,
+    };
   }
 
   EsmExpression _lowerGlobalInstanceTypeTest(
@@ -322,6 +659,7 @@ extension _TypeLowering on Lowerer {
   }
 
   String? _sdkInstanceGetterPropertyName(k.Reference reference, String name) {
+    final path = kernelReferencePath(reference);
     if (name == 'text' && _isDartWebNodeMember(reference, name)) {
       return 'textContent';
     }
@@ -332,10 +670,38 @@ extension _TypeLowering on Lowerer {
     if (name == 'length' && _isDartWebCollectionMember(reference, name)) {
       return 'length';
     }
+    if ((path.startsWith('dart:html::Document::') ||
+            path.startsWith('dart:html::HtmlDocument::')) &&
+        (name == 'title' || name == 'body')) {
+      return name;
+    }
+    if (path.startsWith('dart:html::Window::') &&
+        (name == 'localStorage' || name == 'indexedDB')) {
+      return name;
+    }
+    if (path.startsWith('dart:html::Storage::') && name == 'length') {
+      return name;
+    }
+    if (path.startsWith('dart:html::CanvasElement::') &&
+        (name == 'width' || name == 'height')) {
+      return name;
+    }
+    if (path.startsWith('dart:web_audio::') &&
+        (name == 'currentTime' ||
+            name == 'destination' ||
+            name == 'gain' ||
+            name == 'value' ||
+            name == 'type')) {
+      return name;
+    }
+    if (path.startsWith('dart:indexed_db::Database::') && name == 'name') {
+      return name;
+    }
     return null;
   }
 
   String? _sdkInstanceSetterPropertyName(k.Reference reference, String name) {
+    final path = kernelReferencePath(reference);
     if (name == 'length' && isDartCoreListMember(reference, name)) {
       return 'length';
     }
@@ -345,16 +711,74 @@ extension _TypeLowering on Lowerer {
     if (name == 'id' && _isDartWebElementMember(reference, name)) {
       return 'id';
     }
+    if (path.startsWith('dart:html::CanvasElement::') &&
+        (name == 'width' || name == 'height')) {
+      return name;
+    }
+    if (path.startsWith('dart:web_audio::AudioParam::') && name == 'value') {
+      return name;
+    }
     return null;
   }
 
   String? _sdkInstanceMethodName(k.Reference reference, String name) {
+    final path = kernelReferencePath(reference);
     if (name == 'append' && _isDartWebNodeMember(reference, name)) {
       return 'appendChild';
     }
     if ((name == 'getAttribute' || name == 'setAttribute') &&
         _isDartWebElementMember(reference, name)) {
       return name;
+    }
+    if ((path.startsWith('dart:html::Document::') ||
+            path.startsWith('dart:html::HtmlDocument::')) &&
+        (name == 'createElement' || name == 'querySelector')) {
+      return name;
+    }
+    if (path.startsWith('dart:html::Storage::') &&
+        (name == 'getItem' || name == 'setItem')) {
+      return name;
+    }
+    if (path.startsWith('dart:html::CanvasElement::') &&
+        (name == 'getContext' || name == 'getContext3d')) {
+      return 'getContext';
+    }
+    if ((path.startsWith('dart:web_audio::AudioContext::') ||
+            path.startsWith('dart:web_audio::BaseAudioContext::')) &&
+        (name == 'createGain' || name == 'createOscillator')) {
+      return name;
+    }
+    if (path.startsWith('dart:web_audio::') &&
+        (name == 'connectNode' || name == 'connect')) {
+      return 'connect';
+    }
+    if (path.startsWith('dart:web_audio::') && name == 'start2') {
+      return 'start';
+    }
+    if (path.startsWith('dart:web_audio::') && name == 'stop') {
+      return 'stop';
+    }
+    if (path.startsWith('dart:web_gl::RenderingContext::') &&
+        (name == 'clearColor' || name == 'clear')) {
+      return name;
+    }
+    if (path.startsWith('dart:indexed_db::IdbFactory::') &&
+        (name == 'open' || name == 'deleteDatabase')) {
+      return name;
+    }
+    if (path.startsWith('dart:indexed_db::Database::') &&
+        (name == 'transaction' ||
+            name == 'createObjectStore' ||
+            name == 'close')) {
+      return name;
+    }
+    if (path.startsWith('dart:indexed_db::Transaction::') &&
+        name == 'objectStore') {
+      return name;
+    }
+    if (path.startsWith('dart:indexed_db::ObjectStore::') &&
+        (name == 'put' || name == 'getObject' || name == 'get')) {
+      return name == 'getObject' ? 'get' : name;
     }
     return null;
   }

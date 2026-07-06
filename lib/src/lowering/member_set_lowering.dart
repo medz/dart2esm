@@ -115,6 +115,34 @@ extension _MemberSetLowering on Lowerer {
     EsmExpression thisExpression = const EsmThis(),
   }) {
     final name = expression.name.text;
+    if (isDartAsyncStreamConsumerMember(
+          expression.interfaceTargetReference,
+          name,
+        ) &&
+        (name == 'onListen' ||
+            name == 'onPause' ||
+            name == 'onResume' ||
+            name == 'onCancel')) {
+      return EsmAssignment(
+        target: EsmPropertyAccess(
+          receiver: _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            expression.receiver,
+            thisExpression: thisExpression,
+          ),
+          property: name,
+        ),
+        value: _lowerExpression(
+          semantic,
+          helpers,
+          locals,
+          expression.value,
+          thisExpression: thisExpression,
+        ),
+      );
+    }
     final property = _sdkInstanceSetterPropertyName(
       expression.interfaceTargetReference,
       name,

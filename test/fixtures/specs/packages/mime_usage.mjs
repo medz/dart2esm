@@ -1,159 +1,5 @@
-function __dartStr(value) {
-  if (value == null) return "null";
-  if (Array.isArray(value)) {
-    return "[" + value.map(__dartStr).join(", ") + "]";
-  }
-  if (value instanceof Set) {
-    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
-  }
-  if (value instanceof Map) {
-    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
-  }
-  if (typeof value === "object") {
-    const toString = value.toString;
-    if (typeof toString === "function" && toString !== Object.prototype.toString) {
-      return String(toString.call(value));
-    }
-  }
-  return String(value);
-}
-function __dartPrint(value) {
-  console.log(__dartStr(value));
-}
-function __dartUtf8Encode(source, start = 0, end = null) {
-  const text = String(source);
-  return Array.from(new TextEncoder().encode(text.slice(start, end ?? undefined)));
-}
-function __dartUtf8Decode(bytes, allowMalformed = false, start = 0, end = null) {
-  const slice = Array.from(bytes).slice(start, end ?? undefined);
-  return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(slice));
-}
-function __dartUtf8Encoder() {
-  return {
-    convert(source, start = 0, end = null) { return __dartUtf8Encode(source, start, end); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartUtf8Decoder(allowMalformed = false) {
-  return {
-    convert(bytes, start = 0, end = null) { return __dartUtf8Decode(bytes, allowMalformed, start, end); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartUtf8Codec(allowMalformed = false) {
-  return {
-    encode(source) { return __dartUtf8Encode(source); },
-    convert(source) { return __dartUtf8Encode(source); },
-    decode(bytes, options = {}) { return __dartUtf8Decode(bytes, options.allowMalformed ?? allowMalformed); },
-    get encoder() { return __dartUtf8Encoder(); },
-    get decoder() { return __dartUtf8Decoder(allowMalformed); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartAsciiEncode(source, start = 0, end = null) {
-  const text = String(source);
-  const bytes = [];
-  const stop = end ?? text.length;
-  for (let i = start; i < stop; i++) {
-    const code = text.charCodeAt(i);
-    if (code > 0x7f) throw new RangeError("Invalid ASCII character");
-    bytes.push(code);
-  }
-  return bytes;
-}
-function __dartAsciiDecode(bytes, allowInvalid = false, start = 0, end = null) {
-  const values = Array.from(bytes).slice(start, end ?? undefined);
-  const chars = [];
-  for (const byte of values) {
-    if (byte < 0 || byte > 0x7f) { if (!allowInvalid) throw new RangeError("Invalid ASCII byte"); chars.push("\uFFFD"); continue; }
-    chars.push(String.fromCharCode(byte));
-  }
-  return chars.join("");
-}
-function __dartAsciiEncoder() {
-  return {
-    convert(source, start = 0, end = null) { return __dartAsciiEncode(source, start, end); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartAsciiDecoder(allowInvalid = false) {
-  return {
-    convert(bytes, start = 0, end = null) { return __dartAsciiDecode(bytes, allowInvalid, start, end); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartAsciiCodec(allowInvalid = false) {
-  return {
-    encode(source) { return __dartAsciiEncode(source); },
-    convert(source) { return __dartAsciiEncode(source); },
-    decode(bytes, options = {}) { return __dartAsciiDecode(bytes, options.allowInvalid ?? allowInvalid); },
-    get encoder() { return __dartAsciiEncoder(); },
-    get decoder() { return __dartAsciiDecoder(allowInvalid); },
-    fuse(next) { return __dartConverterFuse(this, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(this, sink); },
-  };
-}
-function __dartConverterConvert(converter, value) {
-  if (converter != null && typeof converter.convert === "function") return converter.convert(value);
-  if (converter != null && typeof converter.encode === "function") return converter.encode(value);
-  throw new TypeError("Converter.convert is not available");
-}
-function __dartConverterBind(converter, stream) {
-  return (async function*() {
-    for await (const value of stream) {
-      yield __dartConverterConvert(converter, value);
-    }
-  })();
-}
-function __dartConverterFuse(first, second) {
-  const fused = {
-    convert(value) { return __dartConverterConvert(second, __dartConverterConvert(first, value)); },
-    fuse(next) { return __dartConverterFuse(fused, next); },
-    startChunkedConversion(sink) { return __dartConverterStartChunked(fused, sink); },
-    bind(stream) { return __dartConverterBind(fused, stream); },
-  };
-  if (typeof first?.encode === "function" && typeof first?.decode === "function" && typeof second?.encode === "function" && typeof second?.decode === "function") {
-    fused.encode = (value) => second.encode(first.encode(value));
-    fused.decode = (value) => first.decode(second.decode(value));
-    Object.defineProperty(fused, "encoder", { get() { return __dartConverterFuse(first.encoder, second.encoder); } });
-    Object.defineProperty(fused, "decoder", { get() { return __dartConverterFuse(second.decoder, first.decoder); } });
-  }
-  return fused;
-}
-function __dartConverterStartChunked(converter, sink) {
-  const chunks = [];
-  const input = {
-    add(value) { chunks.push(value); return null; },
-    addSlice(value, start, end, isLast = false) {
-      const slice = typeof value === "string" ? value.slice(start, end) : Array.from(value).slice(start, end);
-      chunks.push(slice);
-      if (isLast) this.close();
-      return null;
-    },
-    close() {
-      let value;
-      if (chunks.length === 0) value = "";
-      else if (chunks.every((chunk) => typeof chunk === "string")) value = chunks.join("");
-      else if (chunks.every((chunk) => Array.isArray(chunk) || ArrayBuffer.isView(chunk))) value = chunks.flatMap((chunk) => Array.from(chunk));
-      else value = chunks.length === 1 ? chunks[0] : chunks;
-      sink.add(__dartConverterConvert(converter, value));
-      if (typeof sink.close === "function") sink.close();
-      return null;
-    },
-  };
-  return input;
-}
-function __dartNullCheck(value) {
-  if (value == null) {
-    throw new TypeError("Null check operator used on a null value");
-  }
-  return value;
-}
+// Generated by dart2esm.
+
 function __dartCoreError(typeName, message) {
   const text = message == null ? "" : String(message);
   const display = text === "" ? typeName : typeName + ": " + text;
@@ -175,480 +21,25 @@ function __dartIsCoreError(value, typeName) {
   if (typeName === "TypeError" && value instanceof TypeError) return true;
   return typeName === "Error" && value instanceof Error;
 }
-function __dartBind(receiver, name) {
-  if (Array.isArray(receiver) && name === "add") {
-    return (value) => { receiver.push(value); return null; };
-  }
-  const value = receiver[name];
-  return typeof value === "function" ? value.bind(receiver) : value;
+
+function __dartConstMap(entries) {
+  const map = __dartMapFromEntries(entries);
+  const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
+  Object.defineProperty(map, "set", { value: throwConst });
+  Object.defineProperty(map, "delete", { value: throwConst });
+  Object.defineProperty(map, "clear", { value: throwConst });
+  return Object.freeze(map);
 }
-function __dartIndexGet(receiver, index) {
-  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView)) || typeof receiver === "string") return receiver[index];
-  const op = receiver?.["[]"];
-  if (typeof op === "function") return op.call(receiver, index);
-  return receiver[index];
+
+function __dartConstSet(values) {
+  const set = __dartSetFrom(values);
+  const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
+  Object.defineProperty(set, "add", { value: throwConst });
+  Object.defineProperty(set, "delete", { value: throwConst });
+  Object.defineProperty(set, "clear", { value: throwConst });
+  return Object.freeze(set);
 }
-function __dartIndexSet(receiver, index, value) {
-  if (Array.isArray(receiver) || (ArrayBuffer.isView(receiver) && !(receiver instanceof DataView))) { receiver[index] = value; return value; }
-  const op = receiver?.["[]="];
-  if (typeof op === "function") return op.call(receiver, index, value);
-  receiver[index] = value;
-  return value;
-}
-function __dartCompare(left, right, compare = null) {
-  if (typeof compare === "function") return Number(compare(left, right));
-  const compareTo = left?.compareTo;
-  if (typeof compareTo === "function") return Number(compareTo.call(left, right));
-  return left < right ? -1 : (left > right ? 1 : 0);
-}
-function __dartSplaySortSet(set) {
-  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
-  set.clear();
-  for (const value of values) set.add(value);
-}
-function __dartSplaySortMap(map) {
-  const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
-  map.clear();
-  for (const [key, value] of entries) map.set(key, value);
-}
-function __dartSetAdd(set, value) {
-  if (set.__dartIdentitySet) {
-    if (set.has(value)) return false;
-    set.add(value);
-    return true;
-  }
-  if (set.__dartSplayCompare !== undefined) {
-    for (const candidate of set) {
-      if (__dartCompare(candidate, value, set.__dartSplayCompare) === 0) return false;
-    }
-    set.add(value);
-    __dartSplaySortSet(set);
-    return true;
-  }
-  if (__dartIterableContains(set, value)) return false;
-  set.add(value);
-  return true;
-}
-const __dartMapMissingKey = Symbol("dart.mapMissingKey");
-function __dartMapKey(map, key) {
-  if (map.__dartIdentityMap) return map.has(key) ? key : __dartMapMissingKey;
-  if (map.__dartMapEquals != null) {
-    if (map.__dartMapIsValidKey != null && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
-    for (const candidate of map.keys()) {
-      if (map.__dartMapEquals(candidate, key)) return candidate;
-    }
-    return __dartMapMissingKey;
-  }
-  if (map.__dartSplayCompare !== undefined) {
-    for (const candidate of map.keys()) {
-      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
-    }
-    return __dartMapMissingKey;
-  }
-  for (const candidate of map.keys()) {
-    if (__dartEquals(candidate, key)) return candidate;
-  }
-  return __dartMapMissingKey;
-}
-function __dartMapGet(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
-  const actualKey = __dartMapKey(map, key);
-  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
-}
-function __dartMapSet(map, key, value) {
-  const actualKey = __dartMapKey(map, key);
-  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
-  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
-  return value;
-}
-function __dartIterableContains(iterable, needle) {
-  if (iterable instanceof Set && iterable.__dartIdentitySet) return iterable.has(needle);
-  for (const value of iterable) {
-    if (iterable instanceof Set && iterable.__dartSplayCompare !== undefined && __dartCompare(value, needle, iterable.__dartSplayCompare) === 0) return true;
-    if (__dartEquals(value, needle)) return true;
-  }
-  return false;
-}
-function __dartIterableJoin(iterable, separator = "") {
-  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
-    const values = [];
-    for (let index = 0; index < iterable.length; index++) values.push(__dartStr(iterable["[]"](index)));
-    return values.join(String(separator));
-  }
-  return Array.from(iterable, (value) => __dartStr(value)).join(String(separator));
-}
-function __dartListSetRange(target, start, end, source, skipCount = 0) {
-  const values = [];
-  const count = end - start;
-  for (let index = 0; index < count; index++) values.push(__dartIndexGet(source, skipCount + index));
-  for (let index = 0; index < values.length; index++) {
-    __dartIndexSet(target, start + index, values[index]);
-  }
-  return null;
-}
-function __dartStreamController(broadcast = false, options = {}) {
-  let onListen = options.onListen ?? null;
-  let onPause = options.onPause ?? null;
-  let onResume = options.onResume ?? null;
-  let onCancel = options.onCancel ?? null;
-  const listeners = new Set();
-  let closed = false;
-  let singleListened = false;
-  let activeSubscriptions = 0;
-  let resolveDone;
-  const done = new Promise((resolve) => { resolveDone = resolve; });
-  function makeState(bufferBeforeListen = false) {
-    return { queue: [], waiters: [], active: false, bufferBeforeListen, ended: false };
-  }
-  const singleState = makeState(true);
-  function subscriptionStarted() {
-    activeSubscriptions++;
-    if (activeSubscriptions === 1 && typeof onListen === "function") onListen();
-  }
-  function subscriptionEnded(canceled) {
-    if (activeSubscriptions > 0) activeSubscriptions--;
-    if (canceled && activeSubscriptions === 0 && typeof onCancel === "function") return onCancel();
-    return null;
-  }
-  function endState(state, canceled, remove) {
-    if (state.ended) return null;
-    state.ended = true;
-    if (remove) remove();
-    return subscriptionEnded(canceled);
-  }
-  function stateHasPending(state) {
-    return state.queue.length > 0 || state.waiters.length > 0;
-  }
-  function hasActiveListener() {
-    if (broadcast) return listeners.size > 0;
-    return singleState.active;
-  }
-  function maybeResolveDone() {
-    if (!closed) return;
-    if (broadcast) {
-      if (listeners.size > 0) return;
-      resolveDone(null);
-      return;
-    }
-    if (!singleState.active && !stateHasPending(singleState)) resolveDone(null);
-  }
-  function settle(waiter, item) {
-    if (item.done === true) waiter.resolve({ done: true });
-    else if ("error" in item) waiter.reject(item.error);
-    else waiter.resolve({ value: item.value, done: false });
-  }
-  function nextResult(item) {
-    if (item.done === true) return Promise.resolve({ done: true });
-    if ("error" in item) return Promise.reject(item.error);
-    return Promise.resolve({ value: item.value, done: false });
-  }
-  function enqueue(state, item) {
-    if (!state.active && !state.bufferBeforeListen) return;
-    const waiter = state.waiters.shift();
-    if (waiter) settle(waiter, item);
-    else state.queue.push(item);
-  }
-  function clearWaiters(state) {
-    while (state.waiters.length > 0) settle(state.waiters.shift(), { done: true });
-  }
-  function cancelState(state) {
-    state.active = false;
-    state.bufferBeforeListen = false;
-    state.queue.length = 0;
-    clearWaiters(state);
-    maybeResolveDone();
-  }
-  function deliver(item) {
-    if (closed) throw new Error("Cannot add event after closing");
-    if (broadcast) {
-      for (const listener of listeners) enqueue(listener, item);
-      return;
-    }
-    enqueue(singleState, item);
-  }
-  function closeQueue() {
-    if (closed) return;
-    closed = true;
-    if (broadcast) {
-      for (const listener of listeners) {
-        const remove = () => listeners.delete(listener);
-        if (listener.queue.length === 0) { listener.active = false; clearWaiters(listener); endState(listener, false, remove); }
-      }
-    } else if (singleState.queue.length === 0) {
-      singleState.active = false;
-      clearWaiters(singleState);
-      endState(singleState, false, null);
-    }
-    maybeResolveDone();
-  }
-  function iteratorForState(state, remove) {
-    return {
-      next() {
-        const item = state.queue.shift();
-        if (item) {
-          const result = nextResult(item);
-          maybeResolveDone();
-          return result;
-        }
-        if (closed || !state.active) {
-          state.active = false;
-          state.bufferBeforeListen = false;
-          const endResult = endState(state, false, remove);
-          maybeResolveDone();
-          return Promise.resolve(endResult).then(() => ({ done: true }));
-        }
-        return new Promise((resolve, reject) => state.waiters.push({ resolve, reject }));
-      },
-      return() {
-        cancelState(state);
-        const endResult = endState(state, true, remove);
-        return Promise.resolve(endResult).then(() => ({ done: true }));
-      },
-    };
-  }
-  const controller = {
-    get stream() { return stream; },
-    get sink() { return controller; },
-    get done() { return done; },
-    get isClosed() { return closed; },
-    get isPaused() { return !hasActiveListener() && !closed; },
-    get hasListener() { return hasActiveListener(); },
-    get onListen() { return onListen; },
-    set onListen(value) { onListen = value; },
-    get onPause() { return onPause; },
-    set onPause(value) { onPause = value; },
-    get onResume() { return onResume; },
-    set onResume(value) { onResume = value; },
-    get onCancel() { return onCancel; },
-    set onCancel(value) { onCancel = value; },
-    add(value) { deliver({ value }); return null; },
-    addError(error, stackTrace = null) { deliver({ error }); return null; },
-    close() { closeQueue(); return done; },
-    async addStream(source, options = {}) {
-      const iterator = source?.[Symbol.asyncIterator]?.();
-      if (iterator == null) {
-        for (const value of Array.from(source ?? [])) deliver({ value });
-        return null;
-      }
-      while (true) {
-        let step;
-        try {
-          step = await iterator.next();
-        } catch (error) {
-          deliver({ error });
-          if (options.cancelOnError === true) {
-            if (typeof iterator.return === "function") await iterator.return();
-            return null;
-          }
-          continue;
-        }
-        if (step.done === true) return null;
-        deliver({ value: step.value });
-      }
-    },
-  };
-  const stream = {
-    isBroadcast: broadcast,
-    _onPause() { return typeof onPause === "function" ? onPause() : null; },
-    _onResume() { return typeof onResume === "function" ? onResume() : null; },
-    [Symbol.asyncIterator]() {
-      if (broadcast) {
-        const state = makeState();
-        state.active = true;
-        listeners.add(state);
-        subscriptionStarted();
-        return iteratorForState(state, () => { listeners.delete(state); maybeResolveDone(); });
-      }
-      if (singleListened) {
-        throw new Error("Bad state: Stream has already been listened to.");
-      }
-      singleListened = true;
-      singleState.active = true;
-      singleState.bufferBeforeListen = false;
-      subscriptionStarted();
-      return iteratorForState(singleState, null);
-    },
-  };
-  return controller;
-}
-function __dartStreamIterator(stream) {
-  const iterator = stream[Symbol.asyncIterator]();
-  return {
-    current: undefined,
-    _subscription: true,
-    async moveNext() {
-      const next = await iterator.next();
-      if (next.done) {
-        this.current = undefined;
-        this._subscription = null;
-        return false;
-      }
-      this.current = next.value;
-      return true;
-    },
-    async cancel() {
-      this._subscription = null;
-      if (typeof iterator.return === "function") await iterator.return();
-      return null;
-    },
-  };
-}
-function __dartStreamFromIterable(values, isBroadcast = false) {
-  let listened = false;
-  return {
-    isBroadcast,
-    [Symbol.asyncIterator]() {
-      if (!isBroadcast) {
-        if (listened) throw new Error("Bad state: Stream has already been listened to.");
-        listened = true;
-      }
-      return (async function*() {
-        for (const value of values) yield value;
-      })();
-    },
-  };
-}
-function __dartStreamIterable(stream) {
-  if (stream != null && typeof stream[Symbol.asyncIterator] === "function") return stream;
-  if (stream == null || typeof stream.listen !== "function") return stream;
-  return {
-    [Symbol.asyncIterator]() {
-      const queue = [];
-      const waiters = [];
-      let done = false;
-      let error = null;
-      let subscription = null;
-      function push(record) {
-        if (waiters.length > 0) waiters.shift()(record);
-        else queue.push(record);
-      }
-      function finish(doneError = null) {
-        if (done) return;
-        done = true;
-        error = doneError;
-        push({ done: true });
-      }
-      subscription = stream.listen(
-        (value) => push({ value, done: false }),
-        { onError: (listenError) => finish(listenError), onDone: () => finish(), cancelOnError: true },
-      );
-      return {
-        async next() {
-          if (queue.length === 0 && done) {
-            if (error != null) throw error;
-            return { done: true };
-          }
-          const record = queue.length > 0 ? queue.shift() : await new Promise((resolve) => waiters.push(resolve));
-          if (record.done) {
-            if (error != null) throw error;
-            return { done: true };
-          }
-          return { value: record.value, done: false };
-        },
-        async return() {
-          done = true;
-          queue.length = 0;
-          while (waiters.length > 0) waiters.shift()({ done: true });
-          if (subscription != null && typeof subscription.cancel === "function") await subscription.cancel();
-          return { done: true };
-        },
-      };
-    },
-  };
-}
-function __dartStreamExpand(stream, convert) {
-  return (async function*() {
-    for await (const value of __dartStreamIterable(stream)) {
-      const inner = convert(value);
-      if (inner == null) continue;
-      for (const expanded of Array.from(inner)) {
-        yield expanded;
-      }
-    }
-  })();
-}
-function __dartStreamTransformerBind(transformer, stream) {
-  if (transformer != null && typeof transformer.bind === "function") return transformer.bind(stream);
-  if (transformer != null && typeof transformer.convert === "function") return __dartConverterBind(transformer, stream);
-  if (typeof transformer === "function") return transformer(stream);
-  throw new TypeError("StreamTransformer.bind is not available");
-}
-function __dartStreamTransform(stream, transformer) {
-  return __dartStreamTransformerBind(transformer, stream);
-}
-async function __dartStreamToList(stream) {
-  const values = [];
-  for await (const value of __dartStreamIterable(stream)) values.push(value);
-  return values;
-}
-function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
-  if (stream != null && typeof stream.listen === "function" && typeof stream[Symbol.asyncIterator] !== "function") {
-    return stream.listen(onData, { onError, onDone, cancelOnError });
-  }
-  const iteratorFactory = stream?.[Symbol.asyncIterator];
-  if (typeof iteratorFactory !== "function") throw new TypeError("Object is not a Stream");
-  const iterator = iteratorFactory.call(stream);
-  let canceled = false;
-  let paused = false;
-  let resumeWaiter = null;
-  function waitWhilePaused() {
-    if (!paused) return Promise.resolve();
-    return new Promise((resolve) => { resumeWaiter = resolve; });
-  }
-  const done = (async () => {
-      while (!canceled) {
-        await waitWhilePaused();
-        if (canceled) break;
-        let next;
-        try {
-          next = await iterator.next();
-        } catch (error) {
-          if (typeof onError === "function") onError(error);
-          else throw error;
-          if (cancelOnError) break;
-          continue;
-        }
-        if (next.done) break;
-        if (typeof onData === "function") onData(next.value);
-      }
-      if (!canceled && typeof onDone === "function") onDone();
-    return null;
-  })();
-  return {
-    get isPaused() { return paused; },
-    pause(resumeSignal = null) {
-      if (!paused) {
-        paused = true;
-        if (typeof stream._onPause === "function") stream._onPause();
-      }
-      if (resumeSignal != null) Promise.resolve(resumeSignal).then(() => this.resume());
-      return null;
-    },
-    resume() {
-      if (!paused) return null;
-      paused = false;
-      if (typeof stream._onResume === "function") stream._onResume();
-      if (resumeWaiter != null) {
-        const resolve = resumeWaiter;
-        resumeWaiter = null;
-        resolve();
-      }
-      return null;
-    },
-    onData(handleData) { onData = handleData; return null; },
-    onError(handleError) { onError = handleError; return null; },
-    onDone(handleDone) { onDone = handleDone; return null; },
-    cancel() { canceled = true; this.resume(); if (typeof iterator.return === "function") return Promise.resolve(iterator.return()).then(() => done, () => done); return done; },
-    asFuture(value = null) { return done.then(() => value); },
-  };
-}
-function __dartEquals(left, right) {
-  if (left === right) return true;
-  if (left == null || right == null) return false;
-  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
-  const equals = left["=="];
-  return typeof equals === "function" ? equals.call(left, right) : false;
-}
+
 const __dartConstValues = new Map();
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
@@ -656,25 +47,723 @@ function __dartConst(key, create) {
   }
   return __dartConstValues.get(key);
 }
-function __dartConstSet(values) {
-  const set = new Set();
-  for (const value of values) __dartSetAdd(set, value);
-  const throwConst = () => { throw new TypeError("Cannot modify const Set"); };
-  Object.defineProperty(set, "add", { value: throwConst });
-  Object.defineProperty(set, "delete", { value: throwConst });
-  Object.defineProperty(set, "clear", { value: throwConst });
-  return Object.freeze(set);
+
+function __dartLatin1Codec(allowInvalid = false) {
+  return Object.freeze({
+    name: "latin1",
+    encode(source) {
+      return Array.from(String(source), (char) => char.charCodeAt(0) & 255);
+    },
+    decode(bytes) {
+      return String.fromCharCode.apply(null, Array.from(bytes, (byte) => Number(byte) & 255));
+    },
+  });
 }
-function __dartConstMap(entries) {
-  const map = new Map();
-  for (const [key, value] of entries) __dartMapSet(map, key, value);
-  const throwConst = () => { throw new TypeError("Cannot modify const Map"); };
-  Object.defineProperty(map, "set", { value: throwConst });
-  Object.defineProperty(map, "delete", { value: throwConst });
-  Object.defineProperty(map, "clear", { value: throwConst });
-  return Object.freeze(map);
+function __dartAsciiCodec(allowInvalid = false) {
+  return Object.freeze({
+    name: "ascii",
+    encode(source) {
+      return Array.from(String(source), (char) => {
+        const code = char.charCodeAt(0);
+        if (code > 0x7f && !allowInvalid) throw __dartCoreError("FormatException", "Invalid ASCII character");
+        return code & 0x7f;
+      });
+    },
+    decode(bytes) {
+      return String.fromCharCode.apply(null, Array.from(bytes, (byte) => {
+        const code = Number(byte) & 255;
+        if (code > 0x7f && !allowInvalid) throw __dartCoreError("FormatException", "Invalid ASCII byte");
+        return code > 0x7f ? 0xfffd : code;
+      }));
+    },
+  });
 }
-function __dartLazyField(name, initialize, writable, publish) {
+function __dartUtf8Codec(allowMalformed = false) {
+  return Object.freeze({
+    name: "utf8",
+    encode(source) {
+      return Array.from(new TextEncoder().encode(String(source)));
+    },
+    decode(bytes) {
+      return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255)));
+    },
+  });
+}
+
+function __dartEquals(left, right) {
+  if (left === right) return true;
+  if (left == null || right == null) return false;
+  if ((typeof left === "number" || left.__dartType === "double") && (typeof right === "number" || right.__dartType === "double")) return Number(left) === Number(right);
+  if (__dartIsRecord(left) && __dartIsRecord(right)) {
+    const leftShape = left[__dartRecordShape];
+    const rightShape = right[__dartRecordShape];
+    if (leftShape.length !== rightShape.length) return false;
+    for (let i = 0; i < leftShape.length; i++) {
+      const name = leftShape[i];
+      if (name !== rightShape[i]) return false;
+      if (!__dartEquals(left[name], right[name])) return false;
+    }
+    return true;
+  }
+  const equals = left["=="];
+  return typeof equals === "function" ? equals.call(left, right) : false;
+}
+
+function __dartFutureDelayed(duration, computation = null) {
+  const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      try {
+        resolve(typeof computation === "function" ? computation() : null);
+      } catch (error) {
+        reject(error);
+      }
+    }, delay);
+  });
+}
+function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
+  const entries = Array.from(futures);
+  if (entries.length === 0) return Promise.resolve([]);
+  const values = new Array(entries.length);
+  const cleaned = new Set();
+  let firstError;
+  function clean(value, index) {
+    if (cleanUp == null || value == null || cleaned.has(index)) return;
+    cleaned.add(index);
+    Promise.resolve().then(() => cleanUp(value));
+  }
+  return new Promise((resolve, reject) => {
+    let remaining = entries.length;
+    entries.forEach((future, index) => {
+      Promise.resolve(future).then(
+        (value) => {
+          values[index] = value;
+          if (firstError != null) clean(value, index);
+          remaining -= 1;
+          if (remaining === 0) {
+            if (firstError != null) reject(firstError);
+            else resolve(values);
+          }
+        },
+        (error) => {
+          if (firstError == null) {
+            firstError = error;
+            for (let i = 0; i < values.length; i++) clean(values[i], i);
+            if (eagerError) {
+              reject(error);
+              return;
+            }
+          }
+          remaining -= 1;
+          if (remaining === 0) reject(firstError);
+        },
+      );
+    });
+  });
+}
+function __dartFutureForEach(elements, action) {
+  let chain = Promise.resolve(null);
+  for (const element of Array.from(elements)) {
+    chain = chain.then(() => action(element));
+  }
+  return chain.then(() => null);
+}
+async function __dartFutureDoWhile(action) {
+  while (await action()) {}
+  return null;
+}
+function __dartFutureIgnore(future) {
+  Promise.resolve(future).catch(() => null);
+  return null;
+}
+function __dartFutureAsStream(future) {
+  return __dartStreamFromFuture(future);
+}
+function __dartFutureTimeout(future, duration, onTimeout = null) {
+  const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
+  let id;
+  const timeout = new Promise((resolve, reject) => {
+    id = setTimeout(() => {
+      try {
+        if (typeof onTimeout === "function") resolve(onTimeout());
+        else reject(new Error("Future timeout"));
+      } catch (error) {
+        reject(error);
+      }
+    }, delay);
+  });
+  return Promise.race([Promise.resolve(future), timeout]).finally(() => clearTimeout(id));
+}
+function __dartStreamFromIterable(values, isBroadcast = false) {
+  return {
+    __dartType: "Stream",
+    isBroadcast,
+    async *[Symbol.asyncIterator]() {
+      for (const value of Array.from(values ?? [])) yield value;
+    },
+  };
+}
+function __dartStreamFromFuture(future) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: false,
+    async *[Symbol.asyncIterator]() {
+      yield await future;
+    },
+  };
+}
+function __dartStreamFromFutures(futures) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: false,
+    async *[Symbol.asyncIterator]() {
+      for (const future of Array.from(futures ?? [])) yield await future;
+    },
+  };
+}
+function __dartStreamError(error) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: false,
+    async *[Symbol.asyncIterator]() {
+      throw error;
+    },
+  };
+}
+function __dartStreamPeriodic(period, computation = null) {
+  const delay = Math.max(0, period == null ? 0 : (typeof period === "number" ? period : period.inMilliseconds));
+  return {
+    __dartType: "Stream",
+    isBroadcast: false,
+    async *[Symbol.asyncIterator]() {
+      let tick = 0;
+      while (true) {
+        await __dartFutureDelayed(delay);
+        yield typeof computation === "function" ? computation(tick) : tick;
+        tick++;
+      }
+    },
+  };
+}
+async function* __dartStreamValues(stream) {
+  const iterator = __dartStreamIterator(stream);
+  try {
+    while (await iterator.moveNext()) yield iterator.current;
+  } finally {
+    await iterator.cancel();
+  }
+}
+function __dartStreamTake(stream, count) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: stream?.isBroadcast === true,
+    async *[Symbol.asyncIterator]() {
+      let seen = 0;
+      for await (const value of __dartStreamValues(stream)) {
+        if (seen++ >= count) break;
+        yield value;
+        if (seen >= count) break;
+      }
+    },
+  };
+}
+function __dartStreamMap(stream, convert) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: stream?.isBroadcast === true,
+    async *[Symbol.asyncIterator]() {
+      for await (const value of __dartStreamValues(stream)) yield convert(value);
+    },
+  };
+}
+function __dartStreamWhere(stream, test) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: stream?.isBroadcast === true,
+    async *[Symbol.asyncIterator]() {
+      for await (const value of __dartStreamValues(stream)) {
+        if (test(value)) yield value;
+      }
+    },
+  };
+}
+function __dartStreamExpand(stream, convert) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: stream?.isBroadcast === true,
+    async *[Symbol.asyncIterator]() {
+      for await (const value of __dartStreamValues(stream)) {
+        for (const expanded of Array.from(convert(value) ?? [])) yield expanded;
+      }
+    },
+  };
+}
+function __dartStreamTransform(stream, transformer) {
+  if (transformer != null && typeof transformer.bind === "function") {
+    return transformer.bind(stream);
+  }
+  if (typeof transformer === "function") return transformer(stream);
+  throw new TypeError("StreamTransformer has no bind method");
+}
+function __dartStreamIterator(stream) {
+  const iterator = stream?.[Symbol.asyncIterator]?.();
+  if (iterator == null && typeof stream?.listen === "function") {
+    const controller = __dartStreamController(stream?.isBroadcast === true);
+    const subscription = stream.listen(
+      (value) => controller.add(value),
+      { onError: (error) => controller.addError(error), onDone: () => controller.close(), cancelOnError: false },
+    );
+    const listenedIterator = controller.stream[Symbol.asyncIterator]();
+    let current = null;
+    return {
+      __dartType: "StreamIterator",
+      get current() { return current; },
+      get _subscription() { return subscription ?? null; },
+      async moveNext() {
+        const step = await listenedIterator.next();
+        if (step.done === true) {
+          current = null;
+          return false;
+        }
+        current = step.value;
+        return true;
+      },
+      cancel() {
+        if (subscription != null && typeof subscription.cancel === "function") {
+          return Promise.resolve(subscription.cancel()).then(() => null, () => null);
+        }
+        if (typeof listenedIterator.return === "function") {
+          return Promise.resolve(listenedIterator.return()).then(() => null, () => null);
+        }
+        return Promise.resolve(null);
+      },
+    };
+  }
+  let current = null;
+  return {
+    __dartType: "StreamIterator",
+    get current() { return current; },
+    get _subscription() { return null; },
+    async moveNext() {
+      const step = await iterator.next();
+      if (step.done === true) {
+        current = null;
+        return false;
+      }
+      current = step.value;
+      return true;
+    },
+    cancel() {
+      if (iterator != null && typeof iterator.return === "function") {
+        return Promise.resolve(iterator.return()).then(() => null, () => null);
+      }
+      return Promise.resolve(null);
+    },
+  };
+}
+async function __dartStreamToList(stream) {
+  const values = [];
+  for await (const value of __dartStreamValues(stream)) values.push(value);
+  return values;
+}
+async function __dartStreamFirst(stream) {
+  for await (const value of __dartStreamValues(stream)) return value;
+  throw new Error("No element");
+}
+async function __dartStreamSingle(stream) {
+  let found = false;
+  let single;
+  for await (const value of __dartStreamValues(stream)) {
+    if (found) throw new Error("Too many elements");
+    found = true;
+    single = value;
+  }
+  if (!found) throw new Error("No element");
+  return single;
+}
+async function __dartStreamJoin(stream, separator = "") {
+  return (await __dartStreamToList(stream)).map((value) => __dartStr(value)).join(String(separator));
+}
+function __dartStreamController(broadcast = false, options = {}) {
+  let closed = false;
+  let listened = false;
+  const handlers = {
+    onListen: options.onListen ?? null,
+    onPause: options.onPause ?? null,
+    onResume: options.onResume ?? null,
+    onCancel: options.onCancel ?? null,
+  };
+  const queue = [];
+  const waiters = [];
+  const listeners = new Set();
+  function ensureListened() {
+    if (!listened) {
+      listened = true;
+      if (typeof handlers.onListen === "function") handlers.onListen();
+    }
+  }
+  function deliver(item) {
+    let delivered = false;
+    for (const listener of Array.from(listeners)) {
+      listener(item);
+      delivered = true;
+    }
+    if (waiters.length > 0) {
+      waiters.shift()(item);
+      delivered = true;
+    }
+    if (!delivered) queue.push(item);
+  }
+  function closeQueue() {
+    if (closed) return;
+    closed = true;
+    deliver({ done: true });
+  }
+  const stream = {
+    __dartType: "Stream",
+    get isBroadcast() { return broadcast; },
+    listen(onData, options = {}) {
+      return __dartStreamListen(stream, onData, options.onError ?? null, options.onDone ?? null, options.cancelOnError === true);
+    },
+    [Symbol.asyncIterator]() {
+      ensureListened();
+      let done = false;
+      return {
+        async next() {
+          if (done) return { done: true };
+          const item = queue.length > 0 ? queue.shift() : await new Promise((resolve) => waiters.push(resolve));
+          if (item.done === true) {
+            done = true;
+            return { done: true };
+          }
+          if ("error" in item) throw item.error;
+          return { value: item.value, done: false };
+        },
+        async return() {
+          done = true;
+          if (typeof handlers.onCancel === "function") await handlers.onCancel();
+          return { done: true };
+        },
+      };
+    },
+    __dartListenRaw(listener) {
+      ensureListened();
+      listeners.add(listener);
+      while (queue.length > 0) listener(queue.shift());
+      return () => listeners.delete(listener);
+    },
+    __dartPauseRaw() {
+      if (typeof handlers.onPause === "function") handlers.onPause();
+    },
+    __dartResumeRaw() {
+      if (typeof handlers.onResume === "function") handlers.onResume();
+    },
+    __dartCancelRaw() {
+      if (typeof handlers.onCancel === "function") return handlers.onCancel();
+      return null;
+    },
+  };
+  return {
+    __dartType: "StreamController",
+    get stream() { return stream; },
+    get sink() { return this; },
+    get done() { return Promise.resolve(null); },
+    get isClosed() { return closed; },
+    add(value) { if (!closed) deliver({ value }); return null; },
+    addError(error, stackTrace = null) { if (!closed) deliver({ error }); return null; },
+    async addStream(source, options = {}) {
+      try {
+        for await (const value of __dartStreamValues(source)) {
+          if (closed) break;
+          deliver({ value });
+        }
+      } catch (error) {
+        deliver({ error });
+        if (options.cancelOnError === true) return null;
+      }
+      return null;
+    },
+    close() { closeQueue(); return Promise.resolve(null); },
+    get onListen() { return handlers.onListen; },
+    set onListen(value) { handlers.onListen = value; },
+    get onPause() { return handlers.onPause; },
+    set onPause(value) { handlers.onPause = value; },
+    get onResume() { return handlers.onResume; },
+    set onResume(value) { handlers.onResume = value; },
+    get onCancel() { return handlers.onCancel; },
+    set onCancel(value) { handlers.onCancel = value; },
+  };
+}
+function __dartStreamMulti(onListen, isBroadcast = false) {
+  const controller = __dartStreamController(isBroadcast);
+  Promise.resolve().then(() => onListen(controller));
+  return controller.stream;
+}
+function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
+  let canceled = false;
+  let paused = false;
+  const pausedItems = [];
+  const resumeWaiters = [];
+  function flushPausedItems() {
+    while (!paused && pausedItems.length > 0 && !canceled) handleItem(pausedItems.shift());
+  }
+  function waitWhilePaused() {
+    if (!paused) return Promise.resolve(null);
+    return new Promise((resolve) => resumeWaiters.push(resolve));
+  }
+  const handleItem = (item) => {
+    if (canceled) return;
+    if (paused) {
+      pausedItems.push(item);
+      return;
+    }
+    if (item.done === true) {
+      if (typeof onDone === "function") onDone();
+      return;
+    }
+    if ("error" in item) {
+      if (typeof onError === "function") onError(item.error);
+      if (cancelOnError) canceled = true;
+      return;
+    }
+    onData(item.value);
+  };
+  const remove = typeof stream?.__dartListenRaw === "function" ? stream.__dartListenRaw(handleItem) : null;
+  if (remove == null) {
+    (async () => {
+      try {
+        for await (const value of __dartStreamValues(stream)) {
+          if (canceled) break;
+          await waitWhilePaused();
+          if (canceled) break;
+          onData(value);
+        }
+        if (!canceled && typeof onDone === "function") onDone();
+      } catch (error) {
+        if (typeof onError === "function") onError(error);
+        else throw error;
+      }
+    })();
+  }
+  return {
+    get isPaused() { return paused; },
+    cancel() {
+      canceled = true;
+      if (remove != null) remove();
+      const result = typeof stream?.__dartCancelRaw === "function" ? stream.__dartCancelRaw() : null;
+      return Promise.resolve(result).then(() => null);
+    },
+    pause() {
+      if (!paused) {
+        paused = true;
+        if (typeof stream?.__dartPauseRaw === "function") stream.__dartPauseRaw();
+      }
+      return null;
+    },
+    resume() {
+      if (paused) {
+        paused = false;
+        if (typeof stream?.__dartResumeRaw === "function") stream.__dartResumeRaw();
+        while (resumeWaiters.length > 0) resumeWaiters.shift()(null);
+        flushPausedItems();
+      }
+      return null;
+    },
+  };
+}
+function __dartTimer(duration, callback, periodic = false) {
+  const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
+  let active = true;
+  let tick = 0;
+  let id;
+  const timer = {
+    __dartType: "Timer",
+    get tick() { return tick; },
+    get isActive() { return active; },
+    cancel() {
+      if (!active) return null;
+      active = false;
+      periodic ? clearInterval(id) : clearTimeout(id);
+      return null;
+    },
+  };
+  if (periodic) {
+    id = setInterval(() => {
+      if (!active) return;
+      tick++;
+      callback(timer);
+    }, delay);
+  } else {
+    id = setTimeout(() => {
+      if (!active) return;
+      active = false;
+      tick = 1;
+      callback();
+    }, delay);
+  }
+  return timer;
+}
+function __dartCreateZone(parent = null, values = null) {
+  const zoneValues = values instanceof Map ? values : new Map();
+  const zone = {
+    __dartType: "Zone",
+    parent,
+    get errorZone() { return zone; },
+    get(key) {
+      if (zoneValues.has(key)) return zoneValues.get(key);
+      return parent == null ? null : parent.get(key);
+    },
+    "[]"(key) { return this.get(key); },
+    run(body) { return __dartRunInZone(zone, body); },
+    runUnary(body, argument) { return __dartRunInZone(zone, () => body(argument)); },
+    runBinary(body, first, second) { return __dartRunInZone(zone, () => body(first, second)); },
+    runGuarded(body) { try { return __dartRunInZone(zone, body); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
+    runUnaryGuarded(body, argument) { try { return __dartRunInZone(zone, () => body(argument)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
+    runBinaryGuarded(body, first, second) { try { return __dartRunInZone(zone, () => body(first, second)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
+    bindCallback(callback) { return () => zone.run(callback); },
+    bindUnaryCallback(callback) { return argument => zone.runUnary(callback, argument); },
+    bindBinaryCallback(callback) { return (first, second) => zone.runBinary(callback, first, second); },
+    bindCallbackGuarded(callback) { return () => zone.runGuarded(callback); },
+    bindUnaryCallbackGuarded(callback) { return argument => zone.runUnaryGuarded(callback, argument); },
+    bindBinaryCallbackGuarded(callback) { return (first, second) => zone.runBinaryGuarded(callback, first, second); },
+    registerCallback(callback) { return zone.bindCallback(callback); },
+    registerUnaryCallback(callback) { return zone.bindUnaryCallback(callback); },
+    registerBinaryCallback(callback) { return zone.bindBinaryCallback(callback); },
+    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },
+    scheduleMicrotask(callback) { return __dartScheduleMicrotask(callback, zone); },
+    handleUncaughtError(error, stackTrace = null) { throw error; },
+    inSameErrorZone(other) { return true; },
+    print(line) { console.log(String(line)); return null; },
+    toString() { return "Zone"; },
+  };
+  return Object.freeze(zone);
+}
+const __dartRootZone = __dartCreateZone(null, new Map());
+let __dartCurrentZone = __dartRootZone;
+function __dartZoneValuesMap(zoneValues) {
+  if (zoneValues == null) return new Map();
+  if (zoneValues instanceof Map) return zoneValues;
+  return new Map(Array.from(zoneValues));
+}
+function __dartScheduleMicrotask(callback, zone = __dartCurrentZone) {
+  const run = () => __dartRunInZone(zone, callback);
+  if (typeof queueMicrotask === "function") queueMicrotask(run);
+  else Promise.resolve().then(run);
+  return null;
+}
+function __dartRunInZone(zone, body) {
+  const previous = __dartCurrentZone;
+  __dartCurrentZone = zone;
+  try {
+    const result = body();
+    if (result != null && typeof result.then === "function") {
+      return result.finally(() => { __dartCurrentZone = previous; });
+    }
+    __dartCurrentZone = previous;
+    return result;
+  } catch (error) {
+    __dartCurrentZone = previous;
+    throw error;
+  }
+}
+function __dartRunZoned(body, options = {}) {
+  const parent = options.parentZone ?? __dartCurrentZone;
+  const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));
+  try {
+    return __dartRunInZone(zone, body);
+  } catch (error) {
+    if (typeof options.onError === "function") return options.onError(error, error?.stack ?? "<javascript stack unavailable>");
+    throw error;
+  }
+}
+function __dartRunZonedGuarded(body, onError, options = {}) {
+  try {
+    const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });
+    if (result != null && typeof result.then === "function") {
+      return result.catch((error) => { onError(error, error?.stack ?? "<javascript stack unavailable>"); return null; });
+    }
+    return result;
+  } catch (error) {
+    onError(error, error?.stack ?? "<javascript stack unavailable>");
+    return null;
+  }
+}
+function __dartAsyncError(error, stackTrace = null) {
+  return Object.freeze({
+    __dartType: "AsyncError",
+    error,
+    stackTrace: stackTrace ?? error?.stack ?? "<javascript stack unavailable>",
+    toString() { return "AsyncError: " + String(error); },
+  });
+}
+function __dartParallelWaitError(values, errors, errorCount, defaultError) {
+  const suffix = errorCount > 1 ? "(" + errorCount + " errors)" : "";
+  const message = defaultError == null ? "ParallelWaitError" + suffix : "ParallelWaitError" + suffix + ": " + String(defaultError.error);
+  const error = new Error(message);
+  error.__dartType = "ParallelWaitError";
+  error.values = values;
+  error.errors = errors;
+  error.errorCount = errorCount;
+  error.defaultError = defaultError;
+  error.stackTrace = defaultError?.stackTrace ?? error.stack ?? null;
+  error.toString = function() { return message; };
+  return error;
+}
+async function __dartFutureWaitAllSettled(futures) {
+  const entries = Array.from(futures);
+  return Promise.all(entries.map((future) => Promise.resolve(future).then(
+    (value) => ({ value, asyncError: null }),
+    (error) => ({ value: null, asyncError: __dartAsyncError(error) }),
+  )));
+}
+async function __dartFutureIterableWait(futures) {
+  const results = await __dartFutureWaitAllSettled(futures);
+  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);
+  if (errorCount === 0) return results.map((result) => result.value);
+  const values = results.map((result) => result.value);
+  const errors = results.map((result) => result.asyncError);
+  throw __dartParallelWaitError(values, errors, errorCount, errors.find((error) => error != null));
+}
+async function __dartFutureRecordWait(record) {
+  const shape = Array.isArray(record?.[__dartRecordShape]) ? record[__dartRecordShape].filter((name) => /^\$\d+$/.test(name)) : Object.keys(record).filter((name) => /^\$\d+$/.test(name)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  const results = await __dartFutureWaitAllSettled(shape.map((name) => record[name]));
+  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);
+  if (errorCount === 0) return __dartRecord(results.map((result) => result.value), {});
+  const values = __dartRecord(results.map((result) => result.value), {});
+  const errors = __dartRecord(results.map((result) => result.asyncError), {});
+  throw __dartParallelWaitError(values, errors, errorCount, results.map((result) => result.asyncError).find((error) => error != null));
+}
+
+function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
+}
+
+function __dartIterableToArray(iterable) {
+  if (Array.isArray(iterable)) return Array.from(iterable);
+  if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
+    return Array.from({ length: Number(iterable.length) }, (_, index) => iterable["[]"](index));
+  }
+  return Array.from(iterable);
+}
+
+function __dartIterator(iterable) {
+  const values = __dartIterableToArray(iterable);
+  let index = -1;
+  return {
+    current: undefined,
+    moveNext() {
+      index++;
+      if (index < values.length) {
+        this.current = values[index];
+        return true;
+      }
+      this.current = undefined;
+      return false;
+    },
+  };
+}
+
+function __dartLazyField(name, initialize, writable, publish = null) {
   let state = 0;
   let value;
   function get() {
@@ -707,454 +796,972 @@ function __dartLazyField(name, initialize, writable, publish) {
   }
   return { get, set };
 }
-function __dartIterator(iterable) {
-  const values = (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") ? { length: iterable.length, get(index) { return iterable["[]"](index); } } : Array.from(iterable);
-  let index = -1;
-  return {
-    current: undefined,
-    moveNext() {
-      index++;
-      if (index < values.length) {
-        this.current = typeof values.get === "function" ? values.get(index) : values[index];
-        return true;
-      }
-      this.current = undefined;
-      return false;
-    },
-  };
+
+function __dartListAdd(list, value) {
+  if (Array.isArray(list)) {
+    list.push(value);
+  } else if (list != null && typeof list.add === "function") {
+    list.add(value);
+  } else {
+    const index = list.length;
+    list.length = index + 1;
+    __dartListLikeSet(list, index, value);
+  }
+  return null;
 }
 
-// Generated by dart2esm.
+function __dartListLikeGet(list, index) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list) || typeof list === "string") return list[index];
+  const op = list == null ? null : list["[]"];
+  return typeof op === "function" ? op.call(list, index) : list[index];
+}
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
+}
+function __dartListMixinFirst(list) {
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinLast(list) {
+  return __dartListLikeGet(list, list.length - 1);
+}
+function __dartListMixinSingle(list) {
+  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
+  return __dartListLikeGet(list, 0);
+}
+function __dartListMixinInsert(list, index, value) {
+  index = Number(index);
+  const length = Number(list.length);
+  list.length = length + 1;
+  for (let i = length; i > index; i--) {
+    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
+  }
+  __dartListLikeSet(list, index, value);
+  return null;
+}
+
+function __dartListRangeRead(list, index) {
+  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
+}
+function __dartListRangeWrite(list, index, value) {
+  if (list != null && typeof list["[]="] === "function") {
+    list["[]="](index, value);
+  } else {
+    list[index] = value;
+  }
+}
+function __dartListRangeValues(source, start = 0, end = null) {
+  const from = Number(start);
+  return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
+}
+function __dartListCopyRange(target, at, source, start = 0, end = null) {
+  const values = __dartListRangeValues(source, start, end);
+  let index = Number(at);
+  for (const value of values) __dartListRangeWrite(target, index++, value);
+  return null;
+}
+function __dartListWriteIterable(target, at, source) {
+  let index = Number(at);
+  for (const value of __dartListRangeValues(source)) {
+    __dartListRangeWrite(target, index++, value);
+  }
+  return null;
+}
+function __dartListSetRange(target, start, end, source, skipCount = 0) {
+  const from = Number(skipCount);
+  const count = Number(end) - Number(start);
+  const values = __dartListRangeValues(source, from, from + count);
+  let index = Number(start);
+  for (const value of values) __dartListRangeWrite(target, index++, value);
+  return null;
+}
+
+function __dartMapAddAll(map, entries) {
+  for (const [key, value] of entries) __dartMapSet(map, key, value);
+  return null;
+}
+
+function __dartMapFromEntries(entries) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  __dartMapAddAll(map, entries);
+  return map;
+}
+function __dartMapFromIterable(iterable, key = null, value = null) {
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (const element of iterable) {
+    __dartMapSet(
+      map,
+      typeof key === "function" ? key(element) : element,
+      typeof value === "function" ? value(element) : element,
+    );
+  }
+  return map;
+}
+function __dartMapFromIterables(keys, values) {
+  const keyList = Array.from(keys);
+  const valueList = Array.from(values);
+  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
+  const map = new Map();
+  Object.defineProperty(map, "__dartEqualityMap", { value: true });
+  for (let index = 0; index < keyList.length; index++) {
+    __dartMapSet(map, keyList[index], valueList[index]);
+  }
+  return map;
+}
+
+const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+function __dartMapKey(map, key) {
+  if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
+  if (map.__dartSplayCompare !== undefined) {
+    for (const candidate of map.keys()) {
+      if (__dartCompare(candidate, key, map.__dartSplayCompare) === 0) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
+  if (typeof map.__dartMapIsValidKey === "function" && !map.__dartMapIsValidKey(key)) return __dartMapMissingKey;
+  if (typeof map.__dartMapEquals === "function") {
+    for (const candidate of map.keys()) {
+      if (map.__dartMapEquals(candidate, key)) return candidate;
+    }
+    return __dartMapMissingKey;
+  }
+  if (!map.__dartEqualityMap) return map.has(key) ? key : __dartMapMissingKey;
+  for (const candidate of map.keys()) {
+    if (__dartEquals(candidate, key)) return candidate;
+  }
+  return __dartMapMissingKey;
+}
+function __dartMapGet(map, key) {
+  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
+  const actualKey = __dartMapKey(map, key);
+  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
+}
+
+function __dartMapSet(map, key, value) {
+  const actualKey = __dartMapKey(map, key);
+  map.set(actualKey === __dartMapMissingKey ? key : actualKey, value);
+  if (map.__dartSplayCompare !== undefined) __dartSplaySortMap(map);
+  return value;
+}
+
+function __dartNullCheck(value) {
+  if (value == null) throw new TypeError("Null check operator used on a null value");
+  return value;
+}
+
+function __dartPatternRegExp(pattern, global = false) {
+  if (pattern != null && typeof pattern.__dartRegExpMake === "function") return pattern.__dartRegExpMake(global);
+  if (pattern instanceof RegExp) {
+    let flags = pattern.flags;
+    flags = global ? (flags.includes("g") ? flags : flags + "g") : flags.replace(/g/g, "");
+    return new RegExp(pattern.source, flags);
+  }
+  return null;
+}
+function __dartPatternAllMatches(pattern, input, start = 0) {
+  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.allMatches === "function") return pattern.allMatches(input, start);
+  const text = String(input);
+  const regexp = __dartPatternRegExp(pattern, true);
+  if (regexp != null) {
+    const matches = [];
+    regexp.lastIndex = start;
+    let match;
+    while ((match = regexp.exec(text)) !== null) {
+      matches.push(__dartRegExpMatch(match, 0, text, pattern));
+      if (match[0] === "") regexp.lastIndex++;
+    }
+    return matches;
+  }
+  return __dartStringAllMatches(pattern, text, start);
+}
+function __dartPatternMatchAsPrefix(pattern, input, start = 0) {
+  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.matchAsPrefix === "function") return pattern.matchAsPrefix(input, start);
+  const text = String(input);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const match = regexp.exec(text.slice(start));
+    return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start, text, pattern);
+  }
+  return __dartStringMatchAsPrefix(pattern, text, start);
+}
+function __dartStringContains(source, pattern, start = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) return regexp.test(text.slice(start));
+  return text.includes(String(pattern), start);
+}
+function __dartStringStartsWith(source, pattern, start = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const match = regexp.exec(text.slice(start));
+    return match != null && match.index === 0;
+  }
+  return text.startsWith(String(pattern), start);
+}
+function __dartStringIndexOf(source, pattern, start = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const match = regexp.exec(text.slice(start));
+    return match == null ? -1 : start + match.index;
+  }
+  return text.indexOf(String(pattern), start);
+}
+function __dartStringLastIndexOf(source, pattern, start = null) {
+  const text = String(source);
+  const limit = start == null ? text.length : start;
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    for (let index = Math.min(limit, text.length); index >= 0; index--) {
+      const match = regexp.exec(text.slice(index));
+      if (match != null && match.index === 0) return index;
+    }
+    return -1;
+  }
+  return text.lastIndexOf(String(pattern), limit);
+}
+function __dartStringSplit(source, pattern) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  return regexp == null ? text.split(String(pattern)) : text.split(regexp);
+}
+function __dartStringReplaceAll(source, pattern, replacement) {
+  const text = String(source);
+  const replacementText = String(replacement);
+  const regexp = __dartPatternRegExp(pattern, true);
+  return regexp == null ? text.split(String(pattern)).join(replacementText) : text.replace(regexp, () => replacementText);
+}
+function __dartStringReplaceAllMapped(source, pattern, replace) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, true);
+  if (regexp != null) return text.replace(regexp, (...args) => String(replace(__dartJsRegExpReplacementMatch(args))));
+  return __dartStringReplaceStringMapped(text, String(pattern), replace, true, 0);
+}
+function __dartStringReplaceFirstMapped(source, pattern, replace, startIndex = 0) {
+  const text = String(source);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const tail = text.slice(startIndex);
+    const match = regexp.exec(tail);
+    if (match == null) return text;
+    const dartMatch = __dartRegExpMatch(match, startIndex);
+    return text.slice(0, dartMatch.start) + String(replace(dartMatch)) + text.slice(dartMatch.end);
+  }
+  return __dartStringReplaceStringMapped(text, String(pattern), replace, false, startIndex);
+}
+function __dartStringReplaceStringMapped(text, needle, replace, all, startIndex) {
+  if (needle === "") return text;
+  let result = "";
+  let cursor = 0;
+  let index = text.indexOf(needle, startIndex);
+  let replaced = false;
+  while (index >= 0) {
+    result += text.slice(cursor, index);
+    result += String(replace(__dartStringMatch(text, index, needle)));
+    cursor = index + needle.length;
+    replaced = true;
+    if (!all) break;
+    index = text.indexOf(needle, cursor);
+  }
+  return replaced ? result + text.slice(cursor) : text;
+}
+function __dartStringSplitMapJoin(source, pattern, onMatch = null, onNonMatch = null) {
+  const text = String(source);
+  const matchMapper = typeof onMatch === "function" ? onMatch : (match) => match.group(0);
+  const nonMatchMapper = typeof onNonMatch === "function" ? onNonMatch : (part) => part;
+  const matches = __dartStringPatternMatches(text, pattern);
+  if (matches.length === 0) return String(nonMatchMapper(text));
+  let result = "";
+  let cursor = 0;
+  for (const match of matches) {
+    result += String(nonMatchMapper(text.slice(cursor, match.start)));
+    result += String(matchMapper(match));
+    cursor = match.end;
+  }
+  result += String(nonMatchMapper(text.slice(cursor)));
+  return result;
+}
+function __dartStringPatternMatches(text, pattern) {
+  const regexp = __dartPatternRegExp(pattern, true);
+  if (regexp != null) {
+    const matches = [];
+    let match;
+    while ((match = regexp.exec(text)) !== null) {
+      matches.push(__dartRegExpMatch(match));
+      if (match[0] === "") regexp.lastIndex++;
+    }
+    return matches;
+  }
+  const needle = String(pattern);
+  if (needle === "") return [];
+  const matches = [];
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    matches.push(__dartStringMatch(text, index, needle));
+    index = text.indexOf(needle, index + needle.length);
+  }
+  return matches;
+}
+function __dartStringAllMatches(pattern, input, start = 0) {
+  const text = String(input);
+  const needle = String(pattern);
+  const matches = [];
+  if (needle === "") return matches;
+  let index = text.indexOf(needle, start);
+  while (index >= 0) {
+    matches.push(__dartStringMatch(text, index, needle));
+    index = text.indexOf(needle, index + needle.length);
+  }
+  return matches;
+}
+function __dartStringMatchAsPrefix(pattern, input, start = 0) {
+  const text = String(input);
+  const needle = String(pattern);
+  return text.startsWith(needle, start) ? __dartStringMatch(text, start, needle) : null;
+}
+function __dartStringMatch(input, start, value) {
+  return {
+    input,
+    start,
+    end: start + value.length,
+    get groupCount() { return 0; },
+    group(index) { return index === 0 ? value : null; },
+    groups(indices) { return Array.from(indices, (index) => this.group(index)); },
+    namedGroup() { return null; },
+    get groupNames() { return new Set(); },
+    0: value,
+  };
+}
+function __dartRegExpMatch(match, offset = 0, input = null, pattern = null) {
+  const namedGroups = match.groups ?? {};
+  const result = {
+    start: offset + match.index,
+    end: offset + match.index + match[0].length,
+    get input() { return input; },
+    get pattern() { return pattern; },
+    get groupCount() { return match.length - 1; },
+    group(index) { return index >= 0 && index < match.length ? (match[index] ?? null) : null; },
+    groups(indices) { return Array.from(indices, (index) => this.group(index)); },
+    namedGroup(name) { return Object.prototype.hasOwnProperty.call(namedGroups, name) ? (namedGroups[name] ?? null) : null; },
+    get groupNames() { return new Set(Object.keys(namedGroups)); },
+  };
+  for (let i = 0; i < match.length; i++) {
+    result[i] = match[i] ?? null;
+  }
+  return result;
+}
+function __dartJsRegExpReplacementMatch(args) {
+  const hasNamedGroups = args.length > 0 && args[args.length - 1] != null && typeof args[args.length - 1] === "object";
+  const input = args[args.length - (hasNamedGroups ? 2 : 1)];
+  const offset = args[args.length - (hasNamedGroups ? 3 : 2)];
+  const match = Array.prototype.slice.call(args, 0, args.length - (hasNamedGroups ? 3 : 2));
+  match.index = offset;
+  match.input = input;
+  if (hasNamedGroups) match.groups = args[args.length - 1];
+  return __dartRegExpMatch(match);
+}
+function __dartStringReplaceFirstPattern(source, pattern, replacement, startIndex = 0) {
+  const text = String(source);
+  const replacementText = String(replacement);
+  const regexp = __dartPatternRegExp(pattern, false);
+  if (regexp != null) {
+    const tail = text.slice(startIndex);
+    const match = regexp.exec(tail);
+    if (match == null) return text;
+    const index = startIndex + match.index;
+    return text.slice(0, index) + replacementText + text.slice(index + match[0].length);
+  }
+  return __dartStringReplaceFirst(source, pattern, replacement, startIndex);
+}
+
+function __dartPrint(value) {
+  console.log(__dartStr(value));
+}
+
+const __dartRecordShape = Symbol("dart.recordShape");
+
+function __dartIsRecord(value) {
+  return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
+}
+
+function __dartRecord(positional, named) {
+  const record = {};
+  const shape = [];
+  for (let i = 0; i < positional.length; i++) {
+    const name = "$" + (i + 1);
+    shape.push(name);
+    Object.defineProperty(record, name, { value: positional[i], enumerable: true });
+  }
+  for (const name of Object.keys(named).sort()) {
+    shape.push(name);
+    Object.defineProperty(record, name, { value: named[name], enumerable: true });
+  }
+  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });
+  Object.defineProperty(record, "toString", {
+    value() {
+      return "(" + shape.map((name) => {
+        const value = String(record[name]);
+        return name.startsWith("$") ? value : name + ": " + value;
+      }).join(", ") + ")";
+    },
+  });
+  return Object.freeze(record);
+}
+
+function __dartSetContains(set, needle) {
+  if (typeof set.__dartSplayIsValidKey === "function" && !set.__dartSplayIsValidKey(needle)) return false;
+  if (set.__dartSplayCompare !== undefined) {
+    for (const value of set) {
+      if (__dartCompare(value, needle, set.__dartSplayCompare) === 0) return true;
+    }
+    return false;
+  }
+  if (!set.__dartEqualitySet) return set.has(needle);
+  for (const value of set) {
+    if (__dartEquals(value, needle)) return true;
+  }
+  return false;
+}
+function __dartSetAdd(set, value) {
+  if (__dartSetContains(set, value)) return false;
+  set.add(value);
+  if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
+  return true;
+}
+function __dartSetFrom(values) {
+  const set = new Set();
+  Object.defineProperty(set, "__dartEqualitySet", { value: true });
+  for (const value of values) __dartSetAdd(set, value);
+  return set;
+}
+function __dartSetAddAll(set, values) {
+  for (const value of values) __dartSetAdd(set, value);
+  return null;
+}
+
+function __dartStringCodeUnits(source) {
+  const text = String(source);
+  return Array.from({ length: text.length }, (_, index) => text.charCodeAt(index));
+}
+function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {
+  const text = String(source);
+  const needle = String(pattern);
+  const index = text.indexOf(needle, Number(startIndex));
+  if (index < 0) return text;
+  return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);
+}
+function __dartStringReplaceRange(source, start, end, replacement) {
+  const text = String(source);
+  const actualEnd = end == null ? text.length : Number(end);
+  return text.slice(0, Number(start)) + String(replacement) + text.slice(actualEnd);
+}
+
+function __dartStr(value) {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    return "[" + value.map(__dartStr).join(", ") + "]";
+  }
+  if (value instanceof Set) {
+    return "{" + Array.from(value).map(__dartStr).join(", ") + "}";
+  }
+  if (value instanceof Map) {
+    return "{" + Array.from(value, ([key, entryValue]) => __dartStr(key) + ": " + __dartStr(entryValue)).join(", ") + "}";
+  }
+  if (typeof value === "object") {
+    const toString = value.toString;
+    if (typeof toString === "function" && toString !== Object.prototype.toString) {
+      return String(toString.call(value));
+    }
+  }
+  return String(value);
+}
 
 class MimeMultipartTransformer {
   constructor(boundary) {
-    this._boundary = _getBoundary(boundary);
+    Object.defineProperty(this, "_boundary_package_mime_src_mime_multipart_transformer_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_boundary_package_mime_src_mime_multipart_transformer_dart", { value: _getBoundary(boundary), writable: true, enumerable: true, configurable: true });
   }
   bind(stream) {
-    return new BoundMultipartStream(this._boundary, stream).stream;
+    return new BoundMultipartStream(this._boundary_package_mime_src_mime_multipart_transformer_dart, stream).stream;
   }
 }
 
 class MimeMultipartException {
   constructor(message = "") {
-    Object.defineProperty(this, "__dartCoreErrorType", { value: "Exception", writable: true, configurable: true });
-    this.message = message;
+    Object.defineProperty(this, "message", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "message", { value: message, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "Exception", writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "name", { value: "Exception", writable: true, enumerable: true, configurable: true });
   }
   toString() {
-    return "MimeMultipartException: " + __dartStr(this.message);
+    return `MimeMultipartException: ${__dartStr(this.message)}`;
   }
 }
 
+const $MimeMultipart_interface = Symbol("MimeMultipart");
 class MimeMultipart {
-  constructor() {
-  }
   get headers() {
     throw new TypeError("Abstract member MimeMultipart.headers");
   }
-  set headers(value) {
-    Object.defineProperty(this, "headers", { value, writable: true, configurable: true, enumerable: true });
-  }
 }
 
+Object.defineProperty(MimeMultipart, Symbol.hasInstance, { value: function(value) {
+  return value != null && (MimeMultipart.prototype.isPrototypeOf(value) || value[$MimeMultipart_interface] === true);
+} });
 class _MimeMultipart extends MimeMultipart {
   constructor(headers, _stream) {
     super();
-    this.headers = headers;
-    this._stream = _stream;
+    Object.defineProperty(this, "headers", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_stream_package_mime_src_bound_multipart_stream_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "headers", { value: headers, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_stream_package_mime_src_bound_multipart_stream_dart", { value: _stream, writable: true, enumerable: true, configurable: true });
   }
   listen(onData, { onDone = null, onError = null, cancelOnError = null } = {}) {
-    return __dartStreamListen(this._stream, onData, onError, onDone, cancelOnError);
+    return __dartStreamListen(this._stream_package_mime_src_bound_multipart_stream_dart, onData, onError, onDone, cancelOnError);
   }
 }
 
 class BoundMultipartStream {
   constructor(_boundary, stream) {
-    this._headerField = new Array(0).fill(null);
-    this._headerValue = new Array(0).fill(null);
-    this._controllerState = 0;
-    this._controller = __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null });
-    const $_subscription = __dartLazyField("BoundMultipartStream._subscription", null, true);
-    Object.defineProperty(this, "_subscription", {
-      get() { return $_subscription.get(); },
-      set(value) { $_subscription.set(value); },
-      enumerable: true,
-    });
-    this._multipartController = null;
-    this._headers = null;
-    this._state = 0;
-    this._boundaryIndex = 2;
-    this._index = 0;
-    this._buffer = __dartConst("[\"list\",\"InterfaceType(int)\"]", () => Object.freeze([]));
-    this._boundary = _boundary;
-    (() => { let v = this._controller; return (() => {
-      v.onPause = __dartBind(this, "_pauseStream");
-      v.onResume = __dartBind(this, "_resumeStream");
-      v.onCancel = () => {
-        this._controllerState = 3;
-        this._tryPropagateControllerState();
-};
-      v.onListen = () => {
-        this._controllerState = 1;
-        this._subscription = __dartStreamListen(stream, (data) => {
-          this._subscription.pause();
-          this._buffer = data;
-          this._index = 0;
-          this._parse();
-}, __dartBind(this._controller, "addError"), () => {
-          if (!(__dartEquals(this._state, 14))) {
-            {
-              this._controller.addError(__dartConst("[\"instance\",\"class:MimeMultipartException\",[\"field\",\"field:MimeMultipartException.message\",[\"string\",\"Bad multipart ending\"]]]", () => Object.freeze(Object.assign(Object.create(MimeMultipartException.prototype), { message: "Bad multipart ending" }))));
+    const $_subscription_package_mime_src_bound_multipart_stream_dart = __dartLazyField("BoundMultipartStream._subscription", null, true);
+    Object.defineProperty(this, "_subscription_package_mime_src_bound_multipart_stream_dart", { get: function() {
+      return $_subscription_package_mime_src_bound_multipart_stream_dart.get();
+    }, set: function(value) {
+      $_subscription_package_mime_src_bound_multipart_stream_dart.set(value);
+    }, enumerable: true });
+    Object.defineProperty(this, "_boundary_package_mime_src_bound_multipart_stream_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_headerField_package_mime_src_bound_multipart_stream_dart", { value: Array(0).fill(null), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_headerValue_package_mime_src_bound_multipart_stream_dart", { value: Array(0).fill(null), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_controllerState_package_mime_src_bound_multipart_stream_dart", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_controller_package_mime_src_bound_multipart_stream_dart", { value: __dartStreamController(false, { onListen: null, onPause: null, onResume: null, onCancel: null }), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_multipartController_package_mime_src_bound_multipart_stream_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_headers_package_mime_src_bound_multipart_stream_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_state_package_mime_src_bound_multipart_stream_dart", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_boundaryIndex_package_mime_src_bound_multipart_stream_dart", { value: 2, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_index_package_mime_src_bound_multipart_stream_dart", { value: 0, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_buffer_package_mime_src_bound_multipart_stream_dart", { value: __dartConst("[\"list\",\"InterfaceType(int)\"]", () => Object.freeze([])), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_boundary_package_mime_src_bound_multipart_stream_dart", { value: _boundary, writable: true, enumerable: true, configurable: true });
+    (() => {
+      const v = this._controller_package_mime_src_bound_multipart_stream_dart;
+      return (() => {
+        v.onPause = (() => {
+          const $receiver = this;
+          return function() {
+            return $receiver._pauseStream_package_mime_src_bound_multipart_stream_dart();
+          };
+        })();
+        v.onResume = (() => {
+          const $receiver = this;
+          return function() {
+            return $receiver._resumeStream_package_mime_src_bound_multipart_stream_dart();
+          };
+        })();
+        v.onCancel = () => {
+          this._controllerState_package_mime_src_bound_multipart_stream_dart = 3;
+          this._tryPropagateControllerState_package_mime_src_bound_multipart_stream_dart();
+        };
+        v.onListen = () => {
+          this._controllerState_package_mime_src_bound_multipart_stream_dart = 1;
+          this._subscription_package_mime_src_bound_multipart_stream_dart = __dartStreamListen(stream, (data) => {
+            this._subscription_package_mime_src_bound_multipart_stream_dart.pause();
+            this._buffer_package_mime_src_bound_multipart_stream_dart = data;
+            this._index_package_mime_src_bound_multipart_stream_dart = 0;
+            this._parse_package_mime_src_bound_multipart_stream_dart();
+          }, (() => {
+            const $receiver = this._controller_package_mime_src_bound_multipart_stream_dart;
+            return function(value) {
+              return $receiver.add(value);
+            };
+          })(), () => {
+            if (!(__dartEquals(this._state_package_mime_src_bound_multipart_stream_dart, 14))) {
+              this._controller_package_mime_src_bound_multipart_stream_dart.addError(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const MimeMultipartException{MimeMultipartException.message: \\\"Bad multipart ending\\\"})\"]", () => Object.freeze(Object.create(MimeMultipartException.prototype, { message: { value: "Bad multipart ending", enumerable: true } }))));
             }
-          }
-          this._controller.close();
-}, false);
-};
-      return v;
-    })(); })();
+            this._controller_package_mime_src_bound_multipart_stream_dart.close();
+          }, false);
+        };
+        return v;
+      })();
+    })();
   }
   get stream() {
-    return this._controller.stream;
+    return this._controller_package_mime_src_bound_multipart_stream_dart.stream;
   }
-  _resumeStream() {
-    this._controllerState = 1;
-    this._tryPropagateControllerState();
+  _resumeStream_package_mime_src_bound_multipart_stream_dart() {
+    this._controllerState_package_mime_src_bound_multipart_stream_dart = 1;
+    this._tryPropagateControllerState_package_mime_src_bound_multipart_stream_dart();
   }
-  _pauseStream() {
-    this._controllerState = 2;
-    this._tryPropagateControllerState();
+  _pauseStream_package_mime_src_bound_multipart_stream_dart() {
+    this._controllerState_package_mime_src_bound_multipart_stream_dart = 2;
+    this._tryPropagateControllerState_package_mime_src_bound_multipart_stream_dart();
   }
-  _tryPropagateControllerState() {
-    if ((this._multipartController === null)) {
-      {
-        L:
-        switch (this._controllerState) {
+  _tryPropagateControllerState_package_mime_src_bound_multipart_stream_dart() {
+    if (this._multipartController_package_mime_src_bound_multipart_stream_dart === null) {
+      label: {
+        switch (this._controllerState_package_mime_src_bound_multipart_stream_dart) {
           case 1:
-            {
-              if (this._subscription.isPaused) {
-                this._subscription.resume();
-              }
-              break L;
+            if (this._subscription_package_mime_src_bound_multipart_stream_dart.isPaused) {
+              this._subscription_package_mime_src_bound_multipart_stream_dart.resume();
             }
+            break label;
           case 2:
-            {
-              if (!(this._subscription.isPaused)) {
-                this._subscription.pause();
-              }
-              break L;
+            if (!(this._subscription_package_mime_src_bound_multipart_stream_dart.isPaused)) {
+              this._subscription_package_mime_src_bound_multipart_stream_dart.pause();
             }
+            break label;
           case 3:
-            {
-              this._subscription.cancel();
-              break L;
-            }
+            this._subscription_package_mime_src_bound_multipart_stream_dart.cancel();
+            break label;
           default:
-            {
-              (() => { throw __dartCoreError("StateError", "This code should never be reached."); })();
-            }
+            throw __dartCoreError("StateError", "This code should never be reached.");
         }
       }
     }
   }
-  _parse() {
-    const boundaryPrefix = this._boundaryIndex;
-    let contentStartIndex = ((__dartEquals(this._state, 10) && __dartEquals(this._boundaryIndex, 0)) ? 0 : null);
+  _parse_package_mime_src_bound_multipart_stream_dart() {
+    const boundaryPrefix = this._boundaryIndex_package_mime_src_bound_multipart_stream_dart;
+    let contentStartIndex = ((__dartEquals(this._state_package_mime_src_bound_multipart_stream_dart, 10) && __dartEquals(this._boundaryIndex_package_mime_src_bound_multipart_stream_dart, 0)) ? 0 : null);
     const reportData = () => {
-      if ((__dartNullCheck(contentStartIndex) < 0)) {
-        {
-          const contentLength = ((boundaryPrefix + this._index) - this._boundaryIndex);
-          if ((contentLength <= boundaryPrefix)) {
-            {
-              __dartNullCheck(this._multipartController).add(this._boundary.slice(0, contentLength));
-            }
-          } else {
-            {
-              __dartNullCheck(this._multipartController).add(this._boundary.slice(0, boundaryPrefix));
-              __dartNullCheck(this._multipartController).add(this._buffer.slice(0, (contentLength - boundaryPrefix)));
-            }
-          }
+      if (__dartNullCheck(contentStartIndex) < 0) {
+        const contentLength = boundaryPrefix + this._index_package_mime_src_bound_multipart_stream_dart - this._boundaryIndex_package_mime_src_bound_multipart_stream_dart;
+        if (contentLength <= boundaryPrefix) {
+          __dartNullCheck(this._multipartController_package_mime_src_bound_multipart_stream_dart).add(this._boundary_package_mime_src_bound_multipart_stream_dart.slice(0, contentLength));
+        } else {
+          __dartNullCheck(this._multipartController_package_mime_src_bound_multipart_stream_dart).add(this._boundary_package_mime_src_bound_multipart_stream_dart.slice(0, boundaryPrefix));
+          __dartNullCheck(this._multipartController_package_mime_src_bound_multipart_stream_dart).add(this._buffer_package_mime_src_bound_multipart_stream_dart.slice(0, contentLength - boundaryPrefix));
         }
       } else {
-        {
-          const contentEndIndex = (this._index - this._boundaryIndex);
-          __dartNullCheck(this._multipartController).add(this._buffer.slice(contentStartIndex, contentEndIndex));
-        }
+        const contentEndIndex = this._index_package_mime_src_bound_multipart_stream_dart - this._boundaryIndex_package_mime_src_bound_multipart_stream_dart;
+        __dartNullCheck(this._multipartController_package_mime_src_bound_multipart_stream_dart).add(this._buffer_package_mime_src_bound_multipart_stream_dart.slice(contentStartIndex, contentEndIndex));
       }
     };
-    while ((((this._index < this._buffer.length) && !(__dartEquals(this._state, 15))) && !(__dartEquals(this._state, 14)))) {
-      {
-        const byte = ((this._index < 0) ? __dartIndexGet(this._boundary, (boundaryPrefix + this._index)) : __dartIndexGet(this._buffer, this._index));
-        L:
-        switch (this._state) {
+    while (((this._index_package_mime_src_bound_multipart_stream_dart < this._buffer_package_mime_src_bound_multipart_stream_dart.length && !(__dartEquals(this._state_package_mime_src_bound_multipart_stream_dart, 15))) && !(__dartEquals(this._state_package_mime_src_bound_multipart_stream_dart, 14)))) {
+      const byte = (this._index_package_mime_src_bound_multipart_stream_dart < 0 ? __dartListLikeGet(this._boundary_package_mime_src_bound_multipart_stream_dart, boundaryPrefix + this._index_package_mime_src_bound_multipart_stream_dart) : __dartListLikeGet(this._buffer_package_mime_src_bound_multipart_stream_dart, this._index_package_mime_src_bound_multipart_stream_dart));
+      label: {
+        switch (this._state_package_mime_src_bound_multipart_stream_dart) {
           case 0:
-            {
-              if (__dartEquals(byte, __dartIndexGet(this._boundary, this._boundaryIndex))) {
-                {
-                  this._boundaryIndex = (this._boundaryIndex + 1);
-                  if (__dartEquals(this._boundaryIndex, this._boundary.length)) {
-                    {
-                      this._state = 1;
-                      this._boundaryIndex = 0;
-                    }
-                  }
-                }
-              } else {
-                {
-                  this._index = (this._index - this._boundaryIndex);
-                  this._boundaryIndex = 0;
-                }
+            if (__dartEquals(byte, __dartListLikeGet(this._boundary_package_mime_src_bound_multipart_stream_dart, this._boundaryIndex_package_mime_src_bound_multipart_stream_dart))) {
+              this._boundaryIndex_package_mime_src_bound_multipart_stream_dart = this._boundaryIndex_package_mime_src_bound_multipart_stream_dart + 1;
+              if (__dartEquals(this._boundaryIndex_package_mime_src_bound_multipart_stream_dart, this._boundary_package_mime_src_bound_multipart_stream_dart.length)) {
+                this._state_package_mime_src_bound_multipart_stream_dart = 1;
+                this._boundaryIndex_package_mime_src_bound_multipart_stream_dart = 0;
               }
-              break L;
+            } else {
+              this._index_package_mime_src_bound_multipart_stream_dart = this._index_package_mime_src_bound_multipart_stream_dart - this._boundaryIndex_package_mime_src_bound_multipart_stream_dart;
+              this._boundaryIndex_package_mime_src_bound_multipart_stream_dart = 0;
             }
+            break label;
           case 1:
-            {
-              if (__dartEquals(byte, 13)) {
-                {
-                  this._state = 2;
-                }
+            if (__dartEquals(byte, 13)) {
+              this._state_package_mime_src_bound_multipart_stream_dart = 2;
+            } else {
+              if (__dartEquals(byte, 45)) {
+                this._state_package_mime_src_bound_multipart_stream_dart = 11;
               } else {
-                if (__dartEquals(byte, 45)) {
-                  {
-                    this._state = 11;
-                  }
-                } else {
-                  {
-                    _expectWhitespace(byte);
-                  }
-                }
+                _expectWhitespace(byte);
               }
-              break L;
             }
+            break label;
           case 2:
-            {
-              _expectByteValue(byte, 10);
-              ((this._multipartController)?.close() ?? null);
-              if (!((this._multipartController === null))) {
-                {
-                  this._multipartController = null;
-                  this._tryPropagateControllerState();
-                }
-              }
-              this._state = 3;
-              break L;
+            _expectByteValue(byte, 10);
+            (() => {
+              const v = this._multipartController_package_mime_src_bound_multipart_stream_dart;
+              return (v === null ? null : v.close());
+            })();
+            if (!(this._multipartController_package_mime_src_bound_multipart_stream_dart === null)) {
+              this._multipartController_package_mime_src_bound_multipart_stream_dart = null;
+              this._tryPropagateControllerState_package_mime_src_bound_multipart_stream_dart();
             }
+            this._state_package_mime_src_bound_multipart_stream_dart = 3;
+            break label;
           case 3:
-            {
-              this._headers = new Map([]);
-              if (__dartEquals(byte, 13)) {
-                {
-                  this._state = 9;
-                }
-              } else {
-                {
-                  (this._headerField.push(_toLowerCase(byte)), null);
-                  this._state = 4;
-                }
-              }
-              break L;
+            this._headers_package_mime_src_bound_multipart_stream_dart = __dartMapFromEntries([]);
+            if (__dartEquals(byte, 13)) {
+              this._state_package_mime_src_bound_multipart_stream_dart = 9;
+            } else {
+              __dartListAdd(this._headerField_package_mime_src_bound_multipart_stream_dart, _toLowerCase(byte));
+              this._state_package_mime_src_bound_multipart_stream_dart = 4;
             }
+            break label;
           case 4:
-            {
-              if (__dartEquals(byte, 58)) {
-                {
-                  this._state = 5;
-                }
-              } else {
-                {
-                  if (!(_isTokenChar(byte))) {
-                    {
-                      (() => { throw __dartConst("[\"instance\",\"class:MimeMultipartException\",[\"field\",\"field:MimeMultipartException.message\",[\"string\",\"Invalid header field name\"]]]", () => Object.freeze(Object.assign(Object.create(MimeMultipartException.prototype), { message: "Invalid header field name" }))); })();
-                    }
-                  }
-                  (this._headerField.push(_toLowerCase(byte)), null);
-                }
+            if (__dartEquals(byte, 58)) {
+              this._state_package_mime_src_bound_multipart_stream_dart = 5;
+            } else {
+              if (!(_isTokenChar(byte))) {
+                throw __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MimeMultipartException{MimeMultipartException.message: \\\"Invalid header field name\\\"})\"]", () => Object.freeze(Object.create(MimeMultipartException.prototype, { message: { value: "Invalid header field name", enumerable: true } })));
               }
-              break L;
+              __dartListAdd(this._headerField_package_mime_src_bound_multipart_stream_dart, _toLowerCase(byte));
             }
+            break label;
           case 5:
-            {
-              if (__dartEquals(byte, 13)) {
-                {
-                  this._state = 7;
-                }
-              } else {
-                if ((!(__dartEquals(byte, 32)) && !(__dartEquals(byte, 9)))) {
-                  {
-                    (this._headerValue.push(byte), null);
-                    this._state = 6;
-                  }
-                }
+            if (__dartEquals(byte, 13)) {
+              this._state_package_mime_src_bound_multipart_stream_dart = 7;
+            } else {
+              if ((!(__dartEquals(byte, 32)) && !(__dartEquals(byte, 9)))) {
+                __dartListAdd(this._headerValue_package_mime_src_bound_multipart_stream_dart, byte);
+                this._state_package_mime_src_bound_multipart_stream_dart = 6;
               }
-              break L;
             }
+            break label;
           case 6:
-            {
-              if (__dartEquals(byte, 13)) {
-                {
-                  this._state = 7;
-                }
-              } else {
-                {
-                  (this._headerValue.push(byte), null);
-                }
-              }
-              break L;
+            if (__dartEquals(byte, 13)) {
+              this._state_package_mime_src_bound_multipart_stream_dart = 7;
+            } else {
+              __dartListAdd(this._headerValue_package_mime_src_bound_multipart_stream_dart, byte);
             }
+            break label;
           case 7:
-            {
-              _expectByteValue(byte, 10);
-              this._state = 8;
-              break L;
-            }
+            _expectByteValue(byte, 10);
+            this._state_package_mime_src_bound_multipart_stream_dart = 8;
+            break label;
           case 8:
-            {
-              if ((__dartEquals(byte, 32) || __dartEquals(byte, 9))) {
-                {
-                  this._state = 5;
-                }
-              } else {
-                {
-                  const headerField = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(this._headerField);
-                  const headerValue = __dartConst("[\"instance\",\"dart:convert::Utf8Codec\",[\"field\",\"dart:convert::Utf8Codec::@fields::dart:convert::_allowMalformed\",[\"bool\",false]]]", () => __dartUtf8Codec(false)).decode(this._headerValue);
-                  __dartMapSet(__dartNullCheck(this._headers), headerField.toLowerCase(), headerValue);
-                  (this._headerField.length = 0, null);
-                  (this._headerValue.length = 0, null);
-                  if (__dartEquals(byte, 13)) {
-                    {
-                      this._state = 9;
-                    }
-                  } else {
-                    {
-                      (this._headerField.push(_toLowerCase(byte)), null);
-                      this._state = 4;
-                    }
-                  }
-                }
-              }
-              break L;
-            }
-          case 9:
-            {
-              _expectByteValue(byte, 10);
-              this._multipartController = __dartStreamController(false, { onListen: () => {
-                if (this._subscription.isPaused) {
-                  this._subscription.resume();
-                }
-}, onPause: __dartBind(this._subscription, "pause"), onResume: __dartBind(this._subscription, "resume"), onCancel: null });
-              this._controller.add(new _MimeMultipart(__dartNullCheck(this._headers), __dartNullCheck(this._multipartController).stream));
-              this._headers = null;
-              this._state = 10;
-              contentStartIndex = (this._index + 1);
-              break L;
-            }
-          case 10:
-            {
-              if (__dartEquals(byte, __dartIndexGet(this._boundary, this._boundaryIndex))) {
-                {
-                  this._boundaryIndex = (this._boundaryIndex + 1);
-                  if (__dartEquals(this._boundaryIndex, this._boundary.length)) {
-                    {
-                      if (!((contentStartIndex === null))) {
-                        {
-                          this._index = (this._index + 1);
-                          reportData();
-                          this._index = (this._index - 1);
-                        }
-                      }
-                      __dartNullCheck(this._multipartController).close();
-                      this._multipartController = null;
-                      this._tryPropagateControllerState();
-                      this._boundaryIndex = 0;
-                      this._state = 1;
-                    }
-                  }
-                }
-              } else {
-                {
-                  this._index = (this._index - this._boundaryIndex);
-                  ((contentStartIndex === null) ? contentStartIndex = this._index : null);
-                  this._boundaryIndex = 0;
-                }
-              }
-              break L;
-            }
-          case 11:
-            {
-              _expectByteValue(byte, 45);
-              this._state = 12;
-              break L;
-            }
-          case 12:
-            {
+            if ((__dartEquals(byte, 32) || __dartEquals(byte, 9))) {
+              this._state_package_mime_src_bound_multipart_stream_dart = 5;
+            } else {
+              const headerField = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Utf8Codec{Utf8Codec._allowMalformed: false})\"]", () => __dartUtf8Codec(false)).decode(this._headerField_package_mime_src_bound_multipart_stream_dart);
+              const headerValue = __dartConst("[\"InstanceConstant\",\"InstanceConstant(const Utf8Codec{Utf8Codec._allowMalformed: false})\"]", () => __dartUtf8Codec(false)).decode(this._headerValue_package_mime_src_bound_multipart_stream_dart);
+              __dartMapSet(__dartNullCheck(this._headers_package_mime_src_bound_multipart_stream_dart), headerField.toLowerCase(), headerValue);
+              this._headerField_package_mime_src_bound_multipart_stream_dart.length = 0;
+              this._headerValue_package_mime_src_bound_multipart_stream_dart.length = 0;
               if (__dartEquals(byte, 13)) {
-                {
-                  this._state = 13;
-                }
+                this._state_package_mime_src_bound_multipart_stream_dart = 9;
               } else {
-                {
-                  _expectWhitespace(byte);
-                }
+                __dartListAdd(this._headerField_package_mime_src_bound_multipart_stream_dart, _toLowerCase(byte));
+                this._state_package_mime_src_bound_multipart_stream_dart = 4;
               }
-              break L;
             }
+            break label;
+          case 9:
+            _expectByteValue(byte, 10);
+            this._multipartController_package_mime_src_bound_multipart_stream_dart = __dartStreamController(false, { onListen: () => {
+              if (this._subscription_package_mime_src_bound_multipart_stream_dart.isPaused) {
+                this._subscription_package_mime_src_bound_multipart_stream_dart.resume();
+              }
+            }, onPause: (() => {
+              const $receiver = this._subscription_package_mime_src_bound_multipart_stream_dart;
+              return function() {
+                return $receiver.pause();
+              };
+            })(), onResume: (() => {
+              const $receiver = this._subscription_package_mime_src_bound_multipart_stream_dart;
+              return function() {
+                return $receiver.resume();
+              };
+            })(), onCancel: null });
+            this._controller_package_mime_src_bound_multipart_stream_dart.add(new _MimeMultipart(__dartNullCheck(this._headers_package_mime_src_bound_multipart_stream_dart), __dartNullCheck(this._multipartController_package_mime_src_bound_multipart_stream_dart).stream));
+            this._headers_package_mime_src_bound_multipart_stream_dart = null;
+            this._state_package_mime_src_bound_multipart_stream_dart = 10;
+            contentStartIndex = this._index_package_mime_src_bound_multipart_stream_dart + 1;
+            break label;
+          case 10:
+            if (__dartEquals(byte, __dartListLikeGet(this._boundary_package_mime_src_bound_multipart_stream_dart, this._boundaryIndex_package_mime_src_bound_multipart_stream_dart))) {
+              this._boundaryIndex_package_mime_src_bound_multipart_stream_dart = this._boundaryIndex_package_mime_src_bound_multipart_stream_dart + 1;
+              if (__dartEquals(this._boundaryIndex_package_mime_src_bound_multipart_stream_dart, this._boundary_package_mime_src_bound_multipart_stream_dart.length)) {
+                if (!(contentStartIndex === null)) {
+                  this._index_package_mime_src_bound_multipart_stream_dart = this._index_package_mime_src_bound_multipart_stream_dart + 1;
+                  reportData();
+                  this._index_package_mime_src_bound_multipart_stream_dart = this._index_package_mime_src_bound_multipart_stream_dart - 1;
+                }
+                __dartNullCheck(this._multipartController_package_mime_src_bound_multipart_stream_dart).close();
+                this._multipartController_package_mime_src_bound_multipart_stream_dart = null;
+                this._tryPropagateControllerState_package_mime_src_bound_multipart_stream_dart();
+                this._boundaryIndex_package_mime_src_bound_multipart_stream_dart = 0;
+                this._state_package_mime_src_bound_multipart_stream_dart = 1;
+              }
+            } else {
+              this._index_package_mime_src_bound_multipart_stream_dart = this._index_package_mime_src_bound_multipart_stream_dart - this._boundaryIndex_package_mime_src_bound_multipart_stream_dart;
+              (contentStartIndex === null ? contentStartIndex = this._index_package_mime_src_bound_multipart_stream_dart : null);
+              this._boundaryIndex_package_mime_src_bound_multipart_stream_dart = 0;
+            }
+            break label;
+          case 11:
+            _expectByteValue(byte, 45);
+            this._state_package_mime_src_bound_multipart_stream_dart = 12;
+            break label;
+          case 12:
+            if (__dartEquals(byte, 13)) {
+              this._state_package_mime_src_bound_multipart_stream_dart = 13;
+            } else {
+              _expectWhitespace(byte);
+            }
+            break label;
           case 13:
-            {
-              _expectByteValue(byte, 10);
-              ((this._multipartController)?.close() ?? null);
-              if (!((this._multipartController === null))) {
-                {
-                  this._multipartController = null;
-                  this._tryPropagateControllerState();
-                }
-              }
-              this._state = 14;
-              break L;
+            _expectByteValue(byte, 10);
+            (() => {
+              const v = this._multipartController_package_mime_src_bound_multipart_stream_dart;
+              return (v === null ? null : v.close());
+            })();
+            if (!(this._multipartController_package_mime_src_bound_multipart_stream_dart === null)) {
+              this._multipartController_package_mime_src_bound_multipart_stream_dart = null;
+              this._tryPropagateControllerState_package_mime_src_bound_multipart_stream_dart();
             }
+            this._state_package_mime_src_bound_multipart_stream_dart = 14;
+            break label;
           default:
-            {
-            }
         }
-        this._index = (this._index + 1);
       }
+      this._index_package_mime_src_bound_multipart_stream_dart = this._index_package_mime_src_bound_multipart_stream_dart + 1;
     }
-    if ((__dartEquals(this._state, 10) && !((contentStartIndex === null)))) {
-      {
-        reportData();
-      }
+    if ((__dartEquals(this._state_package_mime_src_bound_multipart_stream_dart, 10) && !(contentStartIndex === null))) {
+      reportData();
     }
-    if (__dartEquals(this._index, this._buffer.length)) {
-      {
-        this._buffer = __dartConst("[\"list\",\"InterfaceType(int)\"]", () => Object.freeze([]));
-        this._index = 0;
-        this._subscription.resume();
-      }
+    if (__dartEquals(this._index_package_mime_src_bound_multipart_stream_dart, this._buffer_package_mime_src_bound_multipart_stream_dart.length)) {
+      this._buffer_package_mime_src_bound_multipart_stream_dart = __dartConst("[\"list\",\"InterfaceType(int)\"]", () => Object.freeze([]));
+      this._index_package_mime_src_bound_multipart_stream_dart = 0;
+      this._subscription_package_mime_src_bound_multipart_stream_dart.resume();
     }
   }
 }
 
+const $BoundMultipartStream__startCode = __dartLazyField("BoundMultipartStream._startCode", () => 0, false);
+Object.defineProperty(BoundMultipartStream, "_startCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__startCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__startCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__boundaryEndingCode = __dartLazyField("BoundMultipartStream._boundaryEndingCode", () => 1, false);
+Object.defineProperty(BoundMultipartStream, "_boundaryEndingCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__boundaryEndingCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__boundaryEndingCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__boundaryEndCode = __dartLazyField("BoundMultipartStream._boundaryEndCode", () => 2, false);
+Object.defineProperty(BoundMultipartStream, "_boundaryEndCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__boundaryEndCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__boundaryEndCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__headerStartCode = __dartLazyField("BoundMultipartStream._headerStartCode", () => 3, false);
+Object.defineProperty(BoundMultipartStream, "_headerStartCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__headerStartCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__headerStartCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__headerFieldCode = __dartLazyField("BoundMultipartStream._headerFieldCode", () => 4, false);
+Object.defineProperty(BoundMultipartStream, "_headerFieldCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__headerFieldCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__headerFieldCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__headerValueStartCode = __dartLazyField("BoundMultipartStream._headerValueStartCode", () => 5, false);
+Object.defineProperty(BoundMultipartStream, "_headerValueStartCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__headerValueStartCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__headerValueStartCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__headerValueCode = __dartLazyField("BoundMultipartStream._headerValueCode", () => 6, false);
+Object.defineProperty(BoundMultipartStream, "_headerValueCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__headerValueCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__headerValueCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__headerValueFoldingOrEndingCode = __dartLazyField("BoundMultipartStream._headerValueFoldingOrEndingCode", () => 7, false);
+Object.defineProperty(BoundMultipartStream, "_headerValueFoldingOrEndingCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__headerValueFoldingOrEndingCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__headerValueFoldingOrEndingCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__headerValueFoldOrEndCode = __dartLazyField("BoundMultipartStream._headerValueFoldOrEndCode", () => 8, false);
+Object.defineProperty(BoundMultipartStream, "_headerValueFoldOrEndCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__headerValueFoldOrEndCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__headerValueFoldOrEndCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__headerEndingCode = __dartLazyField("BoundMultipartStream._headerEndingCode", () => 9, false);
+Object.defineProperty(BoundMultipartStream, "_headerEndingCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__headerEndingCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__headerEndingCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__contentCode = __dartLazyField("BoundMultipartStream._contentCode", () => 10, false);
+Object.defineProperty(BoundMultipartStream, "_contentCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__contentCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__contentCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__lastBoundaryDash2Code = __dartLazyField("BoundMultipartStream._lastBoundaryDash2Code", () => 11, false);
+Object.defineProperty(BoundMultipartStream, "_lastBoundaryDash2Code_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__lastBoundaryDash2Code.get();
+}, set: function(value) {
+  $BoundMultipartStream__lastBoundaryDash2Code.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__lastBoundaryEndingCode = __dartLazyField("BoundMultipartStream._lastBoundaryEndingCode", () => 12, false);
+Object.defineProperty(BoundMultipartStream, "_lastBoundaryEndingCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__lastBoundaryEndingCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__lastBoundaryEndingCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__lastBoundaryEndCode = __dartLazyField("BoundMultipartStream._lastBoundaryEndCode", () => 13, false);
+Object.defineProperty(BoundMultipartStream, "_lastBoundaryEndCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__lastBoundaryEndCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__lastBoundaryEndCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__doneCode = __dartLazyField("BoundMultipartStream._doneCode", () => 14, false);
+Object.defineProperty(BoundMultipartStream, "_doneCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__doneCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__doneCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__failCode = __dartLazyField("BoundMultipartStream._failCode", () => 15, false);
+Object.defineProperty(BoundMultipartStream, "_failCode_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__failCode.get();
+}, set: function(value) {
+  $BoundMultipartStream__failCode.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__controllerStateIdle = __dartLazyField("BoundMultipartStream._controllerStateIdle", () => 0, false);
+Object.defineProperty(BoundMultipartStream, "_controllerStateIdle_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__controllerStateIdle.get();
+}, set: function(value) {
+  $BoundMultipartStream__controllerStateIdle.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__controllerStateActive = __dartLazyField("BoundMultipartStream._controllerStateActive", () => 1, false);
+Object.defineProperty(BoundMultipartStream, "_controllerStateActive_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__controllerStateActive.get();
+}, set: function(value) {
+  $BoundMultipartStream__controllerStateActive.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__controllerStatePaused = __dartLazyField("BoundMultipartStream._controllerStatePaused", () => 2, false);
+Object.defineProperty(BoundMultipartStream, "_controllerStatePaused_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__controllerStatePaused.get();
+}, set: function(value) {
+  $BoundMultipartStream__controllerStatePaused.set(value);
+}, enumerable: true });
+const $BoundMultipartStream__controllerStateCanceled = __dartLazyField("BoundMultipartStream._controllerStateCanceled", () => 3, false);
+Object.defineProperty(BoundMultipartStream, "_controllerStateCanceled_package_mime_src_bound_multipart_stream_dart", { get: function() {
+  return $BoundMultipartStream__controllerStateCanceled.get();
+}, set: function(value) {
+  $BoundMultipartStream__controllerStateCanceled.set(value);
+}, enumerable: true });
 class MagicNumber {
   constructor(mimeType, numbers, { mask = null } = {}) {
-    this.mimeType = mimeType;
-    this.numbers = numbers;
-    this.mask = mask;
+    Object.defineProperty(this, "mimeType", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "numbers", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "mask", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "mimeType", { value: mimeType, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "numbers", { value: numbers, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "mask", { value: mask, writable: true, enumerable: true, configurable: true });
   }
   matches(header) {
-    if ((header.length < this.numbers.length)) {
+    if (header.length < this.numbers.length) {
       return false;
     }
-    for (let i = 0; (i < this.numbers.length); i = (i + 1)) {
-      {
-        if (!((this.mask === null))) {
-          {
-            if (!(__dartEquals((__dartIndexGet(__dartNullCheck(this.mask), i) & __dartIndexGet(this.numbers, i)), (__dartIndexGet(__dartNullCheck(this.mask), i) & __dartIndexGet(header, i))))) {
-              return false;
-            }
-          }
-        } else {
-          {
-            if (!(__dartEquals(__dartIndexGet(this.numbers, i), __dartIndexGet(header, i)))) {
-              return false;
-            }
-          }
+    for (let i = 0; i < this.numbers.length; i = i + 1) {
+      if (!(this.mask === null)) {
+        if (!(__dartEquals(__dartListLikeGet(__dartNullCheck(this.mask), i) & __dartListLikeGet(this.numbers, i), __dartListLikeGet(__dartNullCheck(this.mask), i) & __dartListLikeGet(header, i)))) {
+          return false;
+        }
+      } else {
+        if (!(__dartEquals(__dartListLikeGet(this.numbers, i), __dartListLikeGet(header, i)))) {
+          return false;
         }
       }
     }
@@ -1163,187 +1770,91 @@ class MagicNumber {
 }
 
 class MimeTypeResolver {
-  static empty() {
-    return $MimeTypeResolver_empty(MimeTypeResolver);
-  }
   constructor() {
-    this._extensionMap = new Map([]);
-    this._magicNumbers = new Array(0).fill(null);
-    this._useDefault = true;
-    this._magicNumbersMaxLength = 12;
+    Object.defineProperty(this, "_extensionMap_package_mime_src_mime_type_dart", { value: __dartMapFromEntries([]), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_magicNumbers_package_mime_src_mime_type_dart", { value: Array(0).fill(null), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_useDefault_package_mime_src_mime_type_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_magicNumbersMaxLength_package_mime_src_mime_type_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_useDefault_package_mime_src_mime_type_dart", { value: true, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "_magicNumbersMaxLength_package_mime_src_mime_type_dart", { value: 12, writable: true, enumerable: true, configurable: true });
+  }
+  static empty() {
+    const $self = Object.create(this.prototype);
+    Object.defineProperty($self, "_extensionMap_package_mime_src_mime_type_dart", { value: __dartMapFromEntries([]), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_magicNumbers_package_mime_src_mime_type_dart", { value: Array(0).fill(null), writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_useDefault_package_mime_src_mime_type_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_magicNumbersMaxLength_package_mime_src_mime_type_dart", { value: null, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_useDefault_package_mime_src_mime_type_dart", { value: false, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty($self, "_magicNumbersMaxLength_package_mime_src_mime_type_dart", { value: 0, writable: true, enumerable: true, configurable: true });
+    return $self;
+  }
+  static _matchMagic_package_mime_src_mime_type_dart(headerBytes, magicNumbers) {
+    let _sync_for_iterator = __dartIterator(magicNumbers);
+    for (; _sync_for_iterator.moveNext(); ) {
+      let mn = _sync_for_iterator.current;
+      if (mn.matches(headerBytes)) {
+        return mn.mimeType;
+      }
+    }
+    return null;
+  }
+  static _ext_package_mime_src_mime_type_dart(path) {
+    const index = __dartStringLastIndexOf(path, ".", null);
+    if ((index < 0 || index + 1 >= path.length)) {
+      return path;
+    }
+    return path.substring(index + 1).toLowerCase();
   }
   get magicNumbersMaxLength() {
-    return this._magicNumbersMaxLength;
+    return this._magicNumbersMaxLength_package_mime_src_mime_type_dart;
   }
   lookup(path, { headerBytes = null } = {}) {
     let result = null;
-    if (!((headerBytes === null))) {
-      {
-        result = MimeTypeResolver._matchMagic(headerBytes, this._magicNumbers);
-        if (!((result === null))) {
+    if (!(headerBytes === null)) {
+      result = MimeTypeResolver._matchMagic_package_mime_src_mime_type_dart(headerBytes, this._magicNumbers_package_mime_src_mime_type_dart);
+      if (!(result === null)) {
+        return result;
+      }
+      if (this._useDefault_package_mime_src_mime_type_dart) {
+        result = MimeTypeResolver._matchMagic_package_mime_src_mime_type_dart(headerBytes, __dartConst("[\"list\",\"InterfaceType(MagicNumber)\",[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"application/pdf\\\", MagicNumber.numbers: const <int>[37, 80, 68, 70], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"application/postscript\\\", MagicNumber.numbers: const <int>[37, 81], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/x-aiff\\\", MagicNumber.numbers: const <int>[70, 79, 82, 77, 0, 0, 0, 0, 65, 73, 70, 70], MagicNumber.mask: const <int>[255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/x-flac\\\", MagicNumber.numbers: const <int>[102, 76, 97, 67], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/x-wav\\\", MagicNumber.numbers: const <int>[82, 73, 70, 70, 0, 0, 0, 0, 87, 65, 86, 69], MagicNumber.mask: const <int>[255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/gif\\\", MagicNumber.numbers: const <int>[71, 73, 70, 56, 55, 97], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/gif\\\", MagicNumber.numbers: const <int>[71, 73, 70, 56, 57, 97], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/jpeg\\\", MagicNumber.numbers: const <int>[255, 216], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/png\\\", MagicNumber.numbers: const <int>[137, 80, 78, 71, 13, 10, 26, 10], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/tiff\\\", MagicNumber.numbers: const <int>[73, 73, 42, 0], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/tiff\\\", MagicNumber.numbers: const <int>[77, 77, 0, 42], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/aac\\\", MagicNumber.numbers: const <int>[255, 241], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/aac\\\", MagicNumber.numbers: const <int>[255, 249], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/weba\\\", MagicNumber.numbers: const <int>[26, 69, 223, 163], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/mpeg\\\", MagicNumber.numbers: const <int>[73, 68, 51], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/mpeg\\\", MagicNumber.numbers: const <int>[255, 251], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/ogg\\\", MagicNumber.numbers: const <int>[79, 112, 117], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/3gpp\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 51, 103, 112, 53], MagicNumber.mask: const <int>[255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 97, 118, 99, 49], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 50], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 109], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 49], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 50], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"model/gltf-binary\\\", MagicNumber.numbers: const <int>[70, 84, 108, 103], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/webp\\\", MagicNumber.numbers: const <int>[82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80], MagicNumber.mask: const <int>[255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"font/woff2\\\", MagicNumber.numbers: const <int>[119, 79, 70, 50], MagicNumber.mask: null})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/heic\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 99], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/heic\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 120], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"],[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/heif\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 109, 105, 102, 49], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]]", () => Object.freeze([__dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"application/pdf\\\", MagicNumber.numbers: const <int>[37, 80, 68, 70], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "application/pdf", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"80\"],[\"int\",\"68\"],[\"int\",\"70\"]]", () => Object.freeze([37, 80, 68, 70])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"application/postscript\\\", MagicNumber.numbers: const <int>[37, 81], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "application/postscript", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"81\"]]", () => Object.freeze([37, 81])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/x-aiff\\\", MagicNumber.numbers: const <int>[70, 79, 82, 77, 0, 0, 0, 0, 65, 73, 70, 70], MagicNumber.mask: const <int>[255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/x-aiff", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"79\"],[\"int\",\"82\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"65\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"]]", () => Object.freeze([70, 79, 82, 77, 0, 0, 0, 0, 65, 73, 70, 70])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/x-flac\\\", MagicNumber.numbers: const <int>[102, 76, 97, 67], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/x-flac", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"102\"],[\"int\",\"76\"],[\"int\",\"97\"],[\"int\",\"67\"]]", () => Object.freeze([102, 76, 97, 67])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/x-wav\\\", MagicNumber.numbers: const <int>[82, 73, 70, 70, 0, 0, 0, 0, 87, 65, 86, 69], MagicNumber.mask: const <int>[255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/x-wav", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"65\"],[\"int\",\"86\"],[\"int\",\"69\"]]", () => Object.freeze([82, 73, 70, 70, 0, 0, 0, 0, 87, 65, 86, 69])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/gif\\\", MagicNumber.numbers: const <int>[71, 73, 70, 56, 55, 97], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/gif", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"55\"],[\"int\",\"97\"]]", () => Object.freeze([71, 73, 70, 56, 55, 97])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/gif\\\", MagicNumber.numbers: const <int>[71, 73, 70, 56, 57, 97], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/gif", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"57\"],[\"int\",\"97\"]]", () => Object.freeze([71, 73, 70, 56, 57, 97])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/jpeg\\\", MagicNumber.numbers: const <int>[255, 216], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/jpeg", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"216\"]]", () => Object.freeze([255, 216])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/png\\\", MagicNumber.numbers: const <int>[137, 80, 78, 71, 13, 10, 26, 10], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/png", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"137\"],[\"int\",\"80\"],[\"int\",\"78\"],[\"int\",\"71\"],[\"int\",\"13\"],[\"int\",\"10\"],[\"int\",\"26\"],[\"int\",\"10\"]]", () => Object.freeze([137, 80, 78, 71, 13, 10, 26, 10])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/tiff\\\", MagicNumber.numbers: const <int>[73, 73, 42, 0], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/tiff", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"73\"],[\"int\",\"42\"],[\"int\",\"0\"]]", () => Object.freeze([73, 73, 42, 0])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/tiff\\\", MagicNumber.numbers: const <int>[77, 77, 0, 42], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/tiff", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"77\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"42\"]]", () => Object.freeze([77, 77, 0, 42])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/aac\\\", MagicNumber.numbers: const <int>[255, 241], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/aac", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"241\"]]", () => Object.freeze([255, 241])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/aac\\\", MagicNumber.numbers: const <int>[255, 249], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/aac", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"249\"]]", () => Object.freeze([255, 249])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/weba\\\", MagicNumber.numbers: const <int>[26, 69, 223, 163], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/weba", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"26\"],[\"int\",\"69\"],[\"int\",\"223\"],[\"int\",\"163\"]]", () => Object.freeze([26, 69, 223, 163])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/mpeg\\\", MagicNumber.numbers: const <int>[73, 68, 51], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/mpeg", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"68\"],[\"int\",\"51\"]]", () => Object.freeze([73, 68, 51])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/mpeg\\\", MagicNumber.numbers: const <int>[255, 251], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/mpeg", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"251\"]]", () => Object.freeze([255, 251])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"audio/ogg\\\", MagicNumber.numbers: const <int>[79, 112, 117], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "audio/ogg", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"79\"],[\"int\",\"112\"],[\"int\",\"117\"]]", () => Object.freeze([79, 112, 117])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/3gpp\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 51, 103, 112, 53], MagicNumber.mask: const <int>[255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "video/3gpp", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"51\"],[\"int\",\"103\"],[\"int\",\"112\"],[\"int\",\"53\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 51, 103, 112, 53])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 97, 118, 99, 49], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "video/mp4", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"97\"],[\"int\",\"118\"],[\"int\",\"99\"],[\"int\",\"49\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 97, 118, 99, 49])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 50], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "video/mp4", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"50\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 50])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 109], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "video/mp4", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"109\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 109])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 49], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "video/mp4", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"49\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 49])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"video/mp4\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 50], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "video/mp4", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"50\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 50])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"model/gltf-binary\\\", MagicNumber.numbers: const <int>[70, 84, 108, 103], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "model/gltf-binary", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"84\"],[\"int\",\"108\"],[\"int\",\"103\"]]", () => Object.freeze([70, 84, 108, 103])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/webp\\\", MagicNumber.numbers: const <int>[82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80], MagicNumber.mask: const <int>[255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/webp", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"69\"],[\"int\",\"66\"],[\"int\",\"80\"]]", () => Object.freeze([82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"font/woff2\\\", MagicNumber.numbers: const <int>[119, 79, 70, 50], MagicNumber.mask: null})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "font/woff2", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"119\"],[\"int\",\"79\"],[\"int\",\"70\"],[\"int\",\"50\"]]", () => Object.freeze([119, 79, 70, 50])), enumerable: true }, mask: { value: null, enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/heic\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 99], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/heic", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"99\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 99])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/heic\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 120], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/heic", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"120\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 120])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } }))), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MagicNumber{MagicNumber.mimeType: \\\"image/heif\\\", MagicNumber.numbers: const <int>[0, 0, 0, 0, 102, 116, 121, 112, 109, 105, 102, 49], MagicNumber.mask: const <int>[0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]})\"]", () => Object.freeze(Object.create(MagicNumber.prototype, { mimeType: { value: "image/heif", enumerable: true }, numbers: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"105\"],[\"int\",\"102\"],[\"int\",\"49\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 109, 105, 102, 49])), enumerable: true }, mask: { value: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])), enumerable: true } })))])));
+        if (!(result === null)) {
           return result;
-        }
-        if (this._useDefault) {
-          {
-            result = MimeTypeResolver._matchMagic(headerBytes, __dartConst("[\"list\",\"InterfaceType(MagicNumber)\",[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"application/pdf\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"80\"],[\"int\",\"68\"],[\"int\",\"70\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"application/postscript\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"81\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/x-aiff\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"79\"],[\"int\",\"82\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"65\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/x-flac\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"102\"],[\"int\",\"76\"],[\"int\",\"97\"],[\"int\",\"67\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/x-wav\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"65\"],[\"int\",\"86\"],[\"int\",\"69\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/gif\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"55\"],[\"int\",\"97\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/gif\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"57\"],[\"int\",\"97\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/jpeg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"216\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/png\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"137\"],[\"int\",\"80\"],[\"int\",\"78\"],[\"int\",\"71\"],[\"int\",\"13\"],[\"int\",\"10\"],[\"int\",\"26\"],[\"int\",\"10\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/tiff\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"73\"],[\"int\",\"42\"],[\"int\",\"0\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/tiff\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"77\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"42\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/aac\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"241\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/aac\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"249\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/weba\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"26\"],[\"int\",\"69\"],[\"int\",\"223\"],[\"int\",\"163\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/mpeg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"68\"],[\"int\",\"51\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/mpeg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"251\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/ogg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"79\"],[\"int\",\"112\"],[\"int\",\"117\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/3gpp\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"51\"],[\"int\",\"103\"],[\"int\",\"112\"],[\"int\",\"53\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"97\"],[\"int\",\"118\"],[\"int\",\"99\"],[\"int\",\"49\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"50\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"109\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"49\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"50\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"model/gltf-binary\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"84\"],[\"int\",\"108\"],[\"int\",\"103\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/webp\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"69\"],[\"int\",\"66\"],[\"int\",\"80\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"font/woff2\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"119\"],[\"int\",\"79\"],[\"int\",\"70\"],[\"int\",\"50\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/heic\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"99\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/heic\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"120\"]]]],[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/heif\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"105\"],[\"int\",\"102\"],[\"int\",\"49\"]]]]]", () => Object.freeze([__dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"application/pdf\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"80\"],[\"int\",\"68\"],[\"int\",\"70\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "application/pdf", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"80\"],[\"int\",\"68\"],[\"int\",\"70\"]]", () => Object.freeze([37, 80, 68, 70])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"application/postscript\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"81\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "application/postscript", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"37\"],[\"int\",\"81\"]]", () => Object.freeze([37, 81])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/x-aiff\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"79\"],[\"int\",\"82\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"65\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/x-aiff", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"79\"],[\"int\",\"82\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"65\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"]]", () => Object.freeze([70, 79, 82, 77, 0, 0, 0, 0, 65, 73, 70, 70])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/x-flac\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"102\"],[\"int\",\"76\"],[\"int\",\"97\"],[\"int\",\"67\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/x-flac", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"102\"],[\"int\",\"76\"],[\"int\",\"97\"],[\"int\",\"67\"]]", () => Object.freeze([102, 76, 97, 67])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/x-wav\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"65\"],[\"int\",\"86\"],[\"int\",\"69\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/x-wav", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"65\"],[\"int\",\"86\"],[\"int\",\"69\"]]", () => Object.freeze([82, 73, 70, 70, 0, 0, 0, 0, 87, 65, 86, 69])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/gif\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"55\"],[\"int\",\"97\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/gif", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"55\"],[\"int\",\"97\"]]", () => Object.freeze([71, 73, 70, 56, 55, 97])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/gif\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"57\"],[\"int\",\"97\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/gif", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"71\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"56\"],[\"int\",\"57\"],[\"int\",\"97\"]]", () => Object.freeze([71, 73, 70, 56, 57, 97])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/jpeg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"216\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/jpeg", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"216\"]]", () => Object.freeze([255, 216])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/png\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"137\"],[\"int\",\"80\"],[\"int\",\"78\"],[\"int\",\"71\"],[\"int\",\"13\"],[\"int\",\"10\"],[\"int\",\"26\"],[\"int\",\"10\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/png", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"137\"],[\"int\",\"80\"],[\"int\",\"78\"],[\"int\",\"71\"],[\"int\",\"13\"],[\"int\",\"10\"],[\"int\",\"26\"],[\"int\",\"10\"]]", () => Object.freeze([137, 80, 78, 71, 13, 10, 26, 10])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/tiff\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"73\"],[\"int\",\"42\"],[\"int\",\"0\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/tiff", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"73\"],[\"int\",\"42\"],[\"int\",\"0\"]]", () => Object.freeze([73, 73, 42, 0])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/tiff\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"77\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"42\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/tiff", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"77\"],[\"int\",\"77\"],[\"int\",\"0\"],[\"int\",\"42\"]]", () => Object.freeze([77, 77, 0, 42])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/aac\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"241\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/aac", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"241\"]]", () => Object.freeze([255, 241])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/aac\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"249\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/aac", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"249\"]]", () => Object.freeze([255, 249])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/weba\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"26\"],[\"int\",\"69\"],[\"int\",\"223\"],[\"int\",\"163\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/weba", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"26\"],[\"int\",\"69\"],[\"int\",\"223\"],[\"int\",\"163\"]]", () => Object.freeze([26, 69, 223, 163])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/mpeg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"68\"],[\"int\",\"51\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/mpeg", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"73\"],[\"int\",\"68\"],[\"int\",\"51\"]]", () => Object.freeze([73, 68, 51])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/mpeg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"251\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/mpeg", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"251\"]]", () => Object.freeze([255, 251])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"audio/ogg\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"79\"],[\"int\",\"112\"],[\"int\",\"117\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "audio/ogg", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"79\"],[\"int\",\"112\"],[\"int\",\"117\"]]", () => Object.freeze([79, 112, 117])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/3gpp\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"51\"],[\"int\",\"103\"],[\"int\",\"112\"],[\"int\",\"53\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "video/3gpp", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"51\"],[\"int\",\"103\"],[\"int\",\"112\"],[\"int\",\"53\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 51, 103, 112, 53])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"97\"],[\"int\",\"118\"],[\"int\",\"99\"],[\"int\",\"49\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "video/mp4", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"97\"],[\"int\",\"118\"],[\"int\",\"99\"],[\"int\",\"49\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 97, 118, 99, 49])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"50\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "video/mp4", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"50\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 50])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"109\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "video/mp4", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"105\"],[\"int\",\"115\"],[\"int\",\"111\"],[\"int\",\"109\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 105, 115, 111, 109])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"49\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "video/mp4", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"49\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 49])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"video/mp4\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"50\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "video/mp4", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"112\"],[\"int\",\"52\"],[\"int\",\"50\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 109, 112, 52, 50])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"model/gltf-binary\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"84\"],[\"int\",\"108\"],[\"int\",\"103\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "model/gltf-binary", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"70\"],[\"int\",\"84\"],[\"int\",\"108\"],[\"int\",\"103\"]]", () => Object.freeze([70, 84, 108, 103])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/webp\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"69\"],[\"int\",\"66\"],[\"int\",\"80\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/webp", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"82\"],[\"int\",\"73\"],[\"int\",\"70\"],[\"int\",\"70\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"87\"],[\"int\",\"69\"],[\"int\",\"66\"],[\"int\",\"80\"]]", () => Object.freeze([82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"null\"]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"font/woff2\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"119\"],[\"int\",\"79\"],[\"int\",\"70\"],[\"int\",\"50\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "font/woff2", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"119\"],[\"int\",\"79\"],[\"int\",\"70\"],[\"int\",\"50\"]]", () => Object.freeze([119, 79, 70, 50])), mask: null }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/heic\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"99\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/heic", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"99\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 99])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/heic\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"120\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/heic", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"104\"],[\"int\",\"101\"],[\"int\",\"105\"],[\"int\",\"120\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 104, 101, 105, 120])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) }))), __dartConst("[\"instance\",\"class:MagicNumber\",[\"field\",\"field:MagicNumber.mask\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]],[\"field\",\"field:MagicNumber.mimeType\",[\"string\",\"image/heif\"]],[\"field\",\"field:MagicNumber.numbers\",[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"105\"],[\"int\",\"102\"],[\"int\",\"49\"]]]]", () => Object.freeze(Object.assign(Object.create(MagicNumber.prototype), { mimeType: "image/heif", numbers: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"102\"],[\"int\",\"116\"],[\"int\",\"121\"],[\"int\",\"112\"],[\"int\",\"109\"],[\"int\",\"105\"],[\"int\",\"102\"],[\"int\",\"49\"]]", () => Object.freeze([0, 0, 0, 0, 102, 116, 121, 112, 109, 105, 102, 49])), mask: __dartConst("[\"list\",\"InterfaceType(int)\",[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"0\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"],[\"int\",\"255\"]]", () => Object.freeze([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255])) })))])));
-            if (!((result === null))) {
-              return result;
-            }
-          }
         }
       }
     }
-    const ext = MimeTypeResolver._ext(path);
-    result = __dartMapGet(this._extensionMap, ext);
-    if (!((result === null))) {
+    const ext = MimeTypeResolver._ext_package_mime_src_mime_type_dart(path);
+    result = __dartMapGet(this._extensionMap_package_mime_src_mime_type_dart, ext);
+    if (!(result === null)) {
       return result;
     }
-    if (this._useDefault) {
-      {
-        result = __dartMapGet(__dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(String)\",[[\"string\",\"123\"],[\"string\",\"application/vnd.lotus-1-2-3\"]],[[\"string\",\"3dml\"],[\"string\",\"text/vnd.in3d.3dml\"]],[[\"string\",\"3ds\"],[\"string\",\"image/x-3ds\"]],[[\"string\",\"3g2\"],[\"string\",\"video/3gpp2\"]],[[\"string\",\"3gp\"],[\"string\",\"video/3gpp\"]],[[\"string\",\"7z\"],[\"string\",\"application/x-7z-compressed\"]],[[\"string\",\"aab\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"aac\"],[\"string\",\"audio/aac\"]],[[\"string\",\"aam\"],[\"string\",\"application/x-authorware-map\"]],[[\"string\",\"aas\"],[\"string\",\"application/x-authorware-seg\"]],[[\"string\",\"abw\"],[\"string\",\"application/x-abiword\"]],[[\"string\",\"ac\"],[\"string\",\"application/pkix-attr-cert\"]],[[\"string\",\"acc\"],[\"string\",\"application/vnd.americandynamics.acc\"]],[[\"string\",\"ace\"],[\"string\",\"application/x-ace-compressed\"]],[[\"string\",\"acu\"],[\"string\",\"application/vnd.acucobol\"]],[[\"string\",\"acutc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"adp\"],[\"string\",\"audio/adpcm\"]],[[\"string\",\"aep\"],[\"string\",\"application/vnd.audiograph\"]],[[\"string\",\"afm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"afp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"ahead\"],[\"string\",\"application/vnd.ahead.space\"]],[[\"string\",\"ai\"],[\"string\",\"application/postscript\"]],[[\"string\",\"aif\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aifc\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aiff\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"air\"],[\"string\",\"application/vnd.adobe.air-application-installer-package+zip\"]],[[\"string\",\"ait\"],[\"string\",\"application/vnd.dvb.ait\"]],[[\"string\",\"ami\"],[\"string\",\"application/vnd.amiga.ami\"]],[[\"string\",\"apk\"],[\"string\",\"application/vnd.android.package-archive\"]],[[\"string\",\"appcache\"],[\"string\",\"text/cache-manifest\"]],[[\"string\",\"application\"],[\"string\",\"application/x-ms-application\"]],[[\"string\",\"apr\"],[\"string\",\"application/vnd.lotus-approach\"]],[[\"string\",\"arc\"],[\"string\",\"application/x-freearc\"]],[[\"string\",\"asc\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"asf\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"asm\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"aso\"],[\"string\",\"application/vnd.accpac.simply.aso\"]],[[\"string\",\"asx\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"atc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"atom\"],[\"string\",\"application/atom+xml\"]],[[\"string\",\"atomcat\"],[\"string\",\"application/atomcat+xml\"]],[[\"string\",\"atomsvc\"],[\"string\",\"application/atomsvc+xml\"]],[[\"string\",\"atx\"],[\"string\",\"application/vnd.antix.game-component\"]],[[\"string\",\"au\"],[\"string\",\"audio/basic\"]],[[\"string\",\"avi\"],[\"string\",\"video/x-msvideo\"]],[[\"string\",\"avif\"],[\"string\",\"image/avif\"]],[[\"string\",\"aw\"],[\"string\",\"application/applixware\"]],[[\"string\",\"azf\"],[\"string\",\"application/vnd.airzip.filesecure.azf\"]],[[\"string\",\"azs\"],[\"string\",\"application/vnd.airzip.filesecure.azs\"]],[[\"string\",\"azw\"],[\"string\",\"application/vnd.amazon.ebook\"]],[[\"string\",\"bat\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"bcpio\"],[\"string\",\"application/x-bcpio\"]],[[\"string\",\"bdf\"],[\"string\",\"application/x-font-bdf\"]],[[\"string\",\"bdm\"],[\"string\",\"application/vnd.syncml.dm+wbxml\"]],[[\"string\",\"bed\"],[\"string\",\"application/vnd.realvnc.bed\"]],[[\"string\",\"bh2\"],[\"string\",\"application/vnd.fujitsu.oasysprs\"]],[[\"string\",\"bin\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"blb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"blorb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"bmi\"],[\"string\",\"application/vnd.bmi\"]],[[\"string\",\"bmp\"],[\"string\",\"image/bmp\"]],[[\"string\",\"book\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"box\"],[\"string\",\"application/vnd.previewsystems.box\"]],[[\"string\",\"boz\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"bpk\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"btif\"],[\"string\",\"image/prs.btif\"]],[[\"string\",\"bz\"],[\"string\",\"application/x-bzip\"]],[[\"string\",\"bz2\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"c\"],[\"string\",\"text/x-c\"]],[[\"string\",\"c11amc\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config\"]],[[\"string\",\"c11amz\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config-pkg\"]],[[\"string\",\"c4d\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4f\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4g\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4p\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4u\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"cab\"],[\"string\",\"application/vnd.ms-cab-compressed\"]],[[\"string\",\"caf\"],[\"string\",\"audio/x-caf\"]],[[\"string\",\"cap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"car\"],[\"string\",\"application/vnd.curl.car\"]],[[\"string\",\"cat\"],[\"string\",\"application/vnd.ms-pki.seccat\"]],[[\"string\",\"cb7\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cba\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbr\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbt\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbz\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cc\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cct\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ccxml\"],[\"string\",\"application/ccxml+xml\"]],[[\"string\",\"cdbcmsg\"],[\"string\",\"application/vnd.contact.cmsg\"]],[[\"string\",\"cdf\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"cdkey\"],[\"string\",\"application/vnd.mediastation.cdkey\"]],[[\"string\",\"cdmia\"],[\"string\",\"application/cdmi-capability\"]],[[\"string\",\"cdmic\"],[\"string\",\"application/cdmi-container\"]],[[\"string\",\"cdmid\"],[\"string\",\"application/cdmi-domain\"]],[[\"string\",\"cdmio\"],[\"string\",\"application/cdmi-object\"]],[[\"string\",\"cdmiq\"],[\"string\",\"application/cdmi-queue\"]],[[\"string\",\"cdx\"],[\"string\",\"chemical/x-cdx\"]],[[\"string\",\"cdxml\"],[\"string\",\"application/vnd.chemdraw+xml\"]],[[\"string\",\"cdy\"],[\"string\",\"application/vnd.cinderella\"]],[[\"string\",\"cer\"],[\"string\",\"application/pkix-cert\"]],[[\"string\",\"cfs\"],[\"string\",\"application/x-cfs-compressed\"]],[[\"string\",\"cgm\"],[\"string\",\"image/cgm\"]],[[\"string\",\"chat\"],[\"string\",\"application/x-chat\"]],[[\"string\",\"chm\"],[\"string\",\"application/vnd.ms-htmlhelp\"]],[[\"string\",\"chrt\"],[\"string\",\"application/vnd.kde.kchart\"]],[[\"string\",\"cif\"],[\"string\",\"chemical/x-cif\"]],[[\"string\",\"cii\"],[\"string\",\"application/vnd.anser-web-certificate-issue-initiation\"]],[[\"string\",\"cil\"],[\"string\",\"application/vnd.ms-artgalry\"]],[[\"string\",\"cla\"],[\"string\",\"application/vnd.claymore\"]],[[\"string\",\"class\"],[\"string\",\"application/java-vm\"]],[[\"string\",\"clkk\"],[\"string\",\"application/vnd.crick.clicker.keyboard\"]],[[\"string\",\"clkp\"],[\"string\",\"application/vnd.crick.clicker.palette\"]],[[\"string\",\"clkt\"],[\"string\",\"application/vnd.crick.clicker.template\"]],[[\"string\",\"clkw\"],[\"string\",\"application/vnd.crick.clicker.wordbank\"]],[[\"string\",\"clkx\"],[\"string\",\"application/vnd.crick.clicker\"]],[[\"string\",\"clp\"],[\"string\",\"application/x-msclip\"]],[[\"string\",\"cmc\"],[\"string\",\"application/vnd.cosmocaller\"]],[[\"string\",\"cmdf\"],[\"string\",\"chemical/x-cmdf\"]],[[\"string\",\"cml\"],[\"string\",\"chemical/x-cml\"]],[[\"string\",\"cmp\"],[\"string\",\"application/vnd.yellowriver-custom-menu\"]],[[\"string\",\"cmx\"],[\"string\",\"image/x-cmx\"]],[[\"string\",\"cod\"],[\"string\",\"application/vnd.rim.cod\"]],[[\"string\",\"com\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"conf\"],[\"string\",\"text/plain\"]],[[\"string\",\"cpio\"],[\"string\",\"application/x-cpio\"]],[[\"string\",\"cpp\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cpt\"],[\"string\",\"application/mac-compactpro\"]],[[\"string\",\"crd\"],[\"string\",\"application/x-mscardfile\"]],[[\"string\",\"crl\"],[\"string\",\"application/pkix-crl\"]],[[\"string\",\"crt\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"cryptonote\"],[\"string\",\"application/vnd.rig.cryptonote\"]],[[\"string\",\"csh\"],[\"string\",\"application/x-csh\"]],[[\"string\",\"csml\"],[\"string\",\"chemical/x-csml\"]],[[\"string\",\"csp\"],[\"string\",\"application/vnd.commonspace\"]],[[\"string\",\"css\"],[\"string\",\"text/css\"]],[[\"string\",\"cst\"],[\"string\",\"application/x-director\"]],[[\"string\",\"csv\"],[\"string\",\"text/csv\"]],[[\"string\",\"cu\"],[\"string\",\"application/cu-seeme\"]],[[\"string\",\"curl\"],[\"string\",\"text/vnd.curl\"]],[[\"string\",\"cww\"],[\"string\",\"application/prs.cww\"]],[[\"string\",\"cxt\"],[\"string\",\"application/x-director\"]],[[\"string\",\"cxx\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dae\"],[\"string\",\"model/vnd.collada+xml\"]],[[\"string\",\"daf\"],[\"string\",\"application/vnd.mobius.daf\"]],[[\"string\",\"dart\"],[\"string\",\"text/x-dart\"]],[[\"string\",\"dataless\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"davmount\"],[\"string\",\"application/davmount+xml\"]],[[\"string\",\"dbk\"],[\"string\",\"application/docbook+xml\"]],[[\"string\",\"dcm\"],[\"string\",\"application/dicom\"]],[[\"string\",\"dcr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dcurl\"],[\"string\",\"text/vnd.curl.dcurl\"]],[[\"string\",\"dd2\"],[\"string\",\"application/vnd.oma.dd2+xml\"]],[[\"string\",\"ddd\"],[\"string\",\"application/vnd.fujixerox.ddd\"]],[[\"string\",\"deb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"def\"],[\"string\",\"text/plain\"]],[[\"string\",\"deploy\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"der\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"dfac\"],[\"string\",\"application/vnd.dreamfactory\"]],[[\"string\",\"dgc\"],[\"string\",\"application/x-dgc-compressed\"]],[[\"string\",\"dic\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dir\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dis\"],[\"string\",\"application/vnd.mobius.dis\"]],[[\"string\",\"dist\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"distz\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"djv\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"djvu\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"dll\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"dmg\"],[\"string\",\"application/x-apple-diskimage\"]],[[\"string\",\"dmp\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"dms\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dna\"],[\"string\",\"application/vnd.dna\"]],[[\"string\",\"doc\"],[\"string\",\"application/msword\"]],[[\"string\",\"docm\"],[\"string\",\"application/vnd.ms-word.document.macroenabled.12\"]],[[\"string\",\"docx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"]],[[\"string\",\"dot\"],[\"string\",\"application/msword\"]],[[\"string\",\"dotm\"],[\"string\",\"application/vnd.ms-word.template.macroenabled.12\"]],[[\"string\",\"dotx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.template\"]],[[\"string\",\"dp\"],[\"string\",\"application/vnd.osgi.dp\"]],[[\"string\",\"dpg\"],[\"string\",\"application/vnd.dpgraph\"]],[[\"string\",\"dra\"],[\"string\",\"audio/vnd.dra\"]],[[\"string\",\"dsc\"],[\"string\",\"text/prs.lines.tag\"]],[[\"string\",\"dssc\"],[\"string\",\"application/dssc+der\"]],[[\"string\",\"dtb\"],[\"string\",\"application/x-dtbook+xml\"]],[[\"string\",\"dtd\"],[\"string\",\"application/xml-dtd\"]],[[\"string\",\"dts\"],[\"string\",\"audio/vnd.dts\"]],[[\"string\",\"dtshd\"],[\"string\",\"audio/vnd.dts.hd\"]],[[\"string\",\"dump\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dvb\"],[\"string\",\"video/vnd.dvb.file\"]],[[\"string\",\"dvi\"],[\"string\",\"application/x-dvi\"]],[[\"string\",\"dwf\"],[\"string\",\"model/vnd.dwf\"]],[[\"string\",\"dwg\"],[\"string\",\"image/vnd.dwg\"]],[[\"string\",\"dxf\"],[\"string\",\"image/vnd.dxf\"]],[[\"string\",\"dxp\"],[\"string\",\"application/vnd.spotfire.dxp\"]],[[\"string\",\"dxr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ecelp4800\"],[\"string\",\"audio/vnd.nuera.ecelp4800\"]],[[\"string\",\"ecelp7470\"],[\"string\",\"audio/vnd.nuera.ecelp7470\"]],[[\"string\",\"ecelp9600\"],[\"string\",\"audio/vnd.nuera.ecelp9600\"]],[[\"string\",\"ecma\"],[\"string\",\"application/ecmascript\"]],[[\"string\",\"edm\"],[\"string\",\"application/vnd.novadigm.edm\"]],[[\"string\",\"edx\"],[\"string\",\"application/vnd.novadigm.edx\"]],[[\"string\",\"efif\"],[\"string\",\"application/vnd.picsel\"]],[[\"string\",\"ei6\"],[\"string\",\"application/vnd.pg.osasli\"]],[[\"string\",\"elc\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"emf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eml\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"emma\"],[\"string\",\"application/emma+xml\"]],[[\"string\",\"emz\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eol\"],[\"string\",\"audio/vnd.digital-winds\"]],[[\"string\",\"eot\"],[\"string\",\"application/vnd.ms-fontobject\"]],[[\"string\",\"eps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"epub\"],[\"string\",\"application/epub+zip\"]],[[\"string\",\"es3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"esa\"],[\"string\",\"application/vnd.osgi.subsystem\"]],[[\"string\",\"esf\"],[\"string\",\"application/vnd.epson.esf\"]],[[\"string\",\"et3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"etx\"],[\"string\",\"text/x-setext\"]],[[\"string\",\"eva\"],[\"string\",\"application/x-eva\"]],[[\"string\",\"evy\"],[\"string\",\"application/x-envoy\"]],[[\"string\",\"exe\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"exi\"],[\"string\",\"application/exi\"]],[[\"string\",\"ext\"],[\"string\",\"application/vnd.novadigm.ext\"]],[[\"string\",\"ez\"],[\"string\",\"application/andrew-inset\"]],[[\"string\",\"ez2\"],[\"string\",\"application/vnd.ezpix-album\"]],[[\"string\",\"ez3\"],[\"string\",\"application/vnd.ezpix-package\"]],[[\"string\",\"f\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f4v\"],[\"string\",\"video/x-f4v\"]],[[\"string\",\"f77\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f90\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fbs\"],[\"string\",\"image/vnd.fastbidsheet\"]],[[\"string\",\"fcdt\"],[\"string\",\"application/vnd.adobe.formscentral.fcdt\"]],[[\"string\",\"fcs\"],[\"string\",\"application/vnd.isac.fcs\"]],[[\"string\",\"fdf\"],[\"string\",\"application/vnd.fdf\"]],[[\"string\",\"fe_launch\"],[\"string\",\"application/vnd.denovo.fcselayout-link\"]],[[\"string\",\"fg5\"],[\"string\",\"application/vnd.fujitsu.oasysgp\"]],[[\"string\",\"fgd\"],[\"string\",\"application/x-director\"]],[[\"string\",\"fh\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh4\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh5\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh7\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fhc\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fig\"],[\"string\",\"application/x-xfig\"]],[[\"string\",\"flac\"],[\"string\",\"audio/x-flac\"]],[[\"string\",\"fli\"],[\"string\",\"video/x-fli\"]],[[\"string\",\"flo\"],[\"string\",\"application/vnd.micrografx.flo\"]],[[\"string\",\"flv\"],[\"string\",\"video/x-flv\"]],[[\"string\",\"flw\"],[\"string\",\"application/vnd.kde.kivio\"]],[[\"string\",\"flx\"],[\"string\",\"text/vnd.fmi.flexstor\"]],[[\"string\",\"fly\"],[\"string\",\"text/vnd.fly\"]],[[\"string\",\"fm\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fnc\"],[\"string\",\"application/vnd.frogans.fnc\"]],[[\"string\",\"for\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fpx\"],[\"string\",\"image/vnd.fpx\"]],[[\"string\",\"frame\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fsc\"],[\"string\",\"application/vnd.fsc.weblaunch\"]],[[\"string\",\"fst\"],[\"string\",\"image/vnd.fst\"]],[[\"string\",\"ftc\"],[\"string\",\"application/vnd.fluxtime.clip\"]],[[\"string\",\"fti\"],[\"string\",\"application/vnd.anser-web-funds-transfer-initiation\"]],[[\"string\",\"fvt\"],[\"string\",\"video/vnd.fvt\"]],[[\"string\",\"fxp\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fxpl\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fzs\"],[\"string\",\"application/vnd.fuzzysheet\"]],[[\"string\",\"g2w\"],[\"string\",\"application/vnd.geoplan\"]],[[\"string\",\"g3\"],[\"string\",\"image/g3fax\"]],[[\"string\",\"g3w\"],[\"string\",\"application/vnd.geospace\"]],[[\"string\",\"gac\"],[\"string\",\"application/vnd.groove-account\"]],[[\"string\",\"gam\"],[\"string\",\"application/x-tads\"]],[[\"string\",\"gbr\"],[\"string\",\"application/rpki-ghostbusters\"]],[[\"string\",\"gca\"],[\"string\",\"application/x-gca-compressed\"]],[[\"string\",\"gdl\"],[\"string\",\"model/vnd.gdl\"]],[[\"string\",\"geo\"],[\"string\",\"application/vnd.dynageo\"]],[[\"string\",\"gex\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"ggb\"],[\"string\",\"application/vnd.geogebra.file\"]],[[\"string\",\"ggt\"],[\"string\",\"application/vnd.geogebra.tool\"]],[[\"string\",\"ghf\"],[\"string\",\"application/vnd.groove-help\"]],[[\"string\",\"gif\"],[\"string\",\"image/gif\"]],[[\"string\",\"gim\"],[\"string\",\"application/vnd.groove-identity-message\"]],[[\"string\",\"glb\"],[\"string\",\"model/gltf-binary\"]],[[\"string\",\"gltf\"],[\"string\",\"model/gltf+json\"]],[[\"string\",\"gml\"],[\"string\",\"application/gml+xml\"]],[[\"string\",\"gmx\"],[\"string\",\"application/vnd.gmx\"]],[[\"string\",\"gnumeric\"],[\"string\",\"application/x-gnumeric\"]],[[\"string\",\"gph\"],[\"string\",\"application/vnd.flographit\"]],[[\"string\",\"gpx\"],[\"string\",\"application/gpx+xml\"]],[[\"string\",\"gqf\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gqs\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gram\"],[\"string\",\"application/srgs\"]],[[\"string\",\"gramps\"],[\"string\",\"application/x-gramps-xml\"]],[[\"string\",\"gre\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"grv\"],[\"string\",\"application/vnd.groove-injector\"]],[[\"string\",\"grxml\"],[\"string\",\"application/srgs+xml\"]],[[\"string\",\"gsf\"],[\"string\",\"application/x-font-ghostscript\"]],[[\"string\",\"gtar\"],[\"string\",\"application/x-gtar\"]],[[\"string\",\"gtm\"],[\"string\",\"application/vnd.groove-tool-message\"]],[[\"string\",\"gtw\"],[\"string\",\"model/vnd.gtw\"]],[[\"string\",\"gv\"],[\"string\",\"text/vnd.graphviz\"]],[[\"string\",\"gxf\"],[\"string\",\"application/gxf\"]],[[\"string\",\"gxt\"],[\"string\",\"application/vnd.geonext\"]],[[\"string\",\"h\"],[\"string\",\"text/x-c\"]],[[\"string\",\"h261\"],[\"string\",\"video/h261\"]],[[\"string\",\"h263\"],[\"string\",\"video/h263\"]],[[\"string\",\"h264\"],[\"string\",\"video/h264\"]],[[\"string\",\"hal\"],[\"string\",\"application/vnd.hal+xml\"]],[[\"string\",\"hbci\"],[\"string\",\"application/vnd.hbci\"]],[[\"string\",\"hdf\"],[\"string\",\"application/x-hdf\"]],[[\"string\",\"heic\"],[\"string\",\"image/heic\"]],[[\"string\",\"heif\"],[\"string\",\"image/heif\"]],[[\"string\",\"hh\"],[\"string\",\"text/x-c\"]],[[\"string\",\"hlp\"],[\"string\",\"application/winhlp\"]],[[\"string\",\"hpgl\"],[\"string\",\"application/vnd.hp-hpgl\"]],[[\"string\",\"hpid\"],[\"string\",\"application/vnd.hp-hpid\"]],[[\"string\",\"hps\"],[\"string\",\"application/vnd.hp-hps\"]],[[\"string\",\"hqx\"],[\"string\",\"application/mac-binhex40\"]],[[\"string\",\"htke\"],[\"string\",\"application/vnd.kenameaapp\"]],[[\"string\",\"htm\"],[\"string\",\"text/html\"]],[[\"string\",\"html\"],[\"string\",\"text/html\"]],[[\"string\",\"hvd\"],[\"string\",\"application/vnd.yamaha.hv-dic\"]],[[\"string\",\"hvp\"],[\"string\",\"application/vnd.yamaha.hv-voice\"]],[[\"string\",\"hvs\"],[\"string\",\"application/vnd.yamaha.hv-script\"]],[[\"string\",\"i2g\"],[\"string\",\"application/vnd.intergeo\"]],[[\"string\",\"icc\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ice\"],[\"string\",\"x-conference/x-cooltalk\"]],[[\"string\",\"icm\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ico\"],[\"string\",\"image/x-icon\"]],[[\"string\",\"ics\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ief\"],[\"string\",\"image/ief\"]],[[\"string\",\"ifb\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ifm\"],[\"string\",\"application/vnd.shana.informed.formdata\"]],[[\"string\",\"iges\"],[\"string\",\"model/iges\"]],[[\"string\",\"igl\"],[\"string\",\"application/vnd.igloader\"]],[[\"string\",\"igm\"],[\"string\",\"application/vnd.insors.igm\"]],[[\"string\",\"igs\"],[\"string\",\"model/iges\"]],[[\"string\",\"igx\"],[\"string\",\"application/vnd.micrografx.igx\"]],[[\"string\",\"iif\"],[\"string\",\"application/vnd.shana.informed.interchange\"]],[[\"string\",\"imp\"],[\"string\",\"application/vnd.accpac.simply.imp\"]],[[\"string\",\"ims\"],[\"string\",\"application/vnd.ms-ims\"]],[[\"string\",\"in\"],[\"string\",\"text/plain\"]],[[\"string\",\"ink\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"inkml\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"install\"],[\"string\",\"application/x-install-instructions\"]],[[\"string\",\"iota\"],[\"string\",\"application/vnd.astraea-software.iota\"]],[[\"string\",\"ipfix\"],[\"string\",\"application/ipfix\"]],[[\"string\",\"ipk\"],[\"string\",\"application/vnd.shana.informed.package\"]],[[\"string\",\"irm\"],[\"string\",\"application/vnd.ibm.rights-management\"]],[[\"string\",\"irp\"],[\"string\",\"application/vnd.irepository.package+xml\"]],[[\"string\",\"iso\"],[\"string\",\"application/x-iso9660-image\"]],[[\"string\",\"itp\"],[\"string\",\"application/vnd.shana.informed.formtemplate\"]],[[\"string\",\"ivp\"],[\"string\",\"application/vnd.immervision-ivp\"]],[[\"string\",\"ivu\"],[\"string\",\"application/vnd.immervision-ivu\"]],[[\"string\",\"jad\"],[\"string\",\"text/vnd.sun.j2me.app-descriptor\"]],[[\"string\",\"jam\"],[\"string\",\"application/vnd.jam\"]],[[\"string\",\"jar\"],[\"string\",\"application/java-archive\"]],[[\"string\",\"java\"],[\"string\",\"text/x-java-source\"]],[[\"string\",\"jisp\"],[\"string\",\"application/vnd.jisp\"]],[[\"string\",\"jlt\"],[\"string\",\"application/vnd.hp-jlyt\"]],[[\"string\",\"jnlp\"],[\"string\",\"application/x-java-jnlp-file\"]],[[\"string\",\"joda\"],[\"string\",\"application/vnd.joost.joda-archive\"]],[[\"string\",\"jpe\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpeg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpgm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"jpgv\"],[\"string\",\"video/jpeg\"]],[[\"string\",\"jpm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"js\"],[\"string\",\"text/javascript\"]],[[\"string\",\"json\"],[\"string\",\"application/json\"]],[[\"string\",\"jsonml\"],[\"string\",\"application/jsonml+json\"]],[[\"string\",\"kar\"],[\"string\",\"audio/midi\"]],[[\"string\",\"karbon\"],[\"string\",\"application/vnd.kde.karbon\"]],[[\"string\",\"kfo\"],[\"string\",\"application/vnd.kde.kformula\"]],[[\"string\",\"kia\"],[\"string\",\"application/vnd.kidspiration\"]],[[\"string\",\"kml\"],[\"string\",\"application/vnd.google-earth.kml+xml\"]],[[\"string\",\"kmz\"],[\"string\",\"application/vnd.google-earth.kmz\"]],[[\"string\",\"kne\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"knp\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"kon\"],[\"string\",\"application/vnd.kde.kontour\"]],[[\"string\",\"kpr\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpt\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpxx\"],[\"string\",\"application/vnd.ds-keypoint\"]],[[\"string\",\"ksp\"],[\"string\",\"application/vnd.kde.kspread\"]],[[\"string\",\"ktr\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"ktx\"],[\"string\",\"image/ktx\"]],[[\"string\",\"ktz\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"kwd\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"kwt\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"lasxml\"],[\"string\",\"application/vnd.las.las+xml\"]],[[\"string\",\"latex\"],[\"string\",\"application/x-latex\"]],[[\"string\",\"lbd\"],[\"string\",\"application/vnd.llamagraphics.life-balance.desktop\"]],[[\"string\",\"lbe\"],[\"string\",\"application/vnd.llamagraphics.life-balance.exchange+xml\"]],[[\"string\",\"les\"],[\"string\",\"application/vnd.hhe.lesson-player\"]],[[\"string\",\"lha\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"link66\"],[\"string\",\"application/vnd.route66.link66+xml\"]],[[\"string\",\"list\"],[\"string\",\"text/plain\"]],[[\"string\",\"list3820\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"listafp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"lnk\"],[\"string\",\"application/x-ms-shortcut\"]],[[\"string\",\"log\"],[\"string\",\"text/plain\"]],[[\"string\",\"lostxml\"],[\"string\",\"application/lost+xml\"]],[[\"string\",\"lrf\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"lrm\"],[\"string\",\"application/vnd.ms-lrm\"]],[[\"string\",\"ltf\"],[\"string\",\"application/vnd.frogans.ltf\"]],[[\"string\",\"lvp\"],[\"string\",\"audio/vnd.lucent.voice\"]],[[\"string\",\"lwp\"],[\"string\",\"application/vnd.lotus-wordpro\"]],[[\"string\",\"lzh\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"m13\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m14\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m1v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"m2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m2v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m3a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m3u\"],[\"string\",\"audio/x-mpegurl\"]],[[\"string\",\"m3u8\"],[\"string\",\"application/vnd.apple.mpegurl\"]],[[\"string\",\"m4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4b\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4u\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"m4v\"],[\"string\",\"video/x-m4v\"]],[[\"string\",\"ma\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mads\"],[\"string\",\"application/mads+xml\"]],[[\"string\",\"mag\"],[\"string\",\"application/vnd.ecowin.chart\"]],[[\"string\",\"maker\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"man\"],[\"string\",\"text/troff\"]],[[\"string\",\"mar\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"mathml\"],[\"string\",\"application/mathml+xml\"]],[[\"string\",\"mb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mbk\"],[\"string\",\"application/vnd.mobius.mbk\"]],[[\"string\",\"mbox\"],[\"string\",\"application/mbox\"]],[[\"string\",\"mc1\"],[\"string\",\"application/vnd.medcalcdata\"]],[[\"string\",\"mcd\"],[\"string\",\"application/vnd.mcd\"]],[[\"string\",\"mcurl\"],[\"string\",\"text/vnd.curl.mcurl\"]],[[\"string\",\"md\"],[\"string\",\"text/markdown\"]],[[\"string\",\"markdown\"],[\"string\",\"text/markdown\"]],[[\"string\",\"mdb\"],[\"string\",\"application/x-msaccess\"]],[[\"string\",\"mdi\"],[\"string\",\"image/vnd.ms-modi\"]],[[\"string\",\"me\"],[\"string\",\"text/troff\"]],[[\"string\",\"mesh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"meta4\"],[\"string\",\"application/metalink4+xml\"]],[[\"string\",\"metalink\"],[\"string\",\"application/metalink+xml\"]],[[\"string\",\"mets\"],[\"string\",\"application/mets+xml\"]],[[\"string\",\"mfm\"],[\"string\",\"application/vnd.mfmp\"]],[[\"string\",\"mft\"],[\"string\",\"application/rpki-manifest\"]],[[\"string\",\"mgp\"],[\"string\",\"application/vnd.osgeo.mapguide.package\"]],[[\"string\",\"mgz\"],[\"string\",\"application/vnd.proteus.magazine\"]],[[\"string\",\"mid\"],[\"string\",\"audio/midi\"]],[[\"string\",\"midi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"mie\"],[\"string\",\"application/x-mie\"]],[[\"string\",\"mif\"],[\"string\",\"application/vnd.mif\"]],[[\"string\",\"mime\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"mj2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjp2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjs\"],[\"string\",\"text/javascript\"]],[[\"string\",\"mk3d\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mka\"],[\"string\",\"audio/x-matroska\"]],[[\"string\",\"mks\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mkv\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mlp\"],[\"string\",\"application/vnd.dolby.mlp\"]],[[\"string\",\"mmd\"],[\"string\",\"application/vnd.chipnuts.karaoke-mmd\"]],[[\"string\",\"mmf\"],[\"string\",\"application/vnd.smaf\"]],[[\"string\",\"mmr\"],[\"string\",\"image/vnd.fujixerox.edmics-mmr\"]],[[\"string\",\"mng\"],[\"string\",\"video/x-mng\"]],[[\"string\",\"mny\"],[\"string\",\"application/x-msmoney\"]],[[\"string\",\"mobi\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"mods\"],[\"string\",\"application/mods+xml\"]],[[\"string\",\"mov\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"movie\"],[\"string\",\"video/x-sgi-movie\"]],[[\"string\",\"mp2\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"mp2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp3\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mp4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"mp4s\"],[\"string\",\"application/mp4\"]],[[\"string\",\"mp4v\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpc\"],[\"string\",\"application/vnd.mophun.certificate\"]],[[\"string\",\"mpe\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpeg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpga\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mpkg\"],[\"string\",\"application/vnd.apple.installer+xml\"]],[[\"string\",\"mpm\"],[\"string\",\"application/vnd.blueice.multipass\"]],[[\"string\",\"mpn\"],[\"string\",\"application/vnd.mophun.application\"]],[[\"string\",\"mpp\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpt\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpy\"],[\"string\",\"application/vnd.ibm.minipay\"]],[[\"string\",\"mqy\"],[\"string\",\"application/vnd.mobius.mqy\"]],[[\"string\",\"mrc\"],[\"string\",\"application/marc\"]],[[\"string\",\"mrcx\"],[\"string\",\"application/marcxml+xml\"]],[[\"string\",\"ms\"],[\"string\",\"text/troff\"]],[[\"string\",\"mscml\"],[\"string\",\"application/mediaservercontrol+xml\"]],[[\"string\",\"mseed\"],[\"string\",\"application/vnd.fdsn.mseed\"]],[[\"string\",\"mseq\"],[\"string\",\"application/vnd.mseq\"]],[[\"string\",\"msf\"],[\"string\",\"application/vnd.epson.msf\"]],[[\"string\",\"msh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"msi\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"msl\"],[\"string\",\"application/vnd.mobius.msl\"]],[[\"string\",\"msty\"],[\"string\",\"application/vnd.muvee.style\"]],[[\"string\",\"mts\"],[\"string\",\"model/vnd.mts\"]],[[\"string\",\"mus\"],[\"string\",\"application/vnd.musician\"]],[[\"string\",\"musicxml\"],[\"string\",\"application/vnd.recordare.musicxml+xml\"]],[[\"string\",\"mvb\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"mwf\"],[\"string\",\"application/vnd.mfer\"]],[[\"string\",\"mxf\"],[\"string\",\"application/mxf\"]],[[\"string\",\"mxl\"],[\"string\",\"application/vnd.recordare.musicxml\"]],[[\"string\",\"mxml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"mxs\"],[\"string\",\"application/vnd.triscape.mxs\"]],[[\"string\",\"mxu\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"n-gage\"],[\"string\",\"application/vnd.nokia.n-gage.symbian.install\"]],[[\"string\",\"n3\"],[\"string\",\"text/n3\"]],[[\"string\",\"nb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"nbp\"],[\"string\",\"application/vnd.wolfram.player\"]],[[\"string\",\"nc\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"ncx\"],[\"string\",\"application/x-dtbncx+xml\"]],[[\"string\",\"nfo\"],[\"string\",\"text/x-nfo\"]],[[\"string\",\"ngdat\"],[\"string\",\"application/vnd.nokia.n-gage.data\"]],[[\"string\",\"nitf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nlu\"],[\"string\",\"application/vnd.neurolanguage.nlu\"]],[[\"string\",\"nml\"],[\"string\",\"application/vnd.enliven\"]],[[\"string\",\"nnd\"],[\"string\",\"application/vnd.noblenet-directory\"]],[[\"string\",\"nns\"],[\"string\",\"application/vnd.noblenet-sealer\"]],[[\"string\",\"nnw\"],[\"string\",\"application/vnd.noblenet-web\"]],[[\"string\",\"npx\"],[\"string\",\"image/vnd.net-fpx\"]],[[\"string\",\"nsc\"],[\"string\",\"application/x-conference\"]],[[\"string\",\"nsf\"],[\"string\",\"application/vnd.lotus-notes\"]],[[\"string\",\"ntf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nzb\"],[\"string\",\"application/x-nzb\"]],[[\"string\",\"oa2\"],[\"string\",\"application/vnd.fujitsu.oasys2\"]],[[\"string\",\"oa3\"],[\"string\",\"application/vnd.fujitsu.oasys3\"]],[[\"string\",\"oas\"],[\"string\",\"application/vnd.fujitsu.oasys\"]],[[\"string\",\"obd\"],[\"string\",\"application/x-msbinder\"]],[[\"string\",\"obj\"],[\"string\",\"application/x-tgif\"]],[[\"string\",\"oda\"],[\"string\",\"application/oda\"]],[[\"string\",\"odb\"],[\"string\",\"application/vnd.oasis.opendocument.database\"]],[[\"string\",\"odc\"],[\"string\",\"application/vnd.oasis.opendocument.chart\"]],[[\"string\",\"odf\"],[\"string\",\"application/vnd.oasis.opendocument.formula\"]],[[\"string\",\"odft\"],[\"string\",\"application/vnd.oasis.opendocument.formula-template\"]],[[\"string\",\"odg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics\"]],[[\"string\",\"odi\"],[\"string\",\"application/vnd.oasis.opendocument.image\"]],[[\"string\",\"odm\"],[\"string\",\"application/vnd.oasis.opendocument.text-master\"]],[[\"string\",\"odp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation\"]],[[\"string\",\"ods\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet\"]],[[\"string\",\"odt\"],[\"string\",\"application/vnd.oasis.opendocument.text\"]],[[\"string\",\"oga\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogg\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogv\"],[\"string\",\"video/ogg\"]],[[\"string\",\"ogx\"],[\"string\",\"application/ogg\"]],[[\"string\",\"omdoc\"],[\"string\",\"application/omdoc+xml\"]],[[\"string\",\"onepkg\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetmp\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc2\"],[\"string\",\"application/onenote\"]],[[\"string\",\"opf\"],[\"string\",\"application/oebps-package+xml\"]],[[\"string\",\"opml\"],[\"string\",\"text/x-opml\"]],[[\"string\",\"oprc\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"org\"],[\"string\",\"application/vnd.lotus-organizer\"]],[[\"string\",\"osf\"],[\"string\",\"application/vnd.yamaha.openscoreformat\"]],[[\"string\",\"osfpvg\"],[\"string\",\"application/vnd.yamaha.openscoreformat.osfpvg+xml\"]],[[\"string\",\"otc\"],[\"string\",\"application/vnd.oasis.opendocument.chart-template\"]],[[\"string\",\"otf\"],[\"string\",\"application/x-font-otf\"]],[[\"string\",\"otg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics-template\"]],[[\"string\",\"oth\"],[\"string\",\"application/vnd.oasis.opendocument.text-web\"]],[[\"string\",\"oti\"],[\"string\",\"application/vnd.oasis.opendocument.image-template\"]],[[\"string\",\"otp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation-template\"]],[[\"string\",\"ots\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet-template\"]],[[\"string\",\"ott\"],[\"string\",\"application/vnd.oasis.opendocument.text-template\"]],[[\"string\",\"oxps\"],[\"string\",\"application/oxps\"]],[[\"string\",\"oxt\"],[\"string\",\"application/vnd.openofficeorg.extension\"]],[[\"string\",\"p\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"p10\"],[\"string\",\"application/pkcs10\"]],[[\"string\",\"p12\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"p7b\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"p7c\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7m\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7r\"],[\"string\",\"application/x-pkcs7-certreqresp\"]],[[\"string\",\"p7s\"],[\"string\",\"application/pkcs7-signature\"]],[[\"string\",\"p8\"],[\"string\",\"application/pkcs8\"]],[[\"string\",\"pas\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"paw\"],[\"string\",\"application/vnd.pawaafile\"]],[[\"string\",\"pbd\"],[\"string\",\"application/vnd.powerbuilder6\"]],[[\"string\",\"pbm\"],[\"string\",\"image/x-portable-bitmap\"]],[[\"string\",\"pcap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"pcf\"],[\"string\",\"application/x-font-pcf\"]],[[\"string\",\"pcl\"],[\"string\",\"application/vnd.hp-pcl\"]],[[\"string\",\"pclxl\"],[\"string\",\"application/vnd.hp-pclxl\"]],[[\"string\",\"pct\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pcurl\"],[\"string\",\"application/vnd.curl.pcurl\"]],[[\"string\",\"pcx\"],[\"string\",\"image/x-pcx\"]],[[\"string\",\"pdb\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"pdf\"],[\"string\",\"application/pdf\"]],[[\"string\",\"pfa\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfb\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfr\"],[\"string\",\"application/font-tdpfr\"]],[[\"string\",\"pfx\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"pgm\"],[\"string\",\"image/x-portable-graymap\"]],[[\"string\",\"pgn\"],[\"string\",\"application/x-chess-pgn\"]],[[\"string\",\"pgp\"],[\"string\",\"application/pgp-encrypted\"]],[[\"string\",\"pic\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pkg\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"pki\"],[\"string\",\"application/pkixcmp\"]],[[\"string\",\"pkipath\"],[\"string\",\"application/pkix-pkipath\"]],[[\"string\",\"plb\"],[\"string\",\"application/vnd.3gpp.pic-bw-large\"]],[[\"string\",\"plc\"],[\"string\",\"application/vnd.mobius.plc\"]],[[\"string\",\"plf\"],[\"string\",\"application/vnd.pocketlearn\"]],[[\"string\",\"pls\"],[\"string\",\"application/pls+xml\"]],[[\"string\",\"pml\"],[\"string\",\"application/vnd.ctc-posml\"]],[[\"string\",\"png\"],[\"string\",\"image/png\"]],[[\"string\",\"pnm\"],[\"string\",\"image/x-portable-anymap\"]],[[\"string\",\"portpkg\"],[\"string\",\"application/vnd.macports.portpkg\"]],[[\"string\",\"pot\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"potm\"],[\"string\",\"application/vnd.ms-powerpoint.template.macroenabled.12\"]],[[\"string\",\"potx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.template\"]],[[\"string\",\"ppam\"],[\"string\",\"application/vnd.ms-powerpoint.addin.macroenabled.12\"]],[[\"string\",\"ppd\"],[\"string\",\"application/vnd.cups-ppd\"]],[[\"string\",\"ppm\"],[\"string\",\"image/x-portable-pixmap\"]],[[\"string\",\"pps\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"ppsm\"],[\"string\",\"application/vnd.ms-powerpoint.slideshow.macroenabled.12\"]],[[\"string\",\"ppsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slideshow\"]],[[\"string\",\"ppt\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"pptm\"],[\"string\",\"application/vnd.ms-powerpoint.presentation.macroenabled.12\"]],[[\"string\",\"pptx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.presentation\"]],[[\"string\",\"pqa\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"prc\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"pre\"],[\"string\",\"application/vnd.lotus-freelance\"]],[[\"string\",\"prf\"],[\"string\",\"application/pics-rules\"]],[[\"string\",\"ps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"psb\"],[\"string\",\"application/vnd.3gpp.pic-bw-small\"]],[[\"string\",\"psd\"],[\"string\",\"image/vnd.adobe.photoshop\"]],[[\"string\",\"psf\"],[\"string\",\"application/x-font-linux-psf\"]],[[\"string\",\"pskcxml\"],[\"string\",\"application/pskc+xml\"]],[[\"string\",\"ptid\"],[\"string\",\"application/vnd.pvi.ptid1\"]],[[\"string\",\"pub\"],[\"string\",\"application/x-mspublisher\"]],[[\"string\",\"pvb\"],[\"string\",\"application/vnd.3gpp.pic-bw-var\"]],[[\"string\",\"pwn\"],[\"string\",\"application/vnd.3m.post-it-notes\"]],[[\"string\",\"pya\"],[\"string\",\"audio/vnd.ms-playready.media.pya\"]],[[\"string\",\"pyv\"],[\"string\",\"video/vnd.ms-playready.media.pyv\"]],[[\"string\",\"qam\"],[\"string\",\"application/vnd.epson.quickanime\"]],[[\"string\",\"qbo\"],[\"string\",\"application/vnd.intu.qbo\"]],[[\"string\",\"qfx\"],[\"string\",\"application/vnd.intu.qfx\"]],[[\"string\",\"qps\"],[\"string\",\"application/vnd.publishare-delta-tree\"]],[[\"string\",\"qt\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"qwd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qwt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxb\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxl\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"ra\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"ram\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"rar\"],[\"string\",\"application/x-rar-compressed\"]],[[\"string\",\"ras\"],[\"string\",\"image/x-cmu-raster\"]],[[\"string\",\"rcprofile\"],[\"string\",\"application/vnd.ipunplugged.rcprofile\"]],[[\"string\",\"rdf\"],[\"string\",\"application/rdf+xml\"]],[[\"string\",\"rdz\"],[\"string\",\"application/vnd.data-vision.rdz\"]],[[\"string\",\"rep\"],[\"string\",\"application/vnd.businessobjects\"]],[[\"string\",\"res\"],[\"string\",\"application/x-dtbresource+xml\"]],[[\"string\",\"rgb\"],[\"string\",\"image/x-rgb\"]],[[\"string\",\"rif\"],[\"string\",\"application/reginfo+xml\"]],[[\"string\",\"rip\"],[\"string\",\"audio/vnd.rip\"]],[[\"string\",\"ris\"],[\"string\",\"application/x-research-info-systems\"]],[[\"string\",\"rl\"],[\"string\",\"application/resource-lists+xml\"]],[[\"string\",\"rlc\"],[\"string\",\"image/vnd.fujixerox.edmics-rlc\"]],[[\"string\",\"rld\"],[\"string\",\"application/resource-lists-diff+xml\"]],[[\"string\",\"rm\"],[\"string\",\"application/vnd.rn-realmedia\"]],[[\"string\",\"rmi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"rmp\"],[\"string\",\"audio/x-pn-realaudio-plugin\"]],[[\"string\",\"rms\"],[\"string\",\"application/vnd.jcp.javame.midlet-rms\"]],[[\"string\",\"rmvb\"],[\"string\",\"application/vnd.rn-realmedia-vbr\"]],[[\"string\",\"rnc\"],[\"string\",\"application/relax-ng-compact-syntax\"]],[[\"string\",\"roa\"],[\"string\",\"application/rpki-roa\"]],[[\"string\",\"roff\"],[\"string\",\"text/troff\"]],[[\"string\",\"rp9\"],[\"string\",\"application/vnd.cloanto.rp9\"]],[[\"string\",\"rpss\"],[\"string\",\"application/vnd.nokia.radio-presets\"]],[[\"string\",\"rpst\"],[\"string\",\"application/vnd.nokia.radio-preset\"]],[[\"string\",\"rq\"],[\"string\",\"application/sparql-query\"]],[[\"string\",\"rs\"],[\"string\",\"application/rls-services+xml\"]],[[\"string\",\"rsd\"],[\"string\",\"application/rsd+xml\"]],[[\"string\",\"rss\"],[\"string\",\"application/rss+xml\"]],[[\"string\",\"rtf\"],[\"string\",\"application/rtf\"]],[[\"string\",\"rtx\"],[\"string\",\"text/richtext\"]],[[\"string\",\"s\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"s3m\"],[\"string\",\"audio/s3m\"]],[[\"string\",\"saf\"],[\"string\",\"application/vnd.yamaha.smaf-audio\"]],[[\"string\",\"sbml\"],[\"string\",\"application/sbml+xml\"]],[[\"string\",\"sc\"],[\"string\",\"application/vnd.ibm.secure-container\"]],[[\"string\",\"scd\"],[\"string\",\"application/x-msschedule\"]],[[\"string\",\"scm\"],[\"string\",\"application/vnd.lotus-screencam\"]],[[\"string\",\"scq\"],[\"string\",\"application/scvp-cv-request\"]],[[\"string\",\"scs\"],[\"string\",\"application/scvp-cv-response\"]],[[\"string\",\"scurl\"],[\"string\",\"text/vnd.curl.scurl\"]],[[\"string\",\"sda\"],[\"string\",\"application/vnd.stardivision.draw\"]],[[\"string\",\"sdc\"],[\"string\",\"application/vnd.stardivision.calc\"]],[[\"string\",\"sdd\"],[\"string\",\"application/vnd.stardivision.impress\"]],[[\"string\",\"sdkd\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdkm\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdp\"],[\"string\",\"application/sdp\"]],[[\"string\",\"sdw\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"see\"],[\"string\",\"application/vnd.seemail\"]],[[\"string\",\"seed\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"sema\"],[\"string\",\"application/vnd.sema\"]],[[\"string\",\"semd\"],[\"string\",\"application/vnd.semd\"]],[[\"string\",\"semf\"],[\"string\",\"application/vnd.semf\"]],[[\"string\",\"ser\"],[\"string\",\"application/java-serialized-object\"]],[[\"string\",\"setpay\"],[\"string\",\"application/set-payment-initiation\"]],[[\"string\",\"setreg\"],[\"string\",\"application/set-registration-initiation\"]],[[\"string\",\"sfd-hdstx\"],[\"string\",\"application/vnd.hydrostatix.sof-data\"]],[[\"string\",\"sfs\"],[\"string\",\"application/vnd.spotfire.sfs\"]],[[\"string\",\"sfv\"],[\"string\",\"text/x-sfv\"]],[[\"string\",\"sgi\"],[\"string\",\"image/sgi\"]],[[\"string\",\"sgl\"],[\"string\",\"application/vnd.stardivision.writer-global\"]],[[\"string\",\"sgm\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sgml\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sh\"],[\"string\",\"application/x-sh\"]],[[\"string\",\"shar\"],[\"string\",\"application/x-shar\"]],[[\"string\",\"shf\"],[\"string\",\"application/shf+xml\"]],[[\"string\",\"sid\"],[\"string\",\"image/x-mrsid-image\"]],[[\"string\",\"sig\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"sil\"],[\"string\",\"audio/silk\"]],[[\"string\",\"silo\"],[\"string\",\"model/mesh\"]],[[\"string\",\"sis\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sisx\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sit\"],[\"string\",\"application/x-stuffit\"]],[[\"string\",\"sitx\"],[\"string\",\"application/x-stuffitx\"]],[[\"string\",\"skd\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skm\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skp\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skt\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"sldm\"],[\"string\",\"application/vnd.ms-powerpoint.slide.macroenabled.12\"]],[[\"string\",\"sldx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slide\"]],[[\"string\",\"slt\"],[\"string\",\"application/vnd.epson.salt\"]],[[\"string\",\"sm\"],[\"string\",\"application/vnd.stepmania.stepchart\"]],[[\"string\",\"smf\"],[\"string\",\"application/vnd.stardivision.math\"]],[[\"string\",\"smi\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smil\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smv\"],[\"string\",\"video/x-smv\"]],[[\"string\",\"smzip\"],[\"string\",\"application/vnd.stepmania.package\"]],[[\"string\",\"snd\"],[\"string\",\"audio/basic\"]],[[\"string\",\"snf\"],[\"string\",\"application/x-font-snf\"]],[[\"string\",\"so\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"spc\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"spf\"],[\"string\",\"application/vnd.yamaha.smaf-phrase\"]],[[\"string\",\"spl\"],[\"string\",\"application/x-futuresplash\"]],[[\"string\",\"spot\"],[\"string\",\"text/vnd.in3d.spot\"]],[[\"string\",\"spp\"],[\"string\",\"application/scvp-vp-response\"]],[[\"string\",\"spq\"],[\"string\",\"application/scvp-vp-request\"]],[[\"string\",\"spx\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"sql\"],[\"string\",\"application/x-sql\"]],[[\"string\",\"src\"],[\"string\",\"application/x-wais-source\"]],[[\"string\",\"srt\"],[\"string\",\"application/x-subrip\"]],[[\"string\",\"sru\"],[\"string\",\"application/sru+xml\"]],[[\"string\",\"srx\"],[\"string\",\"application/sparql-results+xml\"]],[[\"string\",\"ssdl\"],[\"string\",\"application/ssdl+xml\"]],[[\"string\",\"sse\"],[\"string\",\"application/vnd.kodak-descriptor\"]],[[\"string\",\"ssf\"],[\"string\",\"application/vnd.epson.ssf\"]],[[\"string\",\"ssml\"],[\"string\",\"application/ssml+xml\"]],[[\"string\",\"st\"],[\"string\",\"application/vnd.sailingtracker.track\"]],[[\"string\",\"stc\"],[\"string\",\"application/vnd.sun.xml.calc.template\"]],[[\"string\",\"std\"],[\"string\",\"application/vnd.sun.xml.draw.template\"]],[[\"string\",\"stf\"],[\"string\",\"application/vnd.wt.stf\"]],[[\"string\",\"sti\"],[\"string\",\"application/vnd.sun.xml.impress.template\"]],[[\"string\",\"stk\"],[\"string\",\"application/hyperstudio\"]],[[\"string\",\"stl\"],[\"string\",\"application/vnd.ms-pki.stl\"]],[[\"string\",\"str\"],[\"string\",\"application/vnd.pg.format\"]],[[\"string\",\"stw\"],[\"string\",\"application/vnd.sun.xml.writer.template\"]],[[\"string\",\"sub\"],[\"string\",\"text/vnd.dvb.subtitle\"]],[[\"string\",\"sus\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"susp\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"sv4cpio\"],[\"string\",\"application/x-sv4cpio\"]],[[\"string\",\"sv4crc\"],[\"string\",\"application/x-sv4crc\"]],[[\"string\",\"svc\"],[\"string\",\"application/vnd.dvb.service\"]],[[\"string\",\"svd\"],[\"string\",\"application/vnd.svd\"]],[[\"string\",\"svg\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"svgz\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"swa\"],[\"string\",\"application/x-director\"]],[[\"string\",\"swf\"],[\"string\",\"application/x-shockwave-flash\"]],[[\"string\",\"swi\"],[\"string\",\"application/vnd.aristanetworks.swi\"]],[[\"string\",\"sxc\"],[\"string\",\"application/vnd.sun.xml.calc\"]],[[\"string\",\"sxd\"],[\"string\",\"application/vnd.sun.xml.draw\"]],[[\"string\",\"sxg\"],[\"string\",\"application/vnd.sun.xml.writer.global\"]],[[\"string\",\"sxi\"],[\"string\",\"application/vnd.sun.xml.impress\"]],[[\"string\",\"sxm\"],[\"string\",\"application/vnd.sun.xml.math\"]],[[\"string\",\"sxw\"],[\"string\",\"application/vnd.sun.xml.writer\"]],[[\"string\",\"t\"],[\"string\",\"text/troff\"]],[[\"string\",\"t3\"],[\"string\",\"application/x-t3vm-image\"]],[[\"string\",\"taglet\"],[\"string\",\"application/vnd.mynfc\"]],[[\"string\",\"tao\"],[\"string\",\"application/vnd.tao.intent-module-archive\"]],[[\"string\",\"tar\"],[\"string\",\"application/x-tar\"]],[[\"string\",\"tcap\"],[\"string\",\"application/vnd.3gpp2.tcap\"]],[[\"string\",\"tcl\"],[\"string\",\"application/x-tcl\"]],[[\"string\",\"teacher\"],[\"string\",\"application/vnd.smart.teacher\"]],[[\"string\",\"tei\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"teicorpus\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"tex\"],[\"string\",\"application/x-tex\"]],[[\"string\",\"texi\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"texinfo\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"text\"],[\"string\",\"text/plain\"]],[[\"string\",\"tfi\"],[\"string\",\"application/thraud+xml\"]],[[\"string\",\"tfm\"],[\"string\",\"application/x-tex-tfm\"]],[[\"string\",\"tga\"],[\"string\",\"image/x-tga\"]],[[\"string\",\"thmx\"],[\"string\",\"application/vnd.ms-officetheme\"]],[[\"string\",\"tif\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tiff\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tmo\"],[\"string\",\"application/vnd.tmobile-livetv\"]],[[\"string\",\"toml\"],[\"string\",\"application/toml\"]],[[\"string\",\"torrent\"],[\"string\",\"application/x-bittorrent\"]],[[\"string\",\"tpl\"],[\"string\",\"application/vnd.groove-tool-template\"]],[[\"string\",\"tpt\"],[\"string\",\"application/vnd.trid.tpt\"]],[[\"string\",\"tr\"],[\"string\",\"text/troff\"]],[[\"string\",\"tra\"],[\"string\",\"application/vnd.trueapp\"]],[[\"string\",\"trm\"],[\"string\",\"application/x-msterminal\"]],[[\"string\",\"tsd\"],[\"string\",\"application/timestamped-data\"]],[[\"string\",\"tsv\"],[\"string\",\"text/tab-separated-values\"]],[[\"string\",\"ttc\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttf\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttl\"],[\"string\",\"text/turtle\"]],[[\"string\",\"twd\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"twds\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"txd\"],[\"string\",\"application/vnd.genomatix.tuxedo\"]],[[\"string\",\"txf\"],[\"string\",\"application/vnd.mobius.txf\"]],[[\"string\",\"txt\"],[\"string\",\"text/plain\"]],[[\"string\",\"u32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"udeb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"ufd\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ufdl\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ulx\"],[\"string\",\"application/x-glulx\"]],[[\"string\",\"umj\"],[\"string\",\"application/vnd.umajin\"]],[[\"string\",\"unityweb\"],[\"string\",\"application/vnd.unity\"]],[[\"string\",\"uoml\"],[\"string\",\"application/vnd.uoml+xml\"]],[[\"string\",\"uri\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"uris\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"urls\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"ustar\"],[\"string\",\"application/x-ustar\"]],[[\"string\",\"utz\"],[\"string\",\"application/vnd.uiq.theme\"]],[[\"string\",\"uu\"],[\"string\",\"text/x-uuencode\"]],[[\"string\",\"uva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"uvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"vcard\"],[\"string\",\"text/vcard\"]],[[\"string\",\"vcd\"],[\"string\",\"application/x-cdlink\"]],[[\"string\",\"vcf\"],[\"string\",\"text/x-vcard\"]],[[\"string\",\"vcg\"],[\"string\",\"application/vnd.groove-vcard\"]],[[\"string\",\"vcs\"],[\"string\",\"text/x-vcalendar\"]],[[\"string\",\"vcx\"],[\"string\",\"application/vnd.vcx\"]],[[\"string\",\"vis\"],[\"string\",\"application/vnd.visionary\"]],[[\"string\",\"viv\"],[\"string\",\"video/vnd.vivo\"]],[[\"string\",\"vob\"],[\"string\",\"video/x-ms-vob\"]],[[\"string\",\"vor\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"vox\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"vrml\"],[\"string\",\"model/vrml\"]],[[\"string\",\"vsd\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsf\"],[\"string\",\"application/vnd.vsf\"]],[[\"string\",\"vss\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vst\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsw\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vtu\"],[\"string\",\"model/vnd.vtu\"]],[[\"string\",\"vxml\"],[\"string\",\"application/voicexml+xml\"]],[[\"string\",\"w3d\"],[\"string\",\"application/x-director\"]],[[\"string\",\"wad\"],[\"string\",\"application/x-doom\"]],[[\"string\",\"wasm\"],[\"string\",\"application/wasm\"]],[[\"string\",\"wav\"],[\"string\",\"audio/x-wav\"]],[[\"string\",\"wax\"],[\"string\",\"audio/x-ms-wax\"]],[[\"string\",\"wbmp\"],[\"string\",\"image/vnd.wap.wbmp\"]],[[\"string\",\"wbs\"],[\"string\",\"application/vnd.criticaltools.wbs+xml\"]],[[\"string\",\"wbxml\"],[\"string\",\"application/vnd.wap.wbxml\"]],[[\"string\",\"wcm\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdb\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdp\"],[\"string\",\"image/vnd.ms-photo\"]],[[\"string\",\"weba\"],[\"string\",\"audio/webm\"]],[[\"string\",\"webm\"],[\"string\",\"video/webm\"]],[[\"string\",\"webmanifest\"],[\"string\",\"application/manifest+json\"]],[[\"string\",\"webp\"],[\"string\",\"image/webp\"]],[[\"string\",\"wg\"],[\"string\",\"application/vnd.pmi.widget\"]],[[\"string\",\"wgt\"],[\"string\",\"application/widget\"]],[[\"string\",\"wks\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wm\"],[\"string\",\"video/x-ms-wm\"]],[[\"string\",\"wma\"],[\"string\",\"audio/x-ms-wma\"]],[[\"string\",\"wmd\"],[\"string\",\"application/x-ms-wmd\"]],[[\"string\",\"wmf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"wml\"],[\"string\",\"text/vnd.wap.wml\"]],[[\"string\",\"wmlc\"],[\"string\",\"application/vnd.wap.wmlc\"]],[[\"string\",\"wmls\"],[\"string\",\"text/vnd.wap.wmlscript\"]],[[\"string\",\"wmlsc\"],[\"string\",\"application/vnd.wap.wmlscriptc\"]],[[\"string\",\"wmv\"],[\"string\",\"video/x-ms-wmv\"]],[[\"string\",\"wmx\"],[\"string\",\"video/x-ms-wmx\"]],[[\"string\",\"wmz\"],[\"string\",\"application/x-ms-wmz\"]],[[\"string\",\"woff\"],[\"string\",\"application/x-font-woff\"]],[[\"string\",\"woff2\"],[\"string\",\"font/woff2\"]],[[\"string\",\"wpd\"],[\"string\",\"application/vnd.wordperfect\"]],[[\"string\",\"wpl\"],[\"string\",\"application/vnd.ms-wpl\"]],[[\"string\",\"wps\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wqd\"],[\"string\",\"application/vnd.wqd\"]],[[\"string\",\"wri\"],[\"string\",\"application/x-mswrite\"]],[[\"string\",\"wrl\"],[\"string\",\"model/vrml\"]],[[\"string\",\"wsdl\"],[\"string\",\"application/wsdl+xml\"]],[[\"string\",\"wspolicy\"],[\"string\",\"application/wspolicy+xml\"]],[[\"string\",\"wtb\"],[\"string\",\"application/vnd.webturbo\"]],[[\"string\",\"wvx\"],[\"string\",\"video/x-ms-wvx\"]],[[\"string\",\"x32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"x3d\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"x3db\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dbz\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dv\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dvz\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dz\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"xaml\"],[\"string\",\"application/xaml+xml\"]],[[\"string\",\"xap\"],[\"string\",\"application/x-silverlight-app\"]],[[\"string\",\"xar\"],[\"string\",\"application/vnd.xara\"]],[[\"string\",\"xbap\"],[\"string\",\"application/x-ms-xbap\"]],[[\"string\",\"xbd\"],[\"string\",\"application/vnd.fujixerox.docuworks.binder\"]],[[\"string\",\"xbm\"],[\"string\",\"image/x-xbitmap\"]],[[\"string\",\"xdf\"],[\"string\",\"application/xcap-diff+xml\"]],[[\"string\",\"xdm\"],[\"string\",\"application/vnd.syncml.dm+xml\"]],[[\"string\",\"xdp\"],[\"string\",\"application/vnd.adobe.xdp+xml\"]],[[\"string\",\"xdssc\"],[\"string\",\"application/dssc+xml\"]],[[\"string\",\"xdw\"],[\"string\",\"application/vnd.fujixerox.docuworks\"]],[[\"string\",\"xenc\"],[\"string\",\"application/xenc+xml\"]],[[\"string\",\"xer\"],[\"string\",\"application/patch-ops-error+xml\"]],[[\"string\",\"xfdf\"],[\"string\",\"application/vnd.adobe.xfdf\"]],[[\"string\",\"xfdl\"],[\"string\",\"application/vnd.xfdl\"]],[[\"string\",\"xht\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhtml\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xif\"],[\"string\",\"image/vnd.xiff\"]],[[\"string\",\"xla\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlam\"],[\"string\",\"application/vnd.ms-excel.addin.macroenabled.12\"]],[[\"string\",\"xlc\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlf\"],[\"string\",\"application/x-xliff+xml\"]],[[\"string\",\"xlm\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xls\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlsb\"],[\"string\",\"application/vnd.ms-excel.sheet.binary.macroenabled.12\"]],[[\"string\",\"xlsm\"],[\"string\",\"application/vnd.ms-excel.sheet.macroenabled.12\"]],[[\"string\",\"xlsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\"]],[[\"string\",\"xlt\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xltm\"],[\"string\",\"application/vnd.ms-excel.template.macroenabled.12\"]],[[\"string\",\"xltx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.template\"]],[[\"string\",\"xlw\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xm\"],[\"string\",\"audio/xm\"]],[[\"string\",\"xml\"],[\"string\",\"application/xml\"]],[[\"string\",\"xo\"],[\"string\",\"application/vnd.olpc-sugar\"]],[[\"string\",\"xop\"],[\"string\",\"application/xop+xml\"]],[[\"string\",\"xpi\"],[\"string\",\"application/x-xpinstall\"]],[[\"string\",\"xpl\"],[\"string\",\"application/xproc+xml\"]],[[\"string\",\"xpm\"],[\"string\",\"image/x-xpixmap\"]],[[\"string\",\"xpr\"],[\"string\",\"application/vnd.is-xpr\"]],[[\"string\",\"xps\"],[\"string\",\"application/vnd.ms-xpsdocument\"]],[[\"string\",\"xpw\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xpx\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xsl\"],[\"string\",\"application/xml\"]],[[\"string\",\"xslt\"],[\"string\",\"application/xslt+xml\"]],[[\"string\",\"xsm\"],[\"string\",\"application/vnd.syncml+xml\"]],[[\"string\",\"xspf\"],[\"string\",\"application/xspf+xml\"]],[[\"string\",\"xul\"],[\"string\",\"application/vnd.mozilla.xul+xml\"]],[[\"string\",\"xvm\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xwd\"],[\"string\",\"image/x-xwindowdump\"]],[[\"string\",\"xyz\"],[\"string\",\"chemical/x-xyz\"]],[[\"string\",\"xz\"],[\"string\",\"application/x-xz\"]],[[\"string\",\"yang\"],[\"string\",\"application/yang\"]],[[\"string\",\"yin\"],[\"string\",\"application/yin+xml\"]],[[\"string\",\"z1\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z2\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z3\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z4\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z5\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z6\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z7\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z8\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"zaz\"],[\"string\",\"application/vnd.zzazz.deck+xml\"]],[[\"string\",\"zip\"],[\"string\",\"application/zip\"]],[[\"string\",\"zir\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zirz\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zmm\"],[\"string\",\"application/vnd.handheld-entertainment+xml\"]]]", () => __dartConstMap([["123", "application/vnd.lotus-1-2-3"], ["3dml", "text/vnd.in3d.3dml"], ["3ds", "image/x-3ds"], ["3g2", "video/3gpp2"], ["3gp", "video/3gpp"], ["7z", "application/x-7z-compressed"], ["aab", "application/x-authorware-bin"], ["aac", "audio/aac"], ["aam", "application/x-authorware-map"], ["aas", "application/x-authorware-seg"], ["abw", "application/x-abiword"], ["ac", "application/pkix-attr-cert"], ["acc", "application/vnd.americandynamics.acc"], ["ace", "application/x-ace-compressed"], ["acu", "application/vnd.acucobol"], ["acutc", "application/vnd.acucorp"], ["adp", "audio/adpcm"], ["aep", "application/vnd.audiograph"], ["afm", "application/x-font-type1"], ["afp", "application/vnd.ibm.modcap"], ["ahead", "application/vnd.ahead.space"], ["ai", "application/postscript"], ["aif", "audio/x-aiff"], ["aifc", "audio/x-aiff"], ["aiff", "audio/x-aiff"], ["air", "application/vnd.adobe.air-application-installer-package+zip"], ["ait", "application/vnd.dvb.ait"], ["ami", "application/vnd.amiga.ami"], ["apk", "application/vnd.android.package-archive"], ["appcache", "text/cache-manifest"], ["application", "application/x-ms-application"], ["apr", "application/vnd.lotus-approach"], ["arc", "application/x-freearc"], ["asc", "application/pgp-signature"], ["asf", "video/x-ms-asf"], ["asm", "text/x-asm"], ["aso", "application/vnd.accpac.simply.aso"], ["asx", "video/x-ms-asf"], ["atc", "application/vnd.acucorp"], ["atom", "application/atom+xml"], ["atomcat", "application/atomcat+xml"], ["atomsvc", "application/atomsvc+xml"], ["atx", "application/vnd.antix.game-component"], ["au", "audio/basic"], ["avi", "video/x-msvideo"], ["avif", "image/avif"], ["aw", "application/applixware"], ["azf", "application/vnd.airzip.filesecure.azf"], ["azs", "application/vnd.airzip.filesecure.azs"], ["azw", "application/vnd.amazon.ebook"], ["bat", "application/x-msdownload"], ["bcpio", "application/x-bcpio"], ["bdf", "application/x-font-bdf"], ["bdm", "application/vnd.syncml.dm+wbxml"], ["bed", "application/vnd.realvnc.bed"], ["bh2", "application/vnd.fujitsu.oasysprs"], ["bin", "application/octet-stream"], ["blb", "application/x-blorb"], ["blorb", "application/x-blorb"], ["bmi", "application/vnd.bmi"], ["bmp", "image/bmp"], ["book", "application/vnd.framemaker"], ["box", "application/vnd.previewsystems.box"], ["boz", "application/x-bzip2"], ["bpk", "application/octet-stream"], ["btif", "image/prs.btif"], ["bz", "application/x-bzip"], ["bz2", "application/x-bzip2"], ["c", "text/x-c"], ["c11amc", "application/vnd.cluetrust.cartomobile-config"], ["c11amz", "application/vnd.cluetrust.cartomobile-config-pkg"], ["c4d", "application/vnd.clonk.c4group"], ["c4f", "application/vnd.clonk.c4group"], ["c4g", "application/vnd.clonk.c4group"], ["c4p", "application/vnd.clonk.c4group"], ["c4u", "application/vnd.clonk.c4group"], ["cab", "application/vnd.ms-cab-compressed"], ["caf", "audio/x-caf"], ["cap", "application/vnd.tcpdump.pcap"], ["car", "application/vnd.curl.car"], ["cat", "application/vnd.ms-pki.seccat"], ["cb7", "application/x-cbr"], ["cba", "application/x-cbr"], ["cbr", "application/x-cbr"], ["cbt", "application/x-cbr"], ["cbz", "application/x-cbr"], ["cc", "text/x-c"], ["cct", "application/x-director"], ["ccxml", "application/ccxml+xml"], ["cdbcmsg", "application/vnd.contact.cmsg"], ["cdf", "application/x-netcdf"], ["cdkey", "application/vnd.mediastation.cdkey"], ["cdmia", "application/cdmi-capability"], ["cdmic", "application/cdmi-container"], ["cdmid", "application/cdmi-domain"], ["cdmio", "application/cdmi-object"], ["cdmiq", "application/cdmi-queue"], ["cdx", "chemical/x-cdx"], ["cdxml", "application/vnd.chemdraw+xml"], ["cdy", "application/vnd.cinderella"], ["cer", "application/pkix-cert"], ["cfs", "application/x-cfs-compressed"], ["cgm", "image/cgm"], ["chat", "application/x-chat"], ["chm", "application/vnd.ms-htmlhelp"], ["chrt", "application/vnd.kde.kchart"], ["cif", "chemical/x-cif"], ["cii", "application/vnd.anser-web-certificate-issue-initiation"], ["cil", "application/vnd.ms-artgalry"], ["cla", "application/vnd.claymore"], ["class", "application/java-vm"], ["clkk", "application/vnd.crick.clicker.keyboard"], ["clkp", "application/vnd.crick.clicker.palette"], ["clkt", "application/vnd.crick.clicker.template"], ["clkw", "application/vnd.crick.clicker.wordbank"], ["clkx", "application/vnd.crick.clicker"], ["clp", "application/x-msclip"], ["cmc", "application/vnd.cosmocaller"], ["cmdf", "chemical/x-cmdf"], ["cml", "chemical/x-cml"], ["cmp", "application/vnd.yellowriver-custom-menu"], ["cmx", "image/x-cmx"], ["cod", "application/vnd.rim.cod"], ["com", "application/x-msdownload"], ["conf", "text/plain"], ["cpio", "application/x-cpio"], ["cpp", "text/x-c"], ["cpt", "application/mac-compactpro"], ["crd", "application/x-mscardfile"], ["crl", "application/pkix-crl"], ["crt", "application/x-x509-ca-cert"], ["cryptonote", "application/vnd.rig.cryptonote"], ["csh", "application/x-csh"], ["csml", "chemical/x-csml"], ["csp", "application/vnd.commonspace"], ["css", "text/css"], ["cst", "application/x-director"], ["csv", "text/csv"], ["cu", "application/cu-seeme"], ["curl", "text/vnd.curl"], ["cww", "application/prs.cww"], ["cxt", "application/x-director"], ["cxx", "text/x-c"], ["dae", "model/vnd.collada+xml"], ["daf", "application/vnd.mobius.daf"], ["dart", "text/x-dart"], ["dataless", "application/vnd.fdsn.seed"], ["davmount", "application/davmount+xml"], ["dbk", "application/docbook+xml"], ["dcm", "application/dicom"], ["dcr", "application/x-director"], ["dcurl", "text/vnd.curl.dcurl"], ["dd2", "application/vnd.oma.dd2+xml"], ["ddd", "application/vnd.fujixerox.ddd"], ["deb", "application/x-debian-package"], ["def", "text/plain"], ["deploy", "application/octet-stream"], ["der", "application/x-x509-ca-cert"], ["dfac", "application/vnd.dreamfactory"], ["dgc", "application/x-dgc-compressed"], ["dic", "text/x-c"], ["dir", "application/x-director"], ["dis", "application/vnd.mobius.dis"], ["dist", "application/octet-stream"], ["distz", "application/octet-stream"], ["djv", "image/vnd.djvu"], ["djvu", "image/vnd.djvu"], ["dll", "application/x-msdownload"], ["dmg", "application/x-apple-diskimage"], ["dmp", "application/vnd.tcpdump.pcap"], ["dms", "application/octet-stream"], ["dna", "application/vnd.dna"], ["doc", "application/msword"], ["docm", "application/vnd.ms-word.document.macroenabled.12"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["dot", "application/msword"], ["dotm", "application/vnd.ms-word.template.macroenabled.12"], ["dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template"], ["dp", "application/vnd.osgi.dp"], ["dpg", "application/vnd.dpgraph"], ["dra", "audio/vnd.dra"], ["dsc", "text/prs.lines.tag"], ["dssc", "application/dssc+der"], ["dtb", "application/x-dtbook+xml"], ["dtd", "application/xml-dtd"], ["dts", "audio/vnd.dts"], ["dtshd", "audio/vnd.dts.hd"], ["dump", "application/octet-stream"], ["dvb", "video/vnd.dvb.file"], ["dvi", "application/x-dvi"], ["dwf", "model/vnd.dwf"], ["dwg", "image/vnd.dwg"], ["dxf", "image/vnd.dxf"], ["dxp", "application/vnd.spotfire.dxp"], ["dxr", "application/x-director"], ["ecelp4800", "audio/vnd.nuera.ecelp4800"], ["ecelp7470", "audio/vnd.nuera.ecelp7470"], ["ecelp9600", "audio/vnd.nuera.ecelp9600"], ["ecma", "application/ecmascript"], ["edm", "application/vnd.novadigm.edm"], ["edx", "application/vnd.novadigm.edx"], ["efif", "application/vnd.picsel"], ["ei6", "application/vnd.pg.osasli"], ["elc", "application/octet-stream"], ["emf", "application/x-msmetafile"], ["eml", "message/rfc822"], ["emma", "application/emma+xml"], ["emz", "application/x-msmetafile"], ["eol", "audio/vnd.digital-winds"], ["eot", "application/vnd.ms-fontobject"], ["eps", "application/postscript"], ["epub", "application/epub+zip"], ["es3", "application/vnd.eszigno3+xml"], ["esa", "application/vnd.osgi.subsystem"], ["esf", "application/vnd.epson.esf"], ["et3", "application/vnd.eszigno3+xml"], ["etx", "text/x-setext"], ["eva", "application/x-eva"], ["evy", "application/x-envoy"], ["exe", "application/x-msdownload"], ["exi", "application/exi"], ["ext", "application/vnd.novadigm.ext"], ["ez", "application/andrew-inset"], ["ez2", "application/vnd.ezpix-album"], ["ez3", "application/vnd.ezpix-package"], ["f", "text/x-fortran"], ["f4v", "video/x-f4v"], ["f77", "text/x-fortran"], ["f90", "text/x-fortran"], ["fbs", "image/vnd.fastbidsheet"], ["fcdt", "application/vnd.adobe.formscentral.fcdt"], ["fcs", "application/vnd.isac.fcs"], ["fdf", "application/vnd.fdf"], ["fe_launch", "application/vnd.denovo.fcselayout-link"], ["fg5", "application/vnd.fujitsu.oasysgp"], ["fgd", "application/x-director"], ["fh", "image/x-freehand"], ["fh4", "image/x-freehand"], ["fh5", "image/x-freehand"], ["fh7", "image/x-freehand"], ["fhc", "image/x-freehand"], ["fig", "application/x-xfig"], ["flac", "audio/x-flac"], ["fli", "video/x-fli"], ["flo", "application/vnd.micrografx.flo"], ["flv", "video/x-flv"], ["flw", "application/vnd.kde.kivio"], ["flx", "text/vnd.fmi.flexstor"], ["fly", "text/vnd.fly"], ["fm", "application/vnd.framemaker"], ["fnc", "application/vnd.frogans.fnc"], ["for", "text/x-fortran"], ["fpx", "image/vnd.fpx"], ["frame", "application/vnd.framemaker"], ["fsc", "application/vnd.fsc.weblaunch"], ["fst", "image/vnd.fst"], ["ftc", "application/vnd.fluxtime.clip"], ["fti", "application/vnd.anser-web-funds-transfer-initiation"], ["fvt", "video/vnd.fvt"], ["fxp", "application/vnd.adobe.fxp"], ["fxpl", "application/vnd.adobe.fxp"], ["fzs", "application/vnd.fuzzysheet"], ["g2w", "application/vnd.geoplan"], ["g3", "image/g3fax"], ["g3w", "application/vnd.geospace"], ["gac", "application/vnd.groove-account"], ["gam", "application/x-tads"], ["gbr", "application/rpki-ghostbusters"], ["gca", "application/x-gca-compressed"], ["gdl", "model/vnd.gdl"], ["geo", "application/vnd.dynageo"], ["gex", "application/vnd.geometry-explorer"], ["ggb", "application/vnd.geogebra.file"], ["ggt", "application/vnd.geogebra.tool"], ["ghf", "application/vnd.groove-help"], ["gif", "image/gif"], ["gim", "application/vnd.groove-identity-message"], ["glb", "model/gltf-binary"], ["gltf", "model/gltf+json"], ["gml", "application/gml+xml"], ["gmx", "application/vnd.gmx"], ["gnumeric", "application/x-gnumeric"], ["gph", "application/vnd.flographit"], ["gpx", "application/gpx+xml"], ["gqf", "application/vnd.grafeq"], ["gqs", "application/vnd.grafeq"], ["gram", "application/srgs"], ["gramps", "application/x-gramps-xml"], ["gre", "application/vnd.geometry-explorer"], ["grv", "application/vnd.groove-injector"], ["grxml", "application/srgs+xml"], ["gsf", "application/x-font-ghostscript"], ["gtar", "application/x-gtar"], ["gtm", "application/vnd.groove-tool-message"], ["gtw", "model/vnd.gtw"], ["gv", "text/vnd.graphviz"], ["gxf", "application/gxf"], ["gxt", "application/vnd.geonext"], ["h", "text/x-c"], ["h261", "video/h261"], ["h263", "video/h263"], ["h264", "video/h264"], ["hal", "application/vnd.hal+xml"], ["hbci", "application/vnd.hbci"], ["hdf", "application/x-hdf"], ["heic", "image/heic"], ["heif", "image/heif"], ["hh", "text/x-c"], ["hlp", "application/winhlp"], ["hpgl", "application/vnd.hp-hpgl"], ["hpid", "application/vnd.hp-hpid"], ["hps", "application/vnd.hp-hps"], ["hqx", "application/mac-binhex40"], ["htke", "application/vnd.kenameaapp"], ["htm", "text/html"], ["html", "text/html"], ["hvd", "application/vnd.yamaha.hv-dic"], ["hvp", "application/vnd.yamaha.hv-voice"], ["hvs", "application/vnd.yamaha.hv-script"], ["i2g", "application/vnd.intergeo"], ["icc", "application/vnd.iccprofile"], ["ice", "x-conference/x-cooltalk"], ["icm", "application/vnd.iccprofile"], ["ico", "image/x-icon"], ["ics", "text/calendar"], ["ief", "image/ief"], ["ifb", "text/calendar"], ["ifm", "application/vnd.shana.informed.formdata"], ["iges", "model/iges"], ["igl", "application/vnd.igloader"], ["igm", "application/vnd.insors.igm"], ["igs", "model/iges"], ["igx", "application/vnd.micrografx.igx"], ["iif", "application/vnd.shana.informed.interchange"], ["imp", "application/vnd.accpac.simply.imp"], ["ims", "application/vnd.ms-ims"], ["in", "text/plain"], ["ink", "application/inkml+xml"], ["inkml", "application/inkml+xml"], ["install", "application/x-install-instructions"], ["iota", "application/vnd.astraea-software.iota"], ["ipfix", "application/ipfix"], ["ipk", "application/vnd.shana.informed.package"], ["irm", "application/vnd.ibm.rights-management"], ["irp", "application/vnd.irepository.package+xml"], ["iso", "application/x-iso9660-image"], ["itp", "application/vnd.shana.informed.formtemplate"], ["ivp", "application/vnd.immervision-ivp"], ["ivu", "application/vnd.immervision-ivu"], ["jad", "text/vnd.sun.j2me.app-descriptor"], ["jam", "application/vnd.jam"], ["jar", "application/java-archive"], ["java", "text/x-java-source"], ["jisp", "application/vnd.jisp"], ["jlt", "application/vnd.hp-jlyt"], ["jnlp", "application/x-java-jnlp-file"], ["joda", "application/vnd.joost.joda-archive"], ["jpe", "image/jpeg"], ["jpeg", "image/jpeg"], ["jpg", "image/jpeg"], ["jpgm", "video/jpm"], ["jpgv", "video/jpeg"], ["jpm", "video/jpm"], ["js", "text/javascript"], ["json", "application/json"], ["jsonml", "application/jsonml+json"], ["kar", "audio/midi"], ["karbon", "application/vnd.kde.karbon"], ["kfo", "application/vnd.kde.kformula"], ["kia", "application/vnd.kidspiration"], ["kml", "application/vnd.google-earth.kml+xml"], ["kmz", "application/vnd.google-earth.kmz"], ["kne", "application/vnd.kinar"], ["knp", "application/vnd.kinar"], ["kon", "application/vnd.kde.kontour"], ["kpr", "application/vnd.kde.kpresenter"], ["kpt", "application/vnd.kde.kpresenter"], ["kpxx", "application/vnd.ds-keypoint"], ["ksp", "application/vnd.kde.kspread"], ["ktr", "application/vnd.kahootz"], ["ktx", "image/ktx"], ["ktz", "application/vnd.kahootz"], ["kwd", "application/vnd.kde.kword"], ["kwt", "application/vnd.kde.kword"], ["lasxml", "application/vnd.las.las+xml"], ["latex", "application/x-latex"], ["lbd", "application/vnd.llamagraphics.life-balance.desktop"], ["lbe", "application/vnd.llamagraphics.life-balance.exchange+xml"], ["les", "application/vnd.hhe.lesson-player"], ["lha", "application/x-lzh-compressed"], ["link66", "application/vnd.route66.link66+xml"], ["list", "text/plain"], ["list3820", "application/vnd.ibm.modcap"], ["listafp", "application/vnd.ibm.modcap"], ["lnk", "application/x-ms-shortcut"], ["log", "text/plain"], ["lostxml", "application/lost+xml"], ["lrf", "application/octet-stream"], ["lrm", "application/vnd.ms-lrm"], ["ltf", "application/vnd.frogans.ltf"], ["lvp", "audio/vnd.lucent.voice"], ["lwp", "application/vnd.lotus-wordpro"], ["lzh", "application/x-lzh-compressed"], ["m13", "application/x-msmediaview"], ["m14", "application/x-msmediaview"], ["m1v", "video/mpeg"], ["m21", "application/mp21"], ["m2a", "audio/mpeg"], ["m2v", "video/mpeg"], ["m3a", "audio/mpeg"], ["m3u", "audio/x-mpegurl"], ["m3u8", "application/vnd.apple.mpegurl"], ["m4a", "audio/mp4"], ["m4b", "audio/mp4"], ["m4u", "video/vnd.mpegurl"], ["m4v", "video/x-m4v"], ["ma", "application/mathematica"], ["mads", "application/mads+xml"], ["mag", "application/vnd.ecowin.chart"], ["maker", "application/vnd.framemaker"], ["man", "text/troff"], ["mar", "application/octet-stream"], ["mathml", "application/mathml+xml"], ["mb", "application/mathematica"], ["mbk", "application/vnd.mobius.mbk"], ["mbox", "application/mbox"], ["mc1", "application/vnd.medcalcdata"], ["mcd", "application/vnd.mcd"], ["mcurl", "text/vnd.curl.mcurl"], ["md", "text/markdown"], ["markdown", "text/markdown"], ["mdb", "application/x-msaccess"], ["mdi", "image/vnd.ms-modi"], ["me", "text/troff"], ["mesh", "model/mesh"], ["meta4", "application/metalink4+xml"], ["metalink", "application/metalink+xml"], ["mets", "application/mets+xml"], ["mfm", "application/vnd.mfmp"], ["mft", "application/rpki-manifest"], ["mgp", "application/vnd.osgeo.mapguide.package"], ["mgz", "application/vnd.proteus.magazine"], ["mid", "audio/midi"], ["midi", "audio/midi"], ["mie", "application/x-mie"], ["mif", "application/vnd.mif"], ["mime", "message/rfc822"], ["mj2", "video/mj2"], ["mjp2", "video/mj2"], ["mjs", "text/javascript"], ["mk3d", "video/x-matroska"], ["mka", "audio/x-matroska"], ["mks", "video/x-matroska"], ["mkv", "video/x-matroska"], ["mlp", "application/vnd.dolby.mlp"], ["mmd", "application/vnd.chipnuts.karaoke-mmd"], ["mmf", "application/vnd.smaf"], ["mmr", "image/vnd.fujixerox.edmics-mmr"], ["mng", "video/x-mng"], ["mny", "application/x-msmoney"], ["mobi", "application/x-mobipocket-ebook"], ["mods", "application/mods+xml"], ["mov", "video/quicktime"], ["movie", "video/x-sgi-movie"], ["mp2", "audio/mpeg"], ["mp21", "application/mp21"], ["mp2a", "audio/mpeg"], ["mp3", "audio/mpeg"], ["mp4", "video/mp4"], ["mp4a", "audio/mp4"], ["mp4s", "application/mp4"], ["mp4v", "video/mp4"], ["mpc", "application/vnd.mophun.certificate"], ["mpe", "video/mpeg"], ["mpeg", "video/mpeg"], ["mpg", "video/mpeg"], ["mpg4", "video/mp4"], ["mpga", "audio/mpeg"], ["mpkg", "application/vnd.apple.installer+xml"], ["mpm", "application/vnd.blueice.multipass"], ["mpn", "application/vnd.mophun.application"], ["mpp", "application/vnd.ms-project"], ["mpt", "application/vnd.ms-project"], ["mpy", "application/vnd.ibm.minipay"], ["mqy", "application/vnd.mobius.mqy"], ["mrc", "application/marc"], ["mrcx", "application/marcxml+xml"], ["ms", "text/troff"], ["mscml", "application/mediaservercontrol+xml"], ["mseed", "application/vnd.fdsn.mseed"], ["mseq", "application/vnd.mseq"], ["msf", "application/vnd.epson.msf"], ["msh", "model/mesh"], ["msi", "application/x-msdownload"], ["msl", "application/vnd.mobius.msl"], ["msty", "application/vnd.muvee.style"], ["mts", "model/vnd.mts"], ["mus", "application/vnd.musician"], ["musicxml", "application/vnd.recordare.musicxml+xml"], ["mvb", "application/x-msmediaview"], ["mwf", "application/vnd.mfer"], ["mxf", "application/mxf"], ["mxl", "application/vnd.recordare.musicxml"], ["mxml", "application/xv+xml"], ["mxs", "application/vnd.triscape.mxs"], ["mxu", "video/vnd.mpegurl"], ["n-gage", "application/vnd.nokia.n-gage.symbian.install"], ["n3", "text/n3"], ["nb", "application/mathematica"], ["nbp", "application/vnd.wolfram.player"], ["nc", "application/x-netcdf"], ["ncx", "application/x-dtbncx+xml"], ["nfo", "text/x-nfo"], ["ngdat", "application/vnd.nokia.n-gage.data"], ["nitf", "application/vnd.nitf"], ["nlu", "application/vnd.neurolanguage.nlu"], ["nml", "application/vnd.enliven"], ["nnd", "application/vnd.noblenet-directory"], ["nns", "application/vnd.noblenet-sealer"], ["nnw", "application/vnd.noblenet-web"], ["npx", "image/vnd.net-fpx"], ["nsc", "application/x-conference"], ["nsf", "application/vnd.lotus-notes"], ["ntf", "application/vnd.nitf"], ["nzb", "application/x-nzb"], ["oa2", "application/vnd.fujitsu.oasys2"], ["oa3", "application/vnd.fujitsu.oasys3"], ["oas", "application/vnd.fujitsu.oasys"], ["obd", "application/x-msbinder"], ["obj", "application/x-tgif"], ["oda", "application/oda"], ["odb", "application/vnd.oasis.opendocument.database"], ["odc", "application/vnd.oasis.opendocument.chart"], ["odf", "application/vnd.oasis.opendocument.formula"], ["odft", "application/vnd.oasis.opendocument.formula-template"], ["odg", "application/vnd.oasis.opendocument.graphics"], ["odi", "application/vnd.oasis.opendocument.image"], ["odm", "application/vnd.oasis.opendocument.text-master"], ["odp", "application/vnd.oasis.opendocument.presentation"], ["ods", "application/vnd.oasis.opendocument.spreadsheet"], ["odt", "application/vnd.oasis.opendocument.text"], ["oga", "audio/ogg"], ["ogg", "audio/ogg"], ["ogv", "video/ogg"], ["ogx", "application/ogg"], ["omdoc", "application/omdoc+xml"], ["onepkg", "application/onenote"], ["onetmp", "application/onenote"], ["onetoc", "application/onenote"], ["onetoc2", "application/onenote"], ["opf", "application/oebps-package+xml"], ["opml", "text/x-opml"], ["oprc", "application/vnd.palm"], ["org", "application/vnd.lotus-organizer"], ["osf", "application/vnd.yamaha.openscoreformat"], ["osfpvg", "application/vnd.yamaha.openscoreformat.osfpvg+xml"], ["otc", "application/vnd.oasis.opendocument.chart-template"], ["otf", "application/x-font-otf"], ["otg", "application/vnd.oasis.opendocument.graphics-template"], ["oth", "application/vnd.oasis.opendocument.text-web"], ["oti", "application/vnd.oasis.opendocument.image-template"], ["otp", "application/vnd.oasis.opendocument.presentation-template"], ["ots", "application/vnd.oasis.opendocument.spreadsheet-template"], ["ott", "application/vnd.oasis.opendocument.text-template"], ["oxps", "application/oxps"], ["oxt", "application/vnd.openofficeorg.extension"], ["p", "text/x-pascal"], ["p10", "application/pkcs10"], ["p12", "application/x-pkcs12"], ["p7b", "application/x-pkcs7-certificates"], ["p7c", "application/pkcs7-mime"], ["p7m", "application/pkcs7-mime"], ["p7r", "application/x-pkcs7-certreqresp"], ["p7s", "application/pkcs7-signature"], ["p8", "application/pkcs8"], ["pas", "text/x-pascal"], ["paw", "application/vnd.pawaafile"], ["pbd", "application/vnd.powerbuilder6"], ["pbm", "image/x-portable-bitmap"], ["pcap", "application/vnd.tcpdump.pcap"], ["pcf", "application/x-font-pcf"], ["pcl", "application/vnd.hp-pcl"], ["pclxl", "application/vnd.hp-pclxl"], ["pct", "image/x-pict"], ["pcurl", "application/vnd.curl.pcurl"], ["pcx", "image/x-pcx"], ["pdb", "application/vnd.palm"], ["pdf", "application/pdf"], ["pfa", "application/x-font-type1"], ["pfb", "application/x-font-type1"], ["pfm", "application/x-font-type1"], ["pfr", "application/font-tdpfr"], ["pfx", "application/x-pkcs12"], ["pgm", "image/x-portable-graymap"], ["pgn", "application/x-chess-pgn"], ["pgp", "application/pgp-encrypted"], ["pic", "image/x-pict"], ["pkg", "application/octet-stream"], ["pki", "application/pkixcmp"], ["pkipath", "application/pkix-pkipath"], ["plb", "application/vnd.3gpp.pic-bw-large"], ["plc", "application/vnd.mobius.plc"], ["plf", "application/vnd.pocketlearn"], ["pls", "application/pls+xml"], ["pml", "application/vnd.ctc-posml"], ["png", "image/png"], ["pnm", "image/x-portable-anymap"], ["portpkg", "application/vnd.macports.portpkg"], ["pot", "application/vnd.ms-powerpoint"], ["potm", "application/vnd.ms-powerpoint.template.macroenabled.12"], ["potx", "application/vnd.openxmlformats-officedocument.presentationml.template"], ["ppam", "application/vnd.ms-powerpoint.addin.macroenabled.12"], ["ppd", "application/vnd.cups-ppd"], ["ppm", "image/x-portable-pixmap"], ["pps", "application/vnd.ms-powerpoint"], ["ppsm", "application/vnd.ms-powerpoint.slideshow.macroenabled.12"], ["ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow"], ["ppt", "application/vnd.ms-powerpoint"], ["pptm", "application/vnd.ms-powerpoint.presentation.macroenabled.12"], ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], ["pqa", "application/vnd.palm"], ["prc", "application/x-mobipocket-ebook"], ["pre", "application/vnd.lotus-freelance"], ["prf", "application/pics-rules"], ["ps", "application/postscript"], ["psb", "application/vnd.3gpp.pic-bw-small"], ["psd", "image/vnd.adobe.photoshop"], ["psf", "application/x-font-linux-psf"], ["pskcxml", "application/pskc+xml"], ["ptid", "application/vnd.pvi.ptid1"], ["pub", "application/x-mspublisher"], ["pvb", "application/vnd.3gpp.pic-bw-var"], ["pwn", "application/vnd.3m.post-it-notes"], ["pya", "audio/vnd.ms-playready.media.pya"], ["pyv", "video/vnd.ms-playready.media.pyv"], ["qam", "application/vnd.epson.quickanime"], ["qbo", "application/vnd.intu.qbo"], ["qfx", "application/vnd.intu.qfx"], ["qps", "application/vnd.publishare-delta-tree"], ["qt", "video/quicktime"], ["qwd", "application/vnd.quark.quarkxpress"], ["qwt", "application/vnd.quark.quarkxpress"], ["qxb", "application/vnd.quark.quarkxpress"], ["qxd", "application/vnd.quark.quarkxpress"], ["qxl", "application/vnd.quark.quarkxpress"], ["qxt", "application/vnd.quark.quarkxpress"], ["ra", "audio/x-pn-realaudio"], ["ram", "audio/x-pn-realaudio"], ["rar", "application/x-rar-compressed"], ["ras", "image/x-cmu-raster"], ["rcprofile", "application/vnd.ipunplugged.rcprofile"], ["rdf", "application/rdf+xml"], ["rdz", "application/vnd.data-vision.rdz"], ["rep", "application/vnd.businessobjects"], ["res", "application/x-dtbresource+xml"], ["rgb", "image/x-rgb"], ["rif", "application/reginfo+xml"], ["rip", "audio/vnd.rip"], ["ris", "application/x-research-info-systems"], ["rl", "application/resource-lists+xml"], ["rlc", "image/vnd.fujixerox.edmics-rlc"], ["rld", "application/resource-lists-diff+xml"], ["rm", "application/vnd.rn-realmedia"], ["rmi", "audio/midi"], ["rmp", "audio/x-pn-realaudio-plugin"], ["rms", "application/vnd.jcp.javame.midlet-rms"], ["rmvb", "application/vnd.rn-realmedia-vbr"], ["rnc", "application/relax-ng-compact-syntax"], ["roa", "application/rpki-roa"], ["roff", "text/troff"], ["rp9", "application/vnd.cloanto.rp9"], ["rpss", "application/vnd.nokia.radio-presets"], ["rpst", "application/vnd.nokia.radio-preset"], ["rq", "application/sparql-query"], ["rs", "application/rls-services+xml"], ["rsd", "application/rsd+xml"], ["rss", "application/rss+xml"], ["rtf", "application/rtf"], ["rtx", "text/richtext"], ["s", "text/x-asm"], ["s3m", "audio/s3m"], ["saf", "application/vnd.yamaha.smaf-audio"], ["sbml", "application/sbml+xml"], ["sc", "application/vnd.ibm.secure-container"], ["scd", "application/x-msschedule"], ["scm", "application/vnd.lotus-screencam"], ["scq", "application/scvp-cv-request"], ["scs", "application/scvp-cv-response"], ["scurl", "text/vnd.curl.scurl"], ["sda", "application/vnd.stardivision.draw"], ["sdc", "application/vnd.stardivision.calc"], ["sdd", "application/vnd.stardivision.impress"], ["sdkd", "application/vnd.solent.sdkm+xml"], ["sdkm", "application/vnd.solent.sdkm+xml"], ["sdp", "application/sdp"], ["sdw", "application/vnd.stardivision.writer"], ["see", "application/vnd.seemail"], ["seed", "application/vnd.fdsn.seed"], ["sema", "application/vnd.sema"], ["semd", "application/vnd.semd"], ["semf", "application/vnd.semf"], ["ser", "application/java-serialized-object"], ["setpay", "application/set-payment-initiation"], ["setreg", "application/set-registration-initiation"], ["sfd-hdstx", "application/vnd.hydrostatix.sof-data"], ["sfs", "application/vnd.spotfire.sfs"], ["sfv", "text/x-sfv"], ["sgi", "image/sgi"], ["sgl", "application/vnd.stardivision.writer-global"], ["sgm", "text/sgml"], ["sgml", "text/sgml"], ["sh", "application/x-sh"], ["shar", "application/x-shar"], ["shf", "application/shf+xml"], ["sid", "image/x-mrsid-image"], ["sig", "application/pgp-signature"], ["sil", "audio/silk"], ["silo", "model/mesh"], ["sis", "application/vnd.symbian.install"], ["sisx", "application/vnd.symbian.install"], ["sit", "application/x-stuffit"], ["sitx", "application/x-stuffitx"], ["skd", "application/vnd.koan"], ["skm", "application/vnd.koan"], ["skp", "application/vnd.koan"], ["skt", "application/vnd.koan"], ["sldm", "application/vnd.ms-powerpoint.slide.macroenabled.12"], ["sldx", "application/vnd.openxmlformats-officedocument.presentationml.slide"], ["slt", "application/vnd.epson.salt"], ["sm", "application/vnd.stepmania.stepchart"], ["smf", "application/vnd.stardivision.math"], ["smi", "application/smil+xml"], ["smil", "application/smil+xml"], ["smv", "video/x-smv"], ["smzip", "application/vnd.stepmania.package"], ["snd", "audio/basic"], ["snf", "application/x-font-snf"], ["so", "application/octet-stream"], ["spc", "application/x-pkcs7-certificates"], ["spf", "application/vnd.yamaha.smaf-phrase"], ["spl", "application/x-futuresplash"], ["spot", "text/vnd.in3d.spot"], ["spp", "application/scvp-vp-response"], ["spq", "application/scvp-vp-request"], ["spx", "audio/ogg"], ["sql", "application/x-sql"], ["src", "application/x-wais-source"], ["srt", "application/x-subrip"], ["sru", "application/sru+xml"], ["srx", "application/sparql-results+xml"], ["ssdl", "application/ssdl+xml"], ["sse", "application/vnd.kodak-descriptor"], ["ssf", "application/vnd.epson.ssf"], ["ssml", "application/ssml+xml"], ["st", "application/vnd.sailingtracker.track"], ["stc", "application/vnd.sun.xml.calc.template"], ["std", "application/vnd.sun.xml.draw.template"], ["stf", "application/vnd.wt.stf"], ["sti", "application/vnd.sun.xml.impress.template"], ["stk", "application/hyperstudio"], ["stl", "application/vnd.ms-pki.stl"], ["str", "application/vnd.pg.format"], ["stw", "application/vnd.sun.xml.writer.template"], ["sub", "text/vnd.dvb.subtitle"], ["sus", "application/vnd.sus-calendar"], ["susp", "application/vnd.sus-calendar"], ["sv4cpio", "application/x-sv4cpio"], ["sv4crc", "application/x-sv4crc"], ["svc", "application/vnd.dvb.service"], ["svd", "application/vnd.svd"], ["svg", "image/svg+xml"], ["svgz", "image/svg+xml"], ["swa", "application/x-director"], ["swf", "application/x-shockwave-flash"], ["swi", "application/vnd.aristanetworks.swi"], ["sxc", "application/vnd.sun.xml.calc"], ["sxd", "application/vnd.sun.xml.draw"], ["sxg", "application/vnd.sun.xml.writer.global"], ["sxi", "application/vnd.sun.xml.impress"], ["sxm", "application/vnd.sun.xml.math"], ["sxw", "application/vnd.sun.xml.writer"], ["t", "text/troff"], ["t3", "application/x-t3vm-image"], ["taglet", "application/vnd.mynfc"], ["tao", "application/vnd.tao.intent-module-archive"], ["tar", "application/x-tar"], ["tcap", "application/vnd.3gpp2.tcap"], ["tcl", "application/x-tcl"], ["teacher", "application/vnd.smart.teacher"], ["tei", "application/tei+xml"], ["teicorpus", "application/tei+xml"], ["tex", "application/x-tex"], ["texi", "application/x-texinfo"], ["texinfo", "application/x-texinfo"], ["text", "text/plain"], ["tfi", "application/thraud+xml"], ["tfm", "application/x-tex-tfm"], ["tga", "image/x-tga"], ["thmx", "application/vnd.ms-officetheme"], ["tif", "image/tiff"], ["tiff", "image/tiff"], ["tmo", "application/vnd.tmobile-livetv"], ["toml", "application/toml"], ["torrent", "application/x-bittorrent"], ["tpl", "application/vnd.groove-tool-template"], ["tpt", "application/vnd.trid.tpt"], ["tr", "text/troff"], ["tra", "application/vnd.trueapp"], ["trm", "application/x-msterminal"], ["tsd", "application/timestamped-data"], ["tsv", "text/tab-separated-values"], ["ttc", "application/x-font-ttf"], ["ttf", "application/x-font-ttf"], ["ttl", "text/turtle"], ["twd", "application/vnd.simtech-mindmapper"], ["twds", "application/vnd.simtech-mindmapper"], ["txd", "application/vnd.genomatix.tuxedo"], ["txf", "application/vnd.mobius.txf"], ["txt", "text/plain"], ["u32", "application/x-authorware-bin"], ["udeb", "application/x-debian-package"], ["ufd", "application/vnd.ufdl"], ["ufdl", "application/vnd.ufdl"], ["ulx", "application/x-glulx"], ["umj", "application/vnd.umajin"], ["unityweb", "application/vnd.unity"], ["uoml", "application/vnd.uoml+xml"], ["uri", "text/uri-list"], ["uris", "text/uri-list"], ["urls", "text/uri-list"], ["ustar", "application/x-ustar"], ["utz", "application/vnd.uiq.theme"], ["uu", "text/x-uuencode"], ["uva", "audio/vnd.dece.audio"], ["uvd", "application/vnd.dece.data"], ["uvf", "application/vnd.dece.data"], ["uvg", "image/vnd.dece.graphic"], ["uvh", "video/vnd.dece.hd"], ["uvi", "image/vnd.dece.graphic"], ["uvm", "video/vnd.dece.mobile"], ["uvp", "video/vnd.dece.pd"], ["uvs", "video/vnd.dece.sd"], ["uvt", "application/vnd.dece.ttml+xml"], ["uvu", "video/vnd.uvvu.mp4"], ["uvv", "video/vnd.dece.video"], ["uvva", "audio/vnd.dece.audio"], ["uvvd", "application/vnd.dece.data"], ["uvvf", "application/vnd.dece.data"], ["uvvg", "image/vnd.dece.graphic"], ["uvvh", "video/vnd.dece.hd"], ["uvvi", "image/vnd.dece.graphic"], ["uvvm", "video/vnd.dece.mobile"], ["uvvp", "video/vnd.dece.pd"], ["uvvs", "video/vnd.dece.sd"], ["uvvt", "application/vnd.dece.ttml+xml"], ["uvvu", "video/vnd.uvvu.mp4"], ["uvvv", "video/vnd.dece.video"], ["uvvx", "application/vnd.dece.unspecified"], ["uvvz", "application/vnd.dece.zip"], ["uvx", "application/vnd.dece.unspecified"], ["uvz", "application/vnd.dece.zip"], ["vcard", "text/vcard"], ["vcd", "application/x-cdlink"], ["vcf", "text/x-vcard"], ["vcg", "application/vnd.groove-vcard"], ["vcs", "text/x-vcalendar"], ["vcx", "application/vnd.vcx"], ["vis", "application/vnd.visionary"], ["viv", "video/vnd.vivo"], ["vob", "video/x-ms-vob"], ["vor", "application/vnd.stardivision.writer"], ["vox", "application/x-authorware-bin"], ["vrml", "model/vrml"], ["vsd", "application/vnd.visio"], ["vsf", "application/vnd.vsf"], ["vss", "application/vnd.visio"], ["vst", "application/vnd.visio"], ["vsw", "application/vnd.visio"], ["vtu", "model/vnd.vtu"], ["vxml", "application/voicexml+xml"], ["w3d", "application/x-director"], ["wad", "application/x-doom"], ["wasm", "application/wasm"], ["wav", "audio/x-wav"], ["wax", "audio/x-ms-wax"], ["wbmp", "image/vnd.wap.wbmp"], ["wbs", "application/vnd.criticaltools.wbs+xml"], ["wbxml", "application/vnd.wap.wbxml"], ["wcm", "application/vnd.ms-works"], ["wdb", "application/vnd.ms-works"], ["wdp", "image/vnd.ms-photo"], ["weba", "audio/webm"], ["webm", "video/webm"], ["webmanifest", "application/manifest+json"], ["webp", "image/webp"], ["wg", "application/vnd.pmi.widget"], ["wgt", "application/widget"], ["wks", "application/vnd.ms-works"], ["wm", "video/x-ms-wm"], ["wma", "audio/x-ms-wma"], ["wmd", "application/x-ms-wmd"], ["wmf", "application/x-msmetafile"], ["wml", "text/vnd.wap.wml"], ["wmlc", "application/vnd.wap.wmlc"], ["wmls", "text/vnd.wap.wmlscript"], ["wmlsc", "application/vnd.wap.wmlscriptc"], ["wmv", "video/x-ms-wmv"], ["wmx", "video/x-ms-wmx"], ["wmz", "application/x-ms-wmz"], ["woff", "application/x-font-woff"], ["woff2", "font/woff2"], ["wpd", "application/vnd.wordperfect"], ["wpl", "application/vnd.ms-wpl"], ["wps", "application/vnd.ms-works"], ["wqd", "application/vnd.wqd"], ["wri", "application/x-mswrite"], ["wrl", "model/vrml"], ["wsdl", "application/wsdl+xml"], ["wspolicy", "application/wspolicy+xml"], ["wtb", "application/vnd.webturbo"], ["wvx", "video/x-ms-wvx"], ["x32", "application/x-authorware-bin"], ["x3d", "model/x3d+xml"], ["x3db", "model/x3d+binary"], ["x3dbz", "model/x3d+binary"], ["x3dv", "model/x3d+vrml"], ["x3dvz", "model/x3d+vrml"], ["x3dz", "model/x3d+xml"], ["xaml", "application/xaml+xml"], ["xap", "application/x-silverlight-app"], ["xar", "application/vnd.xara"], ["xbap", "application/x-ms-xbap"], ["xbd", "application/vnd.fujixerox.docuworks.binder"], ["xbm", "image/x-xbitmap"], ["xdf", "application/xcap-diff+xml"], ["xdm", "application/vnd.syncml.dm+xml"], ["xdp", "application/vnd.adobe.xdp+xml"], ["xdssc", "application/dssc+xml"], ["xdw", "application/vnd.fujixerox.docuworks"], ["xenc", "application/xenc+xml"], ["xer", "application/patch-ops-error+xml"], ["xfdf", "application/vnd.adobe.xfdf"], ["xfdl", "application/vnd.xfdl"], ["xht", "application/xhtml+xml"], ["xhtml", "application/xhtml+xml"], ["xhvml", "application/xv+xml"], ["xif", "image/vnd.xiff"], ["xla", "application/vnd.ms-excel"], ["xlam", "application/vnd.ms-excel.addin.macroenabled.12"], ["xlc", "application/vnd.ms-excel"], ["xlf", "application/x-xliff+xml"], ["xlm", "application/vnd.ms-excel"], ["xls", "application/vnd.ms-excel"], ["xlsb", "application/vnd.ms-excel.sheet.binary.macroenabled.12"], ["xlsm", "application/vnd.ms-excel.sheet.macroenabled.12"], ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], ["xlt", "application/vnd.ms-excel"], ["xltm", "application/vnd.ms-excel.template.macroenabled.12"], ["xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template"], ["xlw", "application/vnd.ms-excel"], ["xm", "audio/xm"], ["xml", "application/xml"], ["xo", "application/vnd.olpc-sugar"], ["xop", "application/xop+xml"], ["xpi", "application/x-xpinstall"], ["xpl", "application/xproc+xml"], ["xpm", "image/x-xpixmap"], ["xpr", "application/vnd.is-xpr"], ["xps", "application/vnd.ms-xpsdocument"], ["xpw", "application/vnd.intercon.formnet"], ["xpx", "application/vnd.intercon.formnet"], ["xsl", "application/xml"], ["xslt", "application/xslt+xml"], ["xsm", "application/vnd.syncml+xml"], ["xspf", "application/xspf+xml"], ["xul", "application/vnd.mozilla.xul+xml"], ["xvm", "application/xv+xml"], ["xvml", "application/xv+xml"], ["xwd", "image/x-xwindowdump"], ["xyz", "chemical/x-xyz"], ["xz", "application/x-xz"], ["yang", "application/yang"], ["yin", "application/yin+xml"], ["z1", "application/x-zmachine"], ["z2", "application/x-zmachine"], ["z3", "application/x-zmachine"], ["z4", "application/x-zmachine"], ["z5", "application/x-zmachine"], ["z6", "application/x-zmachine"], ["z7", "application/x-zmachine"], ["z8", "application/x-zmachine"], ["zaz", "application/vnd.zzazz.deck+xml"], ["zip", "application/zip"], ["zir", "application/vnd.zul"], ["zirz", "application/vnd.zul"], ["zmm", "application/vnd.handheld-entertainment+xml"]])), ext);
-        if (!((result === null))) {
-          return result;
-        }
+    if (this._useDefault_package_mime_src_mime_type_dart) {
+      result = __dartMapGet(__dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(String)\",[[\"string\",\"123\"],[\"string\",\"application/vnd.lotus-1-2-3\"]],[[\"string\",\"3dml\"],[\"string\",\"text/vnd.in3d.3dml\"]],[[\"string\",\"3ds\"],[\"string\",\"image/x-3ds\"]],[[\"string\",\"3g2\"],[\"string\",\"video/3gpp2\"]],[[\"string\",\"3gp\"],[\"string\",\"video/3gpp\"]],[[\"string\",\"7z\"],[\"string\",\"application/x-7z-compressed\"]],[[\"string\",\"aab\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"aac\"],[\"string\",\"audio/aac\"]],[[\"string\",\"aam\"],[\"string\",\"application/x-authorware-map\"]],[[\"string\",\"aas\"],[\"string\",\"application/x-authorware-seg\"]],[[\"string\",\"abw\"],[\"string\",\"application/x-abiword\"]],[[\"string\",\"ac\"],[\"string\",\"application/pkix-attr-cert\"]],[[\"string\",\"acc\"],[\"string\",\"application/vnd.americandynamics.acc\"]],[[\"string\",\"ace\"],[\"string\",\"application/x-ace-compressed\"]],[[\"string\",\"acu\"],[\"string\",\"application/vnd.acucobol\"]],[[\"string\",\"acutc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"adp\"],[\"string\",\"audio/adpcm\"]],[[\"string\",\"aep\"],[\"string\",\"application/vnd.audiograph\"]],[[\"string\",\"afm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"afp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"ahead\"],[\"string\",\"application/vnd.ahead.space\"]],[[\"string\",\"ai\"],[\"string\",\"application/postscript\"]],[[\"string\",\"aif\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aifc\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aiff\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"air\"],[\"string\",\"application/vnd.adobe.air-application-installer-package+zip\"]],[[\"string\",\"ait\"],[\"string\",\"application/vnd.dvb.ait\"]],[[\"string\",\"ami\"],[\"string\",\"application/vnd.amiga.ami\"]],[[\"string\",\"apk\"],[\"string\",\"application/vnd.android.package-archive\"]],[[\"string\",\"appcache\"],[\"string\",\"text/cache-manifest\"]],[[\"string\",\"application\"],[\"string\",\"application/x-ms-application\"]],[[\"string\",\"apr\"],[\"string\",\"application/vnd.lotus-approach\"]],[[\"string\",\"arc\"],[\"string\",\"application/x-freearc\"]],[[\"string\",\"asc\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"asf\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"asm\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"aso\"],[\"string\",\"application/vnd.accpac.simply.aso\"]],[[\"string\",\"asx\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"atc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"atom\"],[\"string\",\"application/atom+xml\"]],[[\"string\",\"atomcat\"],[\"string\",\"application/atomcat+xml\"]],[[\"string\",\"atomsvc\"],[\"string\",\"application/atomsvc+xml\"]],[[\"string\",\"atx\"],[\"string\",\"application/vnd.antix.game-component\"]],[[\"string\",\"au\"],[\"string\",\"audio/basic\"]],[[\"string\",\"avi\"],[\"string\",\"video/x-msvideo\"]],[[\"string\",\"avif\"],[\"string\",\"image/avif\"]],[[\"string\",\"aw\"],[\"string\",\"application/applixware\"]],[[\"string\",\"azf\"],[\"string\",\"application/vnd.airzip.filesecure.azf\"]],[[\"string\",\"azs\"],[\"string\",\"application/vnd.airzip.filesecure.azs\"]],[[\"string\",\"azw\"],[\"string\",\"application/vnd.amazon.ebook\"]],[[\"string\",\"bat\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"bcpio\"],[\"string\",\"application/x-bcpio\"]],[[\"string\",\"bdf\"],[\"string\",\"application/x-font-bdf\"]],[[\"string\",\"bdm\"],[\"string\",\"application/vnd.syncml.dm+wbxml\"]],[[\"string\",\"bed\"],[\"string\",\"application/vnd.realvnc.bed\"]],[[\"string\",\"bh2\"],[\"string\",\"application/vnd.fujitsu.oasysprs\"]],[[\"string\",\"bin\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"blb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"blorb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"bmi\"],[\"string\",\"application/vnd.bmi\"]],[[\"string\",\"bmp\"],[\"string\",\"image/bmp\"]],[[\"string\",\"book\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"box\"],[\"string\",\"application/vnd.previewsystems.box\"]],[[\"string\",\"boz\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"bpk\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"btif\"],[\"string\",\"image/prs.btif\"]],[[\"string\",\"bz\"],[\"string\",\"application/x-bzip\"]],[[\"string\",\"bz2\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"c\"],[\"string\",\"text/x-c\"]],[[\"string\",\"c11amc\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config\"]],[[\"string\",\"c11amz\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config-pkg\"]],[[\"string\",\"c4d\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4f\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4g\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4p\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4u\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"cab\"],[\"string\",\"application/vnd.ms-cab-compressed\"]],[[\"string\",\"caf\"],[\"string\",\"audio/x-caf\"]],[[\"string\",\"cap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"car\"],[\"string\",\"application/vnd.curl.car\"]],[[\"string\",\"cat\"],[\"string\",\"application/vnd.ms-pki.seccat\"]],[[\"string\",\"cb7\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cba\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbr\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbt\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbz\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cc\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cct\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ccxml\"],[\"string\",\"application/ccxml+xml\"]],[[\"string\",\"cdbcmsg\"],[\"string\",\"application/vnd.contact.cmsg\"]],[[\"string\",\"cdf\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"cdkey\"],[\"string\",\"application/vnd.mediastation.cdkey\"]],[[\"string\",\"cdmia\"],[\"string\",\"application/cdmi-capability\"]],[[\"string\",\"cdmic\"],[\"string\",\"application/cdmi-container\"]],[[\"string\",\"cdmid\"],[\"string\",\"application/cdmi-domain\"]],[[\"string\",\"cdmio\"],[\"string\",\"application/cdmi-object\"]],[[\"string\",\"cdmiq\"],[\"string\",\"application/cdmi-queue\"]],[[\"string\",\"cdx\"],[\"string\",\"chemical/x-cdx\"]],[[\"string\",\"cdxml\"],[\"string\",\"application/vnd.chemdraw+xml\"]],[[\"string\",\"cdy\"],[\"string\",\"application/vnd.cinderella\"]],[[\"string\",\"cer\"],[\"string\",\"application/pkix-cert\"]],[[\"string\",\"cfs\"],[\"string\",\"application/x-cfs-compressed\"]],[[\"string\",\"cgm\"],[\"string\",\"image/cgm\"]],[[\"string\",\"chat\"],[\"string\",\"application/x-chat\"]],[[\"string\",\"chm\"],[\"string\",\"application/vnd.ms-htmlhelp\"]],[[\"string\",\"chrt\"],[\"string\",\"application/vnd.kde.kchart\"]],[[\"string\",\"cif\"],[\"string\",\"chemical/x-cif\"]],[[\"string\",\"cii\"],[\"string\",\"application/vnd.anser-web-certificate-issue-initiation\"]],[[\"string\",\"cil\"],[\"string\",\"application/vnd.ms-artgalry\"]],[[\"string\",\"cla\"],[\"string\",\"application/vnd.claymore\"]],[[\"string\",\"class\"],[\"string\",\"application/java-vm\"]],[[\"string\",\"clkk\"],[\"string\",\"application/vnd.crick.clicker.keyboard\"]],[[\"string\",\"clkp\"],[\"string\",\"application/vnd.crick.clicker.palette\"]],[[\"string\",\"clkt\"],[\"string\",\"application/vnd.crick.clicker.template\"]],[[\"string\",\"clkw\"],[\"string\",\"application/vnd.crick.clicker.wordbank\"]],[[\"string\",\"clkx\"],[\"string\",\"application/vnd.crick.clicker\"]],[[\"string\",\"clp\"],[\"string\",\"application/x-msclip\"]],[[\"string\",\"cmc\"],[\"string\",\"application/vnd.cosmocaller\"]],[[\"string\",\"cmdf\"],[\"string\",\"chemical/x-cmdf\"]],[[\"string\",\"cml\"],[\"string\",\"chemical/x-cml\"]],[[\"string\",\"cmp\"],[\"string\",\"application/vnd.yellowriver-custom-menu\"]],[[\"string\",\"cmx\"],[\"string\",\"image/x-cmx\"]],[[\"string\",\"cod\"],[\"string\",\"application/vnd.rim.cod\"]],[[\"string\",\"com\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"conf\"],[\"string\",\"text/plain\"]],[[\"string\",\"cpio\"],[\"string\",\"application/x-cpio\"]],[[\"string\",\"cpp\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cpt\"],[\"string\",\"application/mac-compactpro\"]],[[\"string\",\"crd\"],[\"string\",\"application/x-mscardfile\"]],[[\"string\",\"crl\"],[\"string\",\"application/pkix-crl\"]],[[\"string\",\"crt\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"cryptonote\"],[\"string\",\"application/vnd.rig.cryptonote\"]],[[\"string\",\"csh\"],[\"string\",\"application/x-csh\"]],[[\"string\",\"csml\"],[\"string\",\"chemical/x-csml\"]],[[\"string\",\"csp\"],[\"string\",\"application/vnd.commonspace\"]],[[\"string\",\"css\"],[\"string\",\"text/css\"]],[[\"string\",\"cst\"],[\"string\",\"application/x-director\"]],[[\"string\",\"csv\"],[\"string\",\"text/csv\"]],[[\"string\",\"cu\"],[\"string\",\"application/cu-seeme\"]],[[\"string\",\"curl\"],[\"string\",\"text/vnd.curl\"]],[[\"string\",\"cww\"],[\"string\",\"application/prs.cww\"]],[[\"string\",\"cxt\"],[\"string\",\"application/x-director\"]],[[\"string\",\"cxx\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dae\"],[\"string\",\"model/vnd.collada+xml\"]],[[\"string\",\"daf\"],[\"string\",\"application/vnd.mobius.daf\"]],[[\"string\",\"dart\"],[\"string\",\"text/x-dart\"]],[[\"string\",\"dataless\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"davmount\"],[\"string\",\"application/davmount+xml\"]],[[\"string\",\"dbk\"],[\"string\",\"application/docbook+xml\"]],[[\"string\",\"dcm\"],[\"string\",\"application/dicom\"]],[[\"string\",\"dcr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dcurl\"],[\"string\",\"text/vnd.curl.dcurl\"]],[[\"string\",\"dd2\"],[\"string\",\"application/vnd.oma.dd2+xml\"]],[[\"string\",\"ddd\"],[\"string\",\"application/vnd.fujixerox.ddd\"]],[[\"string\",\"deb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"def\"],[\"string\",\"text/plain\"]],[[\"string\",\"deploy\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"der\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"dfac\"],[\"string\",\"application/vnd.dreamfactory\"]],[[\"string\",\"dgc\"],[\"string\",\"application/x-dgc-compressed\"]],[[\"string\",\"dic\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dir\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dis\"],[\"string\",\"application/vnd.mobius.dis\"]],[[\"string\",\"dist\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"distz\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"djv\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"djvu\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"dll\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"dmg\"],[\"string\",\"application/x-apple-diskimage\"]],[[\"string\",\"dmp\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"dms\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dna\"],[\"string\",\"application/vnd.dna\"]],[[\"string\",\"doc\"],[\"string\",\"application/msword\"]],[[\"string\",\"docm\"],[\"string\",\"application/vnd.ms-word.document.macroenabled.12\"]],[[\"string\",\"docx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"]],[[\"string\",\"dot\"],[\"string\",\"application/msword\"]],[[\"string\",\"dotm\"],[\"string\",\"application/vnd.ms-word.template.macroenabled.12\"]],[[\"string\",\"dotx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.template\"]],[[\"string\",\"dp\"],[\"string\",\"application/vnd.osgi.dp\"]],[[\"string\",\"dpg\"],[\"string\",\"application/vnd.dpgraph\"]],[[\"string\",\"dra\"],[\"string\",\"audio/vnd.dra\"]],[[\"string\",\"dsc\"],[\"string\",\"text/prs.lines.tag\"]],[[\"string\",\"dssc\"],[\"string\",\"application/dssc+der\"]],[[\"string\",\"dtb\"],[\"string\",\"application/x-dtbook+xml\"]],[[\"string\",\"dtd\"],[\"string\",\"application/xml-dtd\"]],[[\"string\",\"dts\"],[\"string\",\"audio/vnd.dts\"]],[[\"string\",\"dtshd\"],[\"string\",\"audio/vnd.dts.hd\"]],[[\"string\",\"dump\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dvb\"],[\"string\",\"video/vnd.dvb.file\"]],[[\"string\",\"dvi\"],[\"string\",\"application/x-dvi\"]],[[\"string\",\"dwf\"],[\"string\",\"model/vnd.dwf\"]],[[\"string\",\"dwg\"],[\"string\",\"image/vnd.dwg\"]],[[\"string\",\"dxf\"],[\"string\",\"image/vnd.dxf\"]],[[\"string\",\"dxp\"],[\"string\",\"application/vnd.spotfire.dxp\"]],[[\"string\",\"dxr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ecelp4800\"],[\"string\",\"audio/vnd.nuera.ecelp4800\"]],[[\"string\",\"ecelp7470\"],[\"string\",\"audio/vnd.nuera.ecelp7470\"]],[[\"string\",\"ecelp9600\"],[\"string\",\"audio/vnd.nuera.ecelp9600\"]],[[\"string\",\"ecma\"],[\"string\",\"application/ecmascript\"]],[[\"string\",\"edm\"],[\"string\",\"application/vnd.novadigm.edm\"]],[[\"string\",\"edx\"],[\"string\",\"application/vnd.novadigm.edx\"]],[[\"string\",\"efif\"],[\"string\",\"application/vnd.picsel\"]],[[\"string\",\"ei6\"],[\"string\",\"application/vnd.pg.osasli\"]],[[\"string\",\"elc\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"emf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eml\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"emma\"],[\"string\",\"application/emma+xml\"]],[[\"string\",\"emz\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eol\"],[\"string\",\"audio/vnd.digital-winds\"]],[[\"string\",\"eot\"],[\"string\",\"application/vnd.ms-fontobject\"]],[[\"string\",\"eps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"epub\"],[\"string\",\"application/epub+zip\"]],[[\"string\",\"es3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"esa\"],[\"string\",\"application/vnd.osgi.subsystem\"]],[[\"string\",\"esf\"],[\"string\",\"application/vnd.epson.esf\"]],[[\"string\",\"et3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"etx\"],[\"string\",\"text/x-setext\"]],[[\"string\",\"eva\"],[\"string\",\"application/x-eva\"]],[[\"string\",\"evy\"],[\"string\",\"application/x-envoy\"]],[[\"string\",\"exe\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"exi\"],[\"string\",\"application/exi\"]],[[\"string\",\"ext\"],[\"string\",\"application/vnd.novadigm.ext\"]],[[\"string\",\"ez\"],[\"string\",\"application/andrew-inset\"]],[[\"string\",\"ez2\"],[\"string\",\"application/vnd.ezpix-album\"]],[[\"string\",\"ez3\"],[\"string\",\"application/vnd.ezpix-package\"]],[[\"string\",\"f\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f4v\"],[\"string\",\"video/x-f4v\"]],[[\"string\",\"f77\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f90\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fbs\"],[\"string\",\"image/vnd.fastbidsheet\"]],[[\"string\",\"fcdt\"],[\"string\",\"application/vnd.adobe.formscentral.fcdt\"]],[[\"string\",\"fcs\"],[\"string\",\"application/vnd.isac.fcs\"]],[[\"string\",\"fdf\"],[\"string\",\"application/vnd.fdf\"]],[[\"string\",\"fe_launch\"],[\"string\",\"application/vnd.denovo.fcselayout-link\"]],[[\"string\",\"fg5\"],[\"string\",\"application/vnd.fujitsu.oasysgp\"]],[[\"string\",\"fgd\"],[\"string\",\"application/x-director\"]],[[\"string\",\"fh\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh4\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh5\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh7\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fhc\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fig\"],[\"string\",\"application/x-xfig\"]],[[\"string\",\"flac\"],[\"string\",\"audio/x-flac\"]],[[\"string\",\"fli\"],[\"string\",\"video/x-fli\"]],[[\"string\",\"flo\"],[\"string\",\"application/vnd.micrografx.flo\"]],[[\"string\",\"flv\"],[\"string\",\"video/x-flv\"]],[[\"string\",\"flw\"],[\"string\",\"application/vnd.kde.kivio\"]],[[\"string\",\"flx\"],[\"string\",\"text/vnd.fmi.flexstor\"]],[[\"string\",\"fly\"],[\"string\",\"text/vnd.fly\"]],[[\"string\",\"fm\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fnc\"],[\"string\",\"application/vnd.frogans.fnc\"]],[[\"string\",\"for\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fpx\"],[\"string\",\"image/vnd.fpx\"]],[[\"string\",\"frame\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fsc\"],[\"string\",\"application/vnd.fsc.weblaunch\"]],[[\"string\",\"fst\"],[\"string\",\"image/vnd.fst\"]],[[\"string\",\"ftc\"],[\"string\",\"application/vnd.fluxtime.clip\"]],[[\"string\",\"fti\"],[\"string\",\"application/vnd.anser-web-funds-transfer-initiation\"]],[[\"string\",\"fvt\"],[\"string\",\"video/vnd.fvt\"]],[[\"string\",\"fxp\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fxpl\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fzs\"],[\"string\",\"application/vnd.fuzzysheet\"]],[[\"string\",\"g2w\"],[\"string\",\"application/vnd.geoplan\"]],[[\"string\",\"g3\"],[\"string\",\"image/g3fax\"]],[[\"string\",\"g3w\"],[\"string\",\"application/vnd.geospace\"]],[[\"string\",\"gac\"],[\"string\",\"application/vnd.groove-account\"]],[[\"string\",\"gam\"],[\"string\",\"application/x-tads\"]],[[\"string\",\"gbr\"],[\"string\",\"application/rpki-ghostbusters\"]],[[\"string\",\"gca\"],[\"string\",\"application/x-gca-compressed\"]],[[\"string\",\"gdl\"],[\"string\",\"model/vnd.gdl\"]],[[\"string\",\"geo\"],[\"string\",\"application/vnd.dynageo\"]],[[\"string\",\"gex\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"ggb\"],[\"string\",\"application/vnd.geogebra.file\"]],[[\"string\",\"ggt\"],[\"string\",\"application/vnd.geogebra.tool\"]],[[\"string\",\"ghf\"],[\"string\",\"application/vnd.groove-help\"]],[[\"string\",\"gif\"],[\"string\",\"image/gif\"]],[[\"string\",\"gim\"],[\"string\",\"application/vnd.groove-identity-message\"]],[[\"string\",\"glb\"],[\"string\",\"model/gltf-binary\"]],[[\"string\",\"gltf\"],[\"string\",\"model/gltf+json\"]],[[\"string\",\"gml\"],[\"string\",\"application/gml+xml\"]],[[\"string\",\"gmx\"],[\"string\",\"application/vnd.gmx\"]],[[\"string\",\"gnumeric\"],[\"string\",\"application/x-gnumeric\"]],[[\"string\",\"gph\"],[\"string\",\"application/vnd.flographit\"]],[[\"string\",\"gpx\"],[\"string\",\"application/gpx+xml\"]],[[\"string\",\"gqf\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gqs\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gram\"],[\"string\",\"application/srgs\"]],[[\"string\",\"gramps\"],[\"string\",\"application/x-gramps-xml\"]],[[\"string\",\"gre\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"grv\"],[\"string\",\"application/vnd.groove-injector\"]],[[\"string\",\"grxml\"],[\"string\",\"application/srgs+xml\"]],[[\"string\",\"gsf\"],[\"string\",\"application/x-font-ghostscript\"]],[[\"string\",\"gtar\"],[\"string\",\"application/x-gtar\"]],[[\"string\",\"gtm\"],[\"string\",\"application/vnd.groove-tool-message\"]],[[\"string\",\"gtw\"],[\"string\",\"model/vnd.gtw\"]],[[\"string\",\"gv\"],[\"string\",\"text/vnd.graphviz\"]],[[\"string\",\"gxf\"],[\"string\",\"application/gxf\"]],[[\"string\",\"gxt\"],[\"string\",\"application/vnd.geonext\"]],[[\"string\",\"h\"],[\"string\",\"text/x-c\"]],[[\"string\",\"h261\"],[\"string\",\"video/h261\"]],[[\"string\",\"h263\"],[\"string\",\"video/h263\"]],[[\"string\",\"h264\"],[\"string\",\"video/h264\"]],[[\"string\",\"hal\"],[\"string\",\"application/vnd.hal+xml\"]],[[\"string\",\"hbci\"],[\"string\",\"application/vnd.hbci\"]],[[\"string\",\"hdf\"],[\"string\",\"application/x-hdf\"]],[[\"string\",\"heic\"],[\"string\",\"image/heic\"]],[[\"string\",\"heif\"],[\"string\",\"image/heif\"]],[[\"string\",\"hh\"],[\"string\",\"text/x-c\"]],[[\"string\",\"hlp\"],[\"string\",\"application/winhlp\"]],[[\"string\",\"hpgl\"],[\"string\",\"application/vnd.hp-hpgl\"]],[[\"string\",\"hpid\"],[\"string\",\"application/vnd.hp-hpid\"]],[[\"string\",\"hps\"],[\"string\",\"application/vnd.hp-hps\"]],[[\"string\",\"hqx\"],[\"string\",\"application/mac-binhex40\"]],[[\"string\",\"htke\"],[\"string\",\"application/vnd.kenameaapp\"]],[[\"string\",\"htm\"],[\"string\",\"text/html\"]],[[\"string\",\"html\"],[\"string\",\"text/html\"]],[[\"string\",\"hvd\"],[\"string\",\"application/vnd.yamaha.hv-dic\"]],[[\"string\",\"hvp\"],[\"string\",\"application/vnd.yamaha.hv-voice\"]],[[\"string\",\"hvs\"],[\"string\",\"application/vnd.yamaha.hv-script\"]],[[\"string\",\"i2g\"],[\"string\",\"application/vnd.intergeo\"]],[[\"string\",\"icc\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ice\"],[\"string\",\"x-conference/x-cooltalk\"]],[[\"string\",\"icm\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ico\"],[\"string\",\"image/x-icon\"]],[[\"string\",\"ics\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ief\"],[\"string\",\"image/ief\"]],[[\"string\",\"ifb\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ifm\"],[\"string\",\"application/vnd.shana.informed.formdata\"]],[[\"string\",\"iges\"],[\"string\",\"model/iges\"]],[[\"string\",\"igl\"],[\"string\",\"application/vnd.igloader\"]],[[\"string\",\"igm\"],[\"string\",\"application/vnd.insors.igm\"]],[[\"string\",\"igs\"],[\"string\",\"model/iges\"]],[[\"string\",\"igx\"],[\"string\",\"application/vnd.micrografx.igx\"]],[[\"string\",\"iif\"],[\"string\",\"application/vnd.shana.informed.interchange\"]],[[\"string\",\"imp\"],[\"string\",\"application/vnd.accpac.simply.imp\"]],[[\"string\",\"ims\"],[\"string\",\"application/vnd.ms-ims\"]],[[\"string\",\"in\"],[\"string\",\"text/plain\"]],[[\"string\",\"ink\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"inkml\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"install\"],[\"string\",\"application/x-install-instructions\"]],[[\"string\",\"iota\"],[\"string\",\"application/vnd.astraea-software.iota\"]],[[\"string\",\"ipfix\"],[\"string\",\"application/ipfix\"]],[[\"string\",\"ipk\"],[\"string\",\"application/vnd.shana.informed.package\"]],[[\"string\",\"irm\"],[\"string\",\"application/vnd.ibm.rights-management\"]],[[\"string\",\"irp\"],[\"string\",\"application/vnd.irepository.package+xml\"]],[[\"string\",\"iso\"],[\"string\",\"application/x-iso9660-image\"]],[[\"string\",\"itp\"],[\"string\",\"application/vnd.shana.informed.formtemplate\"]],[[\"string\",\"ivp\"],[\"string\",\"application/vnd.immervision-ivp\"]],[[\"string\",\"ivu\"],[\"string\",\"application/vnd.immervision-ivu\"]],[[\"string\",\"jad\"],[\"string\",\"text/vnd.sun.j2me.app-descriptor\"]],[[\"string\",\"jam\"],[\"string\",\"application/vnd.jam\"]],[[\"string\",\"jar\"],[\"string\",\"application/java-archive\"]],[[\"string\",\"java\"],[\"string\",\"text/x-java-source\"]],[[\"string\",\"jisp\"],[\"string\",\"application/vnd.jisp\"]],[[\"string\",\"jlt\"],[\"string\",\"application/vnd.hp-jlyt\"]],[[\"string\",\"jnlp\"],[\"string\",\"application/x-java-jnlp-file\"]],[[\"string\",\"joda\"],[\"string\",\"application/vnd.joost.joda-archive\"]],[[\"string\",\"jpe\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpeg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpgm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"jpgv\"],[\"string\",\"video/jpeg\"]],[[\"string\",\"jpm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"js\"],[\"string\",\"text/javascript\"]],[[\"string\",\"json\"],[\"string\",\"application/json\"]],[[\"string\",\"jsonml\"],[\"string\",\"application/jsonml+json\"]],[[\"string\",\"kar\"],[\"string\",\"audio/midi\"]],[[\"string\",\"karbon\"],[\"string\",\"application/vnd.kde.karbon\"]],[[\"string\",\"kfo\"],[\"string\",\"application/vnd.kde.kformula\"]],[[\"string\",\"kia\"],[\"string\",\"application/vnd.kidspiration\"]],[[\"string\",\"kml\"],[\"string\",\"application/vnd.google-earth.kml+xml\"]],[[\"string\",\"kmz\"],[\"string\",\"application/vnd.google-earth.kmz\"]],[[\"string\",\"kne\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"knp\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"kon\"],[\"string\",\"application/vnd.kde.kontour\"]],[[\"string\",\"kpr\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpt\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpxx\"],[\"string\",\"application/vnd.ds-keypoint\"]],[[\"string\",\"ksp\"],[\"string\",\"application/vnd.kde.kspread\"]],[[\"string\",\"ktr\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"ktx\"],[\"string\",\"image/ktx\"]],[[\"string\",\"ktz\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"kwd\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"kwt\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"lasxml\"],[\"string\",\"application/vnd.las.las+xml\"]],[[\"string\",\"latex\"],[\"string\",\"application/x-latex\"]],[[\"string\",\"lbd\"],[\"string\",\"application/vnd.llamagraphics.life-balance.desktop\"]],[[\"string\",\"lbe\"],[\"string\",\"application/vnd.llamagraphics.life-balance.exchange+xml\"]],[[\"string\",\"les\"],[\"string\",\"application/vnd.hhe.lesson-player\"]],[[\"string\",\"lha\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"link66\"],[\"string\",\"application/vnd.route66.link66+xml\"]],[[\"string\",\"list\"],[\"string\",\"text/plain\"]],[[\"string\",\"list3820\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"listafp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"lnk\"],[\"string\",\"application/x-ms-shortcut\"]],[[\"string\",\"log\"],[\"string\",\"text/plain\"]],[[\"string\",\"lostxml\"],[\"string\",\"application/lost+xml\"]],[[\"string\",\"lrf\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"lrm\"],[\"string\",\"application/vnd.ms-lrm\"]],[[\"string\",\"ltf\"],[\"string\",\"application/vnd.frogans.ltf\"]],[[\"string\",\"lvp\"],[\"string\",\"audio/vnd.lucent.voice\"]],[[\"string\",\"lwp\"],[\"string\",\"application/vnd.lotus-wordpro\"]],[[\"string\",\"lzh\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"m13\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m14\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m1v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"m2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m2v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m3a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m3u\"],[\"string\",\"audio/x-mpegurl\"]],[[\"string\",\"m3u8\"],[\"string\",\"application/vnd.apple.mpegurl\"]],[[\"string\",\"m4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4b\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4u\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"m4v\"],[\"string\",\"video/x-m4v\"]],[[\"string\",\"ma\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mads\"],[\"string\",\"application/mads+xml\"]],[[\"string\",\"mag\"],[\"string\",\"application/vnd.ecowin.chart\"]],[[\"string\",\"maker\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"man\"],[\"string\",\"text/troff\"]],[[\"string\",\"mar\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"mathml\"],[\"string\",\"application/mathml+xml\"]],[[\"string\",\"mb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mbk\"],[\"string\",\"application/vnd.mobius.mbk\"]],[[\"string\",\"mbox\"],[\"string\",\"application/mbox\"]],[[\"string\",\"mc1\"],[\"string\",\"application/vnd.medcalcdata\"]],[[\"string\",\"mcd\"],[\"string\",\"application/vnd.mcd\"]],[[\"string\",\"mcurl\"],[\"string\",\"text/vnd.curl.mcurl\"]],[[\"string\",\"md\"],[\"string\",\"text/markdown\"]],[[\"string\",\"markdown\"],[\"string\",\"text/markdown\"]],[[\"string\",\"mdb\"],[\"string\",\"application/x-msaccess\"]],[[\"string\",\"mdi\"],[\"string\",\"image/vnd.ms-modi\"]],[[\"string\",\"me\"],[\"string\",\"text/troff\"]],[[\"string\",\"mesh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"meta4\"],[\"string\",\"application/metalink4+xml\"]],[[\"string\",\"metalink\"],[\"string\",\"application/metalink+xml\"]],[[\"string\",\"mets\"],[\"string\",\"application/mets+xml\"]],[[\"string\",\"mfm\"],[\"string\",\"application/vnd.mfmp\"]],[[\"string\",\"mft\"],[\"string\",\"application/rpki-manifest\"]],[[\"string\",\"mgp\"],[\"string\",\"application/vnd.osgeo.mapguide.package\"]],[[\"string\",\"mgz\"],[\"string\",\"application/vnd.proteus.magazine\"]],[[\"string\",\"mid\"],[\"string\",\"audio/midi\"]],[[\"string\",\"midi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"mie\"],[\"string\",\"application/x-mie\"]],[[\"string\",\"mif\"],[\"string\",\"application/vnd.mif\"]],[[\"string\",\"mime\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"mj2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjp2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjs\"],[\"string\",\"text/javascript\"]],[[\"string\",\"mk3d\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mka\"],[\"string\",\"audio/x-matroska\"]],[[\"string\",\"mks\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mkv\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mlp\"],[\"string\",\"application/vnd.dolby.mlp\"]],[[\"string\",\"mmd\"],[\"string\",\"application/vnd.chipnuts.karaoke-mmd\"]],[[\"string\",\"mmf\"],[\"string\",\"application/vnd.smaf\"]],[[\"string\",\"mmr\"],[\"string\",\"image/vnd.fujixerox.edmics-mmr\"]],[[\"string\",\"mng\"],[\"string\",\"video/x-mng\"]],[[\"string\",\"mny\"],[\"string\",\"application/x-msmoney\"]],[[\"string\",\"mobi\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"mods\"],[\"string\",\"application/mods+xml\"]],[[\"string\",\"mov\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"movie\"],[\"string\",\"video/x-sgi-movie\"]],[[\"string\",\"mp2\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"mp2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp3\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mp4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"mp4s\"],[\"string\",\"application/mp4\"]],[[\"string\",\"mp4v\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpc\"],[\"string\",\"application/vnd.mophun.certificate\"]],[[\"string\",\"mpe\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpeg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpga\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mpkg\"],[\"string\",\"application/vnd.apple.installer+xml\"]],[[\"string\",\"mpm\"],[\"string\",\"application/vnd.blueice.multipass\"]],[[\"string\",\"mpn\"],[\"string\",\"application/vnd.mophun.application\"]],[[\"string\",\"mpp\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpt\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpy\"],[\"string\",\"application/vnd.ibm.minipay\"]],[[\"string\",\"mqy\"],[\"string\",\"application/vnd.mobius.mqy\"]],[[\"string\",\"mrc\"],[\"string\",\"application/marc\"]],[[\"string\",\"mrcx\"],[\"string\",\"application/marcxml+xml\"]],[[\"string\",\"ms\"],[\"string\",\"text/troff\"]],[[\"string\",\"mscml\"],[\"string\",\"application/mediaservercontrol+xml\"]],[[\"string\",\"mseed\"],[\"string\",\"application/vnd.fdsn.mseed\"]],[[\"string\",\"mseq\"],[\"string\",\"application/vnd.mseq\"]],[[\"string\",\"msf\"],[\"string\",\"application/vnd.epson.msf\"]],[[\"string\",\"msh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"msi\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"msl\"],[\"string\",\"application/vnd.mobius.msl\"]],[[\"string\",\"msty\"],[\"string\",\"application/vnd.muvee.style\"]],[[\"string\",\"mts\"],[\"string\",\"model/vnd.mts\"]],[[\"string\",\"mus\"],[\"string\",\"application/vnd.musician\"]],[[\"string\",\"musicxml\"],[\"string\",\"application/vnd.recordare.musicxml+xml\"]],[[\"string\",\"mvb\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"mwf\"],[\"string\",\"application/vnd.mfer\"]],[[\"string\",\"mxf\"],[\"string\",\"application/mxf\"]],[[\"string\",\"mxl\"],[\"string\",\"application/vnd.recordare.musicxml\"]],[[\"string\",\"mxml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"mxs\"],[\"string\",\"application/vnd.triscape.mxs\"]],[[\"string\",\"mxu\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"n-gage\"],[\"string\",\"application/vnd.nokia.n-gage.symbian.install\"]],[[\"string\",\"n3\"],[\"string\",\"text/n3\"]],[[\"string\",\"nb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"nbp\"],[\"string\",\"application/vnd.wolfram.player\"]],[[\"string\",\"nc\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"ncx\"],[\"string\",\"application/x-dtbncx+xml\"]],[[\"string\",\"nfo\"],[\"string\",\"text/x-nfo\"]],[[\"string\",\"ngdat\"],[\"string\",\"application/vnd.nokia.n-gage.data\"]],[[\"string\",\"nitf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nlu\"],[\"string\",\"application/vnd.neurolanguage.nlu\"]],[[\"string\",\"nml\"],[\"string\",\"application/vnd.enliven\"]],[[\"string\",\"nnd\"],[\"string\",\"application/vnd.noblenet-directory\"]],[[\"string\",\"nns\"],[\"string\",\"application/vnd.noblenet-sealer\"]],[[\"string\",\"nnw\"],[\"string\",\"application/vnd.noblenet-web\"]],[[\"string\",\"npx\"],[\"string\",\"image/vnd.net-fpx\"]],[[\"string\",\"nsc\"],[\"string\",\"application/x-conference\"]],[[\"string\",\"nsf\"],[\"string\",\"application/vnd.lotus-notes\"]],[[\"string\",\"ntf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nzb\"],[\"string\",\"application/x-nzb\"]],[[\"string\",\"oa2\"],[\"string\",\"application/vnd.fujitsu.oasys2\"]],[[\"string\",\"oa3\"],[\"string\",\"application/vnd.fujitsu.oasys3\"]],[[\"string\",\"oas\"],[\"string\",\"application/vnd.fujitsu.oasys\"]],[[\"string\",\"obd\"],[\"string\",\"application/x-msbinder\"]],[[\"string\",\"obj\"],[\"string\",\"application/x-tgif\"]],[[\"string\",\"oda\"],[\"string\",\"application/oda\"]],[[\"string\",\"odb\"],[\"string\",\"application/vnd.oasis.opendocument.database\"]],[[\"string\",\"odc\"],[\"string\",\"application/vnd.oasis.opendocument.chart\"]],[[\"string\",\"odf\"],[\"string\",\"application/vnd.oasis.opendocument.formula\"]],[[\"string\",\"odft\"],[\"string\",\"application/vnd.oasis.opendocument.formula-template\"]],[[\"string\",\"odg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics\"]],[[\"string\",\"odi\"],[\"string\",\"application/vnd.oasis.opendocument.image\"]],[[\"string\",\"odm\"],[\"string\",\"application/vnd.oasis.opendocument.text-master\"]],[[\"string\",\"odp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation\"]],[[\"string\",\"ods\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet\"]],[[\"string\",\"odt\"],[\"string\",\"application/vnd.oasis.opendocument.text\"]],[[\"string\",\"oga\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogg\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogv\"],[\"string\",\"video/ogg\"]],[[\"string\",\"ogx\"],[\"string\",\"application/ogg\"]],[[\"string\",\"omdoc\"],[\"string\",\"application/omdoc+xml\"]],[[\"string\",\"onepkg\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetmp\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc2\"],[\"string\",\"application/onenote\"]],[[\"string\",\"opf\"],[\"string\",\"application/oebps-package+xml\"]],[[\"string\",\"opml\"],[\"string\",\"text/x-opml\"]],[[\"string\",\"oprc\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"org\"],[\"string\",\"application/vnd.lotus-organizer\"]],[[\"string\",\"osf\"],[\"string\",\"application/vnd.yamaha.openscoreformat\"]],[[\"string\",\"osfpvg\"],[\"string\",\"application/vnd.yamaha.openscoreformat.osfpvg+xml\"]],[[\"string\",\"otc\"],[\"string\",\"application/vnd.oasis.opendocument.chart-template\"]],[[\"string\",\"otf\"],[\"string\",\"application/x-font-otf\"]],[[\"string\",\"otg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics-template\"]],[[\"string\",\"oth\"],[\"string\",\"application/vnd.oasis.opendocument.text-web\"]],[[\"string\",\"oti\"],[\"string\",\"application/vnd.oasis.opendocument.image-template\"]],[[\"string\",\"otp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation-template\"]],[[\"string\",\"ots\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet-template\"]],[[\"string\",\"ott\"],[\"string\",\"application/vnd.oasis.opendocument.text-template\"]],[[\"string\",\"oxps\"],[\"string\",\"application/oxps\"]],[[\"string\",\"oxt\"],[\"string\",\"application/vnd.openofficeorg.extension\"]],[[\"string\",\"p\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"p10\"],[\"string\",\"application/pkcs10\"]],[[\"string\",\"p12\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"p7b\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"p7c\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7m\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7r\"],[\"string\",\"application/x-pkcs7-certreqresp\"]],[[\"string\",\"p7s\"],[\"string\",\"application/pkcs7-signature\"]],[[\"string\",\"p8\"],[\"string\",\"application/pkcs8\"]],[[\"string\",\"pas\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"paw\"],[\"string\",\"application/vnd.pawaafile\"]],[[\"string\",\"pbd\"],[\"string\",\"application/vnd.powerbuilder6\"]],[[\"string\",\"pbm\"],[\"string\",\"image/x-portable-bitmap\"]],[[\"string\",\"pcap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"pcf\"],[\"string\",\"application/x-font-pcf\"]],[[\"string\",\"pcl\"],[\"string\",\"application/vnd.hp-pcl\"]],[[\"string\",\"pclxl\"],[\"string\",\"application/vnd.hp-pclxl\"]],[[\"string\",\"pct\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pcurl\"],[\"string\",\"application/vnd.curl.pcurl\"]],[[\"string\",\"pcx\"],[\"string\",\"image/x-pcx\"]],[[\"string\",\"pdb\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"pdf\"],[\"string\",\"application/pdf\"]],[[\"string\",\"pfa\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfb\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfr\"],[\"string\",\"application/font-tdpfr\"]],[[\"string\",\"pfx\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"pgm\"],[\"string\",\"image/x-portable-graymap\"]],[[\"string\",\"pgn\"],[\"string\",\"application/x-chess-pgn\"]],[[\"string\",\"pgp\"],[\"string\",\"application/pgp-encrypted\"]],[[\"string\",\"pic\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pkg\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"pki\"],[\"string\",\"application/pkixcmp\"]],[[\"string\",\"pkipath\"],[\"string\",\"application/pkix-pkipath\"]],[[\"string\",\"plb\"],[\"string\",\"application/vnd.3gpp.pic-bw-large\"]],[[\"string\",\"plc\"],[\"string\",\"application/vnd.mobius.plc\"]],[[\"string\",\"plf\"],[\"string\",\"application/vnd.pocketlearn\"]],[[\"string\",\"pls\"],[\"string\",\"application/pls+xml\"]],[[\"string\",\"pml\"],[\"string\",\"application/vnd.ctc-posml\"]],[[\"string\",\"png\"],[\"string\",\"image/png\"]],[[\"string\",\"pnm\"],[\"string\",\"image/x-portable-anymap\"]],[[\"string\",\"portpkg\"],[\"string\",\"application/vnd.macports.portpkg\"]],[[\"string\",\"pot\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"potm\"],[\"string\",\"application/vnd.ms-powerpoint.template.macroenabled.12\"]],[[\"string\",\"potx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.template\"]],[[\"string\",\"ppam\"],[\"string\",\"application/vnd.ms-powerpoint.addin.macroenabled.12\"]],[[\"string\",\"ppd\"],[\"string\",\"application/vnd.cups-ppd\"]],[[\"string\",\"ppm\"],[\"string\",\"image/x-portable-pixmap\"]],[[\"string\",\"pps\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"ppsm\"],[\"string\",\"application/vnd.ms-powerpoint.slideshow.macroenabled.12\"]],[[\"string\",\"ppsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slideshow\"]],[[\"string\",\"ppt\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"pptm\"],[\"string\",\"application/vnd.ms-powerpoint.presentation.macroenabled.12\"]],[[\"string\",\"pptx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.presentation\"]],[[\"string\",\"pqa\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"prc\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"pre\"],[\"string\",\"application/vnd.lotus-freelance\"]],[[\"string\",\"prf\"],[\"string\",\"application/pics-rules\"]],[[\"string\",\"ps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"psb\"],[\"string\",\"application/vnd.3gpp.pic-bw-small\"]],[[\"string\",\"psd\"],[\"string\",\"image/vnd.adobe.photoshop\"]],[[\"string\",\"psf\"],[\"string\",\"application/x-font-linux-psf\"]],[[\"string\",\"pskcxml\"],[\"string\",\"application/pskc+xml\"]],[[\"string\",\"ptid\"],[\"string\",\"application/vnd.pvi.ptid1\"]],[[\"string\",\"pub\"],[\"string\",\"application/x-mspublisher\"]],[[\"string\",\"pvb\"],[\"string\",\"application/vnd.3gpp.pic-bw-var\"]],[[\"string\",\"pwn\"],[\"string\",\"application/vnd.3m.post-it-notes\"]],[[\"string\",\"pya\"],[\"string\",\"audio/vnd.ms-playready.media.pya\"]],[[\"string\",\"pyv\"],[\"string\",\"video/vnd.ms-playready.media.pyv\"]],[[\"string\",\"qam\"],[\"string\",\"application/vnd.epson.quickanime\"]],[[\"string\",\"qbo\"],[\"string\",\"application/vnd.intu.qbo\"]],[[\"string\",\"qfx\"],[\"string\",\"application/vnd.intu.qfx\"]],[[\"string\",\"qps\"],[\"string\",\"application/vnd.publishare-delta-tree\"]],[[\"string\",\"qt\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"qwd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qwt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxb\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxl\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"ra\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"ram\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"rar\"],[\"string\",\"application/x-rar-compressed\"]],[[\"string\",\"ras\"],[\"string\",\"image/x-cmu-raster\"]],[[\"string\",\"rcprofile\"],[\"string\",\"application/vnd.ipunplugged.rcprofile\"]],[[\"string\",\"rdf\"],[\"string\",\"application/rdf+xml\"]],[[\"string\",\"rdz\"],[\"string\",\"application/vnd.data-vision.rdz\"]],[[\"string\",\"rep\"],[\"string\",\"application/vnd.businessobjects\"]],[[\"string\",\"res\"],[\"string\",\"application/x-dtbresource+xml\"]],[[\"string\",\"rgb\"],[\"string\",\"image/x-rgb\"]],[[\"string\",\"rif\"],[\"string\",\"application/reginfo+xml\"]],[[\"string\",\"rip\"],[\"string\",\"audio/vnd.rip\"]],[[\"string\",\"ris\"],[\"string\",\"application/x-research-info-systems\"]],[[\"string\",\"rl\"],[\"string\",\"application/resource-lists+xml\"]],[[\"string\",\"rlc\"],[\"string\",\"image/vnd.fujixerox.edmics-rlc\"]],[[\"string\",\"rld\"],[\"string\",\"application/resource-lists-diff+xml\"]],[[\"string\",\"rm\"],[\"string\",\"application/vnd.rn-realmedia\"]],[[\"string\",\"rmi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"rmp\"],[\"string\",\"audio/x-pn-realaudio-plugin\"]],[[\"string\",\"rms\"],[\"string\",\"application/vnd.jcp.javame.midlet-rms\"]],[[\"string\",\"rmvb\"],[\"string\",\"application/vnd.rn-realmedia-vbr\"]],[[\"string\",\"rnc\"],[\"string\",\"application/relax-ng-compact-syntax\"]],[[\"string\",\"roa\"],[\"string\",\"application/rpki-roa\"]],[[\"string\",\"roff\"],[\"string\",\"text/troff\"]],[[\"string\",\"rp9\"],[\"string\",\"application/vnd.cloanto.rp9\"]],[[\"string\",\"rpss\"],[\"string\",\"application/vnd.nokia.radio-presets\"]],[[\"string\",\"rpst\"],[\"string\",\"application/vnd.nokia.radio-preset\"]],[[\"string\",\"rq\"],[\"string\",\"application/sparql-query\"]],[[\"string\",\"rs\"],[\"string\",\"application/rls-services+xml\"]],[[\"string\",\"rsd\"],[\"string\",\"application/rsd+xml\"]],[[\"string\",\"rss\"],[\"string\",\"application/rss+xml\"]],[[\"string\",\"rtf\"],[\"string\",\"application/rtf\"]],[[\"string\",\"rtx\"],[\"string\",\"text/richtext\"]],[[\"string\",\"s\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"s3m\"],[\"string\",\"audio/s3m\"]],[[\"string\",\"saf\"],[\"string\",\"application/vnd.yamaha.smaf-audio\"]],[[\"string\",\"sbml\"],[\"string\",\"application/sbml+xml\"]],[[\"string\",\"sc\"],[\"string\",\"application/vnd.ibm.secure-container\"]],[[\"string\",\"scd\"],[\"string\",\"application/x-msschedule\"]],[[\"string\",\"scm\"],[\"string\",\"application/vnd.lotus-screencam\"]],[[\"string\",\"scq\"],[\"string\",\"application/scvp-cv-request\"]],[[\"string\",\"scs\"],[\"string\",\"application/scvp-cv-response\"]],[[\"string\",\"scurl\"],[\"string\",\"text/vnd.curl.scurl\"]],[[\"string\",\"sda\"],[\"string\",\"application/vnd.stardivision.draw\"]],[[\"string\",\"sdc\"],[\"string\",\"application/vnd.stardivision.calc\"]],[[\"string\",\"sdd\"],[\"string\",\"application/vnd.stardivision.impress\"]],[[\"string\",\"sdkd\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdkm\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdp\"],[\"string\",\"application/sdp\"]],[[\"string\",\"sdw\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"see\"],[\"string\",\"application/vnd.seemail\"]],[[\"string\",\"seed\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"sema\"],[\"string\",\"application/vnd.sema\"]],[[\"string\",\"semd\"],[\"string\",\"application/vnd.semd\"]],[[\"string\",\"semf\"],[\"string\",\"application/vnd.semf\"]],[[\"string\",\"ser\"],[\"string\",\"application/java-serialized-object\"]],[[\"string\",\"setpay\"],[\"string\",\"application/set-payment-initiation\"]],[[\"string\",\"setreg\"],[\"string\",\"application/set-registration-initiation\"]],[[\"string\",\"sfd-hdstx\"],[\"string\",\"application/vnd.hydrostatix.sof-data\"]],[[\"string\",\"sfs\"],[\"string\",\"application/vnd.spotfire.sfs\"]],[[\"string\",\"sfv\"],[\"string\",\"text/x-sfv\"]],[[\"string\",\"sgi\"],[\"string\",\"image/sgi\"]],[[\"string\",\"sgl\"],[\"string\",\"application/vnd.stardivision.writer-global\"]],[[\"string\",\"sgm\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sgml\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sh\"],[\"string\",\"application/x-sh\"]],[[\"string\",\"shar\"],[\"string\",\"application/x-shar\"]],[[\"string\",\"shf\"],[\"string\",\"application/shf+xml\"]],[[\"string\",\"sid\"],[\"string\",\"image/x-mrsid-image\"]],[[\"string\",\"sig\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"sil\"],[\"string\",\"audio/silk\"]],[[\"string\",\"silo\"],[\"string\",\"model/mesh\"]],[[\"string\",\"sis\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sisx\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sit\"],[\"string\",\"application/x-stuffit\"]],[[\"string\",\"sitx\"],[\"string\",\"application/x-stuffitx\"]],[[\"string\",\"skd\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skm\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skp\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skt\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"sldm\"],[\"string\",\"application/vnd.ms-powerpoint.slide.macroenabled.12\"]],[[\"string\",\"sldx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slide\"]],[[\"string\",\"slt\"],[\"string\",\"application/vnd.epson.salt\"]],[[\"string\",\"sm\"],[\"string\",\"application/vnd.stepmania.stepchart\"]],[[\"string\",\"smf\"],[\"string\",\"application/vnd.stardivision.math\"]],[[\"string\",\"smi\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smil\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smv\"],[\"string\",\"video/x-smv\"]],[[\"string\",\"smzip\"],[\"string\",\"application/vnd.stepmania.package\"]],[[\"string\",\"snd\"],[\"string\",\"audio/basic\"]],[[\"string\",\"snf\"],[\"string\",\"application/x-font-snf\"]],[[\"string\",\"so\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"spc\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"spf\"],[\"string\",\"application/vnd.yamaha.smaf-phrase\"]],[[\"string\",\"spl\"],[\"string\",\"application/x-futuresplash\"]],[[\"string\",\"spot\"],[\"string\",\"text/vnd.in3d.spot\"]],[[\"string\",\"spp\"],[\"string\",\"application/scvp-vp-response\"]],[[\"string\",\"spq\"],[\"string\",\"application/scvp-vp-request\"]],[[\"string\",\"spx\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"sql\"],[\"string\",\"application/x-sql\"]],[[\"string\",\"src\"],[\"string\",\"application/x-wais-source\"]],[[\"string\",\"srt\"],[\"string\",\"application/x-subrip\"]],[[\"string\",\"sru\"],[\"string\",\"application/sru+xml\"]],[[\"string\",\"srx\"],[\"string\",\"application/sparql-results+xml\"]],[[\"string\",\"ssdl\"],[\"string\",\"application/ssdl+xml\"]],[[\"string\",\"sse\"],[\"string\",\"application/vnd.kodak-descriptor\"]],[[\"string\",\"ssf\"],[\"string\",\"application/vnd.epson.ssf\"]],[[\"string\",\"ssml\"],[\"string\",\"application/ssml+xml\"]],[[\"string\",\"st\"],[\"string\",\"application/vnd.sailingtracker.track\"]],[[\"string\",\"stc\"],[\"string\",\"application/vnd.sun.xml.calc.template\"]],[[\"string\",\"std\"],[\"string\",\"application/vnd.sun.xml.draw.template\"]],[[\"string\",\"stf\"],[\"string\",\"application/vnd.wt.stf\"]],[[\"string\",\"sti\"],[\"string\",\"application/vnd.sun.xml.impress.template\"]],[[\"string\",\"stk\"],[\"string\",\"application/hyperstudio\"]],[[\"string\",\"stl\"],[\"string\",\"application/vnd.ms-pki.stl\"]],[[\"string\",\"str\"],[\"string\",\"application/vnd.pg.format\"]],[[\"string\",\"stw\"],[\"string\",\"application/vnd.sun.xml.writer.template\"]],[[\"string\",\"sub\"],[\"string\",\"text/vnd.dvb.subtitle\"]],[[\"string\",\"sus\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"susp\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"sv4cpio\"],[\"string\",\"application/x-sv4cpio\"]],[[\"string\",\"sv4crc\"],[\"string\",\"application/x-sv4crc\"]],[[\"string\",\"svc\"],[\"string\",\"application/vnd.dvb.service\"]],[[\"string\",\"svd\"],[\"string\",\"application/vnd.svd\"]],[[\"string\",\"svg\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"svgz\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"swa\"],[\"string\",\"application/x-director\"]],[[\"string\",\"swf\"],[\"string\",\"application/x-shockwave-flash\"]],[[\"string\",\"swi\"],[\"string\",\"application/vnd.aristanetworks.swi\"]],[[\"string\",\"sxc\"],[\"string\",\"application/vnd.sun.xml.calc\"]],[[\"string\",\"sxd\"],[\"string\",\"application/vnd.sun.xml.draw\"]],[[\"string\",\"sxg\"],[\"string\",\"application/vnd.sun.xml.writer.global\"]],[[\"string\",\"sxi\"],[\"string\",\"application/vnd.sun.xml.impress\"]],[[\"string\",\"sxm\"],[\"string\",\"application/vnd.sun.xml.math\"]],[[\"string\",\"sxw\"],[\"string\",\"application/vnd.sun.xml.writer\"]],[[\"string\",\"t\"],[\"string\",\"text/troff\"]],[[\"string\",\"t3\"],[\"string\",\"application/x-t3vm-image\"]],[[\"string\",\"taglet\"],[\"string\",\"application/vnd.mynfc\"]],[[\"string\",\"tao\"],[\"string\",\"application/vnd.tao.intent-module-archive\"]],[[\"string\",\"tar\"],[\"string\",\"application/x-tar\"]],[[\"string\",\"tcap\"],[\"string\",\"application/vnd.3gpp2.tcap\"]],[[\"string\",\"tcl\"],[\"string\",\"application/x-tcl\"]],[[\"string\",\"teacher\"],[\"string\",\"application/vnd.smart.teacher\"]],[[\"string\",\"tei\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"teicorpus\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"tex\"],[\"string\",\"application/x-tex\"]],[[\"string\",\"texi\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"texinfo\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"text\"],[\"string\",\"text/plain\"]],[[\"string\",\"tfi\"],[\"string\",\"application/thraud+xml\"]],[[\"string\",\"tfm\"],[\"string\",\"application/x-tex-tfm\"]],[[\"string\",\"tga\"],[\"string\",\"image/x-tga\"]],[[\"string\",\"thmx\"],[\"string\",\"application/vnd.ms-officetheme\"]],[[\"string\",\"tif\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tiff\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tmo\"],[\"string\",\"application/vnd.tmobile-livetv\"]],[[\"string\",\"toml\"],[\"string\",\"application/toml\"]],[[\"string\",\"torrent\"],[\"string\",\"application/x-bittorrent\"]],[[\"string\",\"tpl\"],[\"string\",\"application/vnd.groove-tool-template\"]],[[\"string\",\"tpt\"],[\"string\",\"application/vnd.trid.tpt\"]],[[\"string\",\"tr\"],[\"string\",\"text/troff\"]],[[\"string\",\"tra\"],[\"string\",\"application/vnd.trueapp\"]],[[\"string\",\"trm\"],[\"string\",\"application/x-msterminal\"]],[[\"string\",\"tsd\"],[\"string\",\"application/timestamped-data\"]],[[\"string\",\"tsv\"],[\"string\",\"text/tab-separated-values\"]],[[\"string\",\"ttc\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttf\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttl\"],[\"string\",\"text/turtle\"]],[[\"string\",\"twd\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"twds\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"txd\"],[\"string\",\"application/vnd.genomatix.tuxedo\"]],[[\"string\",\"txf\"],[\"string\",\"application/vnd.mobius.txf\"]],[[\"string\",\"txt\"],[\"string\",\"text/plain\"]],[[\"string\",\"u32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"udeb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"ufd\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ufdl\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ulx\"],[\"string\",\"application/x-glulx\"]],[[\"string\",\"umj\"],[\"string\",\"application/vnd.umajin\"]],[[\"string\",\"unityweb\"],[\"string\",\"application/vnd.unity\"]],[[\"string\",\"uoml\"],[\"string\",\"application/vnd.uoml+xml\"]],[[\"string\",\"uri\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"uris\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"urls\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"ustar\"],[\"string\",\"application/x-ustar\"]],[[\"string\",\"utz\"],[\"string\",\"application/vnd.uiq.theme\"]],[[\"string\",\"uu\"],[\"string\",\"text/x-uuencode\"]],[[\"string\",\"uva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"uvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"vcard\"],[\"string\",\"text/vcard\"]],[[\"string\",\"vcd\"],[\"string\",\"application/x-cdlink\"]],[[\"string\",\"vcf\"],[\"string\",\"text/x-vcard\"]],[[\"string\",\"vcg\"],[\"string\",\"application/vnd.groove-vcard\"]],[[\"string\",\"vcs\"],[\"string\",\"text/x-vcalendar\"]],[[\"string\",\"vcx\"],[\"string\",\"application/vnd.vcx\"]],[[\"string\",\"vis\"],[\"string\",\"application/vnd.visionary\"]],[[\"string\",\"viv\"],[\"string\",\"video/vnd.vivo\"]],[[\"string\",\"vob\"],[\"string\",\"video/x-ms-vob\"]],[[\"string\",\"vor\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"vox\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"vrml\"],[\"string\",\"model/vrml\"]],[[\"string\",\"vsd\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsf\"],[\"string\",\"application/vnd.vsf\"]],[[\"string\",\"vss\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vst\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsw\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vtu\"],[\"string\",\"model/vnd.vtu\"]],[[\"string\",\"vxml\"],[\"string\",\"application/voicexml+xml\"]],[[\"string\",\"w3d\"],[\"string\",\"application/x-director\"]],[[\"string\",\"wad\"],[\"string\",\"application/x-doom\"]],[[\"string\",\"wasm\"],[\"string\",\"application/wasm\"]],[[\"string\",\"wav\"],[\"string\",\"audio/x-wav\"]],[[\"string\",\"wax\"],[\"string\",\"audio/x-ms-wax\"]],[[\"string\",\"wbmp\"],[\"string\",\"image/vnd.wap.wbmp\"]],[[\"string\",\"wbs\"],[\"string\",\"application/vnd.criticaltools.wbs+xml\"]],[[\"string\",\"wbxml\"],[\"string\",\"application/vnd.wap.wbxml\"]],[[\"string\",\"wcm\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdb\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdp\"],[\"string\",\"image/vnd.ms-photo\"]],[[\"string\",\"weba\"],[\"string\",\"audio/webm\"]],[[\"string\",\"webm\"],[\"string\",\"video/webm\"]],[[\"string\",\"webmanifest\"],[\"string\",\"application/manifest+json\"]],[[\"string\",\"webp\"],[\"string\",\"image/webp\"]],[[\"string\",\"wg\"],[\"string\",\"application/vnd.pmi.widget\"]],[[\"string\",\"wgt\"],[\"string\",\"application/widget\"]],[[\"string\",\"wks\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wm\"],[\"string\",\"video/x-ms-wm\"]],[[\"string\",\"wma\"],[\"string\",\"audio/x-ms-wma\"]],[[\"string\",\"wmd\"],[\"string\",\"application/x-ms-wmd\"]],[[\"string\",\"wmf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"wml\"],[\"string\",\"text/vnd.wap.wml\"]],[[\"string\",\"wmlc\"],[\"string\",\"application/vnd.wap.wmlc\"]],[[\"string\",\"wmls\"],[\"string\",\"text/vnd.wap.wmlscript\"]],[[\"string\",\"wmlsc\"],[\"string\",\"application/vnd.wap.wmlscriptc\"]],[[\"string\",\"wmv\"],[\"string\",\"video/x-ms-wmv\"]],[[\"string\",\"wmx\"],[\"string\",\"video/x-ms-wmx\"]],[[\"string\",\"wmz\"],[\"string\",\"application/x-ms-wmz\"]],[[\"string\",\"woff\"],[\"string\",\"application/x-font-woff\"]],[[\"string\",\"woff2\"],[\"string\",\"font/woff2\"]],[[\"string\",\"wpd\"],[\"string\",\"application/vnd.wordperfect\"]],[[\"string\",\"wpl\"],[\"string\",\"application/vnd.ms-wpl\"]],[[\"string\",\"wps\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wqd\"],[\"string\",\"application/vnd.wqd\"]],[[\"string\",\"wri\"],[\"string\",\"application/x-mswrite\"]],[[\"string\",\"wrl\"],[\"string\",\"model/vrml\"]],[[\"string\",\"wsdl\"],[\"string\",\"application/wsdl+xml\"]],[[\"string\",\"wspolicy\"],[\"string\",\"application/wspolicy+xml\"]],[[\"string\",\"wtb\"],[\"string\",\"application/vnd.webturbo\"]],[[\"string\",\"wvx\"],[\"string\",\"video/x-ms-wvx\"]],[[\"string\",\"x32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"x3d\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"x3db\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dbz\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dv\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dvz\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dz\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"xaml\"],[\"string\",\"application/xaml+xml\"]],[[\"string\",\"xap\"],[\"string\",\"application/x-silverlight-app\"]],[[\"string\",\"xar\"],[\"string\",\"application/vnd.xara\"]],[[\"string\",\"xbap\"],[\"string\",\"application/x-ms-xbap\"]],[[\"string\",\"xbd\"],[\"string\",\"application/vnd.fujixerox.docuworks.binder\"]],[[\"string\",\"xbm\"],[\"string\",\"image/x-xbitmap\"]],[[\"string\",\"xdf\"],[\"string\",\"application/xcap-diff+xml\"]],[[\"string\",\"xdm\"],[\"string\",\"application/vnd.syncml.dm+xml\"]],[[\"string\",\"xdp\"],[\"string\",\"application/vnd.adobe.xdp+xml\"]],[[\"string\",\"xdssc\"],[\"string\",\"application/dssc+xml\"]],[[\"string\",\"xdw\"],[\"string\",\"application/vnd.fujixerox.docuworks\"]],[[\"string\",\"xenc\"],[\"string\",\"application/xenc+xml\"]],[[\"string\",\"xer\"],[\"string\",\"application/patch-ops-error+xml\"]],[[\"string\",\"xfdf\"],[\"string\",\"application/vnd.adobe.xfdf\"]],[[\"string\",\"xfdl\"],[\"string\",\"application/vnd.xfdl\"]],[[\"string\",\"xht\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhtml\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xif\"],[\"string\",\"image/vnd.xiff\"]],[[\"string\",\"xla\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlam\"],[\"string\",\"application/vnd.ms-excel.addin.macroenabled.12\"]],[[\"string\",\"xlc\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlf\"],[\"string\",\"application/x-xliff+xml\"]],[[\"string\",\"xlm\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xls\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlsb\"],[\"string\",\"application/vnd.ms-excel.sheet.binary.macroenabled.12\"]],[[\"string\",\"xlsm\"],[\"string\",\"application/vnd.ms-excel.sheet.macroenabled.12\"]],[[\"string\",\"xlsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\"]],[[\"string\",\"xlt\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xltm\"],[\"string\",\"application/vnd.ms-excel.template.macroenabled.12\"]],[[\"string\",\"xltx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.template\"]],[[\"string\",\"xlw\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xm\"],[\"string\",\"audio/xm\"]],[[\"string\",\"xml\"],[\"string\",\"application/xml\"]],[[\"string\",\"xo\"],[\"string\",\"application/vnd.olpc-sugar\"]],[[\"string\",\"xop\"],[\"string\",\"application/xop+xml\"]],[[\"string\",\"xpi\"],[\"string\",\"application/x-xpinstall\"]],[[\"string\",\"xpl\"],[\"string\",\"application/xproc+xml\"]],[[\"string\",\"xpm\"],[\"string\",\"image/x-xpixmap\"]],[[\"string\",\"xpr\"],[\"string\",\"application/vnd.is-xpr\"]],[[\"string\",\"xps\"],[\"string\",\"application/vnd.ms-xpsdocument\"]],[[\"string\",\"xpw\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xpx\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xsl\"],[\"string\",\"application/xml\"]],[[\"string\",\"xslt\"],[\"string\",\"application/xslt+xml\"]],[[\"string\",\"xsm\"],[\"string\",\"application/vnd.syncml+xml\"]],[[\"string\",\"xspf\"],[\"string\",\"application/xspf+xml\"]],[[\"string\",\"xul\"],[\"string\",\"application/vnd.mozilla.xul+xml\"]],[[\"string\",\"xvm\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xwd\"],[\"string\",\"image/x-xwindowdump\"]],[[\"string\",\"xyz\"],[\"string\",\"chemical/x-xyz\"]],[[\"string\",\"xz\"],[\"string\",\"application/x-xz\"]],[[\"string\",\"yang\"],[\"string\",\"application/yang\"]],[[\"string\",\"yin\"],[\"string\",\"application/yin+xml\"]],[[\"string\",\"z1\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z2\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z3\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z4\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z5\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z6\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z7\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z8\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"zaz\"],[\"string\",\"application/vnd.zzazz.deck+xml\"]],[[\"string\",\"zip\"],[\"string\",\"application/zip\"]],[[\"string\",\"zir\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zirz\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zmm\"],[\"string\",\"application/vnd.handheld-entertainment+xml\"]]]", () => __dartConstMap([["123", "application/vnd.lotus-1-2-3"], ["3dml", "text/vnd.in3d.3dml"], ["3ds", "image/x-3ds"], ["3g2", "video/3gpp2"], ["3gp", "video/3gpp"], ["7z", "application/x-7z-compressed"], ["aab", "application/x-authorware-bin"], ["aac", "audio/aac"], ["aam", "application/x-authorware-map"], ["aas", "application/x-authorware-seg"], ["abw", "application/x-abiword"], ["ac", "application/pkix-attr-cert"], ["acc", "application/vnd.americandynamics.acc"], ["ace", "application/x-ace-compressed"], ["acu", "application/vnd.acucobol"], ["acutc", "application/vnd.acucorp"], ["adp", "audio/adpcm"], ["aep", "application/vnd.audiograph"], ["afm", "application/x-font-type1"], ["afp", "application/vnd.ibm.modcap"], ["ahead", "application/vnd.ahead.space"], ["ai", "application/postscript"], ["aif", "audio/x-aiff"], ["aifc", "audio/x-aiff"], ["aiff", "audio/x-aiff"], ["air", "application/vnd.adobe.air-application-installer-package+zip"], ["ait", "application/vnd.dvb.ait"], ["ami", "application/vnd.amiga.ami"], ["apk", "application/vnd.android.package-archive"], ["appcache", "text/cache-manifest"], ["application", "application/x-ms-application"], ["apr", "application/vnd.lotus-approach"], ["arc", "application/x-freearc"], ["asc", "application/pgp-signature"], ["asf", "video/x-ms-asf"], ["asm", "text/x-asm"], ["aso", "application/vnd.accpac.simply.aso"], ["asx", "video/x-ms-asf"], ["atc", "application/vnd.acucorp"], ["atom", "application/atom+xml"], ["atomcat", "application/atomcat+xml"], ["atomsvc", "application/atomsvc+xml"], ["atx", "application/vnd.antix.game-component"], ["au", "audio/basic"], ["avi", "video/x-msvideo"], ["avif", "image/avif"], ["aw", "application/applixware"], ["azf", "application/vnd.airzip.filesecure.azf"], ["azs", "application/vnd.airzip.filesecure.azs"], ["azw", "application/vnd.amazon.ebook"], ["bat", "application/x-msdownload"], ["bcpio", "application/x-bcpio"], ["bdf", "application/x-font-bdf"], ["bdm", "application/vnd.syncml.dm+wbxml"], ["bed", "application/vnd.realvnc.bed"], ["bh2", "application/vnd.fujitsu.oasysprs"], ["bin", "application/octet-stream"], ["blb", "application/x-blorb"], ["blorb", "application/x-blorb"], ["bmi", "application/vnd.bmi"], ["bmp", "image/bmp"], ["book", "application/vnd.framemaker"], ["box", "application/vnd.previewsystems.box"], ["boz", "application/x-bzip2"], ["bpk", "application/octet-stream"], ["btif", "image/prs.btif"], ["bz", "application/x-bzip"], ["bz2", "application/x-bzip2"], ["c", "text/x-c"], ["c11amc", "application/vnd.cluetrust.cartomobile-config"], ["c11amz", "application/vnd.cluetrust.cartomobile-config-pkg"], ["c4d", "application/vnd.clonk.c4group"], ["c4f", "application/vnd.clonk.c4group"], ["c4g", "application/vnd.clonk.c4group"], ["c4p", "application/vnd.clonk.c4group"], ["c4u", "application/vnd.clonk.c4group"], ["cab", "application/vnd.ms-cab-compressed"], ["caf", "audio/x-caf"], ["cap", "application/vnd.tcpdump.pcap"], ["car", "application/vnd.curl.car"], ["cat", "application/vnd.ms-pki.seccat"], ["cb7", "application/x-cbr"], ["cba", "application/x-cbr"], ["cbr", "application/x-cbr"], ["cbt", "application/x-cbr"], ["cbz", "application/x-cbr"], ["cc", "text/x-c"], ["cct", "application/x-director"], ["ccxml", "application/ccxml+xml"], ["cdbcmsg", "application/vnd.contact.cmsg"], ["cdf", "application/x-netcdf"], ["cdkey", "application/vnd.mediastation.cdkey"], ["cdmia", "application/cdmi-capability"], ["cdmic", "application/cdmi-container"], ["cdmid", "application/cdmi-domain"], ["cdmio", "application/cdmi-object"], ["cdmiq", "application/cdmi-queue"], ["cdx", "chemical/x-cdx"], ["cdxml", "application/vnd.chemdraw+xml"], ["cdy", "application/vnd.cinderella"], ["cer", "application/pkix-cert"], ["cfs", "application/x-cfs-compressed"], ["cgm", "image/cgm"], ["chat", "application/x-chat"], ["chm", "application/vnd.ms-htmlhelp"], ["chrt", "application/vnd.kde.kchart"], ["cif", "chemical/x-cif"], ["cii", "application/vnd.anser-web-certificate-issue-initiation"], ["cil", "application/vnd.ms-artgalry"], ["cla", "application/vnd.claymore"], ["class", "application/java-vm"], ["clkk", "application/vnd.crick.clicker.keyboard"], ["clkp", "application/vnd.crick.clicker.palette"], ["clkt", "application/vnd.crick.clicker.template"], ["clkw", "application/vnd.crick.clicker.wordbank"], ["clkx", "application/vnd.crick.clicker"], ["clp", "application/x-msclip"], ["cmc", "application/vnd.cosmocaller"], ["cmdf", "chemical/x-cmdf"], ["cml", "chemical/x-cml"], ["cmp", "application/vnd.yellowriver-custom-menu"], ["cmx", "image/x-cmx"], ["cod", "application/vnd.rim.cod"], ["com", "application/x-msdownload"], ["conf", "text/plain"], ["cpio", "application/x-cpio"], ["cpp", "text/x-c"], ["cpt", "application/mac-compactpro"], ["crd", "application/x-mscardfile"], ["crl", "application/pkix-crl"], ["crt", "application/x-x509-ca-cert"], ["cryptonote", "application/vnd.rig.cryptonote"], ["csh", "application/x-csh"], ["csml", "chemical/x-csml"], ["csp", "application/vnd.commonspace"], ["css", "text/css"], ["cst", "application/x-director"], ["csv", "text/csv"], ["cu", "application/cu-seeme"], ["curl", "text/vnd.curl"], ["cww", "application/prs.cww"], ["cxt", "application/x-director"], ["cxx", "text/x-c"], ["dae", "model/vnd.collada+xml"], ["daf", "application/vnd.mobius.daf"], ["dart", "text/x-dart"], ["dataless", "application/vnd.fdsn.seed"], ["davmount", "application/davmount+xml"], ["dbk", "application/docbook+xml"], ["dcm", "application/dicom"], ["dcr", "application/x-director"], ["dcurl", "text/vnd.curl.dcurl"], ["dd2", "application/vnd.oma.dd2+xml"], ["ddd", "application/vnd.fujixerox.ddd"], ["deb", "application/x-debian-package"], ["def", "text/plain"], ["deploy", "application/octet-stream"], ["der", "application/x-x509-ca-cert"], ["dfac", "application/vnd.dreamfactory"], ["dgc", "application/x-dgc-compressed"], ["dic", "text/x-c"], ["dir", "application/x-director"], ["dis", "application/vnd.mobius.dis"], ["dist", "application/octet-stream"], ["distz", "application/octet-stream"], ["djv", "image/vnd.djvu"], ["djvu", "image/vnd.djvu"], ["dll", "application/x-msdownload"], ["dmg", "application/x-apple-diskimage"], ["dmp", "application/vnd.tcpdump.pcap"], ["dms", "application/octet-stream"], ["dna", "application/vnd.dna"], ["doc", "application/msword"], ["docm", "application/vnd.ms-word.document.macroenabled.12"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["dot", "application/msword"], ["dotm", "application/vnd.ms-word.template.macroenabled.12"], ["dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template"], ["dp", "application/vnd.osgi.dp"], ["dpg", "application/vnd.dpgraph"], ["dra", "audio/vnd.dra"], ["dsc", "text/prs.lines.tag"], ["dssc", "application/dssc+der"], ["dtb", "application/x-dtbook+xml"], ["dtd", "application/xml-dtd"], ["dts", "audio/vnd.dts"], ["dtshd", "audio/vnd.dts.hd"], ["dump", "application/octet-stream"], ["dvb", "video/vnd.dvb.file"], ["dvi", "application/x-dvi"], ["dwf", "model/vnd.dwf"], ["dwg", "image/vnd.dwg"], ["dxf", "image/vnd.dxf"], ["dxp", "application/vnd.spotfire.dxp"], ["dxr", "application/x-director"], ["ecelp4800", "audio/vnd.nuera.ecelp4800"], ["ecelp7470", "audio/vnd.nuera.ecelp7470"], ["ecelp9600", "audio/vnd.nuera.ecelp9600"], ["ecma", "application/ecmascript"], ["edm", "application/vnd.novadigm.edm"], ["edx", "application/vnd.novadigm.edx"], ["efif", "application/vnd.picsel"], ["ei6", "application/vnd.pg.osasli"], ["elc", "application/octet-stream"], ["emf", "application/x-msmetafile"], ["eml", "message/rfc822"], ["emma", "application/emma+xml"], ["emz", "application/x-msmetafile"], ["eol", "audio/vnd.digital-winds"], ["eot", "application/vnd.ms-fontobject"], ["eps", "application/postscript"], ["epub", "application/epub+zip"], ["es3", "application/vnd.eszigno3+xml"], ["esa", "application/vnd.osgi.subsystem"], ["esf", "application/vnd.epson.esf"], ["et3", "application/vnd.eszigno3+xml"], ["etx", "text/x-setext"], ["eva", "application/x-eva"], ["evy", "application/x-envoy"], ["exe", "application/x-msdownload"], ["exi", "application/exi"], ["ext", "application/vnd.novadigm.ext"], ["ez", "application/andrew-inset"], ["ez2", "application/vnd.ezpix-album"], ["ez3", "application/vnd.ezpix-package"], ["f", "text/x-fortran"], ["f4v", "video/x-f4v"], ["f77", "text/x-fortran"], ["f90", "text/x-fortran"], ["fbs", "image/vnd.fastbidsheet"], ["fcdt", "application/vnd.adobe.formscentral.fcdt"], ["fcs", "application/vnd.isac.fcs"], ["fdf", "application/vnd.fdf"], ["fe_launch", "application/vnd.denovo.fcselayout-link"], ["fg5", "application/vnd.fujitsu.oasysgp"], ["fgd", "application/x-director"], ["fh", "image/x-freehand"], ["fh4", "image/x-freehand"], ["fh5", "image/x-freehand"], ["fh7", "image/x-freehand"], ["fhc", "image/x-freehand"], ["fig", "application/x-xfig"], ["flac", "audio/x-flac"], ["fli", "video/x-fli"], ["flo", "application/vnd.micrografx.flo"], ["flv", "video/x-flv"], ["flw", "application/vnd.kde.kivio"], ["flx", "text/vnd.fmi.flexstor"], ["fly", "text/vnd.fly"], ["fm", "application/vnd.framemaker"], ["fnc", "application/vnd.frogans.fnc"], ["for", "text/x-fortran"], ["fpx", "image/vnd.fpx"], ["frame", "application/vnd.framemaker"], ["fsc", "application/vnd.fsc.weblaunch"], ["fst", "image/vnd.fst"], ["ftc", "application/vnd.fluxtime.clip"], ["fti", "application/vnd.anser-web-funds-transfer-initiation"], ["fvt", "video/vnd.fvt"], ["fxp", "application/vnd.adobe.fxp"], ["fxpl", "application/vnd.adobe.fxp"], ["fzs", "application/vnd.fuzzysheet"], ["g2w", "application/vnd.geoplan"], ["g3", "image/g3fax"], ["g3w", "application/vnd.geospace"], ["gac", "application/vnd.groove-account"], ["gam", "application/x-tads"], ["gbr", "application/rpki-ghostbusters"], ["gca", "application/x-gca-compressed"], ["gdl", "model/vnd.gdl"], ["geo", "application/vnd.dynageo"], ["gex", "application/vnd.geometry-explorer"], ["ggb", "application/vnd.geogebra.file"], ["ggt", "application/vnd.geogebra.tool"], ["ghf", "application/vnd.groove-help"], ["gif", "image/gif"], ["gim", "application/vnd.groove-identity-message"], ["glb", "model/gltf-binary"], ["gltf", "model/gltf+json"], ["gml", "application/gml+xml"], ["gmx", "application/vnd.gmx"], ["gnumeric", "application/x-gnumeric"], ["gph", "application/vnd.flographit"], ["gpx", "application/gpx+xml"], ["gqf", "application/vnd.grafeq"], ["gqs", "application/vnd.grafeq"], ["gram", "application/srgs"], ["gramps", "application/x-gramps-xml"], ["gre", "application/vnd.geometry-explorer"], ["grv", "application/vnd.groove-injector"], ["grxml", "application/srgs+xml"], ["gsf", "application/x-font-ghostscript"], ["gtar", "application/x-gtar"], ["gtm", "application/vnd.groove-tool-message"], ["gtw", "model/vnd.gtw"], ["gv", "text/vnd.graphviz"], ["gxf", "application/gxf"], ["gxt", "application/vnd.geonext"], ["h", "text/x-c"], ["h261", "video/h261"], ["h263", "video/h263"], ["h264", "video/h264"], ["hal", "application/vnd.hal+xml"], ["hbci", "application/vnd.hbci"], ["hdf", "application/x-hdf"], ["heic", "image/heic"], ["heif", "image/heif"], ["hh", "text/x-c"], ["hlp", "application/winhlp"], ["hpgl", "application/vnd.hp-hpgl"], ["hpid", "application/vnd.hp-hpid"], ["hps", "application/vnd.hp-hps"], ["hqx", "application/mac-binhex40"], ["htke", "application/vnd.kenameaapp"], ["htm", "text/html"], ["html", "text/html"], ["hvd", "application/vnd.yamaha.hv-dic"], ["hvp", "application/vnd.yamaha.hv-voice"], ["hvs", "application/vnd.yamaha.hv-script"], ["i2g", "application/vnd.intergeo"], ["icc", "application/vnd.iccprofile"], ["ice", "x-conference/x-cooltalk"], ["icm", "application/vnd.iccprofile"], ["ico", "image/x-icon"], ["ics", "text/calendar"], ["ief", "image/ief"], ["ifb", "text/calendar"], ["ifm", "application/vnd.shana.informed.formdata"], ["iges", "model/iges"], ["igl", "application/vnd.igloader"], ["igm", "application/vnd.insors.igm"], ["igs", "model/iges"], ["igx", "application/vnd.micrografx.igx"], ["iif", "application/vnd.shana.informed.interchange"], ["imp", "application/vnd.accpac.simply.imp"], ["ims", "application/vnd.ms-ims"], ["in", "text/plain"], ["ink", "application/inkml+xml"], ["inkml", "application/inkml+xml"], ["install", "application/x-install-instructions"], ["iota", "application/vnd.astraea-software.iota"], ["ipfix", "application/ipfix"], ["ipk", "application/vnd.shana.informed.package"], ["irm", "application/vnd.ibm.rights-management"], ["irp", "application/vnd.irepository.package+xml"], ["iso", "application/x-iso9660-image"], ["itp", "application/vnd.shana.informed.formtemplate"], ["ivp", "application/vnd.immervision-ivp"], ["ivu", "application/vnd.immervision-ivu"], ["jad", "text/vnd.sun.j2me.app-descriptor"], ["jam", "application/vnd.jam"], ["jar", "application/java-archive"], ["java", "text/x-java-source"], ["jisp", "application/vnd.jisp"], ["jlt", "application/vnd.hp-jlyt"], ["jnlp", "application/x-java-jnlp-file"], ["joda", "application/vnd.joost.joda-archive"], ["jpe", "image/jpeg"], ["jpeg", "image/jpeg"], ["jpg", "image/jpeg"], ["jpgm", "video/jpm"], ["jpgv", "video/jpeg"], ["jpm", "video/jpm"], ["js", "text/javascript"], ["json", "application/json"], ["jsonml", "application/jsonml+json"], ["kar", "audio/midi"], ["karbon", "application/vnd.kde.karbon"], ["kfo", "application/vnd.kde.kformula"], ["kia", "application/vnd.kidspiration"], ["kml", "application/vnd.google-earth.kml+xml"], ["kmz", "application/vnd.google-earth.kmz"], ["kne", "application/vnd.kinar"], ["knp", "application/vnd.kinar"], ["kon", "application/vnd.kde.kontour"], ["kpr", "application/vnd.kde.kpresenter"], ["kpt", "application/vnd.kde.kpresenter"], ["kpxx", "application/vnd.ds-keypoint"], ["ksp", "application/vnd.kde.kspread"], ["ktr", "application/vnd.kahootz"], ["ktx", "image/ktx"], ["ktz", "application/vnd.kahootz"], ["kwd", "application/vnd.kde.kword"], ["kwt", "application/vnd.kde.kword"], ["lasxml", "application/vnd.las.las+xml"], ["latex", "application/x-latex"], ["lbd", "application/vnd.llamagraphics.life-balance.desktop"], ["lbe", "application/vnd.llamagraphics.life-balance.exchange+xml"], ["les", "application/vnd.hhe.lesson-player"], ["lha", "application/x-lzh-compressed"], ["link66", "application/vnd.route66.link66+xml"], ["list", "text/plain"], ["list3820", "application/vnd.ibm.modcap"], ["listafp", "application/vnd.ibm.modcap"], ["lnk", "application/x-ms-shortcut"], ["log", "text/plain"], ["lostxml", "application/lost+xml"], ["lrf", "application/octet-stream"], ["lrm", "application/vnd.ms-lrm"], ["ltf", "application/vnd.frogans.ltf"], ["lvp", "audio/vnd.lucent.voice"], ["lwp", "application/vnd.lotus-wordpro"], ["lzh", "application/x-lzh-compressed"], ["m13", "application/x-msmediaview"], ["m14", "application/x-msmediaview"], ["m1v", "video/mpeg"], ["m21", "application/mp21"], ["m2a", "audio/mpeg"], ["m2v", "video/mpeg"], ["m3a", "audio/mpeg"], ["m3u", "audio/x-mpegurl"], ["m3u8", "application/vnd.apple.mpegurl"], ["m4a", "audio/mp4"], ["m4b", "audio/mp4"], ["m4u", "video/vnd.mpegurl"], ["m4v", "video/x-m4v"], ["ma", "application/mathematica"], ["mads", "application/mads+xml"], ["mag", "application/vnd.ecowin.chart"], ["maker", "application/vnd.framemaker"], ["man", "text/troff"], ["mar", "application/octet-stream"], ["mathml", "application/mathml+xml"], ["mb", "application/mathematica"], ["mbk", "application/vnd.mobius.mbk"], ["mbox", "application/mbox"], ["mc1", "application/vnd.medcalcdata"], ["mcd", "application/vnd.mcd"], ["mcurl", "text/vnd.curl.mcurl"], ["md", "text/markdown"], ["markdown", "text/markdown"], ["mdb", "application/x-msaccess"], ["mdi", "image/vnd.ms-modi"], ["me", "text/troff"], ["mesh", "model/mesh"], ["meta4", "application/metalink4+xml"], ["metalink", "application/metalink+xml"], ["mets", "application/mets+xml"], ["mfm", "application/vnd.mfmp"], ["mft", "application/rpki-manifest"], ["mgp", "application/vnd.osgeo.mapguide.package"], ["mgz", "application/vnd.proteus.magazine"], ["mid", "audio/midi"], ["midi", "audio/midi"], ["mie", "application/x-mie"], ["mif", "application/vnd.mif"], ["mime", "message/rfc822"], ["mj2", "video/mj2"], ["mjp2", "video/mj2"], ["mjs", "text/javascript"], ["mk3d", "video/x-matroska"], ["mka", "audio/x-matroska"], ["mks", "video/x-matroska"], ["mkv", "video/x-matroska"], ["mlp", "application/vnd.dolby.mlp"], ["mmd", "application/vnd.chipnuts.karaoke-mmd"], ["mmf", "application/vnd.smaf"], ["mmr", "image/vnd.fujixerox.edmics-mmr"], ["mng", "video/x-mng"], ["mny", "application/x-msmoney"], ["mobi", "application/x-mobipocket-ebook"], ["mods", "application/mods+xml"], ["mov", "video/quicktime"], ["movie", "video/x-sgi-movie"], ["mp2", "audio/mpeg"], ["mp21", "application/mp21"], ["mp2a", "audio/mpeg"], ["mp3", "audio/mpeg"], ["mp4", "video/mp4"], ["mp4a", "audio/mp4"], ["mp4s", "application/mp4"], ["mp4v", "video/mp4"], ["mpc", "application/vnd.mophun.certificate"], ["mpe", "video/mpeg"], ["mpeg", "video/mpeg"], ["mpg", "video/mpeg"], ["mpg4", "video/mp4"], ["mpga", "audio/mpeg"], ["mpkg", "application/vnd.apple.installer+xml"], ["mpm", "application/vnd.blueice.multipass"], ["mpn", "application/vnd.mophun.application"], ["mpp", "application/vnd.ms-project"], ["mpt", "application/vnd.ms-project"], ["mpy", "application/vnd.ibm.minipay"], ["mqy", "application/vnd.mobius.mqy"], ["mrc", "application/marc"], ["mrcx", "application/marcxml+xml"], ["ms", "text/troff"], ["mscml", "application/mediaservercontrol+xml"], ["mseed", "application/vnd.fdsn.mseed"], ["mseq", "application/vnd.mseq"], ["msf", "application/vnd.epson.msf"], ["msh", "model/mesh"], ["msi", "application/x-msdownload"], ["msl", "application/vnd.mobius.msl"], ["msty", "application/vnd.muvee.style"], ["mts", "model/vnd.mts"], ["mus", "application/vnd.musician"], ["musicxml", "application/vnd.recordare.musicxml+xml"], ["mvb", "application/x-msmediaview"], ["mwf", "application/vnd.mfer"], ["mxf", "application/mxf"], ["mxl", "application/vnd.recordare.musicxml"], ["mxml", "application/xv+xml"], ["mxs", "application/vnd.triscape.mxs"], ["mxu", "video/vnd.mpegurl"], ["n-gage", "application/vnd.nokia.n-gage.symbian.install"], ["n3", "text/n3"], ["nb", "application/mathematica"], ["nbp", "application/vnd.wolfram.player"], ["nc", "application/x-netcdf"], ["ncx", "application/x-dtbncx+xml"], ["nfo", "text/x-nfo"], ["ngdat", "application/vnd.nokia.n-gage.data"], ["nitf", "application/vnd.nitf"], ["nlu", "application/vnd.neurolanguage.nlu"], ["nml", "application/vnd.enliven"], ["nnd", "application/vnd.noblenet-directory"], ["nns", "application/vnd.noblenet-sealer"], ["nnw", "application/vnd.noblenet-web"], ["npx", "image/vnd.net-fpx"], ["nsc", "application/x-conference"], ["nsf", "application/vnd.lotus-notes"], ["ntf", "application/vnd.nitf"], ["nzb", "application/x-nzb"], ["oa2", "application/vnd.fujitsu.oasys2"], ["oa3", "application/vnd.fujitsu.oasys3"], ["oas", "application/vnd.fujitsu.oasys"], ["obd", "application/x-msbinder"], ["obj", "application/x-tgif"], ["oda", "application/oda"], ["odb", "application/vnd.oasis.opendocument.database"], ["odc", "application/vnd.oasis.opendocument.chart"], ["odf", "application/vnd.oasis.opendocument.formula"], ["odft", "application/vnd.oasis.opendocument.formula-template"], ["odg", "application/vnd.oasis.opendocument.graphics"], ["odi", "application/vnd.oasis.opendocument.image"], ["odm", "application/vnd.oasis.opendocument.text-master"], ["odp", "application/vnd.oasis.opendocument.presentation"], ["ods", "application/vnd.oasis.opendocument.spreadsheet"], ["odt", "application/vnd.oasis.opendocument.text"], ["oga", "audio/ogg"], ["ogg", "audio/ogg"], ["ogv", "video/ogg"], ["ogx", "application/ogg"], ["omdoc", "application/omdoc+xml"], ["onepkg", "application/onenote"], ["onetmp", "application/onenote"], ["onetoc", "application/onenote"], ["onetoc2", "application/onenote"], ["opf", "application/oebps-package+xml"], ["opml", "text/x-opml"], ["oprc", "application/vnd.palm"], ["org", "application/vnd.lotus-organizer"], ["osf", "application/vnd.yamaha.openscoreformat"], ["osfpvg", "application/vnd.yamaha.openscoreformat.osfpvg+xml"], ["otc", "application/vnd.oasis.opendocument.chart-template"], ["otf", "application/x-font-otf"], ["otg", "application/vnd.oasis.opendocument.graphics-template"], ["oth", "application/vnd.oasis.opendocument.text-web"], ["oti", "application/vnd.oasis.opendocument.image-template"], ["otp", "application/vnd.oasis.opendocument.presentation-template"], ["ots", "application/vnd.oasis.opendocument.spreadsheet-template"], ["ott", "application/vnd.oasis.opendocument.text-template"], ["oxps", "application/oxps"], ["oxt", "application/vnd.openofficeorg.extension"], ["p", "text/x-pascal"], ["p10", "application/pkcs10"], ["p12", "application/x-pkcs12"], ["p7b", "application/x-pkcs7-certificates"], ["p7c", "application/pkcs7-mime"], ["p7m", "application/pkcs7-mime"], ["p7r", "application/x-pkcs7-certreqresp"], ["p7s", "application/pkcs7-signature"], ["p8", "application/pkcs8"], ["pas", "text/x-pascal"], ["paw", "application/vnd.pawaafile"], ["pbd", "application/vnd.powerbuilder6"], ["pbm", "image/x-portable-bitmap"], ["pcap", "application/vnd.tcpdump.pcap"], ["pcf", "application/x-font-pcf"], ["pcl", "application/vnd.hp-pcl"], ["pclxl", "application/vnd.hp-pclxl"], ["pct", "image/x-pict"], ["pcurl", "application/vnd.curl.pcurl"], ["pcx", "image/x-pcx"], ["pdb", "application/vnd.palm"], ["pdf", "application/pdf"], ["pfa", "application/x-font-type1"], ["pfb", "application/x-font-type1"], ["pfm", "application/x-font-type1"], ["pfr", "application/font-tdpfr"], ["pfx", "application/x-pkcs12"], ["pgm", "image/x-portable-graymap"], ["pgn", "application/x-chess-pgn"], ["pgp", "application/pgp-encrypted"], ["pic", "image/x-pict"], ["pkg", "application/octet-stream"], ["pki", "application/pkixcmp"], ["pkipath", "application/pkix-pkipath"], ["plb", "application/vnd.3gpp.pic-bw-large"], ["plc", "application/vnd.mobius.plc"], ["plf", "application/vnd.pocketlearn"], ["pls", "application/pls+xml"], ["pml", "application/vnd.ctc-posml"], ["png", "image/png"], ["pnm", "image/x-portable-anymap"], ["portpkg", "application/vnd.macports.portpkg"], ["pot", "application/vnd.ms-powerpoint"], ["potm", "application/vnd.ms-powerpoint.template.macroenabled.12"], ["potx", "application/vnd.openxmlformats-officedocument.presentationml.template"], ["ppam", "application/vnd.ms-powerpoint.addin.macroenabled.12"], ["ppd", "application/vnd.cups-ppd"], ["ppm", "image/x-portable-pixmap"], ["pps", "application/vnd.ms-powerpoint"], ["ppsm", "application/vnd.ms-powerpoint.slideshow.macroenabled.12"], ["ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow"], ["ppt", "application/vnd.ms-powerpoint"], ["pptm", "application/vnd.ms-powerpoint.presentation.macroenabled.12"], ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], ["pqa", "application/vnd.palm"], ["prc", "application/x-mobipocket-ebook"], ["pre", "application/vnd.lotus-freelance"], ["prf", "application/pics-rules"], ["ps", "application/postscript"], ["psb", "application/vnd.3gpp.pic-bw-small"], ["psd", "image/vnd.adobe.photoshop"], ["psf", "application/x-font-linux-psf"], ["pskcxml", "application/pskc+xml"], ["ptid", "application/vnd.pvi.ptid1"], ["pub", "application/x-mspublisher"], ["pvb", "application/vnd.3gpp.pic-bw-var"], ["pwn", "application/vnd.3m.post-it-notes"], ["pya", "audio/vnd.ms-playready.media.pya"], ["pyv", "video/vnd.ms-playready.media.pyv"], ["qam", "application/vnd.epson.quickanime"], ["qbo", "application/vnd.intu.qbo"], ["qfx", "application/vnd.intu.qfx"], ["qps", "application/vnd.publishare-delta-tree"], ["qt", "video/quicktime"], ["qwd", "application/vnd.quark.quarkxpress"], ["qwt", "application/vnd.quark.quarkxpress"], ["qxb", "application/vnd.quark.quarkxpress"], ["qxd", "application/vnd.quark.quarkxpress"], ["qxl", "application/vnd.quark.quarkxpress"], ["qxt", "application/vnd.quark.quarkxpress"], ["ra", "audio/x-pn-realaudio"], ["ram", "audio/x-pn-realaudio"], ["rar", "application/x-rar-compressed"], ["ras", "image/x-cmu-raster"], ["rcprofile", "application/vnd.ipunplugged.rcprofile"], ["rdf", "application/rdf+xml"], ["rdz", "application/vnd.data-vision.rdz"], ["rep", "application/vnd.businessobjects"], ["res", "application/x-dtbresource+xml"], ["rgb", "image/x-rgb"], ["rif", "application/reginfo+xml"], ["rip", "audio/vnd.rip"], ["ris", "application/x-research-info-systems"], ["rl", "application/resource-lists+xml"], ["rlc", "image/vnd.fujixerox.edmics-rlc"], ["rld", "application/resource-lists-diff+xml"], ["rm", "application/vnd.rn-realmedia"], ["rmi", "audio/midi"], ["rmp", "audio/x-pn-realaudio-plugin"], ["rms", "application/vnd.jcp.javame.midlet-rms"], ["rmvb", "application/vnd.rn-realmedia-vbr"], ["rnc", "application/relax-ng-compact-syntax"], ["roa", "application/rpki-roa"], ["roff", "text/troff"], ["rp9", "application/vnd.cloanto.rp9"], ["rpss", "application/vnd.nokia.radio-presets"], ["rpst", "application/vnd.nokia.radio-preset"], ["rq", "application/sparql-query"], ["rs", "application/rls-services+xml"], ["rsd", "application/rsd+xml"], ["rss", "application/rss+xml"], ["rtf", "application/rtf"], ["rtx", "text/richtext"], ["s", "text/x-asm"], ["s3m", "audio/s3m"], ["saf", "application/vnd.yamaha.smaf-audio"], ["sbml", "application/sbml+xml"], ["sc", "application/vnd.ibm.secure-container"], ["scd", "application/x-msschedule"], ["scm", "application/vnd.lotus-screencam"], ["scq", "application/scvp-cv-request"], ["scs", "application/scvp-cv-response"], ["scurl", "text/vnd.curl.scurl"], ["sda", "application/vnd.stardivision.draw"], ["sdc", "application/vnd.stardivision.calc"], ["sdd", "application/vnd.stardivision.impress"], ["sdkd", "application/vnd.solent.sdkm+xml"], ["sdkm", "application/vnd.solent.sdkm+xml"], ["sdp", "application/sdp"], ["sdw", "application/vnd.stardivision.writer"], ["see", "application/vnd.seemail"], ["seed", "application/vnd.fdsn.seed"], ["sema", "application/vnd.sema"], ["semd", "application/vnd.semd"], ["semf", "application/vnd.semf"], ["ser", "application/java-serialized-object"], ["setpay", "application/set-payment-initiation"], ["setreg", "application/set-registration-initiation"], ["sfd-hdstx", "application/vnd.hydrostatix.sof-data"], ["sfs", "application/vnd.spotfire.sfs"], ["sfv", "text/x-sfv"], ["sgi", "image/sgi"], ["sgl", "application/vnd.stardivision.writer-global"], ["sgm", "text/sgml"], ["sgml", "text/sgml"], ["sh", "application/x-sh"], ["shar", "application/x-shar"], ["shf", "application/shf+xml"], ["sid", "image/x-mrsid-image"], ["sig", "application/pgp-signature"], ["sil", "audio/silk"], ["silo", "model/mesh"], ["sis", "application/vnd.symbian.install"], ["sisx", "application/vnd.symbian.install"], ["sit", "application/x-stuffit"], ["sitx", "application/x-stuffitx"], ["skd", "application/vnd.koan"], ["skm", "application/vnd.koan"], ["skp", "application/vnd.koan"], ["skt", "application/vnd.koan"], ["sldm", "application/vnd.ms-powerpoint.slide.macroenabled.12"], ["sldx", "application/vnd.openxmlformats-officedocument.presentationml.slide"], ["slt", "application/vnd.epson.salt"], ["sm", "application/vnd.stepmania.stepchart"], ["smf", "application/vnd.stardivision.math"], ["smi", "application/smil+xml"], ["smil", "application/smil+xml"], ["smv", "video/x-smv"], ["smzip", "application/vnd.stepmania.package"], ["snd", "audio/basic"], ["snf", "application/x-font-snf"], ["so", "application/octet-stream"], ["spc", "application/x-pkcs7-certificates"], ["spf", "application/vnd.yamaha.smaf-phrase"], ["spl", "application/x-futuresplash"], ["spot", "text/vnd.in3d.spot"], ["spp", "application/scvp-vp-response"], ["spq", "application/scvp-vp-request"], ["spx", "audio/ogg"], ["sql", "application/x-sql"], ["src", "application/x-wais-source"], ["srt", "application/x-subrip"], ["sru", "application/sru+xml"], ["srx", "application/sparql-results+xml"], ["ssdl", "application/ssdl+xml"], ["sse", "application/vnd.kodak-descriptor"], ["ssf", "application/vnd.epson.ssf"], ["ssml", "application/ssml+xml"], ["st", "application/vnd.sailingtracker.track"], ["stc", "application/vnd.sun.xml.calc.template"], ["std", "application/vnd.sun.xml.draw.template"], ["stf", "application/vnd.wt.stf"], ["sti", "application/vnd.sun.xml.impress.template"], ["stk", "application/hyperstudio"], ["stl", "application/vnd.ms-pki.stl"], ["str", "application/vnd.pg.format"], ["stw", "application/vnd.sun.xml.writer.template"], ["sub", "text/vnd.dvb.subtitle"], ["sus", "application/vnd.sus-calendar"], ["susp", "application/vnd.sus-calendar"], ["sv4cpio", "application/x-sv4cpio"], ["sv4crc", "application/x-sv4crc"], ["svc", "application/vnd.dvb.service"], ["svd", "application/vnd.svd"], ["svg", "image/svg+xml"], ["svgz", "image/svg+xml"], ["swa", "application/x-director"], ["swf", "application/x-shockwave-flash"], ["swi", "application/vnd.aristanetworks.swi"], ["sxc", "application/vnd.sun.xml.calc"], ["sxd", "application/vnd.sun.xml.draw"], ["sxg", "application/vnd.sun.xml.writer.global"], ["sxi", "application/vnd.sun.xml.impress"], ["sxm", "application/vnd.sun.xml.math"], ["sxw", "application/vnd.sun.xml.writer"], ["t", "text/troff"], ["t3", "application/x-t3vm-image"], ["taglet", "application/vnd.mynfc"], ["tao", "application/vnd.tao.intent-module-archive"], ["tar", "application/x-tar"], ["tcap", "application/vnd.3gpp2.tcap"], ["tcl", "application/x-tcl"], ["teacher", "application/vnd.smart.teacher"], ["tei", "application/tei+xml"], ["teicorpus", "application/tei+xml"], ["tex", "application/x-tex"], ["texi", "application/x-texinfo"], ["texinfo", "application/x-texinfo"], ["text", "text/plain"], ["tfi", "application/thraud+xml"], ["tfm", "application/x-tex-tfm"], ["tga", "image/x-tga"], ["thmx", "application/vnd.ms-officetheme"], ["tif", "image/tiff"], ["tiff", "image/tiff"], ["tmo", "application/vnd.tmobile-livetv"], ["toml", "application/toml"], ["torrent", "application/x-bittorrent"], ["tpl", "application/vnd.groove-tool-template"], ["tpt", "application/vnd.trid.tpt"], ["tr", "text/troff"], ["tra", "application/vnd.trueapp"], ["trm", "application/x-msterminal"], ["tsd", "application/timestamped-data"], ["tsv", "text/tab-separated-values"], ["ttc", "application/x-font-ttf"], ["ttf", "application/x-font-ttf"], ["ttl", "text/turtle"], ["twd", "application/vnd.simtech-mindmapper"], ["twds", "application/vnd.simtech-mindmapper"], ["txd", "application/vnd.genomatix.tuxedo"], ["txf", "application/vnd.mobius.txf"], ["txt", "text/plain"], ["u32", "application/x-authorware-bin"], ["udeb", "application/x-debian-package"], ["ufd", "application/vnd.ufdl"], ["ufdl", "application/vnd.ufdl"], ["ulx", "application/x-glulx"], ["umj", "application/vnd.umajin"], ["unityweb", "application/vnd.unity"], ["uoml", "application/vnd.uoml+xml"], ["uri", "text/uri-list"], ["uris", "text/uri-list"], ["urls", "text/uri-list"], ["ustar", "application/x-ustar"], ["utz", "application/vnd.uiq.theme"], ["uu", "text/x-uuencode"], ["uva", "audio/vnd.dece.audio"], ["uvd", "application/vnd.dece.data"], ["uvf", "application/vnd.dece.data"], ["uvg", "image/vnd.dece.graphic"], ["uvh", "video/vnd.dece.hd"], ["uvi", "image/vnd.dece.graphic"], ["uvm", "video/vnd.dece.mobile"], ["uvp", "video/vnd.dece.pd"], ["uvs", "video/vnd.dece.sd"], ["uvt", "application/vnd.dece.ttml+xml"], ["uvu", "video/vnd.uvvu.mp4"], ["uvv", "video/vnd.dece.video"], ["uvva", "audio/vnd.dece.audio"], ["uvvd", "application/vnd.dece.data"], ["uvvf", "application/vnd.dece.data"], ["uvvg", "image/vnd.dece.graphic"], ["uvvh", "video/vnd.dece.hd"], ["uvvi", "image/vnd.dece.graphic"], ["uvvm", "video/vnd.dece.mobile"], ["uvvp", "video/vnd.dece.pd"], ["uvvs", "video/vnd.dece.sd"], ["uvvt", "application/vnd.dece.ttml+xml"], ["uvvu", "video/vnd.uvvu.mp4"], ["uvvv", "video/vnd.dece.video"], ["uvvx", "application/vnd.dece.unspecified"], ["uvvz", "application/vnd.dece.zip"], ["uvx", "application/vnd.dece.unspecified"], ["uvz", "application/vnd.dece.zip"], ["vcard", "text/vcard"], ["vcd", "application/x-cdlink"], ["vcf", "text/x-vcard"], ["vcg", "application/vnd.groove-vcard"], ["vcs", "text/x-vcalendar"], ["vcx", "application/vnd.vcx"], ["vis", "application/vnd.visionary"], ["viv", "video/vnd.vivo"], ["vob", "video/x-ms-vob"], ["vor", "application/vnd.stardivision.writer"], ["vox", "application/x-authorware-bin"], ["vrml", "model/vrml"], ["vsd", "application/vnd.visio"], ["vsf", "application/vnd.vsf"], ["vss", "application/vnd.visio"], ["vst", "application/vnd.visio"], ["vsw", "application/vnd.visio"], ["vtu", "model/vnd.vtu"], ["vxml", "application/voicexml+xml"], ["w3d", "application/x-director"], ["wad", "application/x-doom"], ["wasm", "application/wasm"], ["wav", "audio/x-wav"], ["wax", "audio/x-ms-wax"], ["wbmp", "image/vnd.wap.wbmp"], ["wbs", "application/vnd.criticaltools.wbs+xml"], ["wbxml", "application/vnd.wap.wbxml"], ["wcm", "application/vnd.ms-works"], ["wdb", "application/vnd.ms-works"], ["wdp", "image/vnd.ms-photo"], ["weba", "audio/webm"], ["webm", "video/webm"], ["webmanifest", "application/manifest+json"], ["webp", "image/webp"], ["wg", "application/vnd.pmi.widget"], ["wgt", "application/widget"], ["wks", "application/vnd.ms-works"], ["wm", "video/x-ms-wm"], ["wma", "audio/x-ms-wma"], ["wmd", "application/x-ms-wmd"], ["wmf", "application/x-msmetafile"], ["wml", "text/vnd.wap.wml"], ["wmlc", "application/vnd.wap.wmlc"], ["wmls", "text/vnd.wap.wmlscript"], ["wmlsc", "application/vnd.wap.wmlscriptc"], ["wmv", "video/x-ms-wmv"], ["wmx", "video/x-ms-wmx"], ["wmz", "application/x-ms-wmz"], ["woff", "application/x-font-woff"], ["woff2", "font/woff2"], ["wpd", "application/vnd.wordperfect"], ["wpl", "application/vnd.ms-wpl"], ["wps", "application/vnd.ms-works"], ["wqd", "application/vnd.wqd"], ["wri", "application/x-mswrite"], ["wrl", "model/vrml"], ["wsdl", "application/wsdl+xml"], ["wspolicy", "application/wspolicy+xml"], ["wtb", "application/vnd.webturbo"], ["wvx", "video/x-ms-wvx"], ["x32", "application/x-authorware-bin"], ["x3d", "model/x3d+xml"], ["x3db", "model/x3d+binary"], ["x3dbz", "model/x3d+binary"], ["x3dv", "model/x3d+vrml"], ["x3dvz", "model/x3d+vrml"], ["x3dz", "model/x3d+xml"], ["xaml", "application/xaml+xml"], ["xap", "application/x-silverlight-app"], ["xar", "application/vnd.xara"], ["xbap", "application/x-ms-xbap"], ["xbd", "application/vnd.fujixerox.docuworks.binder"], ["xbm", "image/x-xbitmap"], ["xdf", "application/xcap-diff+xml"], ["xdm", "application/vnd.syncml.dm+xml"], ["xdp", "application/vnd.adobe.xdp+xml"], ["xdssc", "application/dssc+xml"], ["xdw", "application/vnd.fujixerox.docuworks"], ["xenc", "application/xenc+xml"], ["xer", "application/patch-ops-error+xml"], ["xfdf", "application/vnd.adobe.xfdf"], ["xfdl", "application/vnd.xfdl"], ["xht", "application/xhtml+xml"], ["xhtml", "application/xhtml+xml"], ["xhvml", "application/xv+xml"], ["xif", "image/vnd.xiff"], ["xla", "application/vnd.ms-excel"], ["xlam", "application/vnd.ms-excel.addin.macroenabled.12"], ["xlc", "application/vnd.ms-excel"], ["xlf", "application/x-xliff+xml"], ["xlm", "application/vnd.ms-excel"], ["xls", "application/vnd.ms-excel"], ["xlsb", "application/vnd.ms-excel.sheet.binary.macroenabled.12"], ["xlsm", "application/vnd.ms-excel.sheet.macroenabled.12"], ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], ["xlt", "application/vnd.ms-excel"], ["xltm", "application/vnd.ms-excel.template.macroenabled.12"], ["xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template"], ["xlw", "application/vnd.ms-excel"], ["xm", "audio/xm"], ["xml", "application/xml"], ["xo", "application/vnd.olpc-sugar"], ["xop", "application/xop+xml"], ["xpi", "application/x-xpinstall"], ["xpl", "application/xproc+xml"], ["xpm", "image/x-xpixmap"], ["xpr", "application/vnd.is-xpr"], ["xps", "application/vnd.ms-xpsdocument"], ["xpw", "application/vnd.intercon.formnet"], ["xpx", "application/vnd.intercon.formnet"], ["xsl", "application/xml"], ["xslt", "application/xslt+xml"], ["xsm", "application/vnd.syncml+xml"], ["xspf", "application/xspf+xml"], ["xul", "application/vnd.mozilla.xul+xml"], ["xvm", "application/xv+xml"], ["xvml", "application/xv+xml"], ["xwd", "image/x-xwindowdump"], ["xyz", "chemical/x-xyz"], ["xz", "application/x-xz"], ["yang", "application/yang"], ["yin", "application/yin+xml"], ["z1", "application/x-zmachine"], ["z2", "application/x-zmachine"], ["z3", "application/x-zmachine"], ["z4", "application/x-zmachine"], ["z5", "application/x-zmachine"], ["z6", "application/x-zmachine"], ["z7", "application/x-zmachine"], ["z8", "application/x-zmachine"], ["zaz", "application/vnd.zzazz.deck+xml"], ["zip", "application/zip"], ["zir", "application/vnd.zul"], ["zirz", "application/vnd.zul"], ["zmm", "application/vnd.handheld-entertainment+xml"]])), ext);
+      if (!(result === null)) {
+        return result;
       }
     }
     return null;
   }
   addExtension(extension, mimeType) {
-    __dartMapSet(this._extensionMap, extension, mimeType);
+    __dartMapSet(this._extensionMap_package_mime_src_mime_type_dart, extension, mimeType);
   }
   addMagicNumber(bytes, mimeType, { mask = null } = {}) {
-    if ((!((mask === null)) && !(__dartEquals(bytes.length, mask.length)))) {
-      {
-        (() => { throw __dartCoreError("ArgumentError", "Bytes and mask are of different lengths"); })();
-      }
+    if ((!(mask === null) && !(__dartEquals(bytes.length, mask.length)))) {
+      throw __dartCoreError("ArgumentError", "Bytes and mask are of different lengths");
     }
-    if ((bytes.length > this._magicNumbersMaxLength)) {
-      {
-        this._magicNumbersMaxLength = bytes.length;
-      }
+    if (bytes.length > this._magicNumbersMaxLength_package_mime_src_mime_type_dart) {
+      this._magicNumbersMaxLength_package_mime_src_mime_type_dart = bytes.length;
     }
-    (this._magicNumbers.push(new MagicNumber(mimeType, bytes, { mask: mask })), null);
-  }
-  static _matchMagic(headerBytes, magicNumbers) {
-    {
-      let _sync_for_iterator = __dartIterator(magicNumbers);
-      for (; _sync_for_iterator.moveNext(); ) {
-        {
-          let mn = _sync_for_iterator.current;
-          {
-            if (mn.matches(headerBytes)) {
-              return mn.mimeType;
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-  static _ext(path) {
-    const index = path.lastIndexOf(".");
-    if (((index < 0) || ((index + 1) >= path.length))) {
-      return path;
-    }
-    return path.substring((index + 1)).toLowerCase();
-  }
-}
-
-function $MimeTypeResolver_empty($newTarget) {
-  const $self = Object.create($newTarget.prototype);
-  $self._extensionMap = new Map([]);
-  $self._magicNumbers = new Array(0).fill(null);
-  $self._useDefault = false;
-  $self._magicNumbersMaxLength = 0;
-  return $self;
-}
-
-
-Object.defineProperty(BoundMultipartStream, "_startCode", { value: 0, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_boundaryEndingCode", { value: 1, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_boundaryEndCode", { value: 2, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_headerStartCode", { value: 3, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_headerFieldCode", { value: 4, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_headerValueStartCode", { value: 5, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_headerValueCode", { value: 6, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_headerValueFoldingOrEndingCode", { value: 7, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_headerValueFoldOrEndCode", { value: 8, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_headerEndingCode", { value: 9, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_contentCode", { value: 10, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_lastBoundaryDash2Code", { value: 11, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_lastBoundaryEndingCode", { value: 12, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_lastBoundaryEndCode", { value: 13, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_doneCode", { value: 14, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_failCode", { value: 15, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_controllerStateIdle", { value: 0, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_controllerStateActive", { value: 1, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_controllerStatePaused", { value: 2, enumerable: true });
-
-Object.defineProperty(BoundMultipartStream, "_controllerStateCanceled", { value: 3, enumerable: true });
-function _getBoundary(boundary) {
-  const charCodes = Array.from({ length: boundary.length }, (_, index) => boundary.charCodeAt(index));
-  const boundaryList = new Uint8Array((4 + charCodes.length));
-  __dartIndexSet(boundaryList, 0, 13);
-  __dartIndexSet(boundaryList, 1, 10);
-  __dartIndexSet(boundaryList, 2, 45);
-  __dartIndexSet(boundaryList, 3, 45);
-  __dartListSetRange(boundaryList, 4, (4 + charCodes.length), charCodes, 0);
-  return boundaryList;
-}
-
-function _isTokenChar(byte) {
-  return (((byte > 31) && (byte < 128)) && !(__dartIterableContains(__dartConst("[\"set\",\"InterfaceType(int)\",[\"int\",\"40\"],[\"int\",\"41\"],[\"int\",\"60\"],[\"int\",\"62\"],[\"int\",\"64\"],[\"int\",\"44\"],[\"int\",\"59\"],[\"int\",\"58\"],[\"int\",\"92\"],[\"int\",\"34\"],[\"int\",\"47\"],[\"int\",\"91\"],[\"int\",\"93\"],[\"int\",\"63\"],[\"int\",\"61\"],[\"int\",\"123\"],[\"int\",\"125\"],[\"int\",\"32\"],[\"int\",\"9\"]]", () => __dartConstSet([40, 41, 60, 62, 64, 44, 59, 58, 92, 34, 47, 91, 93, 63, 61, 123, 125, 32, 9])), byte)));
-}
-
-function _toLowerCase(byte) {
-  const delta = 32;
-  return (((65 <= byte) && (byte <= 90)) ? (byte + 32) : byte);
-}
-
-function _expectByteValue(val1, val2) {
-  if (!(__dartEquals(val1, val2))) {
-    {
-      (() => { throw __dartConst("[\"instance\",\"class:MimeMultipartException\",[\"field\",\"field:MimeMultipartException.message\",[\"string\",\"Failed to parse multipart mime 1\"]]]", () => Object.freeze(Object.assign(Object.create(MimeMultipartException.prototype), { message: "Failed to parse multipart mime 1" }))); })();
-    }
-  }
-}
-
-function _expectWhitespace(byte) {
-  if ((!(__dartEquals(byte, 32)) && !(__dartEquals(byte, 9)))) {
-    {
-      (() => { throw __dartConst("[\"instance\",\"class:MimeMultipartException\",[\"field\",\"field:MimeMultipartException.message\",[\"string\",\"Failed to parse multipart mime 2\"]]]", () => Object.freeze(Object.assign(Object.create(MimeMultipartException.prototype), { message: "Failed to parse multipart mime 2" }))); })();
-    }
+    __dartListAdd(this._magicNumbers_package_mime_src_mime_type_dart, new MagicNumber(mimeType, bytes, { mask: mask }));
   }
 }
 
 const _defaultMimeTypeMap = (() => {
-  const v = new Map([]);
-  {
-    let _sync_for_iterator = __dartIterator(Array.from(__dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(String)\",[[\"string\",\"123\"],[\"string\",\"application/vnd.lotus-1-2-3\"]],[[\"string\",\"3dml\"],[\"string\",\"text/vnd.in3d.3dml\"]],[[\"string\",\"3ds\"],[\"string\",\"image/x-3ds\"]],[[\"string\",\"3g2\"],[\"string\",\"video/3gpp2\"]],[[\"string\",\"3gp\"],[\"string\",\"video/3gpp\"]],[[\"string\",\"7z\"],[\"string\",\"application/x-7z-compressed\"]],[[\"string\",\"aab\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"aac\"],[\"string\",\"audio/aac\"]],[[\"string\",\"aam\"],[\"string\",\"application/x-authorware-map\"]],[[\"string\",\"aas\"],[\"string\",\"application/x-authorware-seg\"]],[[\"string\",\"abw\"],[\"string\",\"application/x-abiword\"]],[[\"string\",\"ac\"],[\"string\",\"application/pkix-attr-cert\"]],[[\"string\",\"acc\"],[\"string\",\"application/vnd.americandynamics.acc\"]],[[\"string\",\"ace\"],[\"string\",\"application/x-ace-compressed\"]],[[\"string\",\"acu\"],[\"string\",\"application/vnd.acucobol\"]],[[\"string\",\"acutc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"adp\"],[\"string\",\"audio/adpcm\"]],[[\"string\",\"aep\"],[\"string\",\"application/vnd.audiograph\"]],[[\"string\",\"afm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"afp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"ahead\"],[\"string\",\"application/vnd.ahead.space\"]],[[\"string\",\"ai\"],[\"string\",\"application/postscript\"]],[[\"string\",\"aif\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aifc\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aiff\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"air\"],[\"string\",\"application/vnd.adobe.air-application-installer-package+zip\"]],[[\"string\",\"ait\"],[\"string\",\"application/vnd.dvb.ait\"]],[[\"string\",\"ami\"],[\"string\",\"application/vnd.amiga.ami\"]],[[\"string\",\"apk\"],[\"string\",\"application/vnd.android.package-archive\"]],[[\"string\",\"appcache\"],[\"string\",\"text/cache-manifest\"]],[[\"string\",\"application\"],[\"string\",\"application/x-ms-application\"]],[[\"string\",\"apr\"],[\"string\",\"application/vnd.lotus-approach\"]],[[\"string\",\"arc\"],[\"string\",\"application/x-freearc\"]],[[\"string\",\"asc\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"asf\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"asm\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"aso\"],[\"string\",\"application/vnd.accpac.simply.aso\"]],[[\"string\",\"asx\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"atc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"atom\"],[\"string\",\"application/atom+xml\"]],[[\"string\",\"atomcat\"],[\"string\",\"application/atomcat+xml\"]],[[\"string\",\"atomsvc\"],[\"string\",\"application/atomsvc+xml\"]],[[\"string\",\"atx\"],[\"string\",\"application/vnd.antix.game-component\"]],[[\"string\",\"au\"],[\"string\",\"audio/basic\"]],[[\"string\",\"avi\"],[\"string\",\"video/x-msvideo\"]],[[\"string\",\"avif\"],[\"string\",\"image/avif\"]],[[\"string\",\"aw\"],[\"string\",\"application/applixware\"]],[[\"string\",\"azf\"],[\"string\",\"application/vnd.airzip.filesecure.azf\"]],[[\"string\",\"azs\"],[\"string\",\"application/vnd.airzip.filesecure.azs\"]],[[\"string\",\"azw\"],[\"string\",\"application/vnd.amazon.ebook\"]],[[\"string\",\"bat\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"bcpio\"],[\"string\",\"application/x-bcpio\"]],[[\"string\",\"bdf\"],[\"string\",\"application/x-font-bdf\"]],[[\"string\",\"bdm\"],[\"string\",\"application/vnd.syncml.dm+wbxml\"]],[[\"string\",\"bed\"],[\"string\",\"application/vnd.realvnc.bed\"]],[[\"string\",\"bh2\"],[\"string\",\"application/vnd.fujitsu.oasysprs\"]],[[\"string\",\"bin\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"blb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"blorb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"bmi\"],[\"string\",\"application/vnd.bmi\"]],[[\"string\",\"bmp\"],[\"string\",\"image/bmp\"]],[[\"string\",\"book\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"box\"],[\"string\",\"application/vnd.previewsystems.box\"]],[[\"string\",\"boz\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"bpk\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"btif\"],[\"string\",\"image/prs.btif\"]],[[\"string\",\"bz\"],[\"string\",\"application/x-bzip\"]],[[\"string\",\"bz2\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"c\"],[\"string\",\"text/x-c\"]],[[\"string\",\"c11amc\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config\"]],[[\"string\",\"c11amz\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config-pkg\"]],[[\"string\",\"c4d\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4f\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4g\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4p\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4u\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"cab\"],[\"string\",\"application/vnd.ms-cab-compressed\"]],[[\"string\",\"caf\"],[\"string\",\"audio/x-caf\"]],[[\"string\",\"cap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"car\"],[\"string\",\"application/vnd.curl.car\"]],[[\"string\",\"cat\"],[\"string\",\"application/vnd.ms-pki.seccat\"]],[[\"string\",\"cb7\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cba\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbr\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbt\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbz\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cc\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cct\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ccxml\"],[\"string\",\"application/ccxml+xml\"]],[[\"string\",\"cdbcmsg\"],[\"string\",\"application/vnd.contact.cmsg\"]],[[\"string\",\"cdf\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"cdkey\"],[\"string\",\"application/vnd.mediastation.cdkey\"]],[[\"string\",\"cdmia\"],[\"string\",\"application/cdmi-capability\"]],[[\"string\",\"cdmic\"],[\"string\",\"application/cdmi-container\"]],[[\"string\",\"cdmid\"],[\"string\",\"application/cdmi-domain\"]],[[\"string\",\"cdmio\"],[\"string\",\"application/cdmi-object\"]],[[\"string\",\"cdmiq\"],[\"string\",\"application/cdmi-queue\"]],[[\"string\",\"cdx\"],[\"string\",\"chemical/x-cdx\"]],[[\"string\",\"cdxml\"],[\"string\",\"application/vnd.chemdraw+xml\"]],[[\"string\",\"cdy\"],[\"string\",\"application/vnd.cinderella\"]],[[\"string\",\"cer\"],[\"string\",\"application/pkix-cert\"]],[[\"string\",\"cfs\"],[\"string\",\"application/x-cfs-compressed\"]],[[\"string\",\"cgm\"],[\"string\",\"image/cgm\"]],[[\"string\",\"chat\"],[\"string\",\"application/x-chat\"]],[[\"string\",\"chm\"],[\"string\",\"application/vnd.ms-htmlhelp\"]],[[\"string\",\"chrt\"],[\"string\",\"application/vnd.kde.kchart\"]],[[\"string\",\"cif\"],[\"string\",\"chemical/x-cif\"]],[[\"string\",\"cii\"],[\"string\",\"application/vnd.anser-web-certificate-issue-initiation\"]],[[\"string\",\"cil\"],[\"string\",\"application/vnd.ms-artgalry\"]],[[\"string\",\"cla\"],[\"string\",\"application/vnd.claymore\"]],[[\"string\",\"class\"],[\"string\",\"application/java-vm\"]],[[\"string\",\"clkk\"],[\"string\",\"application/vnd.crick.clicker.keyboard\"]],[[\"string\",\"clkp\"],[\"string\",\"application/vnd.crick.clicker.palette\"]],[[\"string\",\"clkt\"],[\"string\",\"application/vnd.crick.clicker.template\"]],[[\"string\",\"clkw\"],[\"string\",\"application/vnd.crick.clicker.wordbank\"]],[[\"string\",\"clkx\"],[\"string\",\"application/vnd.crick.clicker\"]],[[\"string\",\"clp\"],[\"string\",\"application/x-msclip\"]],[[\"string\",\"cmc\"],[\"string\",\"application/vnd.cosmocaller\"]],[[\"string\",\"cmdf\"],[\"string\",\"chemical/x-cmdf\"]],[[\"string\",\"cml\"],[\"string\",\"chemical/x-cml\"]],[[\"string\",\"cmp\"],[\"string\",\"application/vnd.yellowriver-custom-menu\"]],[[\"string\",\"cmx\"],[\"string\",\"image/x-cmx\"]],[[\"string\",\"cod\"],[\"string\",\"application/vnd.rim.cod\"]],[[\"string\",\"com\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"conf\"],[\"string\",\"text/plain\"]],[[\"string\",\"cpio\"],[\"string\",\"application/x-cpio\"]],[[\"string\",\"cpp\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cpt\"],[\"string\",\"application/mac-compactpro\"]],[[\"string\",\"crd\"],[\"string\",\"application/x-mscardfile\"]],[[\"string\",\"crl\"],[\"string\",\"application/pkix-crl\"]],[[\"string\",\"crt\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"cryptonote\"],[\"string\",\"application/vnd.rig.cryptonote\"]],[[\"string\",\"csh\"],[\"string\",\"application/x-csh\"]],[[\"string\",\"csml\"],[\"string\",\"chemical/x-csml\"]],[[\"string\",\"csp\"],[\"string\",\"application/vnd.commonspace\"]],[[\"string\",\"css\"],[\"string\",\"text/css\"]],[[\"string\",\"cst\"],[\"string\",\"application/x-director\"]],[[\"string\",\"csv\"],[\"string\",\"text/csv\"]],[[\"string\",\"cu\"],[\"string\",\"application/cu-seeme\"]],[[\"string\",\"curl\"],[\"string\",\"text/vnd.curl\"]],[[\"string\",\"cww\"],[\"string\",\"application/prs.cww\"]],[[\"string\",\"cxt\"],[\"string\",\"application/x-director\"]],[[\"string\",\"cxx\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dae\"],[\"string\",\"model/vnd.collada+xml\"]],[[\"string\",\"daf\"],[\"string\",\"application/vnd.mobius.daf\"]],[[\"string\",\"dart\"],[\"string\",\"text/x-dart\"]],[[\"string\",\"dataless\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"davmount\"],[\"string\",\"application/davmount+xml\"]],[[\"string\",\"dbk\"],[\"string\",\"application/docbook+xml\"]],[[\"string\",\"dcm\"],[\"string\",\"application/dicom\"]],[[\"string\",\"dcr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dcurl\"],[\"string\",\"text/vnd.curl.dcurl\"]],[[\"string\",\"dd2\"],[\"string\",\"application/vnd.oma.dd2+xml\"]],[[\"string\",\"ddd\"],[\"string\",\"application/vnd.fujixerox.ddd\"]],[[\"string\",\"deb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"def\"],[\"string\",\"text/plain\"]],[[\"string\",\"deploy\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"der\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"dfac\"],[\"string\",\"application/vnd.dreamfactory\"]],[[\"string\",\"dgc\"],[\"string\",\"application/x-dgc-compressed\"]],[[\"string\",\"dic\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dir\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dis\"],[\"string\",\"application/vnd.mobius.dis\"]],[[\"string\",\"dist\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"distz\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"djv\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"djvu\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"dll\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"dmg\"],[\"string\",\"application/x-apple-diskimage\"]],[[\"string\",\"dmp\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"dms\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dna\"],[\"string\",\"application/vnd.dna\"]],[[\"string\",\"doc\"],[\"string\",\"application/msword\"]],[[\"string\",\"docm\"],[\"string\",\"application/vnd.ms-word.document.macroenabled.12\"]],[[\"string\",\"docx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"]],[[\"string\",\"dot\"],[\"string\",\"application/msword\"]],[[\"string\",\"dotm\"],[\"string\",\"application/vnd.ms-word.template.macroenabled.12\"]],[[\"string\",\"dotx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.template\"]],[[\"string\",\"dp\"],[\"string\",\"application/vnd.osgi.dp\"]],[[\"string\",\"dpg\"],[\"string\",\"application/vnd.dpgraph\"]],[[\"string\",\"dra\"],[\"string\",\"audio/vnd.dra\"]],[[\"string\",\"dsc\"],[\"string\",\"text/prs.lines.tag\"]],[[\"string\",\"dssc\"],[\"string\",\"application/dssc+der\"]],[[\"string\",\"dtb\"],[\"string\",\"application/x-dtbook+xml\"]],[[\"string\",\"dtd\"],[\"string\",\"application/xml-dtd\"]],[[\"string\",\"dts\"],[\"string\",\"audio/vnd.dts\"]],[[\"string\",\"dtshd\"],[\"string\",\"audio/vnd.dts.hd\"]],[[\"string\",\"dump\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dvb\"],[\"string\",\"video/vnd.dvb.file\"]],[[\"string\",\"dvi\"],[\"string\",\"application/x-dvi\"]],[[\"string\",\"dwf\"],[\"string\",\"model/vnd.dwf\"]],[[\"string\",\"dwg\"],[\"string\",\"image/vnd.dwg\"]],[[\"string\",\"dxf\"],[\"string\",\"image/vnd.dxf\"]],[[\"string\",\"dxp\"],[\"string\",\"application/vnd.spotfire.dxp\"]],[[\"string\",\"dxr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ecelp4800\"],[\"string\",\"audio/vnd.nuera.ecelp4800\"]],[[\"string\",\"ecelp7470\"],[\"string\",\"audio/vnd.nuera.ecelp7470\"]],[[\"string\",\"ecelp9600\"],[\"string\",\"audio/vnd.nuera.ecelp9600\"]],[[\"string\",\"ecma\"],[\"string\",\"application/ecmascript\"]],[[\"string\",\"edm\"],[\"string\",\"application/vnd.novadigm.edm\"]],[[\"string\",\"edx\"],[\"string\",\"application/vnd.novadigm.edx\"]],[[\"string\",\"efif\"],[\"string\",\"application/vnd.picsel\"]],[[\"string\",\"ei6\"],[\"string\",\"application/vnd.pg.osasli\"]],[[\"string\",\"elc\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"emf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eml\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"emma\"],[\"string\",\"application/emma+xml\"]],[[\"string\",\"emz\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eol\"],[\"string\",\"audio/vnd.digital-winds\"]],[[\"string\",\"eot\"],[\"string\",\"application/vnd.ms-fontobject\"]],[[\"string\",\"eps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"epub\"],[\"string\",\"application/epub+zip\"]],[[\"string\",\"es3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"esa\"],[\"string\",\"application/vnd.osgi.subsystem\"]],[[\"string\",\"esf\"],[\"string\",\"application/vnd.epson.esf\"]],[[\"string\",\"et3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"etx\"],[\"string\",\"text/x-setext\"]],[[\"string\",\"eva\"],[\"string\",\"application/x-eva\"]],[[\"string\",\"evy\"],[\"string\",\"application/x-envoy\"]],[[\"string\",\"exe\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"exi\"],[\"string\",\"application/exi\"]],[[\"string\",\"ext\"],[\"string\",\"application/vnd.novadigm.ext\"]],[[\"string\",\"ez\"],[\"string\",\"application/andrew-inset\"]],[[\"string\",\"ez2\"],[\"string\",\"application/vnd.ezpix-album\"]],[[\"string\",\"ez3\"],[\"string\",\"application/vnd.ezpix-package\"]],[[\"string\",\"f\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f4v\"],[\"string\",\"video/x-f4v\"]],[[\"string\",\"f77\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f90\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fbs\"],[\"string\",\"image/vnd.fastbidsheet\"]],[[\"string\",\"fcdt\"],[\"string\",\"application/vnd.adobe.formscentral.fcdt\"]],[[\"string\",\"fcs\"],[\"string\",\"application/vnd.isac.fcs\"]],[[\"string\",\"fdf\"],[\"string\",\"application/vnd.fdf\"]],[[\"string\",\"fe_launch\"],[\"string\",\"application/vnd.denovo.fcselayout-link\"]],[[\"string\",\"fg5\"],[\"string\",\"application/vnd.fujitsu.oasysgp\"]],[[\"string\",\"fgd\"],[\"string\",\"application/x-director\"]],[[\"string\",\"fh\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh4\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh5\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh7\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fhc\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fig\"],[\"string\",\"application/x-xfig\"]],[[\"string\",\"flac\"],[\"string\",\"audio/x-flac\"]],[[\"string\",\"fli\"],[\"string\",\"video/x-fli\"]],[[\"string\",\"flo\"],[\"string\",\"application/vnd.micrografx.flo\"]],[[\"string\",\"flv\"],[\"string\",\"video/x-flv\"]],[[\"string\",\"flw\"],[\"string\",\"application/vnd.kde.kivio\"]],[[\"string\",\"flx\"],[\"string\",\"text/vnd.fmi.flexstor\"]],[[\"string\",\"fly\"],[\"string\",\"text/vnd.fly\"]],[[\"string\",\"fm\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fnc\"],[\"string\",\"application/vnd.frogans.fnc\"]],[[\"string\",\"for\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fpx\"],[\"string\",\"image/vnd.fpx\"]],[[\"string\",\"frame\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fsc\"],[\"string\",\"application/vnd.fsc.weblaunch\"]],[[\"string\",\"fst\"],[\"string\",\"image/vnd.fst\"]],[[\"string\",\"ftc\"],[\"string\",\"application/vnd.fluxtime.clip\"]],[[\"string\",\"fti\"],[\"string\",\"application/vnd.anser-web-funds-transfer-initiation\"]],[[\"string\",\"fvt\"],[\"string\",\"video/vnd.fvt\"]],[[\"string\",\"fxp\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fxpl\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fzs\"],[\"string\",\"application/vnd.fuzzysheet\"]],[[\"string\",\"g2w\"],[\"string\",\"application/vnd.geoplan\"]],[[\"string\",\"g3\"],[\"string\",\"image/g3fax\"]],[[\"string\",\"g3w\"],[\"string\",\"application/vnd.geospace\"]],[[\"string\",\"gac\"],[\"string\",\"application/vnd.groove-account\"]],[[\"string\",\"gam\"],[\"string\",\"application/x-tads\"]],[[\"string\",\"gbr\"],[\"string\",\"application/rpki-ghostbusters\"]],[[\"string\",\"gca\"],[\"string\",\"application/x-gca-compressed\"]],[[\"string\",\"gdl\"],[\"string\",\"model/vnd.gdl\"]],[[\"string\",\"geo\"],[\"string\",\"application/vnd.dynageo\"]],[[\"string\",\"gex\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"ggb\"],[\"string\",\"application/vnd.geogebra.file\"]],[[\"string\",\"ggt\"],[\"string\",\"application/vnd.geogebra.tool\"]],[[\"string\",\"ghf\"],[\"string\",\"application/vnd.groove-help\"]],[[\"string\",\"gif\"],[\"string\",\"image/gif\"]],[[\"string\",\"gim\"],[\"string\",\"application/vnd.groove-identity-message\"]],[[\"string\",\"glb\"],[\"string\",\"model/gltf-binary\"]],[[\"string\",\"gltf\"],[\"string\",\"model/gltf+json\"]],[[\"string\",\"gml\"],[\"string\",\"application/gml+xml\"]],[[\"string\",\"gmx\"],[\"string\",\"application/vnd.gmx\"]],[[\"string\",\"gnumeric\"],[\"string\",\"application/x-gnumeric\"]],[[\"string\",\"gph\"],[\"string\",\"application/vnd.flographit\"]],[[\"string\",\"gpx\"],[\"string\",\"application/gpx+xml\"]],[[\"string\",\"gqf\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gqs\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gram\"],[\"string\",\"application/srgs\"]],[[\"string\",\"gramps\"],[\"string\",\"application/x-gramps-xml\"]],[[\"string\",\"gre\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"grv\"],[\"string\",\"application/vnd.groove-injector\"]],[[\"string\",\"grxml\"],[\"string\",\"application/srgs+xml\"]],[[\"string\",\"gsf\"],[\"string\",\"application/x-font-ghostscript\"]],[[\"string\",\"gtar\"],[\"string\",\"application/x-gtar\"]],[[\"string\",\"gtm\"],[\"string\",\"application/vnd.groove-tool-message\"]],[[\"string\",\"gtw\"],[\"string\",\"model/vnd.gtw\"]],[[\"string\",\"gv\"],[\"string\",\"text/vnd.graphviz\"]],[[\"string\",\"gxf\"],[\"string\",\"application/gxf\"]],[[\"string\",\"gxt\"],[\"string\",\"application/vnd.geonext\"]],[[\"string\",\"h\"],[\"string\",\"text/x-c\"]],[[\"string\",\"h261\"],[\"string\",\"video/h261\"]],[[\"string\",\"h263\"],[\"string\",\"video/h263\"]],[[\"string\",\"h264\"],[\"string\",\"video/h264\"]],[[\"string\",\"hal\"],[\"string\",\"application/vnd.hal+xml\"]],[[\"string\",\"hbci\"],[\"string\",\"application/vnd.hbci\"]],[[\"string\",\"hdf\"],[\"string\",\"application/x-hdf\"]],[[\"string\",\"heic\"],[\"string\",\"image/heic\"]],[[\"string\",\"heif\"],[\"string\",\"image/heif\"]],[[\"string\",\"hh\"],[\"string\",\"text/x-c\"]],[[\"string\",\"hlp\"],[\"string\",\"application/winhlp\"]],[[\"string\",\"hpgl\"],[\"string\",\"application/vnd.hp-hpgl\"]],[[\"string\",\"hpid\"],[\"string\",\"application/vnd.hp-hpid\"]],[[\"string\",\"hps\"],[\"string\",\"application/vnd.hp-hps\"]],[[\"string\",\"hqx\"],[\"string\",\"application/mac-binhex40\"]],[[\"string\",\"htke\"],[\"string\",\"application/vnd.kenameaapp\"]],[[\"string\",\"htm\"],[\"string\",\"text/html\"]],[[\"string\",\"html\"],[\"string\",\"text/html\"]],[[\"string\",\"hvd\"],[\"string\",\"application/vnd.yamaha.hv-dic\"]],[[\"string\",\"hvp\"],[\"string\",\"application/vnd.yamaha.hv-voice\"]],[[\"string\",\"hvs\"],[\"string\",\"application/vnd.yamaha.hv-script\"]],[[\"string\",\"i2g\"],[\"string\",\"application/vnd.intergeo\"]],[[\"string\",\"icc\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ice\"],[\"string\",\"x-conference/x-cooltalk\"]],[[\"string\",\"icm\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ico\"],[\"string\",\"image/x-icon\"]],[[\"string\",\"ics\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ief\"],[\"string\",\"image/ief\"]],[[\"string\",\"ifb\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ifm\"],[\"string\",\"application/vnd.shana.informed.formdata\"]],[[\"string\",\"iges\"],[\"string\",\"model/iges\"]],[[\"string\",\"igl\"],[\"string\",\"application/vnd.igloader\"]],[[\"string\",\"igm\"],[\"string\",\"application/vnd.insors.igm\"]],[[\"string\",\"igs\"],[\"string\",\"model/iges\"]],[[\"string\",\"igx\"],[\"string\",\"application/vnd.micrografx.igx\"]],[[\"string\",\"iif\"],[\"string\",\"application/vnd.shana.informed.interchange\"]],[[\"string\",\"imp\"],[\"string\",\"application/vnd.accpac.simply.imp\"]],[[\"string\",\"ims\"],[\"string\",\"application/vnd.ms-ims\"]],[[\"string\",\"in\"],[\"string\",\"text/plain\"]],[[\"string\",\"ink\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"inkml\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"install\"],[\"string\",\"application/x-install-instructions\"]],[[\"string\",\"iota\"],[\"string\",\"application/vnd.astraea-software.iota\"]],[[\"string\",\"ipfix\"],[\"string\",\"application/ipfix\"]],[[\"string\",\"ipk\"],[\"string\",\"application/vnd.shana.informed.package\"]],[[\"string\",\"irm\"],[\"string\",\"application/vnd.ibm.rights-management\"]],[[\"string\",\"irp\"],[\"string\",\"application/vnd.irepository.package+xml\"]],[[\"string\",\"iso\"],[\"string\",\"application/x-iso9660-image\"]],[[\"string\",\"itp\"],[\"string\",\"application/vnd.shana.informed.formtemplate\"]],[[\"string\",\"ivp\"],[\"string\",\"application/vnd.immervision-ivp\"]],[[\"string\",\"ivu\"],[\"string\",\"application/vnd.immervision-ivu\"]],[[\"string\",\"jad\"],[\"string\",\"text/vnd.sun.j2me.app-descriptor\"]],[[\"string\",\"jam\"],[\"string\",\"application/vnd.jam\"]],[[\"string\",\"jar\"],[\"string\",\"application/java-archive\"]],[[\"string\",\"java\"],[\"string\",\"text/x-java-source\"]],[[\"string\",\"jisp\"],[\"string\",\"application/vnd.jisp\"]],[[\"string\",\"jlt\"],[\"string\",\"application/vnd.hp-jlyt\"]],[[\"string\",\"jnlp\"],[\"string\",\"application/x-java-jnlp-file\"]],[[\"string\",\"joda\"],[\"string\",\"application/vnd.joost.joda-archive\"]],[[\"string\",\"jpe\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpeg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpgm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"jpgv\"],[\"string\",\"video/jpeg\"]],[[\"string\",\"jpm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"js\"],[\"string\",\"text/javascript\"]],[[\"string\",\"json\"],[\"string\",\"application/json\"]],[[\"string\",\"jsonml\"],[\"string\",\"application/jsonml+json\"]],[[\"string\",\"kar\"],[\"string\",\"audio/midi\"]],[[\"string\",\"karbon\"],[\"string\",\"application/vnd.kde.karbon\"]],[[\"string\",\"kfo\"],[\"string\",\"application/vnd.kde.kformula\"]],[[\"string\",\"kia\"],[\"string\",\"application/vnd.kidspiration\"]],[[\"string\",\"kml\"],[\"string\",\"application/vnd.google-earth.kml+xml\"]],[[\"string\",\"kmz\"],[\"string\",\"application/vnd.google-earth.kmz\"]],[[\"string\",\"kne\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"knp\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"kon\"],[\"string\",\"application/vnd.kde.kontour\"]],[[\"string\",\"kpr\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpt\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpxx\"],[\"string\",\"application/vnd.ds-keypoint\"]],[[\"string\",\"ksp\"],[\"string\",\"application/vnd.kde.kspread\"]],[[\"string\",\"ktr\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"ktx\"],[\"string\",\"image/ktx\"]],[[\"string\",\"ktz\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"kwd\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"kwt\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"lasxml\"],[\"string\",\"application/vnd.las.las+xml\"]],[[\"string\",\"latex\"],[\"string\",\"application/x-latex\"]],[[\"string\",\"lbd\"],[\"string\",\"application/vnd.llamagraphics.life-balance.desktop\"]],[[\"string\",\"lbe\"],[\"string\",\"application/vnd.llamagraphics.life-balance.exchange+xml\"]],[[\"string\",\"les\"],[\"string\",\"application/vnd.hhe.lesson-player\"]],[[\"string\",\"lha\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"link66\"],[\"string\",\"application/vnd.route66.link66+xml\"]],[[\"string\",\"list\"],[\"string\",\"text/plain\"]],[[\"string\",\"list3820\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"listafp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"lnk\"],[\"string\",\"application/x-ms-shortcut\"]],[[\"string\",\"log\"],[\"string\",\"text/plain\"]],[[\"string\",\"lostxml\"],[\"string\",\"application/lost+xml\"]],[[\"string\",\"lrf\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"lrm\"],[\"string\",\"application/vnd.ms-lrm\"]],[[\"string\",\"ltf\"],[\"string\",\"application/vnd.frogans.ltf\"]],[[\"string\",\"lvp\"],[\"string\",\"audio/vnd.lucent.voice\"]],[[\"string\",\"lwp\"],[\"string\",\"application/vnd.lotus-wordpro\"]],[[\"string\",\"lzh\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"m13\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m14\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m1v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"m2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m2v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m3a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m3u\"],[\"string\",\"audio/x-mpegurl\"]],[[\"string\",\"m3u8\"],[\"string\",\"application/vnd.apple.mpegurl\"]],[[\"string\",\"m4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4b\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4u\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"m4v\"],[\"string\",\"video/x-m4v\"]],[[\"string\",\"ma\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mads\"],[\"string\",\"application/mads+xml\"]],[[\"string\",\"mag\"],[\"string\",\"application/vnd.ecowin.chart\"]],[[\"string\",\"maker\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"man\"],[\"string\",\"text/troff\"]],[[\"string\",\"mar\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"mathml\"],[\"string\",\"application/mathml+xml\"]],[[\"string\",\"mb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mbk\"],[\"string\",\"application/vnd.mobius.mbk\"]],[[\"string\",\"mbox\"],[\"string\",\"application/mbox\"]],[[\"string\",\"mc1\"],[\"string\",\"application/vnd.medcalcdata\"]],[[\"string\",\"mcd\"],[\"string\",\"application/vnd.mcd\"]],[[\"string\",\"mcurl\"],[\"string\",\"text/vnd.curl.mcurl\"]],[[\"string\",\"md\"],[\"string\",\"text/markdown\"]],[[\"string\",\"markdown\"],[\"string\",\"text/markdown\"]],[[\"string\",\"mdb\"],[\"string\",\"application/x-msaccess\"]],[[\"string\",\"mdi\"],[\"string\",\"image/vnd.ms-modi\"]],[[\"string\",\"me\"],[\"string\",\"text/troff\"]],[[\"string\",\"mesh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"meta4\"],[\"string\",\"application/metalink4+xml\"]],[[\"string\",\"metalink\"],[\"string\",\"application/metalink+xml\"]],[[\"string\",\"mets\"],[\"string\",\"application/mets+xml\"]],[[\"string\",\"mfm\"],[\"string\",\"application/vnd.mfmp\"]],[[\"string\",\"mft\"],[\"string\",\"application/rpki-manifest\"]],[[\"string\",\"mgp\"],[\"string\",\"application/vnd.osgeo.mapguide.package\"]],[[\"string\",\"mgz\"],[\"string\",\"application/vnd.proteus.magazine\"]],[[\"string\",\"mid\"],[\"string\",\"audio/midi\"]],[[\"string\",\"midi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"mie\"],[\"string\",\"application/x-mie\"]],[[\"string\",\"mif\"],[\"string\",\"application/vnd.mif\"]],[[\"string\",\"mime\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"mj2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjp2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjs\"],[\"string\",\"text/javascript\"]],[[\"string\",\"mk3d\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mka\"],[\"string\",\"audio/x-matroska\"]],[[\"string\",\"mks\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mkv\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mlp\"],[\"string\",\"application/vnd.dolby.mlp\"]],[[\"string\",\"mmd\"],[\"string\",\"application/vnd.chipnuts.karaoke-mmd\"]],[[\"string\",\"mmf\"],[\"string\",\"application/vnd.smaf\"]],[[\"string\",\"mmr\"],[\"string\",\"image/vnd.fujixerox.edmics-mmr\"]],[[\"string\",\"mng\"],[\"string\",\"video/x-mng\"]],[[\"string\",\"mny\"],[\"string\",\"application/x-msmoney\"]],[[\"string\",\"mobi\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"mods\"],[\"string\",\"application/mods+xml\"]],[[\"string\",\"mov\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"movie\"],[\"string\",\"video/x-sgi-movie\"]],[[\"string\",\"mp2\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"mp2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp3\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mp4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"mp4s\"],[\"string\",\"application/mp4\"]],[[\"string\",\"mp4v\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpc\"],[\"string\",\"application/vnd.mophun.certificate\"]],[[\"string\",\"mpe\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpeg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpga\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mpkg\"],[\"string\",\"application/vnd.apple.installer+xml\"]],[[\"string\",\"mpm\"],[\"string\",\"application/vnd.blueice.multipass\"]],[[\"string\",\"mpn\"],[\"string\",\"application/vnd.mophun.application\"]],[[\"string\",\"mpp\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpt\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpy\"],[\"string\",\"application/vnd.ibm.minipay\"]],[[\"string\",\"mqy\"],[\"string\",\"application/vnd.mobius.mqy\"]],[[\"string\",\"mrc\"],[\"string\",\"application/marc\"]],[[\"string\",\"mrcx\"],[\"string\",\"application/marcxml+xml\"]],[[\"string\",\"ms\"],[\"string\",\"text/troff\"]],[[\"string\",\"mscml\"],[\"string\",\"application/mediaservercontrol+xml\"]],[[\"string\",\"mseed\"],[\"string\",\"application/vnd.fdsn.mseed\"]],[[\"string\",\"mseq\"],[\"string\",\"application/vnd.mseq\"]],[[\"string\",\"msf\"],[\"string\",\"application/vnd.epson.msf\"]],[[\"string\",\"msh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"msi\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"msl\"],[\"string\",\"application/vnd.mobius.msl\"]],[[\"string\",\"msty\"],[\"string\",\"application/vnd.muvee.style\"]],[[\"string\",\"mts\"],[\"string\",\"model/vnd.mts\"]],[[\"string\",\"mus\"],[\"string\",\"application/vnd.musician\"]],[[\"string\",\"musicxml\"],[\"string\",\"application/vnd.recordare.musicxml+xml\"]],[[\"string\",\"mvb\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"mwf\"],[\"string\",\"application/vnd.mfer\"]],[[\"string\",\"mxf\"],[\"string\",\"application/mxf\"]],[[\"string\",\"mxl\"],[\"string\",\"application/vnd.recordare.musicxml\"]],[[\"string\",\"mxml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"mxs\"],[\"string\",\"application/vnd.triscape.mxs\"]],[[\"string\",\"mxu\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"n-gage\"],[\"string\",\"application/vnd.nokia.n-gage.symbian.install\"]],[[\"string\",\"n3\"],[\"string\",\"text/n3\"]],[[\"string\",\"nb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"nbp\"],[\"string\",\"application/vnd.wolfram.player\"]],[[\"string\",\"nc\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"ncx\"],[\"string\",\"application/x-dtbncx+xml\"]],[[\"string\",\"nfo\"],[\"string\",\"text/x-nfo\"]],[[\"string\",\"ngdat\"],[\"string\",\"application/vnd.nokia.n-gage.data\"]],[[\"string\",\"nitf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nlu\"],[\"string\",\"application/vnd.neurolanguage.nlu\"]],[[\"string\",\"nml\"],[\"string\",\"application/vnd.enliven\"]],[[\"string\",\"nnd\"],[\"string\",\"application/vnd.noblenet-directory\"]],[[\"string\",\"nns\"],[\"string\",\"application/vnd.noblenet-sealer\"]],[[\"string\",\"nnw\"],[\"string\",\"application/vnd.noblenet-web\"]],[[\"string\",\"npx\"],[\"string\",\"image/vnd.net-fpx\"]],[[\"string\",\"nsc\"],[\"string\",\"application/x-conference\"]],[[\"string\",\"nsf\"],[\"string\",\"application/vnd.lotus-notes\"]],[[\"string\",\"ntf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nzb\"],[\"string\",\"application/x-nzb\"]],[[\"string\",\"oa2\"],[\"string\",\"application/vnd.fujitsu.oasys2\"]],[[\"string\",\"oa3\"],[\"string\",\"application/vnd.fujitsu.oasys3\"]],[[\"string\",\"oas\"],[\"string\",\"application/vnd.fujitsu.oasys\"]],[[\"string\",\"obd\"],[\"string\",\"application/x-msbinder\"]],[[\"string\",\"obj\"],[\"string\",\"application/x-tgif\"]],[[\"string\",\"oda\"],[\"string\",\"application/oda\"]],[[\"string\",\"odb\"],[\"string\",\"application/vnd.oasis.opendocument.database\"]],[[\"string\",\"odc\"],[\"string\",\"application/vnd.oasis.opendocument.chart\"]],[[\"string\",\"odf\"],[\"string\",\"application/vnd.oasis.opendocument.formula\"]],[[\"string\",\"odft\"],[\"string\",\"application/vnd.oasis.opendocument.formula-template\"]],[[\"string\",\"odg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics\"]],[[\"string\",\"odi\"],[\"string\",\"application/vnd.oasis.opendocument.image\"]],[[\"string\",\"odm\"],[\"string\",\"application/vnd.oasis.opendocument.text-master\"]],[[\"string\",\"odp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation\"]],[[\"string\",\"ods\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet\"]],[[\"string\",\"odt\"],[\"string\",\"application/vnd.oasis.opendocument.text\"]],[[\"string\",\"oga\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogg\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogv\"],[\"string\",\"video/ogg\"]],[[\"string\",\"ogx\"],[\"string\",\"application/ogg\"]],[[\"string\",\"omdoc\"],[\"string\",\"application/omdoc+xml\"]],[[\"string\",\"onepkg\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetmp\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc2\"],[\"string\",\"application/onenote\"]],[[\"string\",\"opf\"],[\"string\",\"application/oebps-package+xml\"]],[[\"string\",\"opml\"],[\"string\",\"text/x-opml\"]],[[\"string\",\"oprc\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"org\"],[\"string\",\"application/vnd.lotus-organizer\"]],[[\"string\",\"osf\"],[\"string\",\"application/vnd.yamaha.openscoreformat\"]],[[\"string\",\"osfpvg\"],[\"string\",\"application/vnd.yamaha.openscoreformat.osfpvg+xml\"]],[[\"string\",\"otc\"],[\"string\",\"application/vnd.oasis.opendocument.chart-template\"]],[[\"string\",\"otf\"],[\"string\",\"application/x-font-otf\"]],[[\"string\",\"otg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics-template\"]],[[\"string\",\"oth\"],[\"string\",\"application/vnd.oasis.opendocument.text-web\"]],[[\"string\",\"oti\"],[\"string\",\"application/vnd.oasis.opendocument.image-template\"]],[[\"string\",\"otp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation-template\"]],[[\"string\",\"ots\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet-template\"]],[[\"string\",\"ott\"],[\"string\",\"application/vnd.oasis.opendocument.text-template\"]],[[\"string\",\"oxps\"],[\"string\",\"application/oxps\"]],[[\"string\",\"oxt\"],[\"string\",\"application/vnd.openofficeorg.extension\"]],[[\"string\",\"p\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"p10\"],[\"string\",\"application/pkcs10\"]],[[\"string\",\"p12\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"p7b\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"p7c\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7m\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7r\"],[\"string\",\"application/x-pkcs7-certreqresp\"]],[[\"string\",\"p7s\"],[\"string\",\"application/pkcs7-signature\"]],[[\"string\",\"p8\"],[\"string\",\"application/pkcs8\"]],[[\"string\",\"pas\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"paw\"],[\"string\",\"application/vnd.pawaafile\"]],[[\"string\",\"pbd\"],[\"string\",\"application/vnd.powerbuilder6\"]],[[\"string\",\"pbm\"],[\"string\",\"image/x-portable-bitmap\"]],[[\"string\",\"pcap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"pcf\"],[\"string\",\"application/x-font-pcf\"]],[[\"string\",\"pcl\"],[\"string\",\"application/vnd.hp-pcl\"]],[[\"string\",\"pclxl\"],[\"string\",\"application/vnd.hp-pclxl\"]],[[\"string\",\"pct\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pcurl\"],[\"string\",\"application/vnd.curl.pcurl\"]],[[\"string\",\"pcx\"],[\"string\",\"image/x-pcx\"]],[[\"string\",\"pdb\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"pdf\"],[\"string\",\"application/pdf\"]],[[\"string\",\"pfa\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfb\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfr\"],[\"string\",\"application/font-tdpfr\"]],[[\"string\",\"pfx\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"pgm\"],[\"string\",\"image/x-portable-graymap\"]],[[\"string\",\"pgn\"],[\"string\",\"application/x-chess-pgn\"]],[[\"string\",\"pgp\"],[\"string\",\"application/pgp-encrypted\"]],[[\"string\",\"pic\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pkg\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"pki\"],[\"string\",\"application/pkixcmp\"]],[[\"string\",\"pkipath\"],[\"string\",\"application/pkix-pkipath\"]],[[\"string\",\"plb\"],[\"string\",\"application/vnd.3gpp.pic-bw-large\"]],[[\"string\",\"plc\"],[\"string\",\"application/vnd.mobius.plc\"]],[[\"string\",\"plf\"],[\"string\",\"application/vnd.pocketlearn\"]],[[\"string\",\"pls\"],[\"string\",\"application/pls+xml\"]],[[\"string\",\"pml\"],[\"string\",\"application/vnd.ctc-posml\"]],[[\"string\",\"png\"],[\"string\",\"image/png\"]],[[\"string\",\"pnm\"],[\"string\",\"image/x-portable-anymap\"]],[[\"string\",\"portpkg\"],[\"string\",\"application/vnd.macports.portpkg\"]],[[\"string\",\"pot\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"potm\"],[\"string\",\"application/vnd.ms-powerpoint.template.macroenabled.12\"]],[[\"string\",\"potx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.template\"]],[[\"string\",\"ppam\"],[\"string\",\"application/vnd.ms-powerpoint.addin.macroenabled.12\"]],[[\"string\",\"ppd\"],[\"string\",\"application/vnd.cups-ppd\"]],[[\"string\",\"ppm\"],[\"string\",\"image/x-portable-pixmap\"]],[[\"string\",\"pps\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"ppsm\"],[\"string\",\"application/vnd.ms-powerpoint.slideshow.macroenabled.12\"]],[[\"string\",\"ppsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slideshow\"]],[[\"string\",\"ppt\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"pptm\"],[\"string\",\"application/vnd.ms-powerpoint.presentation.macroenabled.12\"]],[[\"string\",\"pptx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.presentation\"]],[[\"string\",\"pqa\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"prc\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"pre\"],[\"string\",\"application/vnd.lotus-freelance\"]],[[\"string\",\"prf\"],[\"string\",\"application/pics-rules\"]],[[\"string\",\"ps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"psb\"],[\"string\",\"application/vnd.3gpp.pic-bw-small\"]],[[\"string\",\"psd\"],[\"string\",\"image/vnd.adobe.photoshop\"]],[[\"string\",\"psf\"],[\"string\",\"application/x-font-linux-psf\"]],[[\"string\",\"pskcxml\"],[\"string\",\"application/pskc+xml\"]],[[\"string\",\"ptid\"],[\"string\",\"application/vnd.pvi.ptid1\"]],[[\"string\",\"pub\"],[\"string\",\"application/x-mspublisher\"]],[[\"string\",\"pvb\"],[\"string\",\"application/vnd.3gpp.pic-bw-var\"]],[[\"string\",\"pwn\"],[\"string\",\"application/vnd.3m.post-it-notes\"]],[[\"string\",\"pya\"],[\"string\",\"audio/vnd.ms-playready.media.pya\"]],[[\"string\",\"pyv\"],[\"string\",\"video/vnd.ms-playready.media.pyv\"]],[[\"string\",\"qam\"],[\"string\",\"application/vnd.epson.quickanime\"]],[[\"string\",\"qbo\"],[\"string\",\"application/vnd.intu.qbo\"]],[[\"string\",\"qfx\"],[\"string\",\"application/vnd.intu.qfx\"]],[[\"string\",\"qps\"],[\"string\",\"application/vnd.publishare-delta-tree\"]],[[\"string\",\"qt\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"qwd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qwt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxb\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxl\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"ra\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"ram\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"rar\"],[\"string\",\"application/x-rar-compressed\"]],[[\"string\",\"ras\"],[\"string\",\"image/x-cmu-raster\"]],[[\"string\",\"rcprofile\"],[\"string\",\"application/vnd.ipunplugged.rcprofile\"]],[[\"string\",\"rdf\"],[\"string\",\"application/rdf+xml\"]],[[\"string\",\"rdz\"],[\"string\",\"application/vnd.data-vision.rdz\"]],[[\"string\",\"rep\"],[\"string\",\"application/vnd.businessobjects\"]],[[\"string\",\"res\"],[\"string\",\"application/x-dtbresource+xml\"]],[[\"string\",\"rgb\"],[\"string\",\"image/x-rgb\"]],[[\"string\",\"rif\"],[\"string\",\"application/reginfo+xml\"]],[[\"string\",\"rip\"],[\"string\",\"audio/vnd.rip\"]],[[\"string\",\"ris\"],[\"string\",\"application/x-research-info-systems\"]],[[\"string\",\"rl\"],[\"string\",\"application/resource-lists+xml\"]],[[\"string\",\"rlc\"],[\"string\",\"image/vnd.fujixerox.edmics-rlc\"]],[[\"string\",\"rld\"],[\"string\",\"application/resource-lists-diff+xml\"]],[[\"string\",\"rm\"],[\"string\",\"application/vnd.rn-realmedia\"]],[[\"string\",\"rmi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"rmp\"],[\"string\",\"audio/x-pn-realaudio-plugin\"]],[[\"string\",\"rms\"],[\"string\",\"application/vnd.jcp.javame.midlet-rms\"]],[[\"string\",\"rmvb\"],[\"string\",\"application/vnd.rn-realmedia-vbr\"]],[[\"string\",\"rnc\"],[\"string\",\"application/relax-ng-compact-syntax\"]],[[\"string\",\"roa\"],[\"string\",\"application/rpki-roa\"]],[[\"string\",\"roff\"],[\"string\",\"text/troff\"]],[[\"string\",\"rp9\"],[\"string\",\"application/vnd.cloanto.rp9\"]],[[\"string\",\"rpss\"],[\"string\",\"application/vnd.nokia.radio-presets\"]],[[\"string\",\"rpst\"],[\"string\",\"application/vnd.nokia.radio-preset\"]],[[\"string\",\"rq\"],[\"string\",\"application/sparql-query\"]],[[\"string\",\"rs\"],[\"string\",\"application/rls-services+xml\"]],[[\"string\",\"rsd\"],[\"string\",\"application/rsd+xml\"]],[[\"string\",\"rss\"],[\"string\",\"application/rss+xml\"]],[[\"string\",\"rtf\"],[\"string\",\"application/rtf\"]],[[\"string\",\"rtx\"],[\"string\",\"text/richtext\"]],[[\"string\",\"s\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"s3m\"],[\"string\",\"audio/s3m\"]],[[\"string\",\"saf\"],[\"string\",\"application/vnd.yamaha.smaf-audio\"]],[[\"string\",\"sbml\"],[\"string\",\"application/sbml+xml\"]],[[\"string\",\"sc\"],[\"string\",\"application/vnd.ibm.secure-container\"]],[[\"string\",\"scd\"],[\"string\",\"application/x-msschedule\"]],[[\"string\",\"scm\"],[\"string\",\"application/vnd.lotus-screencam\"]],[[\"string\",\"scq\"],[\"string\",\"application/scvp-cv-request\"]],[[\"string\",\"scs\"],[\"string\",\"application/scvp-cv-response\"]],[[\"string\",\"scurl\"],[\"string\",\"text/vnd.curl.scurl\"]],[[\"string\",\"sda\"],[\"string\",\"application/vnd.stardivision.draw\"]],[[\"string\",\"sdc\"],[\"string\",\"application/vnd.stardivision.calc\"]],[[\"string\",\"sdd\"],[\"string\",\"application/vnd.stardivision.impress\"]],[[\"string\",\"sdkd\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdkm\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdp\"],[\"string\",\"application/sdp\"]],[[\"string\",\"sdw\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"see\"],[\"string\",\"application/vnd.seemail\"]],[[\"string\",\"seed\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"sema\"],[\"string\",\"application/vnd.sema\"]],[[\"string\",\"semd\"],[\"string\",\"application/vnd.semd\"]],[[\"string\",\"semf\"],[\"string\",\"application/vnd.semf\"]],[[\"string\",\"ser\"],[\"string\",\"application/java-serialized-object\"]],[[\"string\",\"setpay\"],[\"string\",\"application/set-payment-initiation\"]],[[\"string\",\"setreg\"],[\"string\",\"application/set-registration-initiation\"]],[[\"string\",\"sfd-hdstx\"],[\"string\",\"application/vnd.hydrostatix.sof-data\"]],[[\"string\",\"sfs\"],[\"string\",\"application/vnd.spotfire.sfs\"]],[[\"string\",\"sfv\"],[\"string\",\"text/x-sfv\"]],[[\"string\",\"sgi\"],[\"string\",\"image/sgi\"]],[[\"string\",\"sgl\"],[\"string\",\"application/vnd.stardivision.writer-global\"]],[[\"string\",\"sgm\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sgml\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sh\"],[\"string\",\"application/x-sh\"]],[[\"string\",\"shar\"],[\"string\",\"application/x-shar\"]],[[\"string\",\"shf\"],[\"string\",\"application/shf+xml\"]],[[\"string\",\"sid\"],[\"string\",\"image/x-mrsid-image\"]],[[\"string\",\"sig\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"sil\"],[\"string\",\"audio/silk\"]],[[\"string\",\"silo\"],[\"string\",\"model/mesh\"]],[[\"string\",\"sis\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sisx\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sit\"],[\"string\",\"application/x-stuffit\"]],[[\"string\",\"sitx\"],[\"string\",\"application/x-stuffitx\"]],[[\"string\",\"skd\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skm\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skp\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skt\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"sldm\"],[\"string\",\"application/vnd.ms-powerpoint.slide.macroenabled.12\"]],[[\"string\",\"sldx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slide\"]],[[\"string\",\"slt\"],[\"string\",\"application/vnd.epson.salt\"]],[[\"string\",\"sm\"],[\"string\",\"application/vnd.stepmania.stepchart\"]],[[\"string\",\"smf\"],[\"string\",\"application/vnd.stardivision.math\"]],[[\"string\",\"smi\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smil\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smv\"],[\"string\",\"video/x-smv\"]],[[\"string\",\"smzip\"],[\"string\",\"application/vnd.stepmania.package\"]],[[\"string\",\"snd\"],[\"string\",\"audio/basic\"]],[[\"string\",\"snf\"],[\"string\",\"application/x-font-snf\"]],[[\"string\",\"so\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"spc\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"spf\"],[\"string\",\"application/vnd.yamaha.smaf-phrase\"]],[[\"string\",\"spl\"],[\"string\",\"application/x-futuresplash\"]],[[\"string\",\"spot\"],[\"string\",\"text/vnd.in3d.spot\"]],[[\"string\",\"spp\"],[\"string\",\"application/scvp-vp-response\"]],[[\"string\",\"spq\"],[\"string\",\"application/scvp-vp-request\"]],[[\"string\",\"spx\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"sql\"],[\"string\",\"application/x-sql\"]],[[\"string\",\"src\"],[\"string\",\"application/x-wais-source\"]],[[\"string\",\"srt\"],[\"string\",\"application/x-subrip\"]],[[\"string\",\"sru\"],[\"string\",\"application/sru+xml\"]],[[\"string\",\"srx\"],[\"string\",\"application/sparql-results+xml\"]],[[\"string\",\"ssdl\"],[\"string\",\"application/ssdl+xml\"]],[[\"string\",\"sse\"],[\"string\",\"application/vnd.kodak-descriptor\"]],[[\"string\",\"ssf\"],[\"string\",\"application/vnd.epson.ssf\"]],[[\"string\",\"ssml\"],[\"string\",\"application/ssml+xml\"]],[[\"string\",\"st\"],[\"string\",\"application/vnd.sailingtracker.track\"]],[[\"string\",\"stc\"],[\"string\",\"application/vnd.sun.xml.calc.template\"]],[[\"string\",\"std\"],[\"string\",\"application/vnd.sun.xml.draw.template\"]],[[\"string\",\"stf\"],[\"string\",\"application/vnd.wt.stf\"]],[[\"string\",\"sti\"],[\"string\",\"application/vnd.sun.xml.impress.template\"]],[[\"string\",\"stk\"],[\"string\",\"application/hyperstudio\"]],[[\"string\",\"stl\"],[\"string\",\"application/vnd.ms-pki.stl\"]],[[\"string\",\"str\"],[\"string\",\"application/vnd.pg.format\"]],[[\"string\",\"stw\"],[\"string\",\"application/vnd.sun.xml.writer.template\"]],[[\"string\",\"sub\"],[\"string\",\"text/vnd.dvb.subtitle\"]],[[\"string\",\"sus\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"susp\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"sv4cpio\"],[\"string\",\"application/x-sv4cpio\"]],[[\"string\",\"sv4crc\"],[\"string\",\"application/x-sv4crc\"]],[[\"string\",\"svc\"],[\"string\",\"application/vnd.dvb.service\"]],[[\"string\",\"svd\"],[\"string\",\"application/vnd.svd\"]],[[\"string\",\"svg\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"svgz\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"swa\"],[\"string\",\"application/x-director\"]],[[\"string\",\"swf\"],[\"string\",\"application/x-shockwave-flash\"]],[[\"string\",\"swi\"],[\"string\",\"application/vnd.aristanetworks.swi\"]],[[\"string\",\"sxc\"],[\"string\",\"application/vnd.sun.xml.calc\"]],[[\"string\",\"sxd\"],[\"string\",\"application/vnd.sun.xml.draw\"]],[[\"string\",\"sxg\"],[\"string\",\"application/vnd.sun.xml.writer.global\"]],[[\"string\",\"sxi\"],[\"string\",\"application/vnd.sun.xml.impress\"]],[[\"string\",\"sxm\"],[\"string\",\"application/vnd.sun.xml.math\"]],[[\"string\",\"sxw\"],[\"string\",\"application/vnd.sun.xml.writer\"]],[[\"string\",\"t\"],[\"string\",\"text/troff\"]],[[\"string\",\"t3\"],[\"string\",\"application/x-t3vm-image\"]],[[\"string\",\"taglet\"],[\"string\",\"application/vnd.mynfc\"]],[[\"string\",\"tao\"],[\"string\",\"application/vnd.tao.intent-module-archive\"]],[[\"string\",\"tar\"],[\"string\",\"application/x-tar\"]],[[\"string\",\"tcap\"],[\"string\",\"application/vnd.3gpp2.tcap\"]],[[\"string\",\"tcl\"],[\"string\",\"application/x-tcl\"]],[[\"string\",\"teacher\"],[\"string\",\"application/vnd.smart.teacher\"]],[[\"string\",\"tei\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"teicorpus\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"tex\"],[\"string\",\"application/x-tex\"]],[[\"string\",\"texi\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"texinfo\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"text\"],[\"string\",\"text/plain\"]],[[\"string\",\"tfi\"],[\"string\",\"application/thraud+xml\"]],[[\"string\",\"tfm\"],[\"string\",\"application/x-tex-tfm\"]],[[\"string\",\"tga\"],[\"string\",\"image/x-tga\"]],[[\"string\",\"thmx\"],[\"string\",\"application/vnd.ms-officetheme\"]],[[\"string\",\"tif\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tiff\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tmo\"],[\"string\",\"application/vnd.tmobile-livetv\"]],[[\"string\",\"toml\"],[\"string\",\"application/toml\"]],[[\"string\",\"torrent\"],[\"string\",\"application/x-bittorrent\"]],[[\"string\",\"tpl\"],[\"string\",\"application/vnd.groove-tool-template\"]],[[\"string\",\"tpt\"],[\"string\",\"application/vnd.trid.tpt\"]],[[\"string\",\"tr\"],[\"string\",\"text/troff\"]],[[\"string\",\"tra\"],[\"string\",\"application/vnd.trueapp\"]],[[\"string\",\"trm\"],[\"string\",\"application/x-msterminal\"]],[[\"string\",\"tsd\"],[\"string\",\"application/timestamped-data\"]],[[\"string\",\"tsv\"],[\"string\",\"text/tab-separated-values\"]],[[\"string\",\"ttc\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttf\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttl\"],[\"string\",\"text/turtle\"]],[[\"string\",\"twd\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"twds\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"txd\"],[\"string\",\"application/vnd.genomatix.tuxedo\"]],[[\"string\",\"txf\"],[\"string\",\"application/vnd.mobius.txf\"]],[[\"string\",\"txt\"],[\"string\",\"text/plain\"]],[[\"string\",\"u32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"udeb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"ufd\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ufdl\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ulx\"],[\"string\",\"application/x-glulx\"]],[[\"string\",\"umj\"],[\"string\",\"application/vnd.umajin\"]],[[\"string\",\"unityweb\"],[\"string\",\"application/vnd.unity\"]],[[\"string\",\"uoml\"],[\"string\",\"application/vnd.uoml+xml\"]],[[\"string\",\"uri\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"uris\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"urls\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"ustar\"],[\"string\",\"application/x-ustar\"]],[[\"string\",\"utz\"],[\"string\",\"application/vnd.uiq.theme\"]],[[\"string\",\"uu\"],[\"string\",\"text/x-uuencode\"]],[[\"string\",\"uva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"uvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"vcard\"],[\"string\",\"text/vcard\"]],[[\"string\",\"vcd\"],[\"string\",\"application/x-cdlink\"]],[[\"string\",\"vcf\"],[\"string\",\"text/x-vcard\"]],[[\"string\",\"vcg\"],[\"string\",\"application/vnd.groove-vcard\"]],[[\"string\",\"vcs\"],[\"string\",\"text/x-vcalendar\"]],[[\"string\",\"vcx\"],[\"string\",\"application/vnd.vcx\"]],[[\"string\",\"vis\"],[\"string\",\"application/vnd.visionary\"]],[[\"string\",\"viv\"],[\"string\",\"video/vnd.vivo\"]],[[\"string\",\"vob\"],[\"string\",\"video/x-ms-vob\"]],[[\"string\",\"vor\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"vox\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"vrml\"],[\"string\",\"model/vrml\"]],[[\"string\",\"vsd\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsf\"],[\"string\",\"application/vnd.vsf\"]],[[\"string\",\"vss\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vst\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsw\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vtu\"],[\"string\",\"model/vnd.vtu\"]],[[\"string\",\"vxml\"],[\"string\",\"application/voicexml+xml\"]],[[\"string\",\"w3d\"],[\"string\",\"application/x-director\"]],[[\"string\",\"wad\"],[\"string\",\"application/x-doom\"]],[[\"string\",\"wasm\"],[\"string\",\"application/wasm\"]],[[\"string\",\"wav\"],[\"string\",\"audio/x-wav\"]],[[\"string\",\"wax\"],[\"string\",\"audio/x-ms-wax\"]],[[\"string\",\"wbmp\"],[\"string\",\"image/vnd.wap.wbmp\"]],[[\"string\",\"wbs\"],[\"string\",\"application/vnd.criticaltools.wbs+xml\"]],[[\"string\",\"wbxml\"],[\"string\",\"application/vnd.wap.wbxml\"]],[[\"string\",\"wcm\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdb\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdp\"],[\"string\",\"image/vnd.ms-photo\"]],[[\"string\",\"weba\"],[\"string\",\"audio/webm\"]],[[\"string\",\"webm\"],[\"string\",\"video/webm\"]],[[\"string\",\"webmanifest\"],[\"string\",\"application/manifest+json\"]],[[\"string\",\"webp\"],[\"string\",\"image/webp\"]],[[\"string\",\"wg\"],[\"string\",\"application/vnd.pmi.widget\"]],[[\"string\",\"wgt\"],[\"string\",\"application/widget\"]],[[\"string\",\"wks\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wm\"],[\"string\",\"video/x-ms-wm\"]],[[\"string\",\"wma\"],[\"string\",\"audio/x-ms-wma\"]],[[\"string\",\"wmd\"],[\"string\",\"application/x-ms-wmd\"]],[[\"string\",\"wmf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"wml\"],[\"string\",\"text/vnd.wap.wml\"]],[[\"string\",\"wmlc\"],[\"string\",\"application/vnd.wap.wmlc\"]],[[\"string\",\"wmls\"],[\"string\",\"text/vnd.wap.wmlscript\"]],[[\"string\",\"wmlsc\"],[\"string\",\"application/vnd.wap.wmlscriptc\"]],[[\"string\",\"wmv\"],[\"string\",\"video/x-ms-wmv\"]],[[\"string\",\"wmx\"],[\"string\",\"video/x-ms-wmx\"]],[[\"string\",\"wmz\"],[\"string\",\"application/x-ms-wmz\"]],[[\"string\",\"woff\"],[\"string\",\"application/x-font-woff\"]],[[\"string\",\"woff2\"],[\"string\",\"font/woff2\"]],[[\"string\",\"wpd\"],[\"string\",\"application/vnd.wordperfect\"]],[[\"string\",\"wpl\"],[\"string\",\"application/vnd.ms-wpl\"]],[[\"string\",\"wps\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wqd\"],[\"string\",\"application/vnd.wqd\"]],[[\"string\",\"wri\"],[\"string\",\"application/x-mswrite\"]],[[\"string\",\"wrl\"],[\"string\",\"model/vrml\"]],[[\"string\",\"wsdl\"],[\"string\",\"application/wsdl+xml\"]],[[\"string\",\"wspolicy\"],[\"string\",\"application/wspolicy+xml\"]],[[\"string\",\"wtb\"],[\"string\",\"application/vnd.webturbo\"]],[[\"string\",\"wvx\"],[\"string\",\"video/x-ms-wvx\"]],[[\"string\",\"x32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"x3d\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"x3db\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dbz\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dv\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dvz\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dz\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"xaml\"],[\"string\",\"application/xaml+xml\"]],[[\"string\",\"xap\"],[\"string\",\"application/x-silverlight-app\"]],[[\"string\",\"xar\"],[\"string\",\"application/vnd.xara\"]],[[\"string\",\"xbap\"],[\"string\",\"application/x-ms-xbap\"]],[[\"string\",\"xbd\"],[\"string\",\"application/vnd.fujixerox.docuworks.binder\"]],[[\"string\",\"xbm\"],[\"string\",\"image/x-xbitmap\"]],[[\"string\",\"xdf\"],[\"string\",\"application/xcap-diff+xml\"]],[[\"string\",\"xdm\"],[\"string\",\"application/vnd.syncml.dm+xml\"]],[[\"string\",\"xdp\"],[\"string\",\"application/vnd.adobe.xdp+xml\"]],[[\"string\",\"xdssc\"],[\"string\",\"application/dssc+xml\"]],[[\"string\",\"xdw\"],[\"string\",\"application/vnd.fujixerox.docuworks\"]],[[\"string\",\"xenc\"],[\"string\",\"application/xenc+xml\"]],[[\"string\",\"xer\"],[\"string\",\"application/patch-ops-error+xml\"]],[[\"string\",\"xfdf\"],[\"string\",\"application/vnd.adobe.xfdf\"]],[[\"string\",\"xfdl\"],[\"string\",\"application/vnd.xfdl\"]],[[\"string\",\"xht\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhtml\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xif\"],[\"string\",\"image/vnd.xiff\"]],[[\"string\",\"xla\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlam\"],[\"string\",\"application/vnd.ms-excel.addin.macroenabled.12\"]],[[\"string\",\"xlc\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlf\"],[\"string\",\"application/x-xliff+xml\"]],[[\"string\",\"xlm\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xls\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlsb\"],[\"string\",\"application/vnd.ms-excel.sheet.binary.macroenabled.12\"]],[[\"string\",\"xlsm\"],[\"string\",\"application/vnd.ms-excel.sheet.macroenabled.12\"]],[[\"string\",\"xlsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\"]],[[\"string\",\"xlt\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xltm\"],[\"string\",\"application/vnd.ms-excel.template.macroenabled.12\"]],[[\"string\",\"xltx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.template\"]],[[\"string\",\"xlw\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xm\"],[\"string\",\"audio/xm\"]],[[\"string\",\"xml\"],[\"string\",\"application/xml\"]],[[\"string\",\"xo\"],[\"string\",\"application/vnd.olpc-sugar\"]],[[\"string\",\"xop\"],[\"string\",\"application/xop+xml\"]],[[\"string\",\"xpi\"],[\"string\",\"application/x-xpinstall\"]],[[\"string\",\"xpl\"],[\"string\",\"application/xproc+xml\"]],[[\"string\",\"xpm\"],[\"string\",\"image/x-xpixmap\"]],[[\"string\",\"xpr\"],[\"string\",\"application/vnd.is-xpr\"]],[[\"string\",\"xps\"],[\"string\",\"application/vnd.ms-xpsdocument\"]],[[\"string\",\"xpw\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xpx\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xsl\"],[\"string\",\"application/xml\"]],[[\"string\",\"xslt\"],[\"string\",\"application/xslt+xml\"]],[[\"string\",\"xsm\"],[\"string\",\"application/vnd.syncml+xml\"]],[[\"string\",\"xspf\"],[\"string\",\"application/xspf+xml\"]],[[\"string\",\"xul\"],[\"string\",\"application/vnd.mozilla.xul+xml\"]],[[\"string\",\"xvm\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xwd\"],[\"string\",\"image/x-xwindowdump\"]],[[\"string\",\"xyz\"],[\"string\",\"chemical/x-xyz\"]],[[\"string\",\"xz\"],[\"string\",\"application/x-xz\"]],[[\"string\",\"yang\"],[\"string\",\"application/yang\"]],[[\"string\",\"yin\"],[\"string\",\"application/yin+xml\"]],[[\"string\",\"z1\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z2\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z3\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z4\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z5\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z6\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z7\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z8\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"zaz\"],[\"string\",\"application/vnd.zzazz.deck+xml\"]],[[\"string\",\"zip\"],[\"string\",\"application/zip\"]],[[\"string\",\"zir\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zirz\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zmm\"],[\"string\",\"application/vnd.handheld-entertainment+xml\"]]]", () => __dartConstMap([["123", "application/vnd.lotus-1-2-3"], ["3dml", "text/vnd.in3d.3dml"], ["3ds", "image/x-3ds"], ["3g2", "video/3gpp2"], ["3gp", "video/3gpp"], ["7z", "application/x-7z-compressed"], ["aab", "application/x-authorware-bin"], ["aac", "audio/aac"], ["aam", "application/x-authorware-map"], ["aas", "application/x-authorware-seg"], ["abw", "application/x-abiword"], ["ac", "application/pkix-attr-cert"], ["acc", "application/vnd.americandynamics.acc"], ["ace", "application/x-ace-compressed"], ["acu", "application/vnd.acucobol"], ["acutc", "application/vnd.acucorp"], ["adp", "audio/adpcm"], ["aep", "application/vnd.audiograph"], ["afm", "application/x-font-type1"], ["afp", "application/vnd.ibm.modcap"], ["ahead", "application/vnd.ahead.space"], ["ai", "application/postscript"], ["aif", "audio/x-aiff"], ["aifc", "audio/x-aiff"], ["aiff", "audio/x-aiff"], ["air", "application/vnd.adobe.air-application-installer-package+zip"], ["ait", "application/vnd.dvb.ait"], ["ami", "application/vnd.amiga.ami"], ["apk", "application/vnd.android.package-archive"], ["appcache", "text/cache-manifest"], ["application", "application/x-ms-application"], ["apr", "application/vnd.lotus-approach"], ["arc", "application/x-freearc"], ["asc", "application/pgp-signature"], ["asf", "video/x-ms-asf"], ["asm", "text/x-asm"], ["aso", "application/vnd.accpac.simply.aso"], ["asx", "video/x-ms-asf"], ["atc", "application/vnd.acucorp"], ["atom", "application/atom+xml"], ["atomcat", "application/atomcat+xml"], ["atomsvc", "application/atomsvc+xml"], ["atx", "application/vnd.antix.game-component"], ["au", "audio/basic"], ["avi", "video/x-msvideo"], ["avif", "image/avif"], ["aw", "application/applixware"], ["azf", "application/vnd.airzip.filesecure.azf"], ["azs", "application/vnd.airzip.filesecure.azs"], ["azw", "application/vnd.amazon.ebook"], ["bat", "application/x-msdownload"], ["bcpio", "application/x-bcpio"], ["bdf", "application/x-font-bdf"], ["bdm", "application/vnd.syncml.dm+wbxml"], ["bed", "application/vnd.realvnc.bed"], ["bh2", "application/vnd.fujitsu.oasysprs"], ["bin", "application/octet-stream"], ["blb", "application/x-blorb"], ["blorb", "application/x-blorb"], ["bmi", "application/vnd.bmi"], ["bmp", "image/bmp"], ["book", "application/vnd.framemaker"], ["box", "application/vnd.previewsystems.box"], ["boz", "application/x-bzip2"], ["bpk", "application/octet-stream"], ["btif", "image/prs.btif"], ["bz", "application/x-bzip"], ["bz2", "application/x-bzip2"], ["c", "text/x-c"], ["c11amc", "application/vnd.cluetrust.cartomobile-config"], ["c11amz", "application/vnd.cluetrust.cartomobile-config-pkg"], ["c4d", "application/vnd.clonk.c4group"], ["c4f", "application/vnd.clonk.c4group"], ["c4g", "application/vnd.clonk.c4group"], ["c4p", "application/vnd.clonk.c4group"], ["c4u", "application/vnd.clonk.c4group"], ["cab", "application/vnd.ms-cab-compressed"], ["caf", "audio/x-caf"], ["cap", "application/vnd.tcpdump.pcap"], ["car", "application/vnd.curl.car"], ["cat", "application/vnd.ms-pki.seccat"], ["cb7", "application/x-cbr"], ["cba", "application/x-cbr"], ["cbr", "application/x-cbr"], ["cbt", "application/x-cbr"], ["cbz", "application/x-cbr"], ["cc", "text/x-c"], ["cct", "application/x-director"], ["ccxml", "application/ccxml+xml"], ["cdbcmsg", "application/vnd.contact.cmsg"], ["cdf", "application/x-netcdf"], ["cdkey", "application/vnd.mediastation.cdkey"], ["cdmia", "application/cdmi-capability"], ["cdmic", "application/cdmi-container"], ["cdmid", "application/cdmi-domain"], ["cdmio", "application/cdmi-object"], ["cdmiq", "application/cdmi-queue"], ["cdx", "chemical/x-cdx"], ["cdxml", "application/vnd.chemdraw+xml"], ["cdy", "application/vnd.cinderella"], ["cer", "application/pkix-cert"], ["cfs", "application/x-cfs-compressed"], ["cgm", "image/cgm"], ["chat", "application/x-chat"], ["chm", "application/vnd.ms-htmlhelp"], ["chrt", "application/vnd.kde.kchart"], ["cif", "chemical/x-cif"], ["cii", "application/vnd.anser-web-certificate-issue-initiation"], ["cil", "application/vnd.ms-artgalry"], ["cla", "application/vnd.claymore"], ["class", "application/java-vm"], ["clkk", "application/vnd.crick.clicker.keyboard"], ["clkp", "application/vnd.crick.clicker.palette"], ["clkt", "application/vnd.crick.clicker.template"], ["clkw", "application/vnd.crick.clicker.wordbank"], ["clkx", "application/vnd.crick.clicker"], ["clp", "application/x-msclip"], ["cmc", "application/vnd.cosmocaller"], ["cmdf", "chemical/x-cmdf"], ["cml", "chemical/x-cml"], ["cmp", "application/vnd.yellowriver-custom-menu"], ["cmx", "image/x-cmx"], ["cod", "application/vnd.rim.cod"], ["com", "application/x-msdownload"], ["conf", "text/plain"], ["cpio", "application/x-cpio"], ["cpp", "text/x-c"], ["cpt", "application/mac-compactpro"], ["crd", "application/x-mscardfile"], ["crl", "application/pkix-crl"], ["crt", "application/x-x509-ca-cert"], ["cryptonote", "application/vnd.rig.cryptonote"], ["csh", "application/x-csh"], ["csml", "chemical/x-csml"], ["csp", "application/vnd.commonspace"], ["css", "text/css"], ["cst", "application/x-director"], ["csv", "text/csv"], ["cu", "application/cu-seeme"], ["curl", "text/vnd.curl"], ["cww", "application/prs.cww"], ["cxt", "application/x-director"], ["cxx", "text/x-c"], ["dae", "model/vnd.collada+xml"], ["daf", "application/vnd.mobius.daf"], ["dart", "text/x-dart"], ["dataless", "application/vnd.fdsn.seed"], ["davmount", "application/davmount+xml"], ["dbk", "application/docbook+xml"], ["dcm", "application/dicom"], ["dcr", "application/x-director"], ["dcurl", "text/vnd.curl.dcurl"], ["dd2", "application/vnd.oma.dd2+xml"], ["ddd", "application/vnd.fujixerox.ddd"], ["deb", "application/x-debian-package"], ["def", "text/plain"], ["deploy", "application/octet-stream"], ["der", "application/x-x509-ca-cert"], ["dfac", "application/vnd.dreamfactory"], ["dgc", "application/x-dgc-compressed"], ["dic", "text/x-c"], ["dir", "application/x-director"], ["dis", "application/vnd.mobius.dis"], ["dist", "application/octet-stream"], ["distz", "application/octet-stream"], ["djv", "image/vnd.djvu"], ["djvu", "image/vnd.djvu"], ["dll", "application/x-msdownload"], ["dmg", "application/x-apple-diskimage"], ["dmp", "application/vnd.tcpdump.pcap"], ["dms", "application/octet-stream"], ["dna", "application/vnd.dna"], ["doc", "application/msword"], ["docm", "application/vnd.ms-word.document.macroenabled.12"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["dot", "application/msword"], ["dotm", "application/vnd.ms-word.template.macroenabled.12"], ["dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template"], ["dp", "application/vnd.osgi.dp"], ["dpg", "application/vnd.dpgraph"], ["dra", "audio/vnd.dra"], ["dsc", "text/prs.lines.tag"], ["dssc", "application/dssc+der"], ["dtb", "application/x-dtbook+xml"], ["dtd", "application/xml-dtd"], ["dts", "audio/vnd.dts"], ["dtshd", "audio/vnd.dts.hd"], ["dump", "application/octet-stream"], ["dvb", "video/vnd.dvb.file"], ["dvi", "application/x-dvi"], ["dwf", "model/vnd.dwf"], ["dwg", "image/vnd.dwg"], ["dxf", "image/vnd.dxf"], ["dxp", "application/vnd.spotfire.dxp"], ["dxr", "application/x-director"], ["ecelp4800", "audio/vnd.nuera.ecelp4800"], ["ecelp7470", "audio/vnd.nuera.ecelp7470"], ["ecelp9600", "audio/vnd.nuera.ecelp9600"], ["ecma", "application/ecmascript"], ["edm", "application/vnd.novadigm.edm"], ["edx", "application/vnd.novadigm.edx"], ["efif", "application/vnd.picsel"], ["ei6", "application/vnd.pg.osasli"], ["elc", "application/octet-stream"], ["emf", "application/x-msmetafile"], ["eml", "message/rfc822"], ["emma", "application/emma+xml"], ["emz", "application/x-msmetafile"], ["eol", "audio/vnd.digital-winds"], ["eot", "application/vnd.ms-fontobject"], ["eps", "application/postscript"], ["epub", "application/epub+zip"], ["es3", "application/vnd.eszigno3+xml"], ["esa", "application/vnd.osgi.subsystem"], ["esf", "application/vnd.epson.esf"], ["et3", "application/vnd.eszigno3+xml"], ["etx", "text/x-setext"], ["eva", "application/x-eva"], ["evy", "application/x-envoy"], ["exe", "application/x-msdownload"], ["exi", "application/exi"], ["ext", "application/vnd.novadigm.ext"], ["ez", "application/andrew-inset"], ["ez2", "application/vnd.ezpix-album"], ["ez3", "application/vnd.ezpix-package"], ["f", "text/x-fortran"], ["f4v", "video/x-f4v"], ["f77", "text/x-fortran"], ["f90", "text/x-fortran"], ["fbs", "image/vnd.fastbidsheet"], ["fcdt", "application/vnd.adobe.formscentral.fcdt"], ["fcs", "application/vnd.isac.fcs"], ["fdf", "application/vnd.fdf"], ["fe_launch", "application/vnd.denovo.fcselayout-link"], ["fg5", "application/vnd.fujitsu.oasysgp"], ["fgd", "application/x-director"], ["fh", "image/x-freehand"], ["fh4", "image/x-freehand"], ["fh5", "image/x-freehand"], ["fh7", "image/x-freehand"], ["fhc", "image/x-freehand"], ["fig", "application/x-xfig"], ["flac", "audio/x-flac"], ["fli", "video/x-fli"], ["flo", "application/vnd.micrografx.flo"], ["flv", "video/x-flv"], ["flw", "application/vnd.kde.kivio"], ["flx", "text/vnd.fmi.flexstor"], ["fly", "text/vnd.fly"], ["fm", "application/vnd.framemaker"], ["fnc", "application/vnd.frogans.fnc"], ["for", "text/x-fortran"], ["fpx", "image/vnd.fpx"], ["frame", "application/vnd.framemaker"], ["fsc", "application/vnd.fsc.weblaunch"], ["fst", "image/vnd.fst"], ["ftc", "application/vnd.fluxtime.clip"], ["fti", "application/vnd.anser-web-funds-transfer-initiation"], ["fvt", "video/vnd.fvt"], ["fxp", "application/vnd.adobe.fxp"], ["fxpl", "application/vnd.adobe.fxp"], ["fzs", "application/vnd.fuzzysheet"], ["g2w", "application/vnd.geoplan"], ["g3", "image/g3fax"], ["g3w", "application/vnd.geospace"], ["gac", "application/vnd.groove-account"], ["gam", "application/x-tads"], ["gbr", "application/rpki-ghostbusters"], ["gca", "application/x-gca-compressed"], ["gdl", "model/vnd.gdl"], ["geo", "application/vnd.dynageo"], ["gex", "application/vnd.geometry-explorer"], ["ggb", "application/vnd.geogebra.file"], ["ggt", "application/vnd.geogebra.tool"], ["ghf", "application/vnd.groove-help"], ["gif", "image/gif"], ["gim", "application/vnd.groove-identity-message"], ["glb", "model/gltf-binary"], ["gltf", "model/gltf+json"], ["gml", "application/gml+xml"], ["gmx", "application/vnd.gmx"], ["gnumeric", "application/x-gnumeric"], ["gph", "application/vnd.flographit"], ["gpx", "application/gpx+xml"], ["gqf", "application/vnd.grafeq"], ["gqs", "application/vnd.grafeq"], ["gram", "application/srgs"], ["gramps", "application/x-gramps-xml"], ["gre", "application/vnd.geometry-explorer"], ["grv", "application/vnd.groove-injector"], ["grxml", "application/srgs+xml"], ["gsf", "application/x-font-ghostscript"], ["gtar", "application/x-gtar"], ["gtm", "application/vnd.groove-tool-message"], ["gtw", "model/vnd.gtw"], ["gv", "text/vnd.graphviz"], ["gxf", "application/gxf"], ["gxt", "application/vnd.geonext"], ["h", "text/x-c"], ["h261", "video/h261"], ["h263", "video/h263"], ["h264", "video/h264"], ["hal", "application/vnd.hal+xml"], ["hbci", "application/vnd.hbci"], ["hdf", "application/x-hdf"], ["heic", "image/heic"], ["heif", "image/heif"], ["hh", "text/x-c"], ["hlp", "application/winhlp"], ["hpgl", "application/vnd.hp-hpgl"], ["hpid", "application/vnd.hp-hpid"], ["hps", "application/vnd.hp-hps"], ["hqx", "application/mac-binhex40"], ["htke", "application/vnd.kenameaapp"], ["htm", "text/html"], ["html", "text/html"], ["hvd", "application/vnd.yamaha.hv-dic"], ["hvp", "application/vnd.yamaha.hv-voice"], ["hvs", "application/vnd.yamaha.hv-script"], ["i2g", "application/vnd.intergeo"], ["icc", "application/vnd.iccprofile"], ["ice", "x-conference/x-cooltalk"], ["icm", "application/vnd.iccprofile"], ["ico", "image/x-icon"], ["ics", "text/calendar"], ["ief", "image/ief"], ["ifb", "text/calendar"], ["ifm", "application/vnd.shana.informed.formdata"], ["iges", "model/iges"], ["igl", "application/vnd.igloader"], ["igm", "application/vnd.insors.igm"], ["igs", "model/iges"], ["igx", "application/vnd.micrografx.igx"], ["iif", "application/vnd.shana.informed.interchange"], ["imp", "application/vnd.accpac.simply.imp"], ["ims", "application/vnd.ms-ims"], ["in", "text/plain"], ["ink", "application/inkml+xml"], ["inkml", "application/inkml+xml"], ["install", "application/x-install-instructions"], ["iota", "application/vnd.astraea-software.iota"], ["ipfix", "application/ipfix"], ["ipk", "application/vnd.shana.informed.package"], ["irm", "application/vnd.ibm.rights-management"], ["irp", "application/vnd.irepository.package+xml"], ["iso", "application/x-iso9660-image"], ["itp", "application/vnd.shana.informed.formtemplate"], ["ivp", "application/vnd.immervision-ivp"], ["ivu", "application/vnd.immervision-ivu"], ["jad", "text/vnd.sun.j2me.app-descriptor"], ["jam", "application/vnd.jam"], ["jar", "application/java-archive"], ["java", "text/x-java-source"], ["jisp", "application/vnd.jisp"], ["jlt", "application/vnd.hp-jlyt"], ["jnlp", "application/x-java-jnlp-file"], ["joda", "application/vnd.joost.joda-archive"], ["jpe", "image/jpeg"], ["jpeg", "image/jpeg"], ["jpg", "image/jpeg"], ["jpgm", "video/jpm"], ["jpgv", "video/jpeg"], ["jpm", "video/jpm"], ["js", "text/javascript"], ["json", "application/json"], ["jsonml", "application/jsonml+json"], ["kar", "audio/midi"], ["karbon", "application/vnd.kde.karbon"], ["kfo", "application/vnd.kde.kformula"], ["kia", "application/vnd.kidspiration"], ["kml", "application/vnd.google-earth.kml+xml"], ["kmz", "application/vnd.google-earth.kmz"], ["kne", "application/vnd.kinar"], ["knp", "application/vnd.kinar"], ["kon", "application/vnd.kde.kontour"], ["kpr", "application/vnd.kde.kpresenter"], ["kpt", "application/vnd.kde.kpresenter"], ["kpxx", "application/vnd.ds-keypoint"], ["ksp", "application/vnd.kde.kspread"], ["ktr", "application/vnd.kahootz"], ["ktx", "image/ktx"], ["ktz", "application/vnd.kahootz"], ["kwd", "application/vnd.kde.kword"], ["kwt", "application/vnd.kde.kword"], ["lasxml", "application/vnd.las.las+xml"], ["latex", "application/x-latex"], ["lbd", "application/vnd.llamagraphics.life-balance.desktop"], ["lbe", "application/vnd.llamagraphics.life-balance.exchange+xml"], ["les", "application/vnd.hhe.lesson-player"], ["lha", "application/x-lzh-compressed"], ["link66", "application/vnd.route66.link66+xml"], ["list", "text/plain"], ["list3820", "application/vnd.ibm.modcap"], ["listafp", "application/vnd.ibm.modcap"], ["lnk", "application/x-ms-shortcut"], ["log", "text/plain"], ["lostxml", "application/lost+xml"], ["lrf", "application/octet-stream"], ["lrm", "application/vnd.ms-lrm"], ["ltf", "application/vnd.frogans.ltf"], ["lvp", "audio/vnd.lucent.voice"], ["lwp", "application/vnd.lotus-wordpro"], ["lzh", "application/x-lzh-compressed"], ["m13", "application/x-msmediaview"], ["m14", "application/x-msmediaview"], ["m1v", "video/mpeg"], ["m21", "application/mp21"], ["m2a", "audio/mpeg"], ["m2v", "video/mpeg"], ["m3a", "audio/mpeg"], ["m3u", "audio/x-mpegurl"], ["m3u8", "application/vnd.apple.mpegurl"], ["m4a", "audio/mp4"], ["m4b", "audio/mp4"], ["m4u", "video/vnd.mpegurl"], ["m4v", "video/x-m4v"], ["ma", "application/mathematica"], ["mads", "application/mads+xml"], ["mag", "application/vnd.ecowin.chart"], ["maker", "application/vnd.framemaker"], ["man", "text/troff"], ["mar", "application/octet-stream"], ["mathml", "application/mathml+xml"], ["mb", "application/mathematica"], ["mbk", "application/vnd.mobius.mbk"], ["mbox", "application/mbox"], ["mc1", "application/vnd.medcalcdata"], ["mcd", "application/vnd.mcd"], ["mcurl", "text/vnd.curl.mcurl"], ["md", "text/markdown"], ["markdown", "text/markdown"], ["mdb", "application/x-msaccess"], ["mdi", "image/vnd.ms-modi"], ["me", "text/troff"], ["mesh", "model/mesh"], ["meta4", "application/metalink4+xml"], ["metalink", "application/metalink+xml"], ["mets", "application/mets+xml"], ["mfm", "application/vnd.mfmp"], ["mft", "application/rpki-manifest"], ["mgp", "application/vnd.osgeo.mapguide.package"], ["mgz", "application/vnd.proteus.magazine"], ["mid", "audio/midi"], ["midi", "audio/midi"], ["mie", "application/x-mie"], ["mif", "application/vnd.mif"], ["mime", "message/rfc822"], ["mj2", "video/mj2"], ["mjp2", "video/mj2"], ["mjs", "text/javascript"], ["mk3d", "video/x-matroska"], ["mka", "audio/x-matroska"], ["mks", "video/x-matroska"], ["mkv", "video/x-matroska"], ["mlp", "application/vnd.dolby.mlp"], ["mmd", "application/vnd.chipnuts.karaoke-mmd"], ["mmf", "application/vnd.smaf"], ["mmr", "image/vnd.fujixerox.edmics-mmr"], ["mng", "video/x-mng"], ["mny", "application/x-msmoney"], ["mobi", "application/x-mobipocket-ebook"], ["mods", "application/mods+xml"], ["mov", "video/quicktime"], ["movie", "video/x-sgi-movie"], ["mp2", "audio/mpeg"], ["mp21", "application/mp21"], ["mp2a", "audio/mpeg"], ["mp3", "audio/mpeg"], ["mp4", "video/mp4"], ["mp4a", "audio/mp4"], ["mp4s", "application/mp4"], ["mp4v", "video/mp4"], ["mpc", "application/vnd.mophun.certificate"], ["mpe", "video/mpeg"], ["mpeg", "video/mpeg"], ["mpg", "video/mpeg"], ["mpg4", "video/mp4"], ["mpga", "audio/mpeg"], ["mpkg", "application/vnd.apple.installer+xml"], ["mpm", "application/vnd.blueice.multipass"], ["mpn", "application/vnd.mophun.application"], ["mpp", "application/vnd.ms-project"], ["mpt", "application/vnd.ms-project"], ["mpy", "application/vnd.ibm.minipay"], ["mqy", "application/vnd.mobius.mqy"], ["mrc", "application/marc"], ["mrcx", "application/marcxml+xml"], ["ms", "text/troff"], ["mscml", "application/mediaservercontrol+xml"], ["mseed", "application/vnd.fdsn.mseed"], ["mseq", "application/vnd.mseq"], ["msf", "application/vnd.epson.msf"], ["msh", "model/mesh"], ["msi", "application/x-msdownload"], ["msl", "application/vnd.mobius.msl"], ["msty", "application/vnd.muvee.style"], ["mts", "model/vnd.mts"], ["mus", "application/vnd.musician"], ["musicxml", "application/vnd.recordare.musicxml+xml"], ["mvb", "application/x-msmediaview"], ["mwf", "application/vnd.mfer"], ["mxf", "application/mxf"], ["mxl", "application/vnd.recordare.musicxml"], ["mxml", "application/xv+xml"], ["mxs", "application/vnd.triscape.mxs"], ["mxu", "video/vnd.mpegurl"], ["n-gage", "application/vnd.nokia.n-gage.symbian.install"], ["n3", "text/n3"], ["nb", "application/mathematica"], ["nbp", "application/vnd.wolfram.player"], ["nc", "application/x-netcdf"], ["ncx", "application/x-dtbncx+xml"], ["nfo", "text/x-nfo"], ["ngdat", "application/vnd.nokia.n-gage.data"], ["nitf", "application/vnd.nitf"], ["nlu", "application/vnd.neurolanguage.nlu"], ["nml", "application/vnd.enliven"], ["nnd", "application/vnd.noblenet-directory"], ["nns", "application/vnd.noblenet-sealer"], ["nnw", "application/vnd.noblenet-web"], ["npx", "image/vnd.net-fpx"], ["nsc", "application/x-conference"], ["nsf", "application/vnd.lotus-notes"], ["ntf", "application/vnd.nitf"], ["nzb", "application/x-nzb"], ["oa2", "application/vnd.fujitsu.oasys2"], ["oa3", "application/vnd.fujitsu.oasys3"], ["oas", "application/vnd.fujitsu.oasys"], ["obd", "application/x-msbinder"], ["obj", "application/x-tgif"], ["oda", "application/oda"], ["odb", "application/vnd.oasis.opendocument.database"], ["odc", "application/vnd.oasis.opendocument.chart"], ["odf", "application/vnd.oasis.opendocument.formula"], ["odft", "application/vnd.oasis.opendocument.formula-template"], ["odg", "application/vnd.oasis.opendocument.graphics"], ["odi", "application/vnd.oasis.opendocument.image"], ["odm", "application/vnd.oasis.opendocument.text-master"], ["odp", "application/vnd.oasis.opendocument.presentation"], ["ods", "application/vnd.oasis.opendocument.spreadsheet"], ["odt", "application/vnd.oasis.opendocument.text"], ["oga", "audio/ogg"], ["ogg", "audio/ogg"], ["ogv", "video/ogg"], ["ogx", "application/ogg"], ["omdoc", "application/omdoc+xml"], ["onepkg", "application/onenote"], ["onetmp", "application/onenote"], ["onetoc", "application/onenote"], ["onetoc2", "application/onenote"], ["opf", "application/oebps-package+xml"], ["opml", "text/x-opml"], ["oprc", "application/vnd.palm"], ["org", "application/vnd.lotus-organizer"], ["osf", "application/vnd.yamaha.openscoreformat"], ["osfpvg", "application/vnd.yamaha.openscoreformat.osfpvg+xml"], ["otc", "application/vnd.oasis.opendocument.chart-template"], ["otf", "application/x-font-otf"], ["otg", "application/vnd.oasis.opendocument.graphics-template"], ["oth", "application/vnd.oasis.opendocument.text-web"], ["oti", "application/vnd.oasis.opendocument.image-template"], ["otp", "application/vnd.oasis.opendocument.presentation-template"], ["ots", "application/vnd.oasis.opendocument.spreadsheet-template"], ["ott", "application/vnd.oasis.opendocument.text-template"], ["oxps", "application/oxps"], ["oxt", "application/vnd.openofficeorg.extension"], ["p", "text/x-pascal"], ["p10", "application/pkcs10"], ["p12", "application/x-pkcs12"], ["p7b", "application/x-pkcs7-certificates"], ["p7c", "application/pkcs7-mime"], ["p7m", "application/pkcs7-mime"], ["p7r", "application/x-pkcs7-certreqresp"], ["p7s", "application/pkcs7-signature"], ["p8", "application/pkcs8"], ["pas", "text/x-pascal"], ["paw", "application/vnd.pawaafile"], ["pbd", "application/vnd.powerbuilder6"], ["pbm", "image/x-portable-bitmap"], ["pcap", "application/vnd.tcpdump.pcap"], ["pcf", "application/x-font-pcf"], ["pcl", "application/vnd.hp-pcl"], ["pclxl", "application/vnd.hp-pclxl"], ["pct", "image/x-pict"], ["pcurl", "application/vnd.curl.pcurl"], ["pcx", "image/x-pcx"], ["pdb", "application/vnd.palm"], ["pdf", "application/pdf"], ["pfa", "application/x-font-type1"], ["pfb", "application/x-font-type1"], ["pfm", "application/x-font-type1"], ["pfr", "application/font-tdpfr"], ["pfx", "application/x-pkcs12"], ["pgm", "image/x-portable-graymap"], ["pgn", "application/x-chess-pgn"], ["pgp", "application/pgp-encrypted"], ["pic", "image/x-pict"], ["pkg", "application/octet-stream"], ["pki", "application/pkixcmp"], ["pkipath", "application/pkix-pkipath"], ["plb", "application/vnd.3gpp.pic-bw-large"], ["plc", "application/vnd.mobius.plc"], ["plf", "application/vnd.pocketlearn"], ["pls", "application/pls+xml"], ["pml", "application/vnd.ctc-posml"], ["png", "image/png"], ["pnm", "image/x-portable-anymap"], ["portpkg", "application/vnd.macports.portpkg"], ["pot", "application/vnd.ms-powerpoint"], ["potm", "application/vnd.ms-powerpoint.template.macroenabled.12"], ["potx", "application/vnd.openxmlformats-officedocument.presentationml.template"], ["ppam", "application/vnd.ms-powerpoint.addin.macroenabled.12"], ["ppd", "application/vnd.cups-ppd"], ["ppm", "image/x-portable-pixmap"], ["pps", "application/vnd.ms-powerpoint"], ["ppsm", "application/vnd.ms-powerpoint.slideshow.macroenabled.12"], ["ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow"], ["ppt", "application/vnd.ms-powerpoint"], ["pptm", "application/vnd.ms-powerpoint.presentation.macroenabled.12"], ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], ["pqa", "application/vnd.palm"], ["prc", "application/x-mobipocket-ebook"], ["pre", "application/vnd.lotus-freelance"], ["prf", "application/pics-rules"], ["ps", "application/postscript"], ["psb", "application/vnd.3gpp.pic-bw-small"], ["psd", "image/vnd.adobe.photoshop"], ["psf", "application/x-font-linux-psf"], ["pskcxml", "application/pskc+xml"], ["ptid", "application/vnd.pvi.ptid1"], ["pub", "application/x-mspublisher"], ["pvb", "application/vnd.3gpp.pic-bw-var"], ["pwn", "application/vnd.3m.post-it-notes"], ["pya", "audio/vnd.ms-playready.media.pya"], ["pyv", "video/vnd.ms-playready.media.pyv"], ["qam", "application/vnd.epson.quickanime"], ["qbo", "application/vnd.intu.qbo"], ["qfx", "application/vnd.intu.qfx"], ["qps", "application/vnd.publishare-delta-tree"], ["qt", "video/quicktime"], ["qwd", "application/vnd.quark.quarkxpress"], ["qwt", "application/vnd.quark.quarkxpress"], ["qxb", "application/vnd.quark.quarkxpress"], ["qxd", "application/vnd.quark.quarkxpress"], ["qxl", "application/vnd.quark.quarkxpress"], ["qxt", "application/vnd.quark.quarkxpress"], ["ra", "audio/x-pn-realaudio"], ["ram", "audio/x-pn-realaudio"], ["rar", "application/x-rar-compressed"], ["ras", "image/x-cmu-raster"], ["rcprofile", "application/vnd.ipunplugged.rcprofile"], ["rdf", "application/rdf+xml"], ["rdz", "application/vnd.data-vision.rdz"], ["rep", "application/vnd.businessobjects"], ["res", "application/x-dtbresource+xml"], ["rgb", "image/x-rgb"], ["rif", "application/reginfo+xml"], ["rip", "audio/vnd.rip"], ["ris", "application/x-research-info-systems"], ["rl", "application/resource-lists+xml"], ["rlc", "image/vnd.fujixerox.edmics-rlc"], ["rld", "application/resource-lists-diff+xml"], ["rm", "application/vnd.rn-realmedia"], ["rmi", "audio/midi"], ["rmp", "audio/x-pn-realaudio-plugin"], ["rms", "application/vnd.jcp.javame.midlet-rms"], ["rmvb", "application/vnd.rn-realmedia-vbr"], ["rnc", "application/relax-ng-compact-syntax"], ["roa", "application/rpki-roa"], ["roff", "text/troff"], ["rp9", "application/vnd.cloanto.rp9"], ["rpss", "application/vnd.nokia.radio-presets"], ["rpst", "application/vnd.nokia.radio-preset"], ["rq", "application/sparql-query"], ["rs", "application/rls-services+xml"], ["rsd", "application/rsd+xml"], ["rss", "application/rss+xml"], ["rtf", "application/rtf"], ["rtx", "text/richtext"], ["s", "text/x-asm"], ["s3m", "audio/s3m"], ["saf", "application/vnd.yamaha.smaf-audio"], ["sbml", "application/sbml+xml"], ["sc", "application/vnd.ibm.secure-container"], ["scd", "application/x-msschedule"], ["scm", "application/vnd.lotus-screencam"], ["scq", "application/scvp-cv-request"], ["scs", "application/scvp-cv-response"], ["scurl", "text/vnd.curl.scurl"], ["sda", "application/vnd.stardivision.draw"], ["sdc", "application/vnd.stardivision.calc"], ["sdd", "application/vnd.stardivision.impress"], ["sdkd", "application/vnd.solent.sdkm+xml"], ["sdkm", "application/vnd.solent.sdkm+xml"], ["sdp", "application/sdp"], ["sdw", "application/vnd.stardivision.writer"], ["see", "application/vnd.seemail"], ["seed", "application/vnd.fdsn.seed"], ["sema", "application/vnd.sema"], ["semd", "application/vnd.semd"], ["semf", "application/vnd.semf"], ["ser", "application/java-serialized-object"], ["setpay", "application/set-payment-initiation"], ["setreg", "application/set-registration-initiation"], ["sfd-hdstx", "application/vnd.hydrostatix.sof-data"], ["sfs", "application/vnd.spotfire.sfs"], ["sfv", "text/x-sfv"], ["sgi", "image/sgi"], ["sgl", "application/vnd.stardivision.writer-global"], ["sgm", "text/sgml"], ["sgml", "text/sgml"], ["sh", "application/x-sh"], ["shar", "application/x-shar"], ["shf", "application/shf+xml"], ["sid", "image/x-mrsid-image"], ["sig", "application/pgp-signature"], ["sil", "audio/silk"], ["silo", "model/mesh"], ["sis", "application/vnd.symbian.install"], ["sisx", "application/vnd.symbian.install"], ["sit", "application/x-stuffit"], ["sitx", "application/x-stuffitx"], ["skd", "application/vnd.koan"], ["skm", "application/vnd.koan"], ["skp", "application/vnd.koan"], ["skt", "application/vnd.koan"], ["sldm", "application/vnd.ms-powerpoint.slide.macroenabled.12"], ["sldx", "application/vnd.openxmlformats-officedocument.presentationml.slide"], ["slt", "application/vnd.epson.salt"], ["sm", "application/vnd.stepmania.stepchart"], ["smf", "application/vnd.stardivision.math"], ["smi", "application/smil+xml"], ["smil", "application/smil+xml"], ["smv", "video/x-smv"], ["smzip", "application/vnd.stepmania.package"], ["snd", "audio/basic"], ["snf", "application/x-font-snf"], ["so", "application/octet-stream"], ["spc", "application/x-pkcs7-certificates"], ["spf", "application/vnd.yamaha.smaf-phrase"], ["spl", "application/x-futuresplash"], ["spot", "text/vnd.in3d.spot"], ["spp", "application/scvp-vp-response"], ["spq", "application/scvp-vp-request"], ["spx", "audio/ogg"], ["sql", "application/x-sql"], ["src", "application/x-wais-source"], ["srt", "application/x-subrip"], ["sru", "application/sru+xml"], ["srx", "application/sparql-results+xml"], ["ssdl", "application/ssdl+xml"], ["sse", "application/vnd.kodak-descriptor"], ["ssf", "application/vnd.epson.ssf"], ["ssml", "application/ssml+xml"], ["st", "application/vnd.sailingtracker.track"], ["stc", "application/vnd.sun.xml.calc.template"], ["std", "application/vnd.sun.xml.draw.template"], ["stf", "application/vnd.wt.stf"], ["sti", "application/vnd.sun.xml.impress.template"], ["stk", "application/hyperstudio"], ["stl", "application/vnd.ms-pki.stl"], ["str", "application/vnd.pg.format"], ["stw", "application/vnd.sun.xml.writer.template"], ["sub", "text/vnd.dvb.subtitle"], ["sus", "application/vnd.sus-calendar"], ["susp", "application/vnd.sus-calendar"], ["sv4cpio", "application/x-sv4cpio"], ["sv4crc", "application/x-sv4crc"], ["svc", "application/vnd.dvb.service"], ["svd", "application/vnd.svd"], ["svg", "image/svg+xml"], ["svgz", "image/svg+xml"], ["swa", "application/x-director"], ["swf", "application/x-shockwave-flash"], ["swi", "application/vnd.aristanetworks.swi"], ["sxc", "application/vnd.sun.xml.calc"], ["sxd", "application/vnd.sun.xml.draw"], ["sxg", "application/vnd.sun.xml.writer.global"], ["sxi", "application/vnd.sun.xml.impress"], ["sxm", "application/vnd.sun.xml.math"], ["sxw", "application/vnd.sun.xml.writer"], ["t", "text/troff"], ["t3", "application/x-t3vm-image"], ["taglet", "application/vnd.mynfc"], ["tao", "application/vnd.tao.intent-module-archive"], ["tar", "application/x-tar"], ["tcap", "application/vnd.3gpp2.tcap"], ["tcl", "application/x-tcl"], ["teacher", "application/vnd.smart.teacher"], ["tei", "application/tei+xml"], ["teicorpus", "application/tei+xml"], ["tex", "application/x-tex"], ["texi", "application/x-texinfo"], ["texinfo", "application/x-texinfo"], ["text", "text/plain"], ["tfi", "application/thraud+xml"], ["tfm", "application/x-tex-tfm"], ["tga", "image/x-tga"], ["thmx", "application/vnd.ms-officetheme"], ["tif", "image/tiff"], ["tiff", "image/tiff"], ["tmo", "application/vnd.tmobile-livetv"], ["toml", "application/toml"], ["torrent", "application/x-bittorrent"], ["tpl", "application/vnd.groove-tool-template"], ["tpt", "application/vnd.trid.tpt"], ["tr", "text/troff"], ["tra", "application/vnd.trueapp"], ["trm", "application/x-msterminal"], ["tsd", "application/timestamped-data"], ["tsv", "text/tab-separated-values"], ["ttc", "application/x-font-ttf"], ["ttf", "application/x-font-ttf"], ["ttl", "text/turtle"], ["twd", "application/vnd.simtech-mindmapper"], ["twds", "application/vnd.simtech-mindmapper"], ["txd", "application/vnd.genomatix.tuxedo"], ["txf", "application/vnd.mobius.txf"], ["txt", "text/plain"], ["u32", "application/x-authorware-bin"], ["udeb", "application/x-debian-package"], ["ufd", "application/vnd.ufdl"], ["ufdl", "application/vnd.ufdl"], ["ulx", "application/x-glulx"], ["umj", "application/vnd.umajin"], ["unityweb", "application/vnd.unity"], ["uoml", "application/vnd.uoml+xml"], ["uri", "text/uri-list"], ["uris", "text/uri-list"], ["urls", "text/uri-list"], ["ustar", "application/x-ustar"], ["utz", "application/vnd.uiq.theme"], ["uu", "text/x-uuencode"], ["uva", "audio/vnd.dece.audio"], ["uvd", "application/vnd.dece.data"], ["uvf", "application/vnd.dece.data"], ["uvg", "image/vnd.dece.graphic"], ["uvh", "video/vnd.dece.hd"], ["uvi", "image/vnd.dece.graphic"], ["uvm", "video/vnd.dece.mobile"], ["uvp", "video/vnd.dece.pd"], ["uvs", "video/vnd.dece.sd"], ["uvt", "application/vnd.dece.ttml+xml"], ["uvu", "video/vnd.uvvu.mp4"], ["uvv", "video/vnd.dece.video"], ["uvva", "audio/vnd.dece.audio"], ["uvvd", "application/vnd.dece.data"], ["uvvf", "application/vnd.dece.data"], ["uvvg", "image/vnd.dece.graphic"], ["uvvh", "video/vnd.dece.hd"], ["uvvi", "image/vnd.dece.graphic"], ["uvvm", "video/vnd.dece.mobile"], ["uvvp", "video/vnd.dece.pd"], ["uvvs", "video/vnd.dece.sd"], ["uvvt", "application/vnd.dece.ttml+xml"], ["uvvu", "video/vnd.uvvu.mp4"], ["uvvv", "video/vnd.dece.video"], ["uvvx", "application/vnd.dece.unspecified"], ["uvvz", "application/vnd.dece.zip"], ["uvx", "application/vnd.dece.unspecified"], ["uvz", "application/vnd.dece.zip"], ["vcard", "text/vcard"], ["vcd", "application/x-cdlink"], ["vcf", "text/x-vcard"], ["vcg", "application/vnd.groove-vcard"], ["vcs", "text/x-vcalendar"], ["vcx", "application/vnd.vcx"], ["vis", "application/vnd.visionary"], ["viv", "video/vnd.vivo"], ["vob", "video/x-ms-vob"], ["vor", "application/vnd.stardivision.writer"], ["vox", "application/x-authorware-bin"], ["vrml", "model/vrml"], ["vsd", "application/vnd.visio"], ["vsf", "application/vnd.vsf"], ["vss", "application/vnd.visio"], ["vst", "application/vnd.visio"], ["vsw", "application/vnd.visio"], ["vtu", "model/vnd.vtu"], ["vxml", "application/voicexml+xml"], ["w3d", "application/x-director"], ["wad", "application/x-doom"], ["wasm", "application/wasm"], ["wav", "audio/x-wav"], ["wax", "audio/x-ms-wax"], ["wbmp", "image/vnd.wap.wbmp"], ["wbs", "application/vnd.criticaltools.wbs+xml"], ["wbxml", "application/vnd.wap.wbxml"], ["wcm", "application/vnd.ms-works"], ["wdb", "application/vnd.ms-works"], ["wdp", "image/vnd.ms-photo"], ["weba", "audio/webm"], ["webm", "video/webm"], ["webmanifest", "application/manifest+json"], ["webp", "image/webp"], ["wg", "application/vnd.pmi.widget"], ["wgt", "application/widget"], ["wks", "application/vnd.ms-works"], ["wm", "video/x-ms-wm"], ["wma", "audio/x-ms-wma"], ["wmd", "application/x-ms-wmd"], ["wmf", "application/x-msmetafile"], ["wml", "text/vnd.wap.wml"], ["wmlc", "application/vnd.wap.wmlc"], ["wmls", "text/vnd.wap.wmlscript"], ["wmlsc", "application/vnd.wap.wmlscriptc"], ["wmv", "video/x-ms-wmv"], ["wmx", "video/x-ms-wmx"], ["wmz", "application/x-ms-wmz"], ["woff", "application/x-font-woff"], ["woff2", "font/woff2"], ["wpd", "application/vnd.wordperfect"], ["wpl", "application/vnd.ms-wpl"], ["wps", "application/vnd.ms-works"], ["wqd", "application/vnd.wqd"], ["wri", "application/x-mswrite"], ["wrl", "model/vrml"], ["wsdl", "application/wsdl+xml"], ["wspolicy", "application/wspolicy+xml"], ["wtb", "application/vnd.webturbo"], ["wvx", "video/x-ms-wvx"], ["x32", "application/x-authorware-bin"], ["x3d", "model/x3d+xml"], ["x3db", "model/x3d+binary"], ["x3dbz", "model/x3d+binary"], ["x3dv", "model/x3d+vrml"], ["x3dvz", "model/x3d+vrml"], ["x3dz", "model/x3d+xml"], ["xaml", "application/xaml+xml"], ["xap", "application/x-silverlight-app"], ["xar", "application/vnd.xara"], ["xbap", "application/x-ms-xbap"], ["xbd", "application/vnd.fujixerox.docuworks.binder"], ["xbm", "image/x-xbitmap"], ["xdf", "application/xcap-diff+xml"], ["xdm", "application/vnd.syncml.dm+xml"], ["xdp", "application/vnd.adobe.xdp+xml"], ["xdssc", "application/dssc+xml"], ["xdw", "application/vnd.fujixerox.docuworks"], ["xenc", "application/xenc+xml"], ["xer", "application/patch-ops-error+xml"], ["xfdf", "application/vnd.adobe.xfdf"], ["xfdl", "application/vnd.xfdl"], ["xht", "application/xhtml+xml"], ["xhtml", "application/xhtml+xml"], ["xhvml", "application/xv+xml"], ["xif", "image/vnd.xiff"], ["xla", "application/vnd.ms-excel"], ["xlam", "application/vnd.ms-excel.addin.macroenabled.12"], ["xlc", "application/vnd.ms-excel"], ["xlf", "application/x-xliff+xml"], ["xlm", "application/vnd.ms-excel"], ["xls", "application/vnd.ms-excel"], ["xlsb", "application/vnd.ms-excel.sheet.binary.macroenabled.12"], ["xlsm", "application/vnd.ms-excel.sheet.macroenabled.12"], ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], ["xlt", "application/vnd.ms-excel"], ["xltm", "application/vnd.ms-excel.template.macroenabled.12"], ["xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template"], ["xlw", "application/vnd.ms-excel"], ["xm", "audio/xm"], ["xml", "application/xml"], ["xo", "application/vnd.olpc-sugar"], ["xop", "application/xop+xml"], ["xpi", "application/x-xpinstall"], ["xpl", "application/xproc+xml"], ["xpm", "image/x-xpixmap"], ["xpr", "application/vnd.is-xpr"], ["xps", "application/vnd.ms-xpsdocument"], ["xpw", "application/vnd.intercon.formnet"], ["xpx", "application/vnd.intercon.formnet"], ["xsl", "application/xml"], ["xslt", "application/xslt+xml"], ["xsm", "application/vnd.syncml+xml"], ["xspf", "application/xspf+xml"], ["xul", "application/vnd.mozilla.xul+xml"], ["xvm", "application/xv+xml"], ["xvml", "application/xv+xml"], ["xwd", "image/x-xwindowdump"], ["xyz", "chemical/x-xyz"], ["xz", "application/x-xz"], ["yang", "application/yang"], ["yin", "application/yin+xml"], ["z1", "application/x-zmachine"], ["z2", "application/x-zmachine"], ["z3", "application/x-zmachine"], ["z4", "application/x-zmachine"], ["z5", "application/x-zmachine"], ["z6", "application/x-zmachine"], ["z7", "application/x-zmachine"], ["z8", "application/x-zmachine"], ["zaz", "application/vnd.zzazz.deck+xml"], ["zip", "application/zip"], ["zir", "application/vnd.zul"], ["zirz", "application/vnd.zul"], ["zmm", "application/vnd.handheld-entertainment+xml"]])), ([key, value]) => ({ key, value })));
-    for (; _sync_for_iterator.moveNext(); ) {
-      {
-        let entry = _sync_for_iterator.current;
-        __dartMapSet(v, entry.value, entry.key);
-      }
-    }
+  const v = __dartMapFromEntries([]);
+  let _sync_for_iterator = __dartIterator(__dartIterableToArray(__dartConst("[\"map\",\"InterfaceType(String)\",\"InterfaceType(String)\",[[\"string\",\"123\"],[\"string\",\"application/vnd.lotus-1-2-3\"]],[[\"string\",\"3dml\"],[\"string\",\"text/vnd.in3d.3dml\"]],[[\"string\",\"3ds\"],[\"string\",\"image/x-3ds\"]],[[\"string\",\"3g2\"],[\"string\",\"video/3gpp2\"]],[[\"string\",\"3gp\"],[\"string\",\"video/3gpp\"]],[[\"string\",\"7z\"],[\"string\",\"application/x-7z-compressed\"]],[[\"string\",\"aab\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"aac\"],[\"string\",\"audio/aac\"]],[[\"string\",\"aam\"],[\"string\",\"application/x-authorware-map\"]],[[\"string\",\"aas\"],[\"string\",\"application/x-authorware-seg\"]],[[\"string\",\"abw\"],[\"string\",\"application/x-abiword\"]],[[\"string\",\"ac\"],[\"string\",\"application/pkix-attr-cert\"]],[[\"string\",\"acc\"],[\"string\",\"application/vnd.americandynamics.acc\"]],[[\"string\",\"ace\"],[\"string\",\"application/x-ace-compressed\"]],[[\"string\",\"acu\"],[\"string\",\"application/vnd.acucobol\"]],[[\"string\",\"acutc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"adp\"],[\"string\",\"audio/adpcm\"]],[[\"string\",\"aep\"],[\"string\",\"application/vnd.audiograph\"]],[[\"string\",\"afm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"afp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"ahead\"],[\"string\",\"application/vnd.ahead.space\"]],[[\"string\",\"ai\"],[\"string\",\"application/postscript\"]],[[\"string\",\"aif\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aifc\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"aiff\"],[\"string\",\"audio/x-aiff\"]],[[\"string\",\"air\"],[\"string\",\"application/vnd.adobe.air-application-installer-package+zip\"]],[[\"string\",\"ait\"],[\"string\",\"application/vnd.dvb.ait\"]],[[\"string\",\"ami\"],[\"string\",\"application/vnd.amiga.ami\"]],[[\"string\",\"apk\"],[\"string\",\"application/vnd.android.package-archive\"]],[[\"string\",\"appcache\"],[\"string\",\"text/cache-manifest\"]],[[\"string\",\"application\"],[\"string\",\"application/x-ms-application\"]],[[\"string\",\"apr\"],[\"string\",\"application/vnd.lotus-approach\"]],[[\"string\",\"arc\"],[\"string\",\"application/x-freearc\"]],[[\"string\",\"asc\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"asf\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"asm\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"aso\"],[\"string\",\"application/vnd.accpac.simply.aso\"]],[[\"string\",\"asx\"],[\"string\",\"video/x-ms-asf\"]],[[\"string\",\"atc\"],[\"string\",\"application/vnd.acucorp\"]],[[\"string\",\"atom\"],[\"string\",\"application/atom+xml\"]],[[\"string\",\"atomcat\"],[\"string\",\"application/atomcat+xml\"]],[[\"string\",\"atomsvc\"],[\"string\",\"application/atomsvc+xml\"]],[[\"string\",\"atx\"],[\"string\",\"application/vnd.antix.game-component\"]],[[\"string\",\"au\"],[\"string\",\"audio/basic\"]],[[\"string\",\"avi\"],[\"string\",\"video/x-msvideo\"]],[[\"string\",\"avif\"],[\"string\",\"image/avif\"]],[[\"string\",\"aw\"],[\"string\",\"application/applixware\"]],[[\"string\",\"azf\"],[\"string\",\"application/vnd.airzip.filesecure.azf\"]],[[\"string\",\"azs\"],[\"string\",\"application/vnd.airzip.filesecure.azs\"]],[[\"string\",\"azw\"],[\"string\",\"application/vnd.amazon.ebook\"]],[[\"string\",\"bat\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"bcpio\"],[\"string\",\"application/x-bcpio\"]],[[\"string\",\"bdf\"],[\"string\",\"application/x-font-bdf\"]],[[\"string\",\"bdm\"],[\"string\",\"application/vnd.syncml.dm+wbxml\"]],[[\"string\",\"bed\"],[\"string\",\"application/vnd.realvnc.bed\"]],[[\"string\",\"bh2\"],[\"string\",\"application/vnd.fujitsu.oasysprs\"]],[[\"string\",\"bin\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"blb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"blorb\"],[\"string\",\"application/x-blorb\"]],[[\"string\",\"bmi\"],[\"string\",\"application/vnd.bmi\"]],[[\"string\",\"bmp\"],[\"string\",\"image/bmp\"]],[[\"string\",\"book\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"box\"],[\"string\",\"application/vnd.previewsystems.box\"]],[[\"string\",\"boz\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"bpk\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"btif\"],[\"string\",\"image/prs.btif\"]],[[\"string\",\"bz\"],[\"string\",\"application/x-bzip\"]],[[\"string\",\"bz2\"],[\"string\",\"application/x-bzip2\"]],[[\"string\",\"c\"],[\"string\",\"text/x-c\"]],[[\"string\",\"c11amc\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config\"]],[[\"string\",\"c11amz\"],[\"string\",\"application/vnd.cluetrust.cartomobile-config-pkg\"]],[[\"string\",\"c4d\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4f\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4g\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4p\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"c4u\"],[\"string\",\"application/vnd.clonk.c4group\"]],[[\"string\",\"cab\"],[\"string\",\"application/vnd.ms-cab-compressed\"]],[[\"string\",\"caf\"],[\"string\",\"audio/x-caf\"]],[[\"string\",\"cap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"car\"],[\"string\",\"application/vnd.curl.car\"]],[[\"string\",\"cat\"],[\"string\",\"application/vnd.ms-pki.seccat\"]],[[\"string\",\"cb7\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cba\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbr\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbt\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cbz\"],[\"string\",\"application/x-cbr\"]],[[\"string\",\"cc\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cct\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ccxml\"],[\"string\",\"application/ccxml+xml\"]],[[\"string\",\"cdbcmsg\"],[\"string\",\"application/vnd.contact.cmsg\"]],[[\"string\",\"cdf\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"cdkey\"],[\"string\",\"application/vnd.mediastation.cdkey\"]],[[\"string\",\"cdmia\"],[\"string\",\"application/cdmi-capability\"]],[[\"string\",\"cdmic\"],[\"string\",\"application/cdmi-container\"]],[[\"string\",\"cdmid\"],[\"string\",\"application/cdmi-domain\"]],[[\"string\",\"cdmio\"],[\"string\",\"application/cdmi-object\"]],[[\"string\",\"cdmiq\"],[\"string\",\"application/cdmi-queue\"]],[[\"string\",\"cdx\"],[\"string\",\"chemical/x-cdx\"]],[[\"string\",\"cdxml\"],[\"string\",\"application/vnd.chemdraw+xml\"]],[[\"string\",\"cdy\"],[\"string\",\"application/vnd.cinderella\"]],[[\"string\",\"cer\"],[\"string\",\"application/pkix-cert\"]],[[\"string\",\"cfs\"],[\"string\",\"application/x-cfs-compressed\"]],[[\"string\",\"cgm\"],[\"string\",\"image/cgm\"]],[[\"string\",\"chat\"],[\"string\",\"application/x-chat\"]],[[\"string\",\"chm\"],[\"string\",\"application/vnd.ms-htmlhelp\"]],[[\"string\",\"chrt\"],[\"string\",\"application/vnd.kde.kchart\"]],[[\"string\",\"cif\"],[\"string\",\"chemical/x-cif\"]],[[\"string\",\"cii\"],[\"string\",\"application/vnd.anser-web-certificate-issue-initiation\"]],[[\"string\",\"cil\"],[\"string\",\"application/vnd.ms-artgalry\"]],[[\"string\",\"cla\"],[\"string\",\"application/vnd.claymore\"]],[[\"string\",\"class\"],[\"string\",\"application/java-vm\"]],[[\"string\",\"clkk\"],[\"string\",\"application/vnd.crick.clicker.keyboard\"]],[[\"string\",\"clkp\"],[\"string\",\"application/vnd.crick.clicker.palette\"]],[[\"string\",\"clkt\"],[\"string\",\"application/vnd.crick.clicker.template\"]],[[\"string\",\"clkw\"],[\"string\",\"application/vnd.crick.clicker.wordbank\"]],[[\"string\",\"clkx\"],[\"string\",\"application/vnd.crick.clicker\"]],[[\"string\",\"clp\"],[\"string\",\"application/x-msclip\"]],[[\"string\",\"cmc\"],[\"string\",\"application/vnd.cosmocaller\"]],[[\"string\",\"cmdf\"],[\"string\",\"chemical/x-cmdf\"]],[[\"string\",\"cml\"],[\"string\",\"chemical/x-cml\"]],[[\"string\",\"cmp\"],[\"string\",\"application/vnd.yellowriver-custom-menu\"]],[[\"string\",\"cmx\"],[\"string\",\"image/x-cmx\"]],[[\"string\",\"cod\"],[\"string\",\"application/vnd.rim.cod\"]],[[\"string\",\"com\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"conf\"],[\"string\",\"text/plain\"]],[[\"string\",\"cpio\"],[\"string\",\"application/x-cpio\"]],[[\"string\",\"cpp\"],[\"string\",\"text/x-c\"]],[[\"string\",\"cpt\"],[\"string\",\"application/mac-compactpro\"]],[[\"string\",\"crd\"],[\"string\",\"application/x-mscardfile\"]],[[\"string\",\"crl\"],[\"string\",\"application/pkix-crl\"]],[[\"string\",\"crt\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"cryptonote\"],[\"string\",\"application/vnd.rig.cryptonote\"]],[[\"string\",\"csh\"],[\"string\",\"application/x-csh\"]],[[\"string\",\"csml\"],[\"string\",\"chemical/x-csml\"]],[[\"string\",\"csp\"],[\"string\",\"application/vnd.commonspace\"]],[[\"string\",\"css\"],[\"string\",\"text/css\"]],[[\"string\",\"cst\"],[\"string\",\"application/x-director\"]],[[\"string\",\"csv\"],[\"string\",\"text/csv\"]],[[\"string\",\"cu\"],[\"string\",\"application/cu-seeme\"]],[[\"string\",\"curl\"],[\"string\",\"text/vnd.curl\"]],[[\"string\",\"cww\"],[\"string\",\"application/prs.cww\"]],[[\"string\",\"cxt\"],[\"string\",\"application/x-director\"]],[[\"string\",\"cxx\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dae\"],[\"string\",\"model/vnd.collada+xml\"]],[[\"string\",\"daf\"],[\"string\",\"application/vnd.mobius.daf\"]],[[\"string\",\"dart\"],[\"string\",\"text/x-dart\"]],[[\"string\",\"dataless\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"davmount\"],[\"string\",\"application/davmount+xml\"]],[[\"string\",\"dbk\"],[\"string\",\"application/docbook+xml\"]],[[\"string\",\"dcm\"],[\"string\",\"application/dicom\"]],[[\"string\",\"dcr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dcurl\"],[\"string\",\"text/vnd.curl.dcurl\"]],[[\"string\",\"dd2\"],[\"string\",\"application/vnd.oma.dd2+xml\"]],[[\"string\",\"ddd\"],[\"string\",\"application/vnd.fujixerox.ddd\"]],[[\"string\",\"deb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"def\"],[\"string\",\"text/plain\"]],[[\"string\",\"deploy\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"der\"],[\"string\",\"application/x-x509-ca-cert\"]],[[\"string\",\"dfac\"],[\"string\",\"application/vnd.dreamfactory\"]],[[\"string\",\"dgc\"],[\"string\",\"application/x-dgc-compressed\"]],[[\"string\",\"dic\"],[\"string\",\"text/x-c\"]],[[\"string\",\"dir\"],[\"string\",\"application/x-director\"]],[[\"string\",\"dis\"],[\"string\",\"application/vnd.mobius.dis\"]],[[\"string\",\"dist\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"distz\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"djv\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"djvu\"],[\"string\",\"image/vnd.djvu\"]],[[\"string\",\"dll\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"dmg\"],[\"string\",\"application/x-apple-diskimage\"]],[[\"string\",\"dmp\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"dms\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dna\"],[\"string\",\"application/vnd.dna\"]],[[\"string\",\"doc\"],[\"string\",\"application/msword\"]],[[\"string\",\"docm\"],[\"string\",\"application/vnd.ms-word.document.macroenabled.12\"]],[[\"string\",\"docx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"]],[[\"string\",\"dot\"],[\"string\",\"application/msword\"]],[[\"string\",\"dotm\"],[\"string\",\"application/vnd.ms-word.template.macroenabled.12\"]],[[\"string\",\"dotx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.template\"]],[[\"string\",\"dp\"],[\"string\",\"application/vnd.osgi.dp\"]],[[\"string\",\"dpg\"],[\"string\",\"application/vnd.dpgraph\"]],[[\"string\",\"dra\"],[\"string\",\"audio/vnd.dra\"]],[[\"string\",\"dsc\"],[\"string\",\"text/prs.lines.tag\"]],[[\"string\",\"dssc\"],[\"string\",\"application/dssc+der\"]],[[\"string\",\"dtb\"],[\"string\",\"application/x-dtbook+xml\"]],[[\"string\",\"dtd\"],[\"string\",\"application/xml-dtd\"]],[[\"string\",\"dts\"],[\"string\",\"audio/vnd.dts\"]],[[\"string\",\"dtshd\"],[\"string\",\"audio/vnd.dts.hd\"]],[[\"string\",\"dump\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"dvb\"],[\"string\",\"video/vnd.dvb.file\"]],[[\"string\",\"dvi\"],[\"string\",\"application/x-dvi\"]],[[\"string\",\"dwf\"],[\"string\",\"model/vnd.dwf\"]],[[\"string\",\"dwg\"],[\"string\",\"image/vnd.dwg\"]],[[\"string\",\"dxf\"],[\"string\",\"image/vnd.dxf\"]],[[\"string\",\"dxp\"],[\"string\",\"application/vnd.spotfire.dxp\"]],[[\"string\",\"dxr\"],[\"string\",\"application/x-director\"]],[[\"string\",\"ecelp4800\"],[\"string\",\"audio/vnd.nuera.ecelp4800\"]],[[\"string\",\"ecelp7470\"],[\"string\",\"audio/vnd.nuera.ecelp7470\"]],[[\"string\",\"ecelp9600\"],[\"string\",\"audio/vnd.nuera.ecelp9600\"]],[[\"string\",\"ecma\"],[\"string\",\"application/ecmascript\"]],[[\"string\",\"edm\"],[\"string\",\"application/vnd.novadigm.edm\"]],[[\"string\",\"edx\"],[\"string\",\"application/vnd.novadigm.edx\"]],[[\"string\",\"efif\"],[\"string\",\"application/vnd.picsel\"]],[[\"string\",\"ei6\"],[\"string\",\"application/vnd.pg.osasli\"]],[[\"string\",\"elc\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"emf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eml\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"emma\"],[\"string\",\"application/emma+xml\"]],[[\"string\",\"emz\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"eol\"],[\"string\",\"audio/vnd.digital-winds\"]],[[\"string\",\"eot\"],[\"string\",\"application/vnd.ms-fontobject\"]],[[\"string\",\"eps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"epub\"],[\"string\",\"application/epub+zip\"]],[[\"string\",\"es3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"esa\"],[\"string\",\"application/vnd.osgi.subsystem\"]],[[\"string\",\"esf\"],[\"string\",\"application/vnd.epson.esf\"]],[[\"string\",\"et3\"],[\"string\",\"application/vnd.eszigno3+xml\"]],[[\"string\",\"etx\"],[\"string\",\"text/x-setext\"]],[[\"string\",\"eva\"],[\"string\",\"application/x-eva\"]],[[\"string\",\"evy\"],[\"string\",\"application/x-envoy\"]],[[\"string\",\"exe\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"exi\"],[\"string\",\"application/exi\"]],[[\"string\",\"ext\"],[\"string\",\"application/vnd.novadigm.ext\"]],[[\"string\",\"ez\"],[\"string\",\"application/andrew-inset\"]],[[\"string\",\"ez2\"],[\"string\",\"application/vnd.ezpix-album\"]],[[\"string\",\"ez3\"],[\"string\",\"application/vnd.ezpix-package\"]],[[\"string\",\"f\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f4v\"],[\"string\",\"video/x-f4v\"]],[[\"string\",\"f77\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"f90\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fbs\"],[\"string\",\"image/vnd.fastbidsheet\"]],[[\"string\",\"fcdt\"],[\"string\",\"application/vnd.adobe.formscentral.fcdt\"]],[[\"string\",\"fcs\"],[\"string\",\"application/vnd.isac.fcs\"]],[[\"string\",\"fdf\"],[\"string\",\"application/vnd.fdf\"]],[[\"string\",\"fe_launch\"],[\"string\",\"application/vnd.denovo.fcselayout-link\"]],[[\"string\",\"fg5\"],[\"string\",\"application/vnd.fujitsu.oasysgp\"]],[[\"string\",\"fgd\"],[\"string\",\"application/x-director\"]],[[\"string\",\"fh\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh4\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh5\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fh7\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fhc\"],[\"string\",\"image/x-freehand\"]],[[\"string\",\"fig\"],[\"string\",\"application/x-xfig\"]],[[\"string\",\"flac\"],[\"string\",\"audio/x-flac\"]],[[\"string\",\"fli\"],[\"string\",\"video/x-fli\"]],[[\"string\",\"flo\"],[\"string\",\"application/vnd.micrografx.flo\"]],[[\"string\",\"flv\"],[\"string\",\"video/x-flv\"]],[[\"string\",\"flw\"],[\"string\",\"application/vnd.kde.kivio\"]],[[\"string\",\"flx\"],[\"string\",\"text/vnd.fmi.flexstor\"]],[[\"string\",\"fly\"],[\"string\",\"text/vnd.fly\"]],[[\"string\",\"fm\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fnc\"],[\"string\",\"application/vnd.frogans.fnc\"]],[[\"string\",\"for\"],[\"string\",\"text/x-fortran\"]],[[\"string\",\"fpx\"],[\"string\",\"image/vnd.fpx\"]],[[\"string\",\"frame\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"fsc\"],[\"string\",\"application/vnd.fsc.weblaunch\"]],[[\"string\",\"fst\"],[\"string\",\"image/vnd.fst\"]],[[\"string\",\"ftc\"],[\"string\",\"application/vnd.fluxtime.clip\"]],[[\"string\",\"fti\"],[\"string\",\"application/vnd.anser-web-funds-transfer-initiation\"]],[[\"string\",\"fvt\"],[\"string\",\"video/vnd.fvt\"]],[[\"string\",\"fxp\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fxpl\"],[\"string\",\"application/vnd.adobe.fxp\"]],[[\"string\",\"fzs\"],[\"string\",\"application/vnd.fuzzysheet\"]],[[\"string\",\"g2w\"],[\"string\",\"application/vnd.geoplan\"]],[[\"string\",\"g3\"],[\"string\",\"image/g3fax\"]],[[\"string\",\"g3w\"],[\"string\",\"application/vnd.geospace\"]],[[\"string\",\"gac\"],[\"string\",\"application/vnd.groove-account\"]],[[\"string\",\"gam\"],[\"string\",\"application/x-tads\"]],[[\"string\",\"gbr\"],[\"string\",\"application/rpki-ghostbusters\"]],[[\"string\",\"gca\"],[\"string\",\"application/x-gca-compressed\"]],[[\"string\",\"gdl\"],[\"string\",\"model/vnd.gdl\"]],[[\"string\",\"geo\"],[\"string\",\"application/vnd.dynageo\"]],[[\"string\",\"gex\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"ggb\"],[\"string\",\"application/vnd.geogebra.file\"]],[[\"string\",\"ggt\"],[\"string\",\"application/vnd.geogebra.tool\"]],[[\"string\",\"ghf\"],[\"string\",\"application/vnd.groove-help\"]],[[\"string\",\"gif\"],[\"string\",\"image/gif\"]],[[\"string\",\"gim\"],[\"string\",\"application/vnd.groove-identity-message\"]],[[\"string\",\"glb\"],[\"string\",\"model/gltf-binary\"]],[[\"string\",\"gltf\"],[\"string\",\"model/gltf+json\"]],[[\"string\",\"gml\"],[\"string\",\"application/gml+xml\"]],[[\"string\",\"gmx\"],[\"string\",\"application/vnd.gmx\"]],[[\"string\",\"gnumeric\"],[\"string\",\"application/x-gnumeric\"]],[[\"string\",\"gph\"],[\"string\",\"application/vnd.flographit\"]],[[\"string\",\"gpx\"],[\"string\",\"application/gpx+xml\"]],[[\"string\",\"gqf\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gqs\"],[\"string\",\"application/vnd.grafeq\"]],[[\"string\",\"gram\"],[\"string\",\"application/srgs\"]],[[\"string\",\"gramps\"],[\"string\",\"application/x-gramps-xml\"]],[[\"string\",\"gre\"],[\"string\",\"application/vnd.geometry-explorer\"]],[[\"string\",\"grv\"],[\"string\",\"application/vnd.groove-injector\"]],[[\"string\",\"grxml\"],[\"string\",\"application/srgs+xml\"]],[[\"string\",\"gsf\"],[\"string\",\"application/x-font-ghostscript\"]],[[\"string\",\"gtar\"],[\"string\",\"application/x-gtar\"]],[[\"string\",\"gtm\"],[\"string\",\"application/vnd.groove-tool-message\"]],[[\"string\",\"gtw\"],[\"string\",\"model/vnd.gtw\"]],[[\"string\",\"gv\"],[\"string\",\"text/vnd.graphviz\"]],[[\"string\",\"gxf\"],[\"string\",\"application/gxf\"]],[[\"string\",\"gxt\"],[\"string\",\"application/vnd.geonext\"]],[[\"string\",\"h\"],[\"string\",\"text/x-c\"]],[[\"string\",\"h261\"],[\"string\",\"video/h261\"]],[[\"string\",\"h263\"],[\"string\",\"video/h263\"]],[[\"string\",\"h264\"],[\"string\",\"video/h264\"]],[[\"string\",\"hal\"],[\"string\",\"application/vnd.hal+xml\"]],[[\"string\",\"hbci\"],[\"string\",\"application/vnd.hbci\"]],[[\"string\",\"hdf\"],[\"string\",\"application/x-hdf\"]],[[\"string\",\"heic\"],[\"string\",\"image/heic\"]],[[\"string\",\"heif\"],[\"string\",\"image/heif\"]],[[\"string\",\"hh\"],[\"string\",\"text/x-c\"]],[[\"string\",\"hlp\"],[\"string\",\"application/winhlp\"]],[[\"string\",\"hpgl\"],[\"string\",\"application/vnd.hp-hpgl\"]],[[\"string\",\"hpid\"],[\"string\",\"application/vnd.hp-hpid\"]],[[\"string\",\"hps\"],[\"string\",\"application/vnd.hp-hps\"]],[[\"string\",\"hqx\"],[\"string\",\"application/mac-binhex40\"]],[[\"string\",\"htke\"],[\"string\",\"application/vnd.kenameaapp\"]],[[\"string\",\"htm\"],[\"string\",\"text/html\"]],[[\"string\",\"html\"],[\"string\",\"text/html\"]],[[\"string\",\"hvd\"],[\"string\",\"application/vnd.yamaha.hv-dic\"]],[[\"string\",\"hvp\"],[\"string\",\"application/vnd.yamaha.hv-voice\"]],[[\"string\",\"hvs\"],[\"string\",\"application/vnd.yamaha.hv-script\"]],[[\"string\",\"i2g\"],[\"string\",\"application/vnd.intergeo\"]],[[\"string\",\"icc\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ice\"],[\"string\",\"x-conference/x-cooltalk\"]],[[\"string\",\"icm\"],[\"string\",\"application/vnd.iccprofile\"]],[[\"string\",\"ico\"],[\"string\",\"image/x-icon\"]],[[\"string\",\"ics\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ief\"],[\"string\",\"image/ief\"]],[[\"string\",\"ifb\"],[\"string\",\"text/calendar\"]],[[\"string\",\"ifm\"],[\"string\",\"application/vnd.shana.informed.formdata\"]],[[\"string\",\"iges\"],[\"string\",\"model/iges\"]],[[\"string\",\"igl\"],[\"string\",\"application/vnd.igloader\"]],[[\"string\",\"igm\"],[\"string\",\"application/vnd.insors.igm\"]],[[\"string\",\"igs\"],[\"string\",\"model/iges\"]],[[\"string\",\"igx\"],[\"string\",\"application/vnd.micrografx.igx\"]],[[\"string\",\"iif\"],[\"string\",\"application/vnd.shana.informed.interchange\"]],[[\"string\",\"imp\"],[\"string\",\"application/vnd.accpac.simply.imp\"]],[[\"string\",\"ims\"],[\"string\",\"application/vnd.ms-ims\"]],[[\"string\",\"in\"],[\"string\",\"text/plain\"]],[[\"string\",\"ink\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"inkml\"],[\"string\",\"application/inkml+xml\"]],[[\"string\",\"install\"],[\"string\",\"application/x-install-instructions\"]],[[\"string\",\"iota\"],[\"string\",\"application/vnd.astraea-software.iota\"]],[[\"string\",\"ipfix\"],[\"string\",\"application/ipfix\"]],[[\"string\",\"ipk\"],[\"string\",\"application/vnd.shana.informed.package\"]],[[\"string\",\"irm\"],[\"string\",\"application/vnd.ibm.rights-management\"]],[[\"string\",\"irp\"],[\"string\",\"application/vnd.irepository.package+xml\"]],[[\"string\",\"iso\"],[\"string\",\"application/x-iso9660-image\"]],[[\"string\",\"itp\"],[\"string\",\"application/vnd.shana.informed.formtemplate\"]],[[\"string\",\"ivp\"],[\"string\",\"application/vnd.immervision-ivp\"]],[[\"string\",\"ivu\"],[\"string\",\"application/vnd.immervision-ivu\"]],[[\"string\",\"jad\"],[\"string\",\"text/vnd.sun.j2me.app-descriptor\"]],[[\"string\",\"jam\"],[\"string\",\"application/vnd.jam\"]],[[\"string\",\"jar\"],[\"string\",\"application/java-archive\"]],[[\"string\",\"java\"],[\"string\",\"text/x-java-source\"]],[[\"string\",\"jisp\"],[\"string\",\"application/vnd.jisp\"]],[[\"string\",\"jlt\"],[\"string\",\"application/vnd.hp-jlyt\"]],[[\"string\",\"jnlp\"],[\"string\",\"application/x-java-jnlp-file\"]],[[\"string\",\"joda\"],[\"string\",\"application/vnd.joost.joda-archive\"]],[[\"string\",\"jpe\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpeg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpg\"],[\"string\",\"image/jpeg\"]],[[\"string\",\"jpgm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"jpgv\"],[\"string\",\"video/jpeg\"]],[[\"string\",\"jpm\"],[\"string\",\"video/jpm\"]],[[\"string\",\"js\"],[\"string\",\"text/javascript\"]],[[\"string\",\"json\"],[\"string\",\"application/json\"]],[[\"string\",\"jsonml\"],[\"string\",\"application/jsonml+json\"]],[[\"string\",\"kar\"],[\"string\",\"audio/midi\"]],[[\"string\",\"karbon\"],[\"string\",\"application/vnd.kde.karbon\"]],[[\"string\",\"kfo\"],[\"string\",\"application/vnd.kde.kformula\"]],[[\"string\",\"kia\"],[\"string\",\"application/vnd.kidspiration\"]],[[\"string\",\"kml\"],[\"string\",\"application/vnd.google-earth.kml+xml\"]],[[\"string\",\"kmz\"],[\"string\",\"application/vnd.google-earth.kmz\"]],[[\"string\",\"kne\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"knp\"],[\"string\",\"application/vnd.kinar\"]],[[\"string\",\"kon\"],[\"string\",\"application/vnd.kde.kontour\"]],[[\"string\",\"kpr\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpt\"],[\"string\",\"application/vnd.kde.kpresenter\"]],[[\"string\",\"kpxx\"],[\"string\",\"application/vnd.ds-keypoint\"]],[[\"string\",\"ksp\"],[\"string\",\"application/vnd.kde.kspread\"]],[[\"string\",\"ktr\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"ktx\"],[\"string\",\"image/ktx\"]],[[\"string\",\"ktz\"],[\"string\",\"application/vnd.kahootz\"]],[[\"string\",\"kwd\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"kwt\"],[\"string\",\"application/vnd.kde.kword\"]],[[\"string\",\"lasxml\"],[\"string\",\"application/vnd.las.las+xml\"]],[[\"string\",\"latex\"],[\"string\",\"application/x-latex\"]],[[\"string\",\"lbd\"],[\"string\",\"application/vnd.llamagraphics.life-balance.desktop\"]],[[\"string\",\"lbe\"],[\"string\",\"application/vnd.llamagraphics.life-balance.exchange+xml\"]],[[\"string\",\"les\"],[\"string\",\"application/vnd.hhe.lesson-player\"]],[[\"string\",\"lha\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"link66\"],[\"string\",\"application/vnd.route66.link66+xml\"]],[[\"string\",\"list\"],[\"string\",\"text/plain\"]],[[\"string\",\"list3820\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"listafp\"],[\"string\",\"application/vnd.ibm.modcap\"]],[[\"string\",\"lnk\"],[\"string\",\"application/x-ms-shortcut\"]],[[\"string\",\"log\"],[\"string\",\"text/plain\"]],[[\"string\",\"lostxml\"],[\"string\",\"application/lost+xml\"]],[[\"string\",\"lrf\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"lrm\"],[\"string\",\"application/vnd.ms-lrm\"]],[[\"string\",\"ltf\"],[\"string\",\"application/vnd.frogans.ltf\"]],[[\"string\",\"lvp\"],[\"string\",\"audio/vnd.lucent.voice\"]],[[\"string\",\"lwp\"],[\"string\",\"application/vnd.lotus-wordpro\"]],[[\"string\",\"lzh\"],[\"string\",\"application/x-lzh-compressed\"]],[[\"string\",\"m13\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m14\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"m1v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"m2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m2v\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"m3a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"m3u\"],[\"string\",\"audio/x-mpegurl\"]],[[\"string\",\"m3u8\"],[\"string\",\"application/vnd.apple.mpegurl\"]],[[\"string\",\"m4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4b\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"m4u\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"m4v\"],[\"string\",\"video/x-m4v\"]],[[\"string\",\"ma\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mads\"],[\"string\",\"application/mads+xml\"]],[[\"string\",\"mag\"],[\"string\",\"application/vnd.ecowin.chart\"]],[[\"string\",\"maker\"],[\"string\",\"application/vnd.framemaker\"]],[[\"string\",\"man\"],[\"string\",\"text/troff\"]],[[\"string\",\"mar\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"mathml\"],[\"string\",\"application/mathml+xml\"]],[[\"string\",\"mb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"mbk\"],[\"string\",\"application/vnd.mobius.mbk\"]],[[\"string\",\"mbox\"],[\"string\",\"application/mbox\"]],[[\"string\",\"mc1\"],[\"string\",\"application/vnd.medcalcdata\"]],[[\"string\",\"mcd\"],[\"string\",\"application/vnd.mcd\"]],[[\"string\",\"mcurl\"],[\"string\",\"text/vnd.curl.mcurl\"]],[[\"string\",\"md\"],[\"string\",\"text/markdown\"]],[[\"string\",\"markdown\"],[\"string\",\"text/markdown\"]],[[\"string\",\"mdb\"],[\"string\",\"application/x-msaccess\"]],[[\"string\",\"mdi\"],[\"string\",\"image/vnd.ms-modi\"]],[[\"string\",\"me\"],[\"string\",\"text/troff\"]],[[\"string\",\"mesh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"meta4\"],[\"string\",\"application/metalink4+xml\"]],[[\"string\",\"metalink\"],[\"string\",\"application/metalink+xml\"]],[[\"string\",\"mets\"],[\"string\",\"application/mets+xml\"]],[[\"string\",\"mfm\"],[\"string\",\"application/vnd.mfmp\"]],[[\"string\",\"mft\"],[\"string\",\"application/rpki-manifest\"]],[[\"string\",\"mgp\"],[\"string\",\"application/vnd.osgeo.mapguide.package\"]],[[\"string\",\"mgz\"],[\"string\",\"application/vnd.proteus.magazine\"]],[[\"string\",\"mid\"],[\"string\",\"audio/midi\"]],[[\"string\",\"midi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"mie\"],[\"string\",\"application/x-mie\"]],[[\"string\",\"mif\"],[\"string\",\"application/vnd.mif\"]],[[\"string\",\"mime\"],[\"string\",\"message/rfc822\"]],[[\"string\",\"mj2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjp2\"],[\"string\",\"video/mj2\"]],[[\"string\",\"mjs\"],[\"string\",\"text/javascript\"]],[[\"string\",\"mk3d\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mka\"],[\"string\",\"audio/x-matroska\"]],[[\"string\",\"mks\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mkv\"],[\"string\",\"video/x-matroska\"]],[[\"string\",\"mlp\"],[\"string\",\"application/vnd.dolby.mlp\"]],[[\"string\",\"mmd\"],[\"string\",\"application/vnd.chipnuts.karaoke-mmd\"]],[[\"string\",\"mmf\"],[\"string\",\"application/vnd.smaf\"]],[[\"string\",\"mmr\"],[\"string\",\"image/vnd.fujixerox.edmics-mmr\"]],[[\"string\",\"mng\"],[\"string\",\"video/x-mng\"]],[[\"string\",\"mny\"],[\"string\",\"application/x-msmoney\"]],[[\"string\",\"mobi\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"mods\"],[\"string\",\"application/mods+xml\"]],[[\"string\",\"mov\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"movie\"],[\"string\",\"video/x-sgi-movie\"]],[[\"string\",\"mp2\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp21\"],[\"string\",\"application/mp21\"]],[[\"string\",\"mp2a\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp3\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mp4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mp4a\"],[\"string\",\"audio/mp4\"]],[[\"string\",\"mp4s\"],[\"string\",\"application/mp4\"]],[[\"string\",\"mp4v\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpc\"],[\"string\",\"application/vnd.mophun.certificate\"]],[[\"string\",\"mpe\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpeg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg\"],[\"string\",\"video/mpeg\"]],[[\"string\",\"mpg4\"],[\"string\",\"video/mp4\"]],[[\"string\",\"mpga\"],[\"string\",\"audio/mpeg\"]],[[\"string\",\"mpkg\"],[\"string\",\"application/vnd.apple.installer+xml\"]],[[\"string\",\"mpm\"],[\"string\",\"application/vnd.blueice.multipass\"]],[[\"string\",\"mpn\"],[\"string\",\"application/vnd.mophun.application\"]],[[\"string\",\"mpp\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpt\"],[\"string\",\"application/vnd.ms-project\"]],[[\"string\",\"mpy\"],[\"string\",\"application/vnd.ibm.minipay\"]],[[\"string\",\"mqy\"],[\"string\",\"application/vnd.mobius.mqy\"]],[[\"string\",\"mrc\"],[\"string\",\"application/marc\"]],[[\"string\",\"mrcx\"],[\"string\",\"application/marcxml+xml\"]],[[\"string\",\"ms\"],[\"string\",\"text/troff\"]],[[\"string\",\"mscml\"],[\"string\",\"application/mediaservercontrol+xml\"]],[[\"string\",\"mseed\"],[\"string\",\"application/vnd.fdsn.mseed\"]],[[\"string\",\"mseq\"],[\"string\",\"application/vnd.mseq\"]],[[\"string\",\"msf\"],[\"string\",\"application/vnd.epson.msf\"]],[[\"string\",\"msh\"],[\"string\",\"model/mesh\"]],[[\"string\",\"msi\"],[\"string\",\"application/x-msdownload\"]],[[\"string\",\"msl\"],[\"string\",\"application/vnd.mobius.msl\"]],[[\"string\",\"msty\"],[\"string\",\"application/vnd.muvee.style\"]],[[\"string\",\"mts\"],[\"string\",\"model/vnd.mts\"]],[[\"string\",\"mus\"],[\"string\",\"application/vnd.musician\"]],[[\"string\",\"musicxml\"],[\"string\",\"application/vnd.recordare.musicxml+xml\"]],[[\"string\",\"mvb\"],[\"string\",\"application/x-msmediaview\"]],[[\"string\",\"mwf\"],[\"string\",\"application/vnd.mfer\"]],[[\"string\",\"mxf\"],[\"string\",\"application/mxf\"]],[[\"string\",\"mxl\"],[\"string\",\"application/vnd.recordare.musicxml\"]],[[\"string\",\"mxml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"mxs\"],[\"string\",\"application/vnd.triscape.mxs\"]],[[\"string\",\"mxu\"],[\"string\",\"video/vnd.mpegurl\"]],[[\"string\",\"n-gage\"],[\"string\",\"application/vnd.nokia.n-gage.symbian.install\"]],[[\"string\",\"n3\"],[\"string\",\"text/n3\"]],[[\"string\",\"nb\"],[\"string\",\"application/mathematica\"]],[[\"string\",\"nbp\"],[\"string\",\"application/vnd.wolfram.player\"]],[[\"string\",\"nc\"],[\"string\",\"application/x-netcdf\"]],[[\"string\",\"ncx\"],[\"string\",\"application/x-dtbncx+xml\"]],[[\"string\",\"nfo\"],[\"string\",\"text/x-nfo\"]],[[\"string\",\"ngdat\"],[\"string\",\"application/vnd.nokia.n-gage.data\"]],[[\"string\",\"nitf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nlu\"],[\"string\",\"application/vnd.neurolanguage.nlu\"]],[[\"string\",\"nml\"],[\"string\",\"application/vnd.enliven\"]],[[\"string\",\"nnd\"],[\"string\",\"application/vnd.noblenet-directory\"]],[[\"string\",\"nns\"],[\"string\",\"application/vnd.noblenet-sealer\"]],[[\"string\",\"nnw\"],[\"string\",\"application/vnd.noblenet-web\"]],[[\"string\",\"npx\"],[\"string\",\"image/vnd.net-fpx\"]],[[\"string\",\"nsc\"],[\"string\",\"application/x-conference\"]],[[\"string\",\"nsf\"],[\"string\",\"application/vnd.lotus-notes\"]],[[\"string\",\"ntf\"],[\"string\",\"application/vnd.nitf\"]],[[\"string\",\"nzb\"],[\"string\",\"application/x-nzb\"]],[[\"string\",\"oa2\"],[\"string\",\"application/vnd.fujitsu.oasys2\"]],[[\"string\",\"oa3\"],[\"string\",\"application/vnd.fujitsu.oasys3\"]],[[\"string\",\"oas\"],[\"string\",\"application/vnd.fujitsu.oasys\"]],[[\"string\",\"obd\"],[\"string\",\"application/x-msbinder\"]],[[\"string\",\"obj\"],[\"string\",\"application/x-tgif\"]],[[\"string\",\"oda\"],[\"string\",\"application/oda\"]],[[\"string\",\"odb\"],[\"string\",\"application/vnd.oasis.opendocument.database\"]],[[\"string\",\"odc\"],[\"string\",\"application/vnd.oasis.opendocument.chart\"]],[[\"string\",\"odf\"],[\"string\",\"application/vnd.oasis.opendocument.formula\"]],[[\"string\",\"odft\"],[\"string\",\"application/vnd.oasis.opendocument.formula-template\"]],[[\"string\",\"odg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics\"]],[[\"string\",\"odi\"],[\"string\",\"application/vnd.oasis.opendocument.image\"]],[[\"string\",\"odm\"],[\"string\",\"application/vnd.oasis.opendocument.text-master\"]],[[\"string\",\"odp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation\"]],[[\"string\",\"ods\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet\"]],[[\"string\",\"odt\"],[\"string\",\"application/vnd.oasis.opendocument.text\"]],[[\"string\",\"oga\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogg\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"ogv\"],[\"string\",\"video/ogg\"]],[[\"string\",\"ogx\"],[\"string\",\"application/ogg\"]],[[\"string\",\"omdoc\"],[\"string\",\"application/omdoc+xml\"]],[[\"string\",\"onepkg\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetmp\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc\"],[\"string\",\"application/onenote\"]],[[\"string\",\"onetoc2\"],[\"string\",\"application/onenote\"]],[[\"string\",\"opf\"],[\"string\",\"application/oebps-package+xml\"]],[[\"string\",\"opml\"],[\"string\",\"text/x-opml\"]],[[\"string\",\"oprc\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"org\"],[\"string\",\"application/vnd.lotus-organizer\"]],[[\"string\",\"osf\"],[\"string\",\"application/vnd.yamaha.openscoreformat\"]],[[\"string\",\"osfpvg\"],[\"string\",\"application/vnd.yamaha.openscoreformat.osfpvg+xml\"]],[[\"string\",\"otc\"],[\"string\",\"application/vnd.oasis.opendocument.chart-template\"]],[[\"string\",\"otf\"],[\"string\",\"application/x-font-otf\"]],[[\"string\",\"otg\"],[\"string\",\"application/vnd.oasis.opendocument.graphics-template\"]],[[\"string\",\"oth\"],[\"string\",\"application/vnd.oasis.opendocument.text-web\"]],[[\"string\",\"oti\"],[\"string\",\"application/vnd.oasis.opendocument.image-template\"]],[[\"string\",\"otp\"],[\"string\",\"application/vnd.oasis.opendocument.presentation-template\"]],[[\"string\",\"ots\"],[\"string\",\"application/vnd.oasis.opendocument.spreadsheet-template\"]],[[\"string\",\"ott\"],[\"string\",\"application/vnd.oasis.opendocument.text-template\"]],[[\"string\",\"oxps\"],[\"string\",\"application/oxps\"]],[[\"string\",\"oxt\"],[\"string\",\"application/vnd.openofficeorg.extension\"]],[[\"string\",\"p\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"p10\"],[\"string\",\"application/pkcs10\"]],[[\"string\",\"p12\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"p7b\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"p7c\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7m\"],[\"string\",\"application/pkcs7-mime\"]],[[\"string\",\"p7r\"],[\"string\",\"application/x-pkcs7-certreqresp\"]],[[\"string\",\"p7s\"],[\"string\",\"application/pkcs7-signature\"]],[[\"string\",\"p8\"],[\"string\",\"application/pkcs8\"]],[[\"string\",\"pas\"],[\"string\",\"text/x-pascal\"]],[[\"string\",\"paw\"],[\"string\",\"application/vnd.pawaafile\"]],[[\"string\",\"pbd\"],[\"string\",\"application/vnd.powerbuilder6\"]],[[\"string\",\"pbm\"],[\"string\",\"image/x-portable-bitmap\"]],[[\"string\",\"pcap\"],[\"string\",\"application/vnd.tcpdump.pcap\"]],[[\"string\",\"pcf\"],[\"string\",\"application/x-font-pcf\"]],[[\"string\",\"pcl\"],[\"string\",\"application/vnd.hp-pcl\"]],[[\"string\",\"pclxl\"],[\"string\",\"application/vnd.hp-pclxl\"]],[[\"string\",\"pct\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pcurl\"],[\"string\",\"application/vnd.curl.pcurl\"]],[[\"string\",\"pcx\"],[\"string\",\"image/x-pcx\"]],[[\"string\",\"pdb\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"pdf\"],[\"string\",\"application/pdf\"]],[[\"string\",\"pfa\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfb\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfm\"],[\"string\",\"application/x-font-type1\"]],[[\"string\",\"pfr\"],[\"string\",\"application/font-tdpfr\"]],[[\"string\",\"pfx\"],[\"string\",\"application/x-pkcs12\"]],[[\"string\",\"pgm\"],[\"string\",\"image/x-portable-graymap\"]],[[\"string\",\"pgn\"],[\"string\",\"application/x-chess-pgn\"]],[[\"string\",\"pgp\"],[\"string\",\"application/pgp-encrypted\"]],[[\"string\",\"pic\"],[\"string\",\"image/x-pict\"]],[[\"string\",\"pkg\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"pki\"],[\"string\",\"application/pkixcmp\"]],[[\"string\",\"pkipath\"],[\"string\",\"application/pkix-pkipath\"]],[[\"string\",\"plb\"],[\"string\",\"application/vnd.3gpp.pic-bw-large\"]],[[\"string\",\"plc\"],[\"string\",\"application/vnd.mobius.plc\"]],[[\"string\",\"plf\"],[\"string\",\"application/vnd.pocketlearn\"]],[[\"string\",\"pls\"],[\"string\",\"application/pls+xml\"]],[[\"string\",\"pml\"],[\"string\",\"application/vnd.ctc-posml\"]],[[\"string\",\"png\"],[\"string\",\"image/png\"]],[[\"string\",\"pnm\"],[\"string\",\"image/x-portable-anymap\"]],[[\"string\",\"portpkg\"],[\"string\",\"application/vnd.macports.portpkg\"]],[[\"string\",\"pot\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"potm\"],[\"string\",\"application/vnd.ms-powerpoint.template.macroenabled.12\"]],[[\"string\",\"potx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.template\"]],[[\"string\",\"ppam\"],[\"string\",\"application/vnd.ms-powerpoint.addin.macroenabled.12\"]],[[\"string\",\"ppd\"],[\"string\",\"application/vnd.cups-ppd\"]],[[\"string\",\"ppm\"],[\"string\",\"image/x-portable-pixmap\"]],[[\"string\",\"pps\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"ppsm\"],[\"string\",\"application/vnd.ms-powerpoint.slideshow.macroenabled.12\"]],[[\"string\",\"ppsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slideshow\"]],[[\"string\",\"ppt\"],[\"string\",\"application/vnd.ms-powerpoint\"]],[[\"string\",\"pptm\"],[\"string\",\"application/vnd.ms-powerpoint.presentation.macroenabled.12\"]],[[\"string\",\"pptx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.presentation\"]],[[\"string\",\"pqa\"],[\"string\",\"application/vnd.palm\"]],[[\"string\",\"prc\"],[\"string\",\"application/x-mobipocket-ebook\"]],[[\"string\",\"pre\"],[\"string\",\"application/vnd.lotus-freelance\"]],[[\"string\",\"prf\"],[\"string\",\"application/pics-rules\"]],[[\"string\",\"ps\"],[\"string\",\"application/postscript\"]],[[\"string\",\"psb\"],[\"string\",\"application/vnd.3gpp.pic-bw-small\"]],[[\"string\",\"psd\"],[\"string\",\"image/vnd.adobe.photoshop\"]],[[\"string\",\"psf\"],[\"string\",\"application/x-font-linux-psf\"]],[[\"string\",\"pskcxml\"],[\"string\",\"application/pskc+xml\"]],[[\"string\",\"ptid\"],[\"string\",\"application/vnd.pvi.ptid1\"]],[[\"string\",\"pub\"],[\"string\",\"application/x-mspublisher\"]],[[\"string\",\"pvb\"],[\"string\",\"application/vnd.3gpp.pic-bw-var\"]],[[\"string\",\"pwn\"],[\"string\",\"application/vnd.3m.post-it-notes\"]],[[\"string\",\"pya\"],[\"string\",\"audio/vnd.ms-playready.media.pya\"]],[[\"string\",\"pyv\"],[\"string\",\"video/vnd.ms-playready.media.pyv\"]],[[\"string\",\"qam\"],[\"string\",\"application/vnd.epson.quickanime\"]],[[\"string\",\"qbo\"],[\"string\",\"application/vnd.intu.qbo\"]],[[\"string\",\"qfx\"],[\"string\",\"application/vnd.intu.qfx\"]],[[\"string\",\"qps\"],[\"string\",\"application/vnd.publishare-delta-tree\"]],[[\"string\",\"qt\"],[\"string\",\"video/quicktime\"]],[[\"string\",\"qwd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qwt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxb\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxd\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxl\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"qxt\"],[\"string\",\"application/vnd.quark.quarkxpress\"]],[[\"string\",\"ra\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"ram\"],[\"string\",\"audio/x-pn-realaudio\"]],[[\"string\",\"rar\"],[\"string\",\"application/x-rar-compressed\"]],[[\"string\",\"ras\"],[\"string\",\"image/x-cmu-raster\"]],[[\"string\",\"rcprofile\"],[\"string\",\"application/vnd.ipunplugged.rcprofile\"]],[[\"string\",\"rdf\"],[\"string\",\"application/rdf+xml\"]],[[\"string\",\"rdz\"],[\"string\",\"application/vnd.data-vision.rdz\"]],[[\"string\",\"rep\"],[\"string\",\"application/vnd.businessobjects\"]],[[\"string\",\"res\"],[\"string\",\"application/x-dtbresource+xml\"]],[[\"string\",\"rgb\"],[\"string\",\"image/x-rgb\"]],[[\"string\",\"rif\"],[\"string\",\"application/reginfo+xml\"]],[[\"string\",\"rip\"],[\"string\",\"audio/vnd.rip\"]],[[\"string\",\"ris\"],[\"string\",\"application/x-research-info-systems\"]],[[\"string\",\"rl\"],[\"string\",\"application/resource-lists+xml\"]],[[\"string\",\"rlc\"],[\"string\",\"image/vnd.fujixerox.edmics-rlc\"]],[[\"string\",\"rld\"],[\"string\",\"application/resource-lists-diff+xml\"]],[[\"string\",\"rm\"],[\"string\",\"application/vnd.rn-realmedia\"]],[[\"string\",\"rmi\"],[\"string\",\"audio/midi\"]],[[\"string\",\"rmp\"],[\"string\",\"audio/x-pn-realaudio-plugin\"]],[[\"string\",\"rms\"],[\"string\",\"application/vnd.jcp.javame.midlet-rms\"]],[[\"string\",\"rmvb\"],[\"string\",\"application/vnd.rn-realmedia-vbr\"]],[[\"string\",\"rnc\"],[\"string\",\"application/relax-ng-compact-syntax\"]],[[\"string\",\"roa\"],[\"string\",\"application/rpki-roa\"]],[[\"string\",\"roff\"],[\"string\",\"text/troff\"]],[[\"string\",\"rp9\"],[\"string\",\"application/vnd.cloanto.rp9\"]],[[\"string\",\"rpss\"],[\"string\",\"application/vnd.nokia.radio-presets\"]],[[\"string\",\"rpst\"],[\"string\",\"application/vnd.nokia.radio-preset\"]],[[\"string\",\"rq\"],[\"string\",\"application/sparql-query\"]],[[\"string\",\"rs\"],[\"string\",\"application/rls-services+xml\"]],[[\"string\",\"rsd\"],[\"string\",\"application/rsd+xml\"]],[[\"string\",\"rss\"],[\"string\",\"application/rss+xml\"]],[[\"string\",\"rtf\"],[\"string\",\"application/rtf\"]],[[\"string\",\"rtx\"],[\"string\",\"text/richtext\"]],[[\"string\",\"s\"],[\"string\",\"text/x-asm\"]],[[\"string\",\"s3m\"],[\"string\",\"audio/s3m\"]],[[\"string\",\"saf\"],[\"string\",\"application/vnd.yamaha.smaf-audio\"]],[[\"string\",\"sbml\"],[\"string\",\"application/sbml+xml\"]],[[\"string\",\"sc\"],[\"string\",\"application/vnd.ibm.secure-container\"]],[[\"string\",\"scd\"],[\"string\",\"application/x-msschedule\"]],[[\"string\",\"scm\"],[\"string\",\"application/vnd.lotus-screencam\"]],[[\"string\",\"scq\"],[\"string\",\"application/scvp-cv-request\"]],[[\"string\",\"scs\"],[\"string\",\"application/scvp-cv-response\"]],[[\"string\",\"scurl\"],[\"string\",\"text/vnd.curl.scurl\"]],[[\"string\",\"sda\"],[\"string\",\"application/vnd.stardivision.draw\"]],[[\"string\",\"sdc\"],[\"string\",\"application/vnd.stardivision.calc\"]],[[\"string\",\"sdd\"],[\"string\",\"application/vnd.stardivision.impress\"]],[[\"string\",\"sdkd\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdkm\"],[\"string\",\"application/vnd.solent.sdkm+xml\"]],[[\"string\",\"sdp\"],[\"string\",\"application/sdp\"]],[[\"string\",\"sdw\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"see\"],[\"string\",\"application/vnd.seemail\"]],[[\"string\",\"seed\"],[\"string\",\"application/vnd.fdsn.seed\"]],[[\"string\",\"sema\"],[\"string\",\"application/vnd.sema\"]],[[\"string\",\"semd\"],[\"string\",\"application/vnd.semd\"]],[[\"string\",\"semf\"],[\"string\",\"application/vnd.semf\"]],[[\"string\",\"ser\"],[\"string\",\"application/java-serialized-object\"]],[[\"string\",\"setpay\"],[\"string\",\"application/set-payment-initiation\"]],[[\"string\",\"setreg\"],[\"string\",\"application/set-registration-initiation\"]],[[\"string\",\"sfd-hdstx\"],[\"string\",\"application/vnd.hydrostatix.sof-data\"]],[[\"string\",\"sfs\"],[\"string\",\"application/vnd.spotfire.sfs\"]],[[\"string\",\"sfv\"],[\"string\",\"text/x-sfv\"]],[[\"string\",\"sgi\"],[\"string\",\"image/sgi\"]],[[\"string\",\"sgl\"],[\"string\",\"application/vnd.stardivision.writer-global\"]],[[\"string\",\"sgm\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sgml\"],[\"string\",\"text/sgml\"]],[[\"string\",\"sh\"],[\"string\",\"application/x-sh\"]],[[\"string\",\"shar\"],[\"string\",\"application/x-shar\"]],[[\"string\",\"shf\"],[\"string\",\"application/shf+xml\"]],[[\"string\",\"sid\"],[\"string\",\"image/x-mrsid-image\"]],[[\"string\",\"sig\"],[\"string\",\"application/pgp-signature\"]],[[\"string\",\"sil\"],[\"string\",\"audio/silk\"]],[[\"string\",\"silo\"],[\"string\",\"model/mesh\"]],[[\"string\",\"sis\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sisx\"],[\"string\",\"application/vnd.symbian.install\"]],[[\"string\",\"sit\"],[\"string\",\"application/x-stuffit\"]],[[\"string\",\"sitx\"],[\"string\",\"application/x-stuffitx\"]],[[\"string\",\"skd\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skm\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skp\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"skt\"],[\"string\",\"application/vnd.koan\"]],[[\"string\",\"sldm\"],[\"string\",\"application/vnd.ms-powerpoint.slide.macroenabled.12\"]],[[\"string\",\"sldx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.presentationml.slide\"]],[[\"string\",\"slt\"],[\"string\",\"application/vnd.epson.salt\"]],[[\"string\",\"sm\"],[\"string\",\"application/vnd.stepmania.stepchart\"]],[[\"string\",\"smf\"],[\"string\",\"application/vnd.stardivision.math\"]],[[\"string\",\"smi\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smil\"],[\"string\",\"application/smil+xml\"]],[[\"string\",\"smv\"],[\"string\",\"video/x-smv\"]],[[\"string\",\"smzip\"],[\"string\",\"application/vnd.stepmania.package\"]],[[\"string\",\"snd\"],[\"string\",\"audio/basic\"]],[[\"string\",\"snf\"],[\"string\",\"application/x-font-snf\"]],[[\"string\",\"so\"],[\"string\",\"application/octet-stream\"]],[[\"string\",\"spc\"],[\"string\",\"application/x-pkcs7-certificates\"]],[[\"string\",\"spf\"],[\"string\",\"application/vnd.yamaha.smaf-phrase\"]],[[\"string\",\"spl\"],[\"string\",\"application/x-futuresplash\"]],[[\"string\",\"spot\"],[\"string\",\"text/vnd.in3d.spot\"]],[[\"string\",\"spp\"],[\"string\",\"application/scvp-vp-response\"]],[[\"string\",\"spq\"],[\"string\",\"application/scvp-vp-request\"]],[[\"string\",\"spx\"],[\"string\",\"audio/ogg\"]],[[\"string\",\"sql\"],[\"string\",\"application/x-sql\"]],[[\"string\",\"src\"],[\"string\",\"application/x-wais-source\"]],[[\"string\",\"srt\"],[\"string\",\"application/x-subrip\"]],[[\"string\",\"sru\"],[\"string\",\"application/sru+xml\"]],[[\"string\",\"srx\"],[\"string\",\"application/sparql-results+xml\"]],[[\"string\",\"ssdl\"],[\"string\",\"application/ssdl+xml\"]],[[\"string\",\"sse\"],[\"string\",\"application/vnd.kodak-descriptor\"]],[[\"string\",\"ssf\"],[\"string\",\"application/vnd.epson.ssf\"]],[[\"string\",\"ssml\"],[\"string\",\"application/ssml+xml\"]],[[\"string\",\"st\"],[\"string\",\"application/vnd.sailingtracker.track\"]],[[\"string\",\"stc\"],[\"string\",\"application/vnd.sun.xml.calc.template\"]],[[\"string\",\"std\"],[\"string\",\"application/vnd.sun.xml.draw.template\"]],[[\"string\",\"stf\"],[\"string\",\"application/vnd.wt.stf\"]],[[\"string\",\"sti\"],[\"string\",\"application/vnd.sun.xml.impress.template\"]],[[\"string\",\"stk\"],[\"string\",\"application/hyperstudio\"]],[[\"string\",\"stl\"],[\"string\",\"application/vnd.ms-pki.stl\"]],[[\"string\",\"str\"],[\"string\",\"application/vnd.pg.format\"]],[[\"string\",\"stw\"],[\"string\",\"application/vnd.sun.xml.writer.template\"]],[[\"string\",\"sub\"],[\"string\",\"text/vnd.dvb.subtitle\"]],[[\"string\",\"sus\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"susp\"],[\"string\",\"application/vnd.sus-calendar\"]],[[\"string\",\"sv4cpio\"],[\"string\",\"application/x-sv4cpio\"]],[[\"string\",\"sv4crc\"],[\"string\",\"application/x-sv4crc\"]],[[\"string\",\"svc\"],[\"string\",\"application/vnd.dvb.service\"]],[[\"string\",\"svd\"],[\"string\",\"application/vnd.svd\"]],[[\"string\",\"svg\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"svgz\"],[\"string\",\"image/svg+xml\"]],[[\"string\",\"swa\"],[\"string\",\"application/x-director\"]],[[\"string\",\"swf\"],[\"string\",\"application/x-shockwave-flash\"]],[[\"string\",\"swi\"],[\"string\",\"application/vnd.aristanetworks.swi\"]],[[\"string\",\"sxc\"],[\"string\",\"application/vnd.sun.xml.calc\"]],[[\"string\",\"sxd\"],[\"string\",\"application/vnd.sun.xml.draw\"]],[[\"string\",\"sxg\"],[\"string\",\"application/vnd.sun.xml.writer.global\"]],[[\"string\",\"sxi\"],[\"string\",\"application/vnd.sun.xml.impress\"]],[[\"string\",\"sxm\"],[\"string\",\"application/vnd.sun.xml.math\"]],[[\"string\",\"sxw\"],[\"string\",\"application/vnd.sun.xml.writer\"]],[[\"string\",\"t\"],[\"string\",\"text/troff\"]],[[\"string\",\"t3\"],[\"string\",\"application/x-t3vm-image\"]],[[\"string\",\"taglet\"],[\"string\",\"application/vnd.mynfc\"]],[[\"string\",\"tao\"],[\"string\",\"application/vnd.tao.intent-module-archive\"]],[[\"string\",\"tar\"],[\"string\",\"application/x-tar\"]],[[\"string\",\"tcap\"],[\"string\",\"application/vnd.3gpp2.tcap\"]],[[\"string\",\"tcl\"],[\"string\",\"application/x-tcl\"]],[[\"string\",\"teacher\"],[\"string\",\"application/vnd.smart.teacher\"]],[[\"string\",\"tei\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"teicorpus\"],[\"string\",\"application/tei+xml\"]],[[\"string\",\"tex\"],[\"string\",\"application/x-tex\"]],[[\"string\",\"texi\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"texinfo\"],[\"string\",\"application/x-texinfo\"]],[[\"string\",\"text\"],[\"string\",\"text/plain\"]],[[\"string\",\"tfi\"],[\"string\",\"application/thraud+xml\"]],[[\"string\",\"tfm\"],[\"string\",\"application/x-tex-tfm\"]],[[\"string\",\"tga\"],[\"string\",\"image/x-tga\"]],[[\"string\",\"thmx\"],[\"string\",\"application/vnd.ms-officetheme\"]],[[\"string\",\"tif\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tiff\"],[\"string\",\"image/tiff\"]],[[\"string\",\"tmo\"],[\"string\",\"application/vnd.tmobile-livetv\"]],[[\"string\",\"toml\"],[\"string\",\"application/toml\"]],[[\"string\",\"torrent\"],[\"string\",\"application/x-bittorrent\"]],[[\"string\",\"tpl\"],[\"string\",\"application/vnd.groove-tool-template\"]],[[\"string\",\"tpt\"],[\"string\",\"application/vnd.trid.tpt\"]],[[\"string\",\"tr\"],[\"string\",\"text/troff\"]],[[\"string\",\"tra\"],[\"string\",\"application/vnd.trueapp\"]],[[\"string\",\"trm\"],[\"string\",\"application/x-msterminal\"]],[[\"string\",\"tsd\"],[\"string\",\"application/timestamped-data\"]],[[\"string\",\"tsv\"],[\"string\",\"text/tab-separated-values\"]],[[\"string\",\"ttc\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttf\"],[\"string\",\"application/x-font-ttf\"]],[[\"string\",\"ttl\"],[\"string\",\"text/turtle\"]],[[\"string\",\"twd\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"twds\"],[\"string\",\"application/vnd.simtech-mindmapper\"]],[[\"string\",\"txd\"],[\"string\",\"application/vnd.genomatix.tuxedo\"]],[[\"string\",\"txf\"],[\"string\",\"application/vnd.mobius.txf\"]],[[\"string\",\"txt\"],[\"string\",\"text/plain\"]],[[\"string\",\"u32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"udeb\"],[\"string\",\"application/x-debian-package\"]],[[\"string\",\"ufd\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ufdl\"],[\"string\",\"application/vnd.ufdl\"]],[[\"string\",\"ulx\"],[\"string\",\"application/x-glulx\"]],[[\"string\",\"umj\"],[\"string\",\"application/vnd.umajin\"]],[[\"string\",\"unityweb\"],[\"string\",\"application/vnd.unity\"]],[[\"string\",\"uoml\"],[\"string\",\"application/vnd.uoml+xml\"]],[[\"string\",\"uri\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"uris\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"urls\"],[\"string\",\"text/uri-list\"]],[[\"string\",\"ustar\"],[\"string\",\"application/x-ustar\"]],[[\"string\",\"utz\"],[\"string\",\"application/vnd.uiq.theme\"]],[[\"string\",\"uu\"],[\"string\",\"text/x-uuencode\"]],[[\"string\",\"uva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvva\"],[\"string\",\"audio/vnd.dece.audio\"]],[[\"string\",\"uvvd\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvf\"],[\"string\",\"application/vnd.dece.data\"]],[[\"string\",\"uvvg\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvh\"],[\"string\",\"video/vnd.dece.hd\"]],[[\"string\",\"uvvi\"],[\"string\",\"image/vnd.dece.graphic\"]],[[\"string\",\"uvvm\"],[\"string\",\"video/vnd.dece.mobile\"]],[[\"string\",\"uvvp\"],[\"string\",\"video/vnd.dece.pd\"]],[[\"string\",\"uvvs\"],[\"string\",\"video/vnd.dece.sd\"]],[[\"string\",\"uvvt\"],[\"string\",\"application/vnd.dece.ttml+xml\"]],[[\"string\",\"uvvu\"],[\"string\",\"video/vnd.uvvu.mp4\"]],[[\"string\",\"uvvv\"],[\"string\",\"video/vnd.dece.video\"]],[[\"string\",\"uvvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"uvx\"],[\"string\",\"application/vnd.dece.unspecified\"]],[[\"string\",\"uvz\"],[\"string\",\"application/vnd.dece.zip\"]],[[\"string\",\"vcard\"],[\"string\",\"text/vcard\"]],[[\"string\",\"vcd\"],[\"string\",\"application/x-cdlink\"]],[[\"string\",\"vcf\"],[\"string\",\"text/x-vcard\"]],[[\"string\",\"vcg\"],[\"string\",\"application/vnd.groove-vcard\"]],[[\"string\",\"vcs\"],[\"string\",\"text/x-vcalendar\"]],[[\"string\",\"vcx\"],[\"string\",\"application/vnd.vcx\"]],[[\"string\",\"vis\"],[\"string\",\"application/vnd.visionary\"]],[[\"string\",\"viv\"],[\"string\",\"video/vnd.vivo\"]],[[\"string\",\"vob\"],[\"string\",\"video/x-ms-vob\"]],[[\"string\",\"vor\"],[\"string\",\"application/vnd.stardivision.writer\"]],[[\"string\",\"vox\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"vrml\"],[\"string\",\"model/vrml\"]],[[\"string\",\"vsd\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsf\"],[\"string\",\"application/vnd.vsf\"]],[[\"string\",\"vss\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vst\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vsw\"],[\"string\",\"application/vnd.visio\"]],[[\"string\",\"vtu\"],[\"string\",\"model/vnd.vtu\"]],[[\"string\",\"vxml\"],[\"string\",\"application/voicexml+xml\"]],[[\"string\",\"w3d\"],[\"string\",\"application/x-director\"]],[[\"string\",\"wad\"],[\"string\",\"application/x-doom\"]],[[\"string\",\"wasm\"],[\"string\",\"application/wasm\"]],[[\"string\",\"wav\"],[\"string\",\"audio/x-wav\"]],[[\"string\",\"wax\"],[\"string\",\"audio/x-ms-wax\"]],[[\"string\",\"wbmp\"],[\"string\",\"image/vnd.wap.wbmp\"]],[[\"string\",\"wbs\"],[\"string\",\"application/vnd.criticaltools.wbs+xml\"]],[[\"string\",\"wbxml\"],[\"string\",\"application/vnd.wap.wbxml\"]],[[\"string\",\"wcm\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdb\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wdp\"],[\"string\",\"image/vnd.ms-photo\"]],[[\"string\",\"weba\"],[\"string\",\"audio/webm\"]],[[\"string\",\"webm\"],[\"string\",\"video/webm\"]],[[\"string\",\"webmanifest\"],[\"string\",\"application/manifest+json\"]],[[\"string\",\"webp\"],[\"string\",\"image/webp\"]],[[\"string\",\"wg\"],[\"string\",\"application/vnd.pmi.widget\"]],[[\"string\",\"wgt\"],[\"string\",\"application/widget\"]],[[\"string\",\"wks\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wm\"],[\"string\",\"video/x-ms-wm\"]],[[\"string\",\"wma\"],[\"string\",\"audio/x-ms-wma\"]],[[\"string\",\"wmd\"],[\"string\",\"application/x-ms-wmd\"]],[[\"string\",\"wmf\"],[\"string\",\"application/x-msmetafile\"]],[[\"string\",\"wml\"],[\"string\",\"text/vnd.wap.wml\"]],[[\"string\",\"wmlc\"],[\"string\",\"application/vnd.wap.wmlc\"]],[[\"string\",\"wmls\"],[\"string\",\"text/vnd.wap.wmlscript\"]],[[\"string\",\"wmlsc\"],[\"string\",\"application/vnd.wap.wmlscriptc\"]],[[\"string\",\"wmv\"],[\"string\",\"video/x-ms-wmv\"]],[[\"string\",\"wmx\"],[\"string\",\"video/x-ms-wmx\"]],[[\"string\",\"wmz\"],[\"string\",\"application/x-ms-wmz\"]],[[\"string\",\"woff\"],[\"string\",\"application/x-font-woff\"]],[[\"string\",\"woff2\"],[\"string\",\"font/woff2\"]],[[\"string\",\"wpd\"],[\"string\",\"application/vnd.wordperfect\"]],[[\"string\",\"wpl\"],[\"string\",\"application/vnd.ms-wpl\"]],[[\"string\",\"wps\"],[\"string\",\"application/vnd.ms-works\"]],[[\"string\",\"wqd\"],[\"string\",\"application/vnd.wqd\"]],[[\"string\",\"wri\"],[\"string\",\"application/x-mswrite\"]],[[\"string\",\"wrl\"],[\"string\",\"model/vrml\"]],[[\"string\",\"wsdl\"],[\"string\",\"application/wsdl+xml\"]],[[\"string\",\"wspolicy\"],[\"string\",\"application/wspolicy+xml\"]],[[\"string\",\"wtb\"],[\"string\",\"application/vnd.webturbo\"]],[[\"string\",\"wvx\"],[\"string\",\"video/x-ms-wvx\"]],[[\"string\",\"x32\"],[\"string\",\"application/x-authorware-bin\"]],[[\"string\",\"x3d\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"x3db\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dbz\"],[\"string\",\"model/x3d+binary\"]],[[\"string\",\"x3dv\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dvz\"],[\"string\",\"model/x3d+vrml\"]],[[\"string\",\"x3dz\"],[\"string\",\"model/x3d+xml\"]],[[\"string\",\"xaml\"],[\"string\",\"application/xaml+xml\"]],[[\"string\",\"xap\"],[\"string\",\"application/x-silverlight-app\"]],[[\"string\",\"xar\"],[\"string\",\"application/vnd.xara\"]],[[\"string\",\"xbap\"],[\"string\",\"application/x-ms-xbap\"]],[[\"string\",\"xbd\"],[\"string\",\"application/vnd.fujixerox.docuworks.binder\"]],[[\"string\",\"xbm\"],[\"string\",\"image/x-xbitmap\"]],[[\"string\",\"xdf\"],[\"string\",\"application/xcap-diff+xml\"]],[[\"string\",\"xdm\"],[\"string\",\"application/vnd.syncml.dm+xml\"]],[[\"string\",\"xdp\"],[\"string\",\"application/vnd.adobe.xdp+xml\"]],[[\"string\",\"xdssc\"],[\"string\",\"application/dssc+xml\"]],[[\"string\",\"xdw\"],[\"string\",\"application/vnd.fujixerox.docuworks\"]],[[\"string\",\"xenc\"],[\"string\",\"application/xenc+xml\"]],[[\"string\",\"xer\"],[\"string\",\"application/patch-ops-error+xml\"]],[[\"string\",\"xfdf\"],[\"string\",\"application/vnd.adobe.xfdf\"]],[[\"string\",\"xfdl\"],[\"string\",\"application/vnd.xfdl\"]],[[\"string\",\"xht\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhtml\"],[\"string\",\"application/xhtml+xml\"]],[[\"string\",\"xhvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xif\"],[\"string\",\"image/vnd.xiff\"]],[[\"string\",\"xla\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlam\"],[\"string\",\"application/vnd.ms-excel.addin.macroenabled.12\"]],[[\"string\",\"xlc\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlf\"],[\"string\",\"application/x-xliff+xml\"]],[[\"string\",\"xlm\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xls\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xlsb\"],[\"string\",\"application/vnd.ms-excel.sheet.binary.macroenabled.12\"]],[[\"string\",\"xlsm\"],[\"string\",\"application/vnd.ms-excel.sheet.macroenabled.12\"]],[[\"string\",\"xlsx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\"]],[[\"string\",\"xlt\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xltm\"],[\"string\",\"application/vnd.ms-excel.template.macroenabled.12\"]],[[\"string\",\"xltx\"],[\"string\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.template\"]],[[\"string\",\"xlw\"],[\"string\",\"application/vnd.ms-excel\"]],[[\"string\",\"xm\"],[\"string\",\"audio/xm\"]],[[\"string\",\"xml\"],[\"string\",\"application/xml\"]],[[\"string\",\"xo\"],[\"string\",\"application/vnd.olpc-sugar\"]],[[\"string\",\"xop\"],[\"string\",\"application/xop+xml\"]],[[\"string\",\"xpi\"],[\"string\",\"application/x-xpinstall\"]],[[\"string\",\"xpl\"],[\"string\",\"application/xproc+xml\"]],[[\"string\",\"xpm\"],[\"string\",\"image/x-xpixmap\"]],[[\"string\",\"xpr\"],[\"string\",\"application/vnd.is-xpr\"]],[[\"string\",\"xps\"],[\"string\",\"application/vnd.ms-xpsdocument\"]],[[\"string\",\"xpw\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xpx\"],[\"string\",\"application/vnd.intercon.formnet\"]],[[\"string\",\"xsl\"],[\"string\",\"application/xml\"]],[[\"string\",\"xslt\"],[\"string\",\"application/xslt+xml\"]],[[\"string\",\"xsm\"],[\"string\",\"application/vnd.syncml+xml\"]],[[\"string\",\"xspf\"],[\"string\",\"application/xspf+xml\"]],[[\"string\",\"xul\"],[\"string\",\"application/vnd.mozilla.xul+xml\"]],[[\"string\",\"xvm\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xvml\"],[\"string\",\"application/xv+xml\"]],[[\"string\",\"xwd\"],[\"string\",\"image/x-xwindowdump\"]],[[\"string\",\"xyz\"],[\"string\",\"chemical/x-xyz\"]],[[\"string\",\"xz\"],[\"string\",\"application/x-xz\"]],[[\"string\",\"yang\"],[\"string\",\"application/yang\"]],[[\"string\",\"yin\"],[\"string\",\"application/yin+xml\"]],[[\"string\",\"z1\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z2\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z3\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z4\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z5\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z6\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z7\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"z8\"],[\"string\",\"application/x-zmachine\"]],[[\"string\",\"zaz\"],[\"string\",\"application/vnd.zzazz.deck+xml\"]],[[\"string\",\"zip\"],[\"string\",\"application/zip\"]],[[\"string\",\"zir\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zirz\"],[\"string\",\"application/vnd.zul\"]],[[\"string\",\"zmm\"],[\"string\",\"application/vnd.handheld-entertainment+xml\"]]]", () => __dartConstMap([["123", "application/vnd.lotus-1-2-3"], ["3dml", "text/vnd.in3d.3dml"], ["3ds", "image/x-3ds"], ["3g2", "video/3gpp2"], ["3gp", "video/3gpp"], ["7z", "application/x-7z-compressed"], ["aab", "application/x-authorware-bin"], ["aac", "audio/aac"], ["aam", "application/x-authorware-map"], ["aas", "application/x-authorware-seg"], ["abw", "application/x-abiword"], ["ac", "application/pkix-attr-cert"], ["acc", "application/vnd.americandynamics.acc"], ["ace", "application/x-ace-compressed"], ["acu", "application/vnd.acucobol"], ["acutc", "application/vnd.acucorp"], ["adp", "audio/adpcm"], ["aep", "application/vnd.audiograph"], ["afm", "application/x-font-type1"], ["afp", "application/vnd.ibm.modcap"], ["ahead", "application/vnd.ahead.space"], ["ai", "application/postscript"], ["aif", "audio/x-aiff"], ["aifc", "audio/x-aiff"], ["aiff", "audio/x-aiff"], ["air", "application/vnd.adobe.air-application-installer-package+zip"], ["ait", "application/vnd.dvb.ait"], ["ami", "application/vnd.amiga.ami"], ["apk", "application/vnd.android.package-archive"], ["appcache", "text/cache-manifest"], ["application", "application/x-ms-application"], ["apr", "application/vnd.lotus-approach"], ["arc", "application/x-freearc"], ["asc", "application/pgp-signature"], ["asf", "video/x-ms-asf"], ["asm", "text/x-asm"], ["aso", "application/vnd.accpac.simply.aso"], ["asx", "video/x-ms-asf"], ["atc", "application/vnd.acucorp"], ["atom", "application/atom+xml"], ["atomcat", "application/atomcat+xml"], ["atomsvc", "application/atomsvc+xml"], ["atx", "application/vnd.antix.game-component"], ["au", "audio/basic"], ["avi", "video/x-msvideo"], ["avif", "image/avif"], ["aw", "application/applixware"], ["azf", "application/vnd.airzip.filesecure.azf"], ["azs", "application/vnd.airzip.filesecure.azs"], ["azw", "application/vnd.amazon.ebook"], ["bat", "application/x-msdownload"], ["bcpio", "application/x-bcpio"], ["bdf", "application/x-font-bdf"], ["bdm", "application/vnd.syncml.dm+wbxml"], ["bed", "application/vnd.realvnc.bed"], ["bh2", "application/vnd.fujitsu.oasysprs"], ["bin", "application/octet-stream"], ["blb", "application/x-blorb"], ["blorb", "application/x-blorb"], ["bmi", "application/vnd.bmi"], ["bmp", "image/bmp"], ["book", "application/vnd.framemaker"], ["box", "application/vnd.previewsystems.box"], ["boz", "application/x-bzip2"], ["bpk", "application/octet-stream"], ["btif", "image/prs.btif"], ["bz", "application/x-bzip"], ["bz2", "application/x-bzip2"], ["c", "text/x-c"], ["c11amc", "application/vnd.cluetrust.cartomobile-config"], ["c11amz", "application/vnd.cluetrust.cartomobile-config-pkg"], ["c4d", "application/vnd.clonk.c4group"], ["c4f", "application/vnd.clonk.c4group"], ["c4g", "application/vnd.clonk.c4group"], ["c4p", "application/vnd.clonk.c4group"], ["c4u", "application/vnd.clonk.c4group"], ["cab", "application/vnd.ms-cab-compressed"], ["caf", "audio/x-caf"], ["cap", "application/vnd.tcpdump.pcap"], ["car", "application/vnd.curl.car"], ["cat", "application/vnd.ms-pki.seccat"], ["cb7", "application/x-cbr"], ["cba", "application/x-cbr"], ["cbr", "application/x-cbr"], ["cbt", "application/x-cbr"], ["cbz", "application/x-cbr"], ["cc", "text/x-c"], ["cct", "application/x-director"], ["ccxml", "application/ccxml+xml"], ["cdbcmsg", "application/vnd.contact.cmsg"], ["cdf", "application/x-netcdf"], ["cdkey", "application/vnd.mediastation.cdkey"], ["cdmia", "application/cdmi-capability"], ["cdmic", "application/cdmi-container"], ["cdmid", "application/cdmi-domain"], ["cdmio", "application/cdmi-object"], ["cdmiq", "application/cdmi-queue"], ["cdx", "chemical/x-cdx"], ["cdxml", "application/vnd.chemdraw+xml"], ["cdy", "application/vnd.cinderella"], ["cer", "application/pkix-cert"], ["cfs", "application/x-cfs-compressed"], ["cgm", "image/cgm"], ["chat", "application/x-chat"], ["chm", "application/vnd.ms-htmlhelp"], ["chrt", "application/vnd.kde.kchart"], ["cif", "chemical/x-cif"], ["cii", "application/vnd.anser-web-certificate-issue-initiation"], ["cil", "application/vnd.ms-artgalry"], ["cla", "application/vnd.claymore"], ["class", "application/java-vm"], ["clkk", "application/vnd.crick.clicker.keyboard"], ["clkp", "application/vnd.crick.clicker.palette"], ["clkt", "application/vnd.crick.clicker.template"], ["clkw", "application/vnd.crick.clicker.wordbank"], ["clkx", "application/vnd.crick.clicker"], ["clp", "application/x-msclip"], ["cmc", "application/vnd.cosmocaller"], ["cmdf", "chemical/x-cmdf"], ["cml", "chemical/x-cml"], ["cmp", "application/vnd.yellowriver-custom-menu"], ["cmx", "image/x-cmx"], ["cod", "application/vnd.rim.cod"], ["com", "application/x-msdownload"], ["conf", "text/plain"], ["cpio", "application/x-cpio"], ["cpp", "text/x-c"], ["cpt", "application/mac-compactpro"], ["crd", "application/x-mscardfile"], ["crl", "application/pkix-crl"], ["crt", "application/x-x509-ca-cert"], ["cryptonote", "application/vnd.rig.cryptonote"], ["csh", "application/x-csh"], ["csml", "chemical/x-csml"], ["csp", "application/vnd.commonspace"], ["css", "text/css"], ["cst", "application/x-director"], ["csv", "text/csv"], ["cu", "application/cu-seeme"], ["curl", "text/vnd.curl"], ["cww", "application/prs.cww"], ["cxt", "application/x-director"], ["cxx", "text/x-c"], ["dae", "model/vnd.collada+xml"], ["daf", "application/vnd.mobius.daf"], ["dart", "text/x-dart"], ["dataless", "application/vnd.fdsn.seed"], ["davmount", "application/davmount+xml"], ["dbk", "application/docbook+xml"], ["dcm", "application/dicom"], ["dcr", "application/x-director"], ["dcurl", "text/vnd.curl.dcurl"], ["dd2", "application/vnd.oma.dd2+xml"], ["ddd", "application/vnd.fujixerox.ddd"], ["deb", "application/x-debian-package"], ["def", "text/plain"], ["deploy", "application/octet-stream"], ["der", "application/x-x509-ca-cert"], ["dfac", "application/vnd.dreamfactory"], ["dgc", "application/x-dgc-compressed"], ["dic", "text/x-c"], ["dir", "application/x-director"], ["dis", "application/vnd.mobius.dis"], ["dist", "application/octet-stream"], ["distz", "application/octet-stream"], ["djv", "image/vnd.djvu"], ["djvu", "image/vnd.djvu"], ["dll", "application/x-msdownload"], ["dmg", "application/x-apple-diskimage"], ["dmp", "application/vnd.tcpdump.pcap"], ["dms", "application/octet-stream"], ["dna", "application/vnd.dna"], ["doc", "application/msword"], ["docm", "application/vnd.ms-word.document.macroenabled.12"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["dot", "application/msword"], ["dotm", "application/vnd.ms-word.template.macroenabled.12"], ["dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template"], ["dp", "application/vnd.osgi.dp"], ["dpg", "application/vnd.dpgraph"], ["dra", "audio/vnd.dra"], ["dsc", "text/prs.lines.tag"], ["dssc", "application/dssc+der"], ["dtb", "application/x-dtbook+xml"], ["dtd", "application/xml-dtd"], ["dts", "audio/vnd.dts"], ["dtshd", "audio/vnd.dts.hd"], ["dump", "application/octet-stream"], ["dvb", "video/vnd.dvb.file"], ["dvi", "application/x-dvi"], ["dwf", "model/vnd.dwf"], ["dwg", "image/vnd.dwg"], ["dxf", "image/vnd.dxf"], ["dxp", "application/vnd.spotfire.dxp"], ["dxr", "application/x-director"], ["ecelp4800", "audio/vnd.nuera.ecelp4800"], ["ecelp7470", "audio/vnd.nuera.ecelp7470"], ["ecelp9600", "audio/vnd.nuera.ecelp9600"], ["ecma", "application/ecmascript"], ["edm", "application/vnd.novadigm.edm"], ["edx", "application/vnd.novadigm.edx"], ["efif", "application/vnd.picsel"], ["ei6", "application/vnd.pg.osasli"], ["elc", "application/octet-stream"], ["emf", "application/x-msmetafile"], ["eml", "message/rfc822"], ["emma", "application/emma+xml"], ["emz", "application/x-msmetafile"], ["eol", "audio/vnd.digital-winds"], ["eot", "application/vnd.ms-fontobject"], ["eps", "application/postscript"], ["epub", "application/epub+zip"], ["es3", "application/vnd.eszigno3+xml"], ["esa", "application/vnd.osgi.subsystem"], ["esf", "application/vnd.epson.esf"], ["et3", "application/vnd.eszigno3+xml"], ["etx", "text/x-setext"], ["eva", "application/x-eva"], ["evy", "application/x-envoy"], ["exe", "application/x-msdownload"], ["exi", "application/exi"], ["ext", "application/vnd.novadigm.ext"], ["ez", "application/andrew-inset"], ["ez2", "application/vnd.ezpix-album"], ["ez3", "application/vnd.ezpix-package"], ["f", "text/x-fortran"], ["f4v", "video/x-f4v"], ["f77", "text/x-fortran"], ["f90", "text/x-fortran"], ["fbs", "image/vnd.fastbidsheet"], ["fcdt", "application/vnd.adobe.formscentral.fcdt"], ["fcs", "application/vnd.isac.fcs"], ["fdf", "application/vnd.fdf"], ["fe_launch", "application/vnd.denovo.fcselayout-link"], ["fg5", "application/vnd.fujitsu.oasysgp"], ["fgd", "application/x-director"], ["fh", "image/x-freehand"], ["fh4", "image/x-freehand"], ["fh5", "image/x-freehand"], ["fh7", "image/x-freehand"], ["fhc", "image/x-freehand"], ["fig", "application/x-xfig"], ["flac", "audio/x-flac"], ["fli", "video/x-fli"], ["flo", "application/vnd.micrografx.flo"], ["flv", "video/x-flv"], ["flw", "application/vnd.kde.kivio"], ["flx", "text/vnd.fmi.flexstor"], ["fly", "text/vnd.fly"], ["fm", "application/vnd.framemaker"], ["fnc", "application/vnd.frogans.fnc"], ["for", "text/x-fortran"], ["fpx", "image/vnd.fpx"], ["frame", "application/vnd.framemaker"], ["fsc", "application/vnd.fsc.weblaunch"], ["fst", "image/vnd.fst"], ["ftc", "application/vnd.fluxtime.clip"], ["fti", "application/vnd.anser-web-funds-transfer-initiation"], ["fvt", "video/vnd.fvt"], ["fxp", "application/vnd.adobe.fxp"], ["fxpl", "application/vnd.adobe.fxp"], ["fzs", "application/vnd.fuzzysheet"], ["g2w", "application/vnd.geoplan"], ["g3", "image/g3fax"], ["g3w", "application/vnd.geospace"], ["gac", "application/vnd.groove-account"], ["gam", "application/x-tads"], ["gbr", "application/rpki-ghostbusters"], ["gca", "application/x-gca-compressed"], ["gdl", "model/vnd.gdl"], ["geo", "application/vnd.dynageo"], ["gex", "application/vnd.geometry-explorer"], ["ggb", "application/vnd.geogebra.file"], ["ggt", "application/vnd.geogebra.tool"], ["ghf", "application/vnd.groove-help"], ["gif", "image/gif"], ["gim", "application/vnd.groove-identity-message"], ["glb", "model/gltf-binary"], ["gltf", "model/gltf+json"], ["gml", "application/gml+xml"], ["gmx", "application/vnd.gmx"], ["gnumeric", "application/x-gnumeric"], ["gph", "application/vnd.flographit"], ["gpx", "application/gpx+xml"], ["gqf", "application/vnd.grafeq"], ["gqs", "application/vnd.grafeq"], ["gram", "application/srgs"], ["gramps", "application/x-gramps-xml"], ["gre", "application/vnd.geometry-explorer"], ["grv", "application/vnd.groove-injector"], ["grxml", "application/srgs+xml"], ["gsf", "application/x-font-ghostscript"], ["gtar", "application/x-gtar"], ["gtm", "application/vnd.groove-tool-message"], ["gtw", "model/vnd.gtw"], ["gv", "text/vnd.graphviz"], ["gxf", "application/gxf"], ["gxt", "application/vnd.geonext"], ["h", "text/x-c"], ["h261", "video/h261"], ["h263", "video/h263"], ["h264", "video/h264"], ["hal", "application/vnd.hal+xml"], ["hbci", "application/vnd.hbci"], ["hdf", "application/x-hdf"], ["heic", "image/heic"], ["heif", "image/heif"], ["hh", "text/x-c"], ["hlp", "application/winhlp"], ["hpgl", "application/vnd.hp-hpgl"], ["hpid", "application/vnd.hp-hpid"], ["hps", "application/vnd.hp-hps"], ["hqx", "application/mac-binhex40"], ["htke", "application/vnd.kenameaapp"], ["htm", "text/html"], ["html", "text/html"], ["hvd", "application/vnd.yamaha.hv-dic"], ["hvp", "application/vnd.yamaha.hv-voice"], ["hvs", "application/vnd.yamaha.hv-script"], ["i2g", "application/vnd.intergeo"], ["icc", "application/vnd.iccprofile"], ["ice", "x-conference/x-cooltalk"], ["icm", "application/vnd.iccprofile"], ["ico", "image/x-icon"], ["ics", "text/calendar"], ["ief", "image/ief"], ["ifb", "text/calendar"], ["ifm", "application/vnd.shana.informed.formdata"], ["iges", "model/iges"], ["igl", "application/vnd.igloader"], ["igm", "application/vnd.insors.igm"], ["igs", "model/iges"], ["igx", "application/vnd.micrografx.igx"], ["iif", "application/vnd.shana.informed.interchange"], ["imp", "application/vnd.accpac.simply.imp"], ["ims", "application/vnd.ms-ims"], ["in", "text/plain"], ["ink", "application/inkml+xml"], ["inkml", "application/inkml+xml"], ["install", "application/x-install-instructions"], ["iota", "application/vnd.astraea-software.iota"], ["ipfix", "application/ipfix"], ["ipk", "application/vnd.shana.informed.package"], ["irm", "application/vnd.ibm.rights-management"], ["irp", "application/vnd.irepository.package+xml"], ["iso", "application/x-iso9660-image"], ["itp", "application/vnd.shana.informed.formtemplate"], ["ivp", "application/vnd.immervision-ivp"], ["ivu", "application/vnd.immervision-ivu"], ["jad", "text/vnd.sun.j2me.app-descriptor"], ["jam", "application/vnd.jam"], ["jar", "application/java-archive"], ["java", "text/x-java-source"], ["jisp", "application/vnd.jisp"], ["jlt", "application/vnd.hp-jlyt"], ["jnlp", "application/x-java-jnlp-file"], ["joda", "application/vnd.joost.joda-archive"], ["jpe", "image/jpeg"], ["jpeg", "image/jpeg"], ["jpg", "image/jpeg"], ["jpgm", "video/jpm"], ["jpgv", "video/jpeg"], ["jpm", "video/jpm"], ["js", "text/javascript"], ["json", "application/json"], ["jsonml", "application/jsonml+json"], ["kar", "audio/midi"], ["karbon", "application/vnd.kde.karbon"], ["kfo", "application/vnd.kde.kformula"], ["kia", "application/vnd.kidspiration"], ["kml", "application/vnd.google-earth.kml+xml"], ["kmz", "application/vnd.google-earth.kmz"], ["kne", "application/vnd.kinar"], ["knp", "application/vnd.kinar"], ["kon", "application/vnd.kde.kontour"], ["kpr", "application/vnd.kde.kpresenter"], ["kpt", "application/vnd.kde.kpresenter"], ["kpxx", "application/vnd.ds-keypoint"], ["ksp", "application/vnd.kde.kspread"], ["ktr", "application/vnd.kahootz"], ["ktx", "image/ktx"], ["ktz", "application/vnd.kahootz"], ["kwd", "application/vnd.kde.kword"], ["kwt", "application/vnd.kde.kword"], ["lasxml", "application/vnd.las.las+xml"], ["latex", "application/x-latex"], ["lbd", "application/vnd.llamagraphics.life-balance.desktop"], ["lbe", "application/vnd.llamagraphics.life-balance.exchange+xml"], ["les", "application/vnd.hhe.lesson-player"], ["lha", "application/x-lzh-compressed"], ["link66", "application/vnd.route66.link66+xml"], ["list", "text/plain"], ["list3820", "application/vnd.ibm.modcap"], ["listafp", "application/vnd.ibm.modcap"], ["lnk", "application/x-ms-shortcut"], ["log", "text/plain"], ["lostxml", "application/lost+xml"], ["lrf", "application/octet-stream"], ["lrm", "application/vnd.ms-lrm"], ["ltf", "application/vnd.frogans.ltf"], ["lvp", "audio/vnd.lucent.voice"], ["lwp", "application/vnd.lotus-wordpro"], ["lzh", "application/x-lzh-compressed"], ["m13", "application/x-msmediaview"], ["m14", "application/x-msmediaview"], ["m1v", "video/mpeg"], ["m21", "application/mp21"], ["m2a", "audio/mpeg"], ["m2v", "video/mpeg"], ["m3a", "audio/mpeg"], ["m3u", "audio/x-mpegurl"], ["m3u8", "application/vnd.apple.mpegurl"], ["m4a", "audio/mp4"], ["m4b", "audio/mp4"], ["m4u", "video/vnd.mpegurl"], ["m4v", "video/x-m4v"], ["ma", "application/mathematica"], ["mads", "application/mads+xml"], ["mag", "application/vnd.ecowin.chart"], ["maker", "application/vnd.framemaker"], ["man", "text/troff"], ["mar", "application/octet-stream"], ["mathml", "application/mathml+xml"], ["mb", "application/mathematica"], ["mbk", "application/vnd.mobius.mbk"], ["mbox", "application/mbox"], ["mc1", "application/vnd.medcalcdata"], ["mcd", "application/vnd.mcd"], ["mcurl", "text/vnd.curl.mcurl"], ["md", "text/markdown"], ["markdown", "text/markdown"], ["mdb", "application/x-msaccess"], ["mdi", "image/vnd.ms-modi"], ["me", "text/troff"], ["mesh", "model/mesh"], ["meta4", "application/metalink4+xml"], ["metalink", "application/metalink+xml"], ["mets", "application/mets+xml"], ["mfm", "application/vnd.mfmp"], ["mft", "application/rpki-manifest"], ["mgp", "application/vnd.osgeo.mapguide.package"], ["mgz", "application/vnd.proteus.magazine"], ["mid", "audio/midi"], ["midi", "audio/midi"], ["mie", "application/x-mie"], ["mif", "application/vnd.mif"], ["mime", "message/rfc822"], ["mj2", "video/mj2"], ["mjp2", "video/mj2"], ["mjs", "text/javascript"], ["mk3d", "video/x-matroska"], ["mka", "audio/x-matroska"], ["mks", "video/x-matroska"], ["mkv", "video/x-matroska"], ["mlp", "application/vnd.dolby.mlp"], ["mmd", "application/vnd.chipnuts.karaoke-mmd"], ["mmf", "application/vnd.smaf"], ["mmr", "image/vnd.fujixerox.edmics-mmr"], ["mng", "video/x-mng"], ["mny", "application/x-msmoney"], ["mobi", "application/x-mobipocket-ebook"], ["mods", "application/mods+xml"], ["mov", "video/quicktime"], ["movie", "video/x-sgi-movie"], ["mp2", "audio/mpeg"], ["mp21", "application/mp21"], ["mp2a", "audio/mpeg"], ["mp3", "audio/mpeg"], ["mp4", "video/mp4"], ["mp4a", "audio/mp4"], ["mp4s", "application/mp4"], ["mp4v", "video/mp4"], ["mpc", "application/vnd.mophun.certificate"], ["mpe", "video/mpeg"], ["mpeg", "video/mpeg"], ["mpg", "video/mpeg"], ["mpg4", "video/mp4"], ["mpga", "audio/mpeg"], ["mpkg", "application/vnd.apple.installer+xml"], ["mpm", "application/vnd.blueice.multipass"], ["mpn", "application/vnd.mophun.application"], ["mpp", "application/vnd.ms-project"], ["mpt", "application/vnd.ms-project"], ["mpy", "application/vnd.ibm.minipay"], ["mqy", "application/vnd.mobius.mqy"], ["mrc", "application/marc"], ["mrcx", "application/marcxml+xml"], ["ms", "text/troff"], ["mscml", "application/mediaservercontrol+xml"], ["mseed", "application/vnd.fdsn.mseed"], ["mseq", "application/vnd.mseq"], ["msf", "application/vnd.epson.msf"], ["msh", "model/mesh"], ["msi", "application/x-msdownload"], ["msl", "application/vnd.mobius.msl"], ["msty", "application/vnd.muvee.style"], ["mts", "model/vnd.mts"], ["mus", "application/vnd.musician"], ["musicxml", "application/vnd.recordare.musicxml+xml"], ["mvb", "application/x-msmediaview"], ["mwf", "application/vnd.mfer"], ["mxf", "application/mxf"], ["mxl", "application/vnd.recordare.musicxml"], ["mxml", "application/xv+xml"], ["mxs", "application/vnd.triscape.mxs"], ["mxu", "video/vnd.mpegurl"], ["n-gage", "application/vnd.nokia.n-gage.symbian.install"], ["n3", "text/n3"], ["nb", "application/mathematica"], ["nbp", "application/vnd.wolfram.player"], ["nc", "application/x-netcdf"], ["ncx", "application/x-dtbncx+xml"], ["nfo", "text/x-nfo"], ["ngdat", "application/vnd.nokia.n-gage.data"], ["nitf", "application/vnd.nitf"], ["nlu", "application/vnd.neurolanguage.nlu"], ["nml", "application/vnd.enliven"], ["nnd", "application/vnd.noblenet-directory"], ["nns", "application/vnd.noblenet-sealer"], ["nnw", "application/vnd.noblenet-web"], ["npx", "image/vnd.net-fpx"], ["nsc", "application/x-conference"], ["nsf", "application/vnd.lotus-notes"], ["ntf", "application/vnd.nitf"], ["nzb", "application/x-nzb"], ["oa2", "application/vnd.fujitsu.oasys2"], ["oa3", "application/vnd.fujitsu.oasys3"], ["oas", "application/vnd.fujitsu.oasys"], ["obd", "application/x-msbinder"], ["obj", "application/x-tgif"], ["oda", "application/oda"], ["odb", "application/vnd.oasis.opendocument.database"], ["odc", "application/vnd.oasis.opendocument.chart"], ["odf", "application/vnd.oasis.opendocument.formula"], ["odft", "application/vnd.oasis.opendocument.formula-template"], ["odg", "application/vnd.oasis.opendocument.graphics"], ["odi", "application/vnd.oasis.opendocument.image"], ["odm", "application/vnd.oasis.opendocument.text-master"], ["odp", "application/vnd.oasis.opendocument.presentation"], ["ods", "application/vnd.oasis.opendocument.spreadsheet"], ["odt", "application/vnd.oasis.opendocument.text"], ["oga", "audio/ogg"], ["ogg", "audio/ogg"], ["ogv", "video/ogg"], ["ogx", "application/ogg"], ["omdoc", "application/omdoc+xml"], ["onepkg", "application/onenote"], ["onetmp", "application/onenote"], ["onetoc", "application/onenote"], ["onetoc2", "application/onenote"], ["opf", "application/oebps-package+xml"], ["opml", "text/x-opml"], ["oprc", "application/vnd.palm"], ["org", "application/vnd.lotus-organizer"], ["osf", "application/vnd.yamaha.openscoreformat"], ["osfpvg", "application/vnd.yamaha.openscoreformat.osfpvg+xml"], ["otc", "application/vnd.oasis.opendocument.chart-template"], ["otf", "application/x-font-otf"], ["otg", "application/vnd.oasis.opendocument.graphics-template"], ["oth", "application/vnd.oasis.opendocument.text-web"], ["oti", "application/vnd.oasis.opendocument.image-template"], ["otp", "application/vnd.oasis.opendocument.presentation-template"], ["ots", "application/vnd.oasis.opendocument.spreadsheet-template"], ["ott", "application/vnd.oasis.opendocument.text-template"], ["oxps", "application/oxps"], ["oxt", "application/vnd.openofficeorg.extension"], ["p", "text/x-pascal"], ["p10", "application/pkcs10"], ["p12", "application/x-pkcs12"], ["p7b", "application/x-pkcs7-certificates"], ["p7c", "application/pkcs7-mime"], ["p7m", "application/pkcs7-mime"], ["p7r", "application/x-pkcs7-certreqresp"], ["p7s", "application/pkcs7-signature"], ["p8", "application/pkcs8"], ["pas", "text/x-pascal"], ["paw", "application/vnd.pawaafile"], ["pbd", "application/vnd.powerbuilder6"], ["pbm", "image/x-portable-bitmap"], ["pcap", "application/vnd.tcpdump.pcap"], ["pcf", "application/x-font-pcf"], ["pcl", "application/vnd.hp-pcl"], ["pclxl", "application/vnd.hp-pclxl"], ["pct", "image/x-pict"], ["pcurl", "application/vnd.curl.pcurl"], ["pcx", "image/x-pcx"], ["pdb", "application/vnd.palm"], ["pdf", "application/pdf"], ["pfa", "application/x-font-type1"], ["pfb", "application/x-font-type1"], ["pfm", "application/x-font-type1"], ["pfr", "application/font-tdpfr"], ["pfx", "application/x-pkcs12"], ["pgm", "image/x-portable-graymap"], ["pgn", "application/x-chess-pgn"], ["pgp", "application/pgp-encrypted"], ["pic", "image/x-pict"], ["pkg", "application/octet-stream"], ["pki", "application/pkixcmp"], ["pkipath", "application/pkix-pkipath"], ["plb", "application/vnd.3gpp.pic-bw-large"], ["plc", "application/vnd.mobius.plc"], ["plf", "application/vnd.pocketlearn"], ["pls", "application/pls+xml"], ["pml", "application/vnd.ctc-posml"], ["png", "image/png"], ["pnm", "image/x-portable-anymap"], ["portpkg", "application/vnd.macports.portpkg"], ["pot", "application/vnd.ms-powerpoint"], ["potm", "application/vnd.ms-powerpoint.template.macroenabled.12"], ["potx", "application/vnd.openxmlformats-officedocument.presentationml.template"], ["ppam", "application/vnd.ms-powerpoint.addin.macroenabled.12"], ["ppd", "application/vnd.cups-ppd"], ["ppm", "image/x-portable-pixmap"], ["pps", "application/vnd.ms-powerpoint"], ["ppsm", "application/vnd.ms-powerpoint.slideshow.macroenabled.12"], ["ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow"], ["ppt", "application/vnd.ms-powerpoint"], ["pptm", "application/vnd.ms-powerpoint.presentation.macroenabled.12"], ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"], ["pqa", "application/vnd.palm"], ["prc", "application/x-mobipocket-ebook"], ["pre", "application/vnd.lotus-freelance"], ["prf", "application/pics-rules"], ["ps", "application/postscript"], ["psb", "application/vnd.3gpp.pic-bw-small"], ["psd", "image/vnd.adobe.photoshop"], ["psf", "application/x-font-linux-psf"], ["pskcxml", "application/pskc+xml"], ["ptid", "application/vnd.pvi.ptid1"], ["pub", "application/x-mspublisher"], ["pvb", "application/vnd.3gpp.pic-bw-var"], ["pwn", "application/vnd.3m.post-it-notes"], ["pya", "audio/vnd.ms-playready.media.pya"], ["pyv", "video/vnd.ms-playready.media.pyv"], ["qam", "application/vnd.epson.quickanime"], ["qbo", "application/vnd.intu.qbo"], ["qfx", "application/vnd.intu.qfx"], ["qps", "application/vnd.publishare-delta-tree"], ["qt", "video/quicktime"], ["qwd", "application/vnd.quark.quarkxpress"], ["qwt", "application/vnd.quark.quarkxpress"], ["qxb", "application/vnd.quark.quarkxpress"], ["qxd", "application/vnd.quark.quarkxpress"], ["qxl", "application/vnd.quark.quarkxpress"], ["qxt", "application/vnd.quark.quarkxpress"], ["ra", "audio/x-pn-realaudio"], ["ram", "audio/x-pn-realaudio"], ["rar", "application/x-rar-compressed"], ["ras", "image/x-cmu-raster"], ["rcprofile", "application/vnd.ipunplugged.rcprofile"], ["rdf", "application/rdf+xml"], ["rdz", "application/vnd.data-vision.rdz"], ["rep", "application/vnd.businessobjects"], ["res", "application/x-dtbresource+xml"], ["rgb", "image/x-rgb"], ["rif", "application/reginfo+xml"], ["rip", "audio/vnd.rip"], ["ris", "application/x-research-info-systems"], ["rl", "application/resource-lists+xml"], ["rlc", "image/vnd.fujixerox.edmics-rlc"], ["rld", "application/resource-lists-diff+xml"], ["rm", "application/vnd.rn-realmedia"], ["rmi", "audio/midi"], ["rmp", "audio/x-pn-realaudio-plugin"], ["rms", "application/vnd.jcp.javame.midlet-rms"], ["rmvb", "application/vnd.rn-realmedia-vbr"], ["rnc", "application/relax-ng-compact-syntax"], ["roa", "application/rpki-roa"], ["roff", "text/troff"], ["rp9", "application/vnd.cloanto.rp9"], ["rpss", "application/vnd.nokia.radio-presets"], ["rpst", "application/vnd.nokia.radio-preset"], ["rq", "application/sparql-query"], ["rs", "application/rls-services+xml"], ["rsd", "application/rsd+xml"], ["rss", "application/rss+xml"], ["rtf", "application/rtf"], ["rtx", "text/richtext"], ["s", "text/x-asm"], ["s3m", "audio/s3m"], ["saf", "application/vnd.yamaha.smaf-audio"], ["sbml", "application/sbml+xml"], ["sc", "application/vnd.ibm.secure-container"], ["scd", "application/x-msschedule"], ["scm", "application/vnd.lotus-screencam"], ["scq", "application/scvp-cv-request"], ["scs", "application/scvp-cv-response"], ["scurl", "text/vnd.curl.scurl"], ["sda", "application/vnd.stardivision.draw"], ["sdc", "application/vnd.stardivision.calc"], ["sdd", "application/vnd.stardivision.impress"], ["sdkd", "application/vnd.solent.sdkm+xml"], ["sdkm", "application/vnd.solent.sdkm+xml"], ["sdp", "application/sdp"], ["sdw", "application/vnd.stardivision.writer"], ["see", "application/vnd.seemail"], ["seed", "application/vnd.fdsn.seed"], ["sema", "application/vnd.sema"], ["semd", "application/vnd.semd"], ["semf", "application/vnd.semf"], ["ser", "application/java-serialized-object"], ["setpay", "application/set-payment-initiation"], ["setreg", "application/set-registration-initiation"], ["sfd-hdstx", "application/vnd.hydrostatix.sof-data"], ["sfs", "application/vnd.spotfire.sfs"], ["sfv", "text/x-sfv"], ["sgi", "image/sgi"], ["sgl", "application/vnd.stardivision.writer-global"], ["sgm", "text/sgml"], ["sgml", "text/sgml"], ["sh", "application/x-sh"], ["shar", "application/x-shar"], ["shf", "application/shf+xml"], ["sid", "image/x-mrsid-image"], ["sig", "application/pgp-signature"], ["sil", "audio/silk"], ["silo", "model/mesh"], ["sis", "application/vnd.symbian.install"], ["sisx", "application/vnd.symbian.install"], ["sit", "application/x-stuffit"], ["sitx", "application/x-stuffitx"], ["skd", "application/vnd.koan"], ["skm", "application/vnd.koan"], ["skp", "application/vnd.koan"], ["skt", "application/vnd.koan"], ["sldm", "application/vnd.ms-powerpoint.slide.macroenabled.12"], ["sldx", "application/vnd.openxmlformats-officedocument.presentationml.slide"], ["slt", "application/vnd.epson.salt"], ["sm", "application/vnd.stepmania.stepchart"], ["smf", "application/vnd.stardivision.math"], ["smi", "application/smil+xml"], ["smil", "application/smil+xml"], ["smv", "video/x-smv"], ["smzip", "application/vnd.stepmania.package"], ["snd", "audio/basic"], ["snf", "application/x-font-snf"], ["so", "application/octet-stream"], ["spc", "application/x-pkcs7-certificates"], ["spf", "application/vnd.yamaha.smaf-phrase"], ["spl", "application/x-futuresplash"], ["spot", "text/vnd.in3d.spot"], ["spp", "application/scvp-vp-response"], ["spq", "application/scvp-vp-request"], ["spx", "audio/ogg"], ["sql", "application/x-sql"], ["src", "application/x-wais-source"], ["srt", "application/x-subrip"], ["sru", "application/sru+xml"], ["srx", "application/sparql-results+xml"], ["ssdl", "application/ssdl+xml"], ["sse", "application/vnd.kodak-descriptor"], ["ssf", "application/vnd.epson.ssf"], ["ssml", "application/ssml+xml"], ["st", "application/vnd.sailingtracker.track"], ["stc", "application/vnd.sun.xml.calc.template"], ["std", "application/vnd.sun.xml.draw.template"], ["stf", "application/vnd.wt.stf"], ["sti", "application/vnd.sun.xml.impress.template"], ["stk", "application/hyperstudio"], ["stl", "application/vnd.ms-pki.stl"], ["str", "application/vnd.pg.format"], ["stw", "application/vnd.sun.xml.writer.template"], ["sub", "text/vnd.dvb.subtitle"], ["sus", "application/vnd.sus-calendar"], ["susp", "application/vnd.sus-calendar"], ["sv4cpio", "application/x-sv4cpio"], ["sv4crc", "application/x-sv4crc"], ["svc", "application/vnd.dvb.service"], ["svd", "application/vnd.svd"], ["svg", "image/svg+xml"], ["svgz", "image/svg+xml"], ["swa", "application/x-director"], ["swf", "application/x-shockwave-flash"], ["swi", "application/vnd.aristanetworks.swi"], ["sxc", "application/vnd.sun.xml.calc"], ["sxd", "application/vnd.sun.xml.draw"], ["sxg", "application/vnd.sun.xml.writer.global"], ["sxi", "application/vnd.sun.xml.impress"], ["sxm", "application/vnd.sun.xml.math"], ["sxw", "application/vnd.sun.xml.writer"], ["t", "text/troff"], ["t3", "application/x-t3vm-image"], ["taglet", "application/vnd.mynfc"], ["tao", "application/vnd.tao.intent-module-archive"], ["tar", "application/x-tar"], ["tcap", "application/vnd.3gpp2.tcap"], ["tcl", "application/x-tcl"], ["teacher", "application/vnd.smart.teacher"], ["tei", "application/tei+xml"], ["teicorpus", "application/tei+xml"], ["tex", "application/x-tex"], ["texi", "application/x-texinfo"], ["texinfo", "application/x-texinfo"], ["text", "text/plain"], ["tfi", "application/thraud+xml"], ["tfm", "application/x-tex-tfm"], ["tga", "image/x-tga"], ["thmx", "application/vnd.ms-officetheme"], ["tif", "image/tiff"], ["tiff", "image/tiff"], ["tmo", "application/vnd.tmobile-livetv"], ["toml", "application/toml"], ["torrent", "application/x-bittorrent"], ["tpl", "application/vnd.groove-tool-template"], ["tpt", "application/vnd.trid.tpt"], ["tr", "text/troff"], ["tra", "application/vnd.trueapp"], ["trm", "application/x-msterminal"], ["tsd", "application/timestamped-data"], ["tsv", "text/tab-separated-values"], ["ttc", "application/x-font-ttf"], ["ttf", "application/x-font-ttf"], ["ttl", "text/turtle"], ["twd", "application/vnd.simtech-mindmapper"], ["twds", "application/vnd.simtech-mindmapper"], ["txd", "application/vnd.genomatix.tuxedo"], ["txf", "application/vnd.mobius.txf"], ["txt", "text/plain"], ["u32", "application/x-authorware-bin"], ["udeb", "application/x-debian-package"], ["ufd", "application/vnd.ufdl"], ["ufdl", "application/vnd.ufdl"], ["ulx", "application/x-glulx"], ["umj", "application/vnd.umajin"], ["unityweb", "application/vnd.unity"], ["uoml", "application/vnd.uoml+xml"], ["uri", "text/uri-list"], ["uris", "text/uri-list"], ["urls", "text/uri-list"], ["ustar", "application/x-ustar"], ["utz", "application/vnd.uiq.theme"], ["uu", "text/x-uuencode"], ["uva", "audio/vnd.dece.audio"], ["uvd", "application/vnd.dece.data"], ["uvf", "application/vnd.dece.data"], ["uvg", "image/vnd.dece.graphic"], ["uvh", "video/vnd.dece.hd"], ["uvi", "image/vnd.dece.graphic"], ["uvm", "video/vnd.dece.mobile"], ["uvp", "video/vnd.dece.pd"], ["uvs", "video/vnd.dece.sd"], ["uvt", "application/vnd.dece.ttml+xml"], ["uvu", "video/vnd.uvvu.mp4"], ["uvv", "video/vnd.dece.video"], ["uvva", "audio/vnd.dece.audio"], ["uvvd", "application/vnd.dece.data"], ["uvvf", "application/vnd.dece.data"], ["uvvg", "image/vnd.dece.graphic"], ["uvvh", "video/vnd.dece.hd"], ["uvvi", "image/vnd.dece.graphic"], ["uvvm", "video/vnd.dece.mobile"], ["uvvp", "video/vnd.dece.pd"], ["uvvs", "video/vnd.dece.sd"], ["uvvt", "application/vnd.dece.ttml+xml"], ["uvvu", "video/vnd.uvvu.mp4"], ["uvvv", "video/vnd.dece.video"], ["uvvx", "application/vnd.dece.unspecified"], ["uvvz", "application/vnd.dece.zip"], ["uvx", "application/vnd.dece.unspecified"], ["uvz", "application/vnd.dece.zip"], ["vcard", "text/vcard"], ["vcd", "application/x-cdlink"], ["vcf", "text/x-vcard"], ["vcg", "application/vnd.groove-vcard"], ["vcs", "text/x-vcalendar"], ["vcx", "application/vnd.vcx"], ["vis", "application/vnd.visionary"], ["viv", "video/vnd.vivo"], ["vob", "video/x-ms-vob"], ["vor", "application/vnd.stardivision.writer"], ["vox", "application/x-authorware-bin"], ["vrml", "model/vrml"], ["vsd", "application/vnd.visio"], ["vsf", "application/vnd.vsf"], ["vss", "application/vnd.visio"], ["vst", "application/vnd.visio"], ["vsw", "application/vnd.visio"], ["vtu", "model/vnd.vtu"], ["vxml", "application/voicexml+xml"], ["w3d", "application/x-director"], ["wad", "application/x-doom"], ["wasm", "application/wasm"], ["wav", "audio/x-wav"], ["wax", "audio/x-ms-wax"], ["wbmp", "image/vnd.wap.wbmp"], ["wbs", "application/vnd.criticaltools.wbs+xml"], ["wbxml", "application/vnd.wap.wbxml"], ["wcm", "application/vnd.ms-works"], ["wdb", "application/vnd.ms-works"], ["wdp", "image/vnd.ms-photo"], ["weba", "audio/webm"], ["webm", "video/webm"], ["webmanifest", "application/manifest+json"], ["webp", "image/webp"], ["wg", "application/vnd.pmi.widget"], ["wgt", "application/widget"], ["wks", "application/vnd.ms-works"], ["wm", "video/x-ms-wm"], ["wma", "audio/x-ms-wma"], ["wmd", "application/x-ms-wmd"], ["wmf", "application/x-msmetafile"], ["wml", "text/vnd.wap.wml"], ["wmlc", "application/vnd.wap.wmlc"], ["wmls", "text/vnd.wap.wmlscript"], ["wmlsc", "application/vnd.wap.wmlscriptc"], ["wmv", "video/x-ms-wmv"], ["wmx", "video/x-ms-wmx"], ["wmz", "application/x-ms-wmz"], ["woff", "application/x-font-woff"], ["woff2", "font/woff2"], ["wpd", "application/vnd.wordperfect"], ["wpl", "application/vnd.ms-wpl"], ["wps", "application/vnd.ms-works"], ["wqd", "application/vnd.wqd"], ["wri", "application/x-mswrite"], ["wrl", "model/vrml"], ["wsdl", "application/wsdl+xml"], ["wspolicy", "application/wspolicy+xml"], ["wtb", "application/vnd.webturbo"], ["wvx", "video/x-ms-wvx"], ["x32", "application/x-authorware-bin"], ["x3d", "model/x3d+xml"], ["x3db", "model/x3d+binary"], ["x3dbz", "model/x3d+binary"], ["x3dv", "model/x3d+vrml"], ["x3dvz", "model/x3d+vrml"], ["x3dz", "model/x3d+xml"], ["xaml", "application/xaml+xml"], ["xap", "application/x-silverlight-app"], ["xar", "application/vnd.xara"], ["xbap", "application/x-ms-xbap"], ["xbd", "application/vnd.fujixerox.docuworks.binder"], ["xbm", "image/x-xbitmap"], ["xdf", "application/xcap-diff+xml"], ["xdm", "application/vnd.syncml.dm+xml"], ["xdp", "application/vnd.adobe.xdp+xml"], ["xdssc", "application/dssc+xml"], ["xdw", "application/vnd.fujixerox.docuworks"], ["xenc", "application/xenc+xml"], ["xer", "application/patch-ops-error+xml"], ["xfdf", "application/vnd.adobe.xfdf"], ["xfdl", "application/vnd.xfdl"], ["xht", "application/xhtml+xml"], ["xhtml", "application/xhtml+xml"], ["xhvml", "application/xv+xml"], ["xif", "image/vnd.xiff"], ["xla", "application/vnd.ms-excel"], ["xlam", "application/vnd.ms-excel.addin.macroenabled.12"], ["xlc", "application/vnd.ms-excel"], ["xlf", "application/x-xliff+xml"], ["xlm", "application/vnd.ms-excel"], ["xls", "application/vnd.ms-excel"], ["xlsb", "application/vnd.ms-excel.sheet.binary.macroenabled.12"], ["xlsm", "application/vnd.ms-excel.sheet.macroenabled.12"], ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], ["xlt", "application/vnd.ms-excel"], ["xltm", "application/vnd.ms-excel.template.macroenabled.12"], ["xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template"], ["xlw", "application/vnd.ms-excel"], ["xm", "audio/xm"], ["xml", "application/xml"], ["xo", "application/vnd.olpc-sugar"], ["xop", "application/xop+xml"], ["xpi", "application/x-xpinstall"], ["xpl", "application/xproc+xml"], ["xpm", "image/x-xpixmap"], ["xpr", "application/vnd.is-xpr"], ["xps", "application/vnd.ms-xpsdocument"], ["xpw", "application/vnd.intercon.formnet"], ["xpx", "application/vnd.intercon.formnet"], ["xsl", "application/xml"], ["xslt", "application/xslt+xml"], ["xsm", "application/vnd.syncml+xml"], ["xspf", "application/xspf+xml"], ["xul", "application/vnd.mozilla.xul+xml"], ["xvm", "application/xv+xml"], ["xvml", "application/xv+xml"], ["xwd", "image/x-xwindowdump"], ["xyz", "chemical/x-xyz"], ["xz", "application/x-xz"], ["yang", "application/yang"], ["yin", "application/yin+xml"], ["z1", "application/x-zmachine"], ["z2", "application/x-zmachine"], ["z3", "application/x-zmachine"], ["z4", "application/x-zmachine"], ["z5", "application/x-zmachine"], ["z6", "application/x-zmachine"], ["z7", "application/x-zmachine"], ["z8", "application/x-zmachine"], ["zaz", "application/vnd.zzazz.deck+xml"], ["zip", "application/zip"], ["zir", "application/vnd.zul"], ["zirz", "application/vnd.zul"], ["zmm", "application/vnd.handheld-entertainment+xml"]])).entries()));
+  for (; _sync_for_iterator.moveNext(); ) {
+    let entry = _sync_for_iterator.current;
+    __dartMapSet(v, entry[1], entry[0]);
   }
   __dartMapSet(v, "application/msword", "doc");
   __dartMapSet(v, "application/vnd.ms-excel", "xls");
@@ -1374,12 +1885,42 @@ const _defaultMimeTypeMap = (() => {
   __dartMapSet(v, "video/x-matroska", "mkv");
   return v;
 })();
+const _globalResolver = new MimeTypeResolver();
+function _getBoundary(boundary) {
+  const charCodes = __dartStringCodeUnits(boundary);
+  const boundaryList = new Uint8Array(4 + charCodes.length);
+  __dartListLikeSet(boundaryList, 0, 13);
+  __dartListLikeSet(boundaryList, 1, 10);
+  __dartListLikeSet(boundaryList, 2, 45);
+  __dartListLikeSet(boundaryList, 3, 45);
+  __dartListSetRange(boundaryList, 4, 4 + charCodes.length, charCodes);
+  return boundaryList;
+}
+
+function _isTokenChar(byte) {
+  return ((byte > 31 && byte < 128) && !(__dartSetContains(__dartConst("[\"set\",\"InterfaceType(int)\",[\"int\",\"40\"],[\"int\",\"41\"],[\"int\",\"60\"],[\"int\",\"62\"],[\"int\",\"64\"],[\"int\",\"44\"],[\"int\",\"59\"],[\"int\",\"58\"],[\"int\",\"92\"],[\"int\",\"34\"],[\"int\",\"47\"],[\"int\",\"91\"],[\"int\",\"93\"],[\"int\",\"63\"],[\"int\",\"61\"],[\"int\",\"123\"],[\"int\",\"125\"],[\"int\",\"32\"],[\"int\",\"9\"]]", () => __dartConstSet([40, 41, 60, 62, 64, 44, 59, 58, 92, 34, 47, 91, 93, 63, 61, 123, 125, 32, 9])), byte)));
+}
+
+function _toLowerCase(byte) {
+  const delta = 32;
+  return ((65 <= byte && byte <= 90) ? byte + 32 : byte);
+}
+
+function _expectByteValue(val1, val2) {
+  if (!(__dartEquals(val1, val2))) {
+    throw __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MimeMultipartException{MimeMultipartException.message: \\\"Failed to parse multipart mime 1\\\"})\"]", () => Object.freeze(Object.create(MimeMultipartException.prototype, { message: { value: "Failed to parse multipart mime 1", enumerable: true } })));
+  }
+}
+
+function _expectWhitespace(byte) {
+  if ((!(__dartEquals(byte, 32)) && !(__dartEquals(byte, 9)))) {
+    throw __dartConst("[\"InstanceConstant\",\"InstanceConstant(const MimeMultipartException{MimeMultipartException.message: \\\"Failed to parse multipart mime 2\\\"})\"]", () => Object.freeze(Object.create(MimeMultipartException.prototype, { message: { value: "Failed to parse multipart mime 2", enumerable: true } })));
+  }
+}
 
 function extensionFromMime(mimeType) {
   return __dartMapGet(_defaultMimeTypeMap, mimeType.toLowerCase());
 }
-
-const _globalResolver = new MimeTypeResolver();
 
 function defaultMagicNumbersMaxLength() {
   return _globalResolver.magicNumbersMaxLength;
@@ -1390,38 +1931,37 @@ function lookupMimeType(path, { headerBytes = null } = {}) {
 }
 
 export async function main() {
-  const resolver = (() => { let v = MimeTypeResolver.empty(); return (() => {
-    v.addExtension("dart", "text/x-dart");
-    v.addMagicNumber([1, 2, 3], "application/x-custom", { mask: [255, 255, 15] });
-    return v;
-  })(); })();
+  const resolver = (() => {
+    const v = MimeTypeResolver.empty();
+    return (() => {
+      v.addExtension("dart", "text/x-dart");
+      v.addMagicNumber([1, 2, 3], "application/x-custom", { mask: [255, 255, 15] });
+      return v;
+    })();
+  })();
   const png = lookupMimeType("wrong.txt", { headerBytes: [137, 80, 78, 71, 13, 10, 26, 10] });
   const plainExtension = extensionFromMime("TEXT/PLAIN");
   const customExtension = resolver.lookup("bin/source.dart");
   const customMagic = resolver.lookup("data.bin", { headerBytes: [1, 2, 19] });
   const multipart = "--frontier\r\nContent-Type: text/plain\r\nX-Name: One\r\n\r\nhello\r\n--frontier\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}\r\n--frontier--\r\n";
-  const chunks = [__dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec(false)).encode("--frontier\r\nContent-Type: text/plain\r\nX-Name: One\r\n\r\nhello\r\n--frontier\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}\r\n--frontier--\r\n".substring(0, 41)), __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec(false)).encode("--frontier\r\nContent-Type: text/plain\r\nX-Name: One\r\n\r\nhello\r\n--frontier\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}\r\n--frontier--\r\n".substring(41, 79)), __dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec(false)).encode("--frontier\r\nContent-Type: text/plain\r\nX-Name: One\r\n\r\nhello\r\n--frontier\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}\r\n--frontier--\r\n".substring(79))];
-  const parts = new Array(0).fill(null);
-  {
-    let _stream = __dartStreamTransform(__dartStreamFromIterable(chunks), new MimeMultipartTransformer("frontier"));
-    let _for_iterator = __dartStreamIterator(_stream);
-    try {
-      while (await _for_iterator.moveNext()) {
-        {
-          const part = _for_iterator.current;
-          {
-            const body = await __dartStreamToList(__dartStreamExpand(part, function(chunk) { return chunk; }));
-            (parts.push(__dartStr(__dartMapGet(part.headers, "content-type")) + ":" + __dartStr(__dartConst("[\"instance\",\"dart:convert::AsciiCodec\",[\"field\",\"dart:convert::AsciiCodec::@fields::dart:convert::_allowInvalid\",[\"bool\",false]]]", () => __dartAsciiCodec(false)).decode(body))), null);
-          }
-        }
-      }
-    } finally {
-      if (!((_for_iterator._subscription === null))) {
-        await _for_iterator.cancel();
-      }
+  const chunks = [__dartConst("[\"InstanceConstant\",\"InstanceConstant(const AsciiCodec{AsciiCodec._allowInvalid: false})\"]", () => __dartAsciiCodec(false)).encode("--frontier\r\nContent-Type: text/plain\r\nX-Name: One\r\n\r\nhello\r\n--frontier\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}\r\n--frontier--\r\n".substring(0, 41)), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const AsciiCodec{AsciiCodec._allowInvalid: false})\"]", () => __dartAsciiCodec(false)).encode("--frontier\r\nContent-Type: text/plain\r\nX-Name: One\r\n\r\nhello\r\n--frontier\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}\r\n--frontier--\r\n".substring(41, 79)), __dartConst("[\"InstanceConstant\",\"InstanceConstant(const AsciiCodec{AsciiCodec._allowInvalid: false})\"]", () => __dartAsciiCodec(false)).encode("--frontier\r\nContent-Type: text/plain\r\nX-Name: One\r\n\r\nhello\r\n--frontier\r\nContent-Type: application/json\r\n\r\n{\"ok\":true}\r\n--frontier--\r\n".substring(79))];
+  const parts = Array(0).fill(null);
+  let _stream = __dartStreamTransform(__dartStreamFromIterable(__dartIterableToArray(chunks)), new MimeMultipartTransformer("frontier"));
+  let _for_iterator = __dartStreamIterator(_stream);
+  try {
+    while (await _for_iterator.moveNext()) {
+      const part = _for_iterator.current;
+      const body = await __dartStreamToList(__dartStreamExpand(part, (chunk) => {
+        return chunk;
+      }));
+      __dartListAdd(parts, `${__dartStr(__dartMapGet(part.headers, "content-type"))}:${__dartStr(__dartConst("[\"InstanceConstant\",\"InstanceConstant(const AsciiCodec{AsciiCodec._allowInvalid: false})\"]", () => __dartAsciiCodec(false)).decode(body))}`);
+    }
+  } finally {
+    if (!(_for_iterator._subscription === null)) {
+      await _for_iterator.cancel();
     }
   }
-  __dartPrint("mime " + __dartStr(png) + " " + __dartStr(plainExtension) + " " + __dartStr(customExtension) + " " + __dartStr(customMagic) + " " + __dartStr((defaultMagicNumbersMaxLength() >= 12)) + " " + __dartStr(__dartIterableJoin(parts, "|")));
+  __dartPrint(`mime ${__dartStr(png)} ${__dartStr(plainExtension)} ${__dartStr(customExtension)} ${__dartStr(customMagic)} ${__dartStr(defaultMagicNumbersMaxLength() >= 12)} ${__dartStr(__dartIterableJoin(parts, "|"))}`);
 }
 
 await main();

@@ -191,6 +191,16 @@ extension _StaticLowering on Lowerer {
         thisExpression: thisExpression,
       );
     }
+    final mirrorsStatic = _lowerMirrorsStaticInvocation(
+      semantic,
+      helpers,
+      locals,
+      expression,
+      thisExpression: thisExpression,
+    );
+    if (mirrorsStatic != null) {
+      return mirrorsStatic;
+    }
     final sdkStatic = sdkIntrinsics.lowerStaticInvocation(
       expression: expression,
       helpers: helpers,
@@ -237,6 +247,42 @@ extension _StaticLowering on Lowerer {
     return null;
   }
 
+  EsmExpression? _lowerMirrorsStaticInvocation(
+    Semantic semantic,
+    EsmRuntimeHelperUseSet helpers,
+    Map<k.VariableDeclaration, String> locals,
+    k.StaticInvocation expression, {
+    EsmExpression thisExpression = const EsmThis(),
+  }) {
+    if (expression.arguments.named.isNotEmpty ||
+        expression.arguments.types.isNotEmpty ||
+        expression.arguments.positional.length != 1) {
+      return null;
+    }
+    final target = kernelReferencePath(expression.targetReference);
+    final argument = _lowerExpression(
+      semantic,
+      helpers,
+      locals,
+      expression.arguments.positional.single,
+      thisExpression: thisExpression,
+    );
+    return switch (target) {
+      'dart:mirrors::MirrorSystem::@methods::getName' => EsmPropertyAccess(
+        receiver: argument,
+        property: 'name',
+      ),
+      'dart:mirrors::MirrorSystem::@methods::getSymbol' => () {
+        helpers.require(EsmRuntimeHelper.symbol);
+        return EsmCall(
+          callee: helpers.reference(runtimeHelpers, EsmRuntimeHelper.symbol),
+          arguments: [argument, argument],
+        );
+      }(),
+      _ => null,
+    };
+  }
+
   EsmExpression? _lowerWebStaticInvocation(
     Semantic semantic,
     EsmRuntimeHelperUseSet helpers,
@@ -245,6 +291,96 @@ extension _StaticLowering on Lowerer {
     EsmExpression thisExpression = const EsmThis(),
   }) {
     final positional = expression.arguments.positional;
+    final target = kernelReferencePath(expression.targetReference);
+    if (target == 'dart:html::Element::@factories::tag' &&
+        positional.length == 1 &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.types.isEmpty) {
+      return EsmCall(
+        callee: const EsmPropertyAccess(
+          receiver: EsmPropertyAccess(
+            receiver: EsmIdentifier('globalThis'),
+            property: 'document',
+          ),
+          property: 'createElement',
+        ),
+        arguments: [
+          _lowerExpression(
+            semantic,
+            helpers,
+            locals,
+            positional.single,
+            thisExpression: thisExpression,
+          ),
+        ],
+      );
+    }
+    if (target == 'dart:html::CanvasElement::@factories::' &&
+        positional.isEmpty &&
+        expression.arguments.types.isEmpty &&
+        _hasOnlyNamedArguments(expression.arguments, {'width', 'height'})) {
+      return EsmCall(
+        callee: const EsmPropertyAccess(
+          receiver: EsmIdentifier('Object'),
+          property: 'assign',
+        ),
+        arguments: [
+          const EsmCall(
+            callee: EsmPropertyAccess(
+              receiver: EsmPropertyAccess(
+                receiver: EsmIdentifier('globalThis'),
+                property: 'document',
+              ),
+              property: 'createElement',
+            ),
+            arguments: [EsmStringLiteral('canvas')],
+          ),
+          EsmObjectLiteral([
+            if (_lowerNamedArgument(
+                  semantic,
+                  helpers,
+                  locals,
+                  expression.arguments,
+                  'width',
+                  thisExpression: thisExpression,
+                )
+                case final width?)
+              EsmObjectLiteralProperty.static(key: 'width', value: width),
+            if (_lowerNamedArgument(
+                  semantic,
+                  helpers,
+                  locals,
+                  expression.arguments,
+                  'height',
+                  thisExpression: thisExpression,
+                )
+                case final height?)
+              EsmObjectLiteralProperty.static(key: 'height', value: height),
+          ]),
+        ],
+      );
+    }
+    if (target == 'dart:web_audio::AudioContext::@factories::' &&
+        positional.isEmpty &&
+        expression.arguments.named.isEmpty &&
+        expression.arguments.types.isEmpty) {
+      return const EsmNew(
+        callee: EsmNullishCoalesce(
+          left: EsmPropertyAccess(
+            receiver: EsmIdentifier('globalThis'),
+            property: 'AudioContext',
+          ),
+          right: EsmOptionalPropertyAccess(
+            receiver: EsmPropertyAccess(
+              receiver: EsmIdentifier('globalThis'),
+              property: 'window',
+            ),
+            property: 'AudioContext',
+          ),
+        ),
+        arguments: [],
+      );
+    }
     if (kernelReferencePath(expression.targetReference) ==
             'dart:svg::SvgElement::@factories::tag' &&
         positional.length == 1 &&

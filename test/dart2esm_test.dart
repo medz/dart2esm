@@ -3041,6 +3041,148 @@ void main() {
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
   });
 
+  test('CLI accepts explicit platform and target options', () async {
+    final fixture = _GoldenFixture(
+      root: fixtureDir,
+      source: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
+      ),
+      expectedEsm: File(
+        p.join(fixtureDir.path, 'functions', 'basic_functions.mjs'),
+      ),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-target-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'basic_functions.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [
+        fixture.source.path,
+        '-o',
+        output.path,
+        '--no-run-main',
+        '--platform=neutral',
+        '--target=esnext',
+      ],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.success);
+    expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+  });
+
+  test('CLI keeps pure dart:io lowering platform neutral', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-neutral-io-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'pure_io.dart'))
+      ..writeAsStringSync('''
+import 'dart:io';
+
+void main() {
+  print(FileMode.append.toString());
+  print(FileSystemEntityType.file.toString());
+  print(Platform.operatingSystem);
+}
+''');
+    final output = File(p.join(tempDir.path, 'pure_io.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [input.path, '-o', output.path, '--platform=neutral'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.success);
+    final code = output.readAsStringSync();
+    expect(code, isNot(contains('node:')));
+    expect(code, contains('__dartIoEnum'));
+    expect(code, contains('__dartIoPlatform'));
+    final runResult = await Process.run('node', [
+      '--input-type=module',
+      '-e',
+      "delete globalThis.process; await import('${output.uri}');",
+    ]);
+    expect(
+      runResult.exitCode,
+      0,
+      reason: '${runResult.stdout}\n${runResult.stderr}',
+    );
+    expect(runResult.stdout, contains('FileMode.append\nfile\nbrowser\n'));
+  });
+
+  test('CLI rejects Node-backed dart:io on neutral platform', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-neutral-file-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'node_io.dart'))
+      ..writeAsStringSync('''
+import 'dart:io';
+
+void main() {
+  print(File('tmp.txt').path);
+}
+''');
+    final output = File(p.join(tempDir.path, 'node_io.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [input.path, '-o', output.path, '--platform=neutral'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.software);
+    expect(output.existsSync(), isFalse);
+    final stderr = File(p.join(tempDir.path, 'stderr.log')).readAsStringSync();
+    expect(stderr, contains('Node-backed dart:io lowering'));
+    expect(stderr, contains('neutral platform'));
+  });
+
+  test('CLI rejects unsupported target values', () async {
+    final fixture = File(
+      p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-bad-target-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'basic_functions.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [fixture.path, '-o', output.path, '--target=es2020'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.usage);
+    expect(output.existsSync(), isFalse);
+    expect(
+      File(p.join(tempDir.path, 'stderr.log')).readAsStringSync(),
+      contains('target'),
+    );
+  });
+
   test('CLI --metrics prints generated ESM size metrics', () async {
     final fixture = _GoldenFixture(
       root: fixtureDir,
@@ -3704,31 +3846,7 @@ bool _isPendingNewCoreFixture(String fixtureId) {
   return _pendingNewCoreFixtureIds.contains(fixtureId);
 }
 
-const _pendingNewCoreFixtureIds = {
-  'classes/no_such_method',
-  'functions/generators',
-  'imports/deferred_imports',
-  'libraries/async',
-  'libraries/concurrent',
-  'libraries/convert',
-  'libraries/ffi',
-  'libraries/html',
-  'libraries/indexed_db',
-  'libraries/isolate',
-  'libraries/js',
-  'libraries/js_interop',
-  'libraries/mirrors',
-  'libraries/streams',
-  'libraries/time',
-  'libraries/typed_data',
-  'libraries/web_audio',
-  'libraries/web_gl',
-  'packages/async_usage',
-  'packages/glob_usage',
-  'packages/http_parser_usage',
-  'packages/mime_usage',
-  'packages/source_span_usage',
-};
+const _pendingNewCoreFixtureIds = <String>{};
 
 Future<void> _expectNodeOutput(File output, String stdout) async {
   final nodeRun = await Process.run('node', [

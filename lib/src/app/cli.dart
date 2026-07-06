@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 import 'package:dart2esm/dart2esm.dart';
 import 'package:dart2esm/src/app/compiler.dart';
 import 'package:dart2esm/src/foundation/diagnostics/metrics.dart';
+import 'package:dart2esm/src/options.dart';
 
 Future<int> runDart2Esm(
   List<String> args, {
@@ -61,6 +62,8 @@ Future<int> runDart2Esm(
         packagesPath: results['packages'] as String?,
         environmentDefines: results['define'] as List<String>,
         runMain: results['run-main'] as bool,
+        platform: _parsePlatform(results['platform'] as String),
+        target: _parseTarget(results['target'] as String),
         collectMetrics: printMetrics,
         compareDart2JsMetrics: results['compare-dart2js'] as bool,
       ),
@@ -107,6 +110,21 @@ ArgParser _buildParser() {
       help: 'Define a compile-time environment declaration.',
       splitCommas: true,
     )
+    ..addOption(
+      'platform',
+      allowed: [
+        for (final platform in Dart2EsmPlatform.values) platform.cliName,
+      ],
+      defaultsTo: Dart2EsmPlatform.auto.cliName,
+      help: 'Select host platform semantics for dart:* and Web APIs.',
+    )
+    ..addOption(
+      'target',
+      allowed: [for (final target in Dart2EsmTarget.values) target.cliName],
+      defaultsTo: Dart2EsmTarget.esnext.cliName,
+      help:
+          'Select the JavaScript syntax target. Only esnext is supported in 0.1.0.',
+    )
     ..addFlag(
       'run-main',
       defaultsTo: true,
@@ -131,6 +149,22 @@ ArgParser _buildParser() {
       negatable: false,
       help: 'Show this help message.',
     );
+}
+
+Dart2EsmPlatform _parsePlatform(String value) {
+  final platform = Dart2EsmPlatform.tryParse(value);
+  if (platform == null) {
+    throw Dart2EsmUsageException('Unsupported platform: $value');
+  }
+  return platform;
+}
+
+Dart2EsmTarget _parseTarget(String value) {
+  final target = Dart2EsmTarget.tryParse(value);
+  if (target == null) {
+    throw Dart2EsmUsageException('Unsupported target: $value');
+  }
+  return target;
 }
 
 String _usage(ArgParser parser) {

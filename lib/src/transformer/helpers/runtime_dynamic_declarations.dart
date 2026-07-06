@@ -16,6 +16,7 @@ function __dartDynamicCall(receiver, positionalArguments, namedArguments = null)
 function __dartDynamicGet(receiver, name) {
   if (receiver == null) throw new TypeError("Cannot read property " + name + " of " + receiver);
   if ((receiver instanceof Set || receiver instanceof Map) && name === "length") return receiver.size;
+  if (!(name in Object(receiver))) return __dartNoSuchMethod(receiver, "getter", name);
   const value = receiver[name];
   return typeof value === "function" ? value.bind(receiver) : value;
 }
@@ -23,6 +24,7 @@ function __dartDynamicGet(receiver, name) {
       EsmRuntimeHelper.dynamicSet => EsmRawModuleItem('''
 function __dartDynamicSet(receiver, name, value) {
   if (receiver == null) throw new TypeError("Cannot set property " + name + " of " + receiver);
+  if (!(name in Object(receiver))) return __dartNoSuchMethod(receiver, "setter", name + "=", [value]);
   receiver[name] = value;
   return value;
 }
@@ -49,6 +51,13 @@ function __dartDynamicInvoke(receiver, name, positionalArguments, namedArguments
     if (typeof receiver["[]="] === "function") return receiver["[]="](key, value);
     receiver[key] = value;
     return value;
+  }
+  if (name === "callMethod" && args.length >= 1 && args.length <= 2) {
+    const methodName = args[0];
+    const method = receiver[methodName];
+    if (typeof method === "function") {
+      return method.apply(receiver, args.length === 2 ? Array.from(args[1] ?? []) : []);
+    }
   }
   if (receiver instanceof Map) {
     if (name === "containsKey") return receiver.has(args[0]);
@@ -93,7 +102,40 @@ function __dartDynamicInvoke(receiver, name, positionalArguments, namedArguments
   }
   const member = receiver[name];
   if (typeof member === "function") return member.apply(receiver, args);
-  throw new TypeError("Object has no method " + name);
+  return __dartNoSuchMethod(receiver, "method", name, positionalArguments, namedArguments);
+}
+'''),
+      EsmRuntimeHelper.noSuchMethodDispatch => EsmRawModuleItem('''
+function __dartInvocation(kind, name, positionalArguments = [], namedArguments = null) {
+  const memberName = name != null && typeof name === "object" && "name" in name
+    ? name
+    : __dartSymbol(name, name);
+  const displayName = memberName == null ? String(name) : memberName.name;
+  const named = new Map();
+  if (namedArguments instanceof Map) {
+    for (const [key, value] of namedArguments) named.set(key, value);
+  } else if (namedArguments != null) {
+    for (const [key, value] of Object.entries(namedArguments)) {
+      named.set(__dartSymbol(key, key), value);
+    }
+  }
+  return Object.freeze({
+    memberName,
+    positionalArguments: Array.from(positionalArguments),
+    namedArguments: named,
+    get isMethod() { return kind === "method"; },
+    get isGetter() { return kind === "getter"; },
+    get isSetter() { return kind === "setter"; },
+    get isAccessor() { return kind !== "method"; },
+    toString() { return "Invocation(" + kind + " " + displayName + ")"; },
+  });
+}
+function __dartNoSuchMethod(receiver, kind, name, positionalArguments = [], namedArguments = null) {
+  const noSuchMethod = receiver == null ? null : receiver.noSuchMethod;
+  if (typeof noSuchMethod === "function") {
+    return noSuchMethod.call(receiver, __dartInvocation(kind, name, positionalArguments, namedArguments));
+  }
+  throw new TypeError("No such method " + String(name));
 }
 '''),
       EsmRuntimeHelper.expando => EsmRawModuleItem('''

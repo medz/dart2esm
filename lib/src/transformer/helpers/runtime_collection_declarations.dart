@@ -438,9 +438,41 @@ function __dartListRetainWhere(list, test) {
   return null;
 }
 function __dartListAsMap(list) {
-  const map = new Map();
-  for (let index = 0; index < list.length; index++) map.set(index, __dartListMutationRead(list, index));
-  return map;
+  return new (class extends Map {
+    get size() { return Number(list.length); }
+    get(key) {
+      return Number.isInteger(key) && key >= 0 && key < list.length
+        ? __dartListMutationRead(list, key)
+        : undefined;
+    }
+    has(key) {
+      return Number.isInteger(key) && key >= 0 && key < list.length;
+    }
+    entries() {
+      return Array.from(
+        { length: Number(list.length) },
+        (_, index) => [index, __dartListMutationRead(list, index)],
+      )[Symbol.iterator]();
+    }
+    keys() {
+      return Array.from({ length: Number(list.length) }, (_, index) => index)[Symbol.iterator]();
+    }
+    values() {
+      return Array.from(
+        { length: Number(list.length) },
+        (_, index) => __dartListMutationRead(list, index),
+      )[Symbol.iterator]();
+    }
+    [Symbol.iterator]() { return this.entries(); }
+    forEach(callback, thisArg = undefined) {
+      for (let index = 0; index < list.length; index++) {
+        callback.call(thisArg, __dartListMutationRead(list, index), index, this);
+      }
+    }
+    set() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    delete() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    clear() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+  })();
 }
 '''),
       EsmRuntimeHelper.listRangeOps => EsmRawModuleItem('''

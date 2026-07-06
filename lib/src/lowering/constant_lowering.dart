@@ -187,7 +187,10 @@ extension _ConstantLowering on Lowerer {
       );
     }
     if (constant is k.InstanceConstant) {
-      final sdkConstant = sdkIntrinsics.lowerInstanceConstant(constant);
+      final sdkConstant = sdkIntrinsics.lowerInstanceConstant(
+        constant,
+        helpers,
+      );
       if (sdkConstant != null) {
         return sdkConstant;
       }
@@ -240,26 +243,198 @@ extension _ConstantLowering on Lowerer {
     k.InstanceConstant constant,
   ) {
     final classPath = kernelReferencePath(constant.classReference);
-    final helperName = switch (classPath) {
-      'dart:convert::Latin1Codec' => '__dartLatin1Codec',
-      'dart:convert::Utf8Codec' => '__dartUtf8Codec',
+    final expression = switch (classPath) {
+      'dart:convert::Latin1Codec' => EsmCall(
+        callee: const EsmIdentifier('__dartLatin1Codec'),
+        arguments: [
+          EsmBooleanLiteral(
+            _constantBoolField(constant, 'allowInvalid') ?? false,
+          ),
+        ],
+      ),
+      'dart:convert::AsciiCodec' => EsmCall(
+        callee: const EsmIdentifier('__dartAsciiCodec'),
+        arguments: [
+          EsmBooleanLiteral(
+            _constantBoolField(constant, 'allowInvalid') ?? false,
+          ),
+        ],
+      ),
+      'dart:convert::Utf8Codec' => EsmCall(
+        callee: const EsmIdentifier('__dartUtf8Codec'),
+        arguments: [
+          EsmBooleanLiteral(
+            _constantBoolField(constant, 'allowMalformed') ?? false,
+          ),
+        ],
+      ),
+      'dart:convert::Utf8Encoder' => const EsmCall(
+        callee: EsmIdentifier('__dartUtf8Encoder'),
+        arguments: [],
+      ),
+      'dart:convert::Utf8Decoder' => EsmCall(
+        callee: const EsmIdentifier('__dartUtf8Decoder'),
+        arguments: [
+          EsmBooleanLiteral(
+            _constantBoolField(constant, 'allowMalformed') ?? false,
+          ),
+        ],
+      ),
+      'dart:convert::AsciiEncoder' => const EsmCall(
+        callee: EsmIdentifier('__dartAsciiEncoder'),
+        arguments: [],
+      ),
+      'dart:convert::AsciiDecoder' => EsmCall(
+        callee: const EsmIdentifier('__dartAsciiDecoder'),
+        arguments: [
+          EsmBooleanLiteral(
+            _constantBoolField(constant, 'allowInvalid') ?? false,
+          ),
+        ],
+      ),
+      'dart:convert::Latin1Encoder' => const EsmCall(
+        callee: EsmIdentifier('__dartLatin1Encoder'),
+        arguments: [],
+      ),
+      'dart:convert::Latin1Decoder' => EsmCall(
+        callee: const EsmIdentifier('__dartLatin1Decoder'),
+        arguments: [
+          EsmBooleanLiteral(
+            _constantBoolField(constant, 'allowInvalid') ?? false,
+          ),
+        ],
+      ),
+      'dart:convert::JsonEncoder' => EsmCall(
+        callee: const EsmIdentifier('__dartJsonEncoder'),
+        arguments: [
+          if (_constantStringField(constant, 'indent') case final indent?)
+            EsmStringLiteral(indent)
+          else
+            const EsmNullLiteral(),
+          const EsmNullLiteral(),
+        ],
+      ),
+      'dart:convert::JsonDecoder' => const EsmCall(
+        callee: EsmIdentifier('__dartJsonDecoder'),
+        arguments: [],
+      ),
+      'dart:convert::JsonCodec' => const EsmCall(
+        callee: EsmIdentifier('__dartJsonCodec'),
+        arguments: [],
+      ),
+      'dart:convert::JsonUtf8Encoder' => EsmCall(
+        callee: const EsmIdentifier('__dartJsonUtf8Encoder'),
+        arguments: [
+          if (_constantStringField(constant, 'indent') case final indent?)
+            EsmStringLiteral(indent)
+          else
+            const EsmNullLiteral(),
+          const EsmNullLiteral(),
+        ],
+      ),
+      'dart:convert::Base64Encoder' => EsmCall(
+        callee: const EsmIdentifier('__dartBase64Encoder'),
+        arguments: [EsmBooleanLiteral(_constantAnyBool(constant) ?? false)],
+      ),
+      'dart:convert::Base64Decoder' => const EsmCall(
+        callee: EsmIdentifier('__dartBase64Decoder'),
+        arguments: [],
+      ),
+      'dart:convert::Base64Codec' => EsmCall(
+        callee: const EsmIdentifier('__dartBase64Codec'),
+        arguments: [EsmBooleanLiteral(_constantAnyBool(constant) ?? false)],
+      ),
+      'dart:convert::LineSplitter' => const EsmCall(
+        callee: EsmIdentifier('__dartLineSplitter'),
+        arguments: [],
+      ),
+      'dart:convert::HtmlEscapeMode' => _lowerHtmlEscapeModeConstant(constant),
+      'dart:convert::HtmlEscape' => EsmCall(
+        callee: const EsmIdentifier('__dartHtmlEscape'),
+        arguments: [
+          if (_constantHtmlEscapeMode(constant) case final mode?)
+            _lowerHtmlEscapeModeConstant(mode)
+          else
+            const EsmNullLiteral(),
+        ],
+      ),
       _ => null,
     };
-    if (helperName == null) {
-      return null;
-    }
+    if (expression == null) return null;
     helpers.require(EsmRuntimeHelper.encoding);
-    bool? allowMalformed;
-    for (final value in constant.fieldValues.values) {
-      if (value is k.BoolConstant) {
-        allowMalformed = value.value;
-        break;
+    return expression;
+  }
+
+  EsmCall _lowerHtmlEscapeModeConstant(k.InstanceConstant constant) {
+    return EsmCall(
+      callee: const EsmIdentifier('__dartHtmlEscapeMode'),
+      arguments: [
+        EsmObjectLiteral([
+          EsmObjectLiteralProperty.static(
+            key: 'escapeLtGt',
+            value: EsmBooleanLiteral(
+              _constantBoolField(constant, 'escapeLtGt') ?? true,
+            ),
+          ),
+          EsmObjectLiteralProperty.static(
+            key: 'escapeQuot',
+            value: EsmBooleanLiteral(
+              _constantBoolField(constant, 'escapeQuot') ?? true,
+            ),
+          ),
+          EsmObjectLiteralProperty.static(
+            key: 'escapeApos',
+            value: EsmBooleanLiteral(
+              _constantBoolField(constant, 'escapeApos') ?? true,
+            ),
+          ),
+          EsmObjectLiteralProperty.static(
+            key: 'escapeSlash',
+            value: EsmBooleanLiteral(
+              _constantBoolField(constant, 'escapeSlash') ?? true,
+            ),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  bool? _constantBoolField(k.InstanceConstant constant, String fieldName) {
+    for (final entry in constant.fieldValues.entries) {
+      if (kernelReferencePath(entry.key).contains(fieldName) &&
+          entry.value is k.BoolConstant) {
+        return (entry.value as k.BoolConstant).value;
       }
     }
-    return EsmCall(
-      callee: EsmIdentifier(helperName),
-      arguments: [EsmBooleanLiteral(allowMalformed ?? false)],
-    );
+    return null;
+  }
+
+  bool? _constantAnyBool(k.InstanceConstant constant) {
+    for (final value in constant.fieldValues.values) {
+      if (value is k.BoolConstant) return value.value;
+    }
+    return null;
+  }
+
+  String? _constantStringField(k.InstanceConstant constant, String fieldName) {
+    for (final entry in constant.fieldValues.entries) {
+      if (kernelReferencePath(entry.key).contains(fieldName) &&
+          entry.value is k.StringConstant) {
+        return (entry.value as k.StringConstant).value;
+      }
+    }
+    return null;
+  }
+
+  k.InstanceConstant? _constantHtmlEscapeMode(k.InstanceConstant constant) {
+    for (final value in constant.fieldValues.values) {
+      if (value is k.InstanceConstant &&
+          kernelReferencePath(value.classReference) ==
+              'dart:convert::HtmlEscapeMode') {
+        return value;
+      }
+    }
+    return null;
   }
 
   EsmExpression _lowerSymbolLiteral(
@@ -464,6 +639,28 @@ extension _ConstantLowering on Lowerer {
     k.InstanceConstant constant,
     Object context,
   ) {
+    if (kernelReferencePath(constant.classReference) == 'dart:core::Duration') {
+      helpers.require(EsmRuntimeHelper.duration);
+      for (final value in constant.fieldValues.values) {
+        if (value is k.IntConstant) {
+          return EsmCall(
+            callee: helpers.reference(
+              runtimeHelpers,
+              EsmRuntimeHelper.duration,
+            ),
+            arguments: [
+              EsmObjectLiteral([
+                EsmObjectLiteralProperty.static(
+                  key: 'microseconds',
+                  value: EsmNumberLiteral(value.value),
+                ),
+              ]),
+            ],
+          );
+        }
+      }
+      throw UnsupportedCompilerFeature(context, 'constant Duration lowering');
+    }
     if (_isDartCoreObjectConstant(constant)) {
       return const EsmCall(
         callee: EsmPropertyAccess(

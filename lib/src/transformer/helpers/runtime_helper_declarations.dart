@@ -8,6 +8,7 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.bigIntParse => '__dartBigIntParse',
       EsmRuntimeHelper.byteConversionSink => '__dartByteConversionSinkFrom',
       EsmRuntimeHelper.compare => '__dartCompare',
+      EsmRuntimeHelper.concurrent => '__dartMutex',
       EsmRuntimeHelper.coreError => '__dartCoreError',
       EsmRuntimeHelper.constMap => '__dartConstMap',
       EsmRuntimeHelper.constSet => '__dartConstSet',
@@ -27,17 +28,23 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.enumByName => '__dartEnumByName',
       EsmRuntimeHelper.expando => '__dartExpando',
       EsmRuntimeHelper.extensionTypeRep => '__dartExtensionTypeRep',
+      EsmRuntimeHelper.completer => '__dartCompleter',
       EsmRuntimeHelper.finalizer => '__dartFinalizer',
+      EsmRuntimeHelper.ffi => '__dartPointer',
+      EsmRuntimeHelper.future => '__dartFutureDelayed',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.intGcd => '__dartIntGcd',
       EsmRuntimeHelper.intModular => '__dartIntModInverse',
       EsmRuntimeHelper.intParse => '__dartIntParse',
       EsmRuntimeHelper.intShift => '__dartShr',
+      EsmRuntimeHelper.io => '__dartIoEnum',
+      EsmRuntimeHelper.ioNode => '__dartFile',
       EsmRuntimeHelper.iterableJoin => '__dartIterableJoin',
       EsmRuntimeHelper.iterableSearch => '__dartIterableFirstWhere',
       EsmRuntimeHelper.iterableToArray => '__dartIterableToArray',
       EsmRuntimeHelper.iterableWindow => '__dartIterableTakeWhile',
       EsmRuntimeHelper.iterator => '__dartIterator',
+      EsmRuntimeHelper.jsInterop => '__dartJsify',
       EsmRuntimeHelper.isRecord => '__dartIsRecord',
       EsmRuntimeHelper.lazyField => '__dartLazyField',
       EsmRuntimeHelper.listAdd => '__dartListAdd',
@@ -57,6 +64,7 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.mathRandom => '__dartRandom',
       EsmRuntimeHelper.mathRectangle => '__dartRectangle',
       EsmRuntimeHelper.nullCheck => '__dartNullCheck',
+      EsmRuntimeHelper.noSuchMethodDispatch => '__dartNoSuchMethod',
       EsmRuntimeHelper.objectHash => '__dartObjectHash',
       EsmRuntimeHelper.pattern => '__dartPatternRegExp',
       EsmRuntimeHelper.print => '__dartPrint',
@@ -67,9 +75,11 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.regExp => '__dartRegExp',
       EsmRuntimeHelper.regExpEscape => '__dartRegExpEscape',
       EsmRuntimeHelper.safeToString => '__dartSafeToString',
+      EsmRuntimeHelper.isolate => '__dartReceivePort',
       EsmRuntimeHelper.setAddAll => '__dartSetAddAll',
       EsmRuntimeHelper.setOps => '__dartSetLookup',
       EsmRuntimeHelper.splayTree => '__dartSplayTreeSet',
+      EsmRuntimeHelper.stopwatch => '__dartStopwatch',
       EsmRuntimeHelper.stringBuffer => '__dartStringBuffer',
       EsmRuntimeHelper.stringFactory => '__dartStringFromCharCodes',
       EsmRuntimeHelper.stringOps => '__dartStringReplaceFirst',
@@ -82,6 +92,7 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.unmodifiableViews => '__dartUnmodifiableListView',
       EsmRuntimeHelper.uri => '__dartUriParse',
       EsmRuntimeHelper.uriToFilePath => '__dartUriToFilePath',
+      EsmRuntimeHelper.web => '__dartDomRequest',
       EsmRuntimeHelper.weakReference => '__dartWeakReference',
     };
   }
@@ -100,6 +111,8 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.intShift ||
       EsmRuntimeHelper.intModular ||
       EsmRuntimeHelper.intParse => _numberHelperDeclaration(helper),
+      EsmRuntimeHelper.io ||
+      EsmRuntimeHelper.ioNode => _ioHelperDeclaration(helper),
       EsmRuntimeHelper.compare ||
       EsmRuntimeHelper.coreError ||
       EsmRuntimeHelper.argumentChecks ||
@@ -126,12 +139,21 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.dynamicGet ||
       EsmRuntimeHelper.dynamicSet ||
       EsmRuntimeHelper.dynamicInvoke ||
+      EsmRuntimeHelper.noSuchMethodDispatch ||
       EsmRuntimeHelper.expando ||
       EsmRuntimeHelper.finalizer ||
       EsmRuntimeHelper.lazyField ||
       EsmRuntimeHelper.weakReference => _dynamicHelperDeclaration(helper),
+      EsmRuntimeHelper.completer ||
+      EsmRuntimeHelper.future => _asyncHelperDeclaration(helper),
       EsmRuntimeHelper.encoding ||
       EsmRuntimeHelper.byteConversionSink => _convertHelperDeclaration(helper),
+      EsmRuntimeHelper.concurrent ||
+      EsmRuntimeHelper.ffi ||
+      EsmRuntimeHelper.isolate ||
+      EsmRuntimeHelper.jsInterop ||
+      EsmRuntimeHelper.stopwatch ||
+      EsmRuntimeHelper.web => _sdkHelperDeclaration(helper),
       EsmRuntimeHelper.mathPoint ||
       EsmRuntimeHelper.mathRandom ||
       EsmRuntimeHelper.mathRectangle => _mathHelperDeclaration(helper),

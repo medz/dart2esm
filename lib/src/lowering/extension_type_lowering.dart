@@ -267,7 +267,8 @@ extension _ExtensionTypeLowering on Lowerer {
     EsmExtensionTypeMemberSymbol member,
     k.Procedure procedure,
   ) {
-    if (procedure.function.asyncMarker != k.AsyncMarker.Sync) {
+    if (procedure.function.asyncMarker != k.AsyncMarker.Sync &&
+        procedure.function.asyncMarker != k.AsyncMarker.Async) {
       throw UnsupportedCompilerFeature(
         procedure.function,
         'async extension type member lowering',
@@ -285,8 +286,19 @@ extension _ExtensionTypeLowering on Lowerer {
     );
     final body = procedure.function.body;
     if (body == null) {
+      if ((member.descriptor.kind == k.ExtensionTypeMemberKind.Constructor ||
+              member.descriptor.kind == k.ExtensionTypeMemberKind.Factory) &&
+          procedure.function.positionalParameters.isEmpty) {
+        return EsmFunction(
+          name: member.backingName,
+          export: false,
+          parameters: parameters,
+          body: const [EsmReturnStatement(EsmObjectLiteral([]))],
+        );
+      }
       if (procedure.function.positionalParameters.length == 1 &&
-          member.descriptor.kind == k.ExtensionTypeMemberKind.Constructor) {
+          (member.descriptor.kind == k.ExtensionTypeMemberKind.Constructor ||
+              member.descriptor.kind == k.ExtensionTypeMemberKind.Factory)) {
         return EsmFunction(
           name: member.backingName,
           export: false,
@@ -300,6 +312,109 @@ extension _ExtensionTypeLowering on Lowerer {
           ],
         );
       }
+      if (member.descriptor.kind == k.ExtensionTypeMemberKind.Method &&
+          procedure.function.positionalParameters.isNotEmpty) {
+        final receiver = locals[procedure.function.positionalParameters.first]!;
+        final jsArguments = [
+          for (final parameter in procedure.function.positionalParameters.skip(
+            1,
+          ))
+            EsmIdentifier(locals[parameter]!),
+        ];
+        final callee = EsmPropertyAccess(
+          receiver: EsmIdentifier(receiver),
+          property: procedure.name.text,
+        );
+        final usesVarArgsArray =
+            (procedure.name.text == 'create' ||
+                procedure.name.text == 'defineProperty') &&
+            jsArguments.length == 1;
+        return EsmFunction(
+          name: member.backingName,
+          export: false,
+          parameters: parameters,
+          body: [
+            EsmReturnStatement(
+              usesVarArgsArray
+                  ? EsmCall(
+                      callee: EsmPropertyAccess(
+                        receiver: callee,
+                        property: 'apply',
+                      ),
+                      arguments: [EsmIdentifier(receiver), jsArguments.single],
+                    )
+                  : EsmCall(callee: callee, arguments: jsArguments),
+            ),
+          ],
+        );
+      }
+      if (member.descriptor.kind == k.ExtensionTypeMemberKind.Getter &&
+          procedure.function.positionalParameters.length == 1) {
+        final receiver = locals[procedure.function.positionalParameters.first]!;
+        return EsmFunction(
+          name: member.backingName,
+          export: false,
+          parameters: parameters,
+          body: [
+            EsmReturnStatement(
+              EsmPropertyAccess(
+                receiver: EsmIdentifier(receiver),
+                property: procedure.name.text,
+              ),
+            ),
+          ],
+        );
+      }
+      if (member.descriptor.kind == k.ExtensionTypeMemberKind.Setter &&
+          procedure.function.positionalParameters.length == 2) {
+        final receiver = locals[procedure.function.positionalParameters.first]!;
+        final value = locals[procedure.function.positionalParameters[1]]!;
+        return EsmFunction(
+          name: member.backingName,
+          export: false,
+          parameters: parameters,
+          body: [
+            EsmReturnStatement(
+              EsmAssignment(
+                target: EsmPropertyAccess(
+                  receiver: EsmIdentifier(receiver),
+                  property: procedure.name.text.replaceFirst('=', ''),
+                ),
+                value: EsmIdentifier(value),
+              ),
+            ),
+          ],
+        );
+      }
+      if (member.descriptor.kind == k.ExtensionTypeMemberKind.Operator &&
+          procedure.function.positionalParameters.length >= 2) {
+        final receiver = locals[procedure.function.positionalParameters.first]!;
+        final key = locals[procedure.function.positionalParameters[1]]!;
+        return EsmFunction(
+          name: member.backingName,
+          export: false,
+          parameters: parameters,
+          body: [
+            EsmReturnStatement(
+              procedure.name.text == '[]=' &&
+                      procedure.function.positionalParameters.length == 3
+                  ? EsmAssignment(
+                      target: EsmComputedPropertyAccess(
+                        receiver: EsmIdentifier(receiver),
+                        property: EsmIdentifier(key),
+                      ),
+                      value: EsmIdentifier(
+                        locals[procedure.function.positionalParameters[2]]!,
+                      ),
+                    )
+                  : EsmComputedPropertyAccess(
+                      receiver: EsmIdentifier(receiver),
+                      property: EsmIdentifier(key),
+                    ),
+            ),
+          ],
+        );
+      }
       throw UnsupportedCompilerFeature(
         procedure.function,
         'extension type member without body',
@@ -308,6 +423,7 @@ extension _ExtensionTypeLowering on Lowerer {
     return EsmFunction(
       name: member.backingName,
       export: false,
+      isAsync: procedure.function.asyncMarker == k.AsyncMarker.Async,
       parameters: parameters,
       body: _lowerStatementList(semantic, helpers, locals, labels, body),
     );

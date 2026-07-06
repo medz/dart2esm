@@ -514,8 +514,10 @@ bool isDartAsyncStreamConsumerMember(k.Reference reference, String name) {
     return false;
   }
   return path.startsWith('dart:async::StreamConsumer::') ||
+      path.startsWith('dart:async::EventSink::') ||
       path.startsWith('dart:async::StreamSink::') ||
       path.startsWith('dart:async::StreamController::') ||
+      path.contains('::EventSink') ||
       path.contains('::StreamConsumer') ||
       path.contains('::StreamSink') ||
       path.contains('::StreamController');
@@ -572,7 +574,11 @@ bool isDartConvertConverterMember(k.Reference reference, String name) {
       path.contains('::Json') ||
       path.contains('::LineSplitter') ||
       path.contains('::HtmlEscape') ||
-      path.contains('::_FusedConverter');
+      path.contains('::_FusedConverter') ||
+      path.contains('Encoder') ||
+      path.contains('Decoder') ||
+      path.contains('Codec') ||
+      path.contains('Converter');
 }
 
 bool isDartConvertLineSplitterMember(k.Reference reference, String name) {

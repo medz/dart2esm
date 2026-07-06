@@ -46,6 +46,8 @@ final class EsmClassMethod extends EsmNode {
     required this.key,
     required this.kind,
     required this.isStatic,
+    this.isAsync = false,
+    this.isGenerator = false,
     required this.parameters,
     required this.body,
   });
@@ -53,6 +55,8 @@ final class EsmClassMethod extends EsmNode {
   final EsmPropertyKey key;
   final EsmClassMethodKind kind;
   final bool isStatic;
+  final bool isAsync;
+  final bool isGenerator;
   final List<EsmParameter> parameters;
   final List<EsmStatement> body;
 
@@ -70,12 +74,16 @@ final class EsmFunction extends EsmModuleItem {
   const EsmFunction({
     required this.name,
     required this.export,
+    this.isAsync = false,
+    this.isGenerator = false,
     required this.parameters,
     required this.body,
   });
 
   final String name;
   final bool export;
+  final bool isAsync;
+  final bool isGenerator;
   final List<EsmParameter> parameters;
   final List<EsmStatement> body;
 }
@@ -249,6 +257,13 @@ final class EsmReturnStatement extends EsmStatement {
   const EsmReturnStatement(this.expression);
 
   final EsmExpression? expression;
+}
+
+final class EsmYieldStatement extends EsmStatement {
+  const EsmYieldStatement({required this.expression, required this.delegate});
+
+  final EsmExpression expression;
+  final bool delegate;
 }
 
 final class EsmThrowStatement extends EsmStatement {
@@ -443,17 +458,35 @@ final class EsmArrowFunction extends EsmExpression {
 }
 
 final class EsmFunctionExpression extends EsmExpression {
-  const EsmFunctionExpression({required this.parameters, required this.body});
+  const EsmFunctionExpression({
+    required this.parameters,
+    this.isAsync = false,
+    this.isGenerator = false,
+    required this.body,
+  });
 
   final List<EsmParameter> parameters;
+  final bool isAsync;
+  final bool isGenerator;
   final List<EsmStatement> body;
 }
 
 final class EsmArrowBlockFunction extends EsmExpression {
-  const EsmArrowBlockFunction({required this.parameters, required this.body});
+  const EsmArrowBlockFunction({
+    required this.parameters,
+    this.isAsync = false,
+    required this.body,
+  });
 
   final List<EsmParameter> parameters;
+  final bool isAsync;
   final List<EsmStatement> body;
+}
+
+final class EsmAwait extends EsmExpression {
+  const EsmAwait(this.expression);
+
+  final EsmExpression expression;
 }
 
 final class EsmCall extends EsmExpression {

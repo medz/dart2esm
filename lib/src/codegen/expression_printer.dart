@@ -211,11 +211,14 @@ extension _ExpressionPrinter on _EsmPrinter {
     if (expression.body.isEmpty) {
       return '${asyncPrefix}function$generatorMarker($parameters) {}';
     }
-    final bodyPrinter = _EsmPrinter().._indent = _indent + 1;
+    final bodyPrinter = _EsmPrinter(compact: compact).._indent = _indent + 1;
     for (final statement in expression.body) {
       bodyPrinter._emitStatement(statement);
     }
     final body = bodyPrinter._buffer.toString().trimRight();
+    if (compact) {
+      return '${asyncPrefix}function$generatorMarker($parameters) {$body}';
+    }
     return '${asyncPrefix}function$generatorMarker($parameters) {\n$body\n${'  ' * _indent}}';
   }
 
@@ -225,11 +228,12 @@ extension _ExpressionPrinter on _EsmPrinter {
     if (expression.body.isEmpty) {
       return '${asyncPrefix}($parameters) => {}';
     }
-    final bodyPrinter = _EsmPrinter().._indent = _indent + 1;
+    final bodyPrinter = _EsmPrinter(compact: compact).._indent = _indent + 1;
     for (final statement in expression.body) {
       bodyPrinter._emitStatement(statement);
     }
     final body = bodyPrinter._buffer.toString().trimRight();
+    if (compact) return '${asyncPrefix}($parameters) => {$body}';
     return '${asyncPrefix}($parameters) => {\n$body\n${'  ' * _indent}}';
   }
 

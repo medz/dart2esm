@@ -3,7 +3,7 @@ import 'package:dart2esm/src/codegen/esm_codegen.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
 import 'package:dart2esm/src/lowering/kernel_to_esm_ast.dart';
 import 'package:dart2esm/src/options.dart';
-import 'package:dart2esm/src/parser/kernel_parser.dart';
+import 'package:dart2esm/src/kernel/kernel_program.dart';
 import 'package:dart2esm/src/semantic/semantic.dart';
 import 'package:dart2esm/src/semantic/semantic_builder.dart';
 import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
@@ -77,6 +77,78 @@ void main() {
     expect(main.name, 'main');
     expect(main.body, hasLength(1));
     expect(main.body.single, isA<EsmExpressionStatement>());
+  });
+
+  test(
+    'release transformer removes constant branches and unreachable code',
+    () {
+      const input = EsmModule(
+        items: [
+          EsmFunction(
+            name: 'main',
+            export: true,
+            parameters: [],
+            body: [
+              EsmIfStatement(
+                condition: EsmBooleanLiteral(true),
+                thenBody: [
+                  EsmVariableDeclaration(
+                    binding: EsmIdentifierBinding('scoped'),
+                    initializer: EsmNumberLiteral(1),
+                    mutable: false,
+                  ),
+                ],
+                otherwiseBody: [
+                  EsmExpressionStatement(
+                    EsmCall(
+                      callee: EsmIdentifier('__dartPrint'),
+                      arguments: [EsmStringLiteral('unreachable')],
+                    ),
+                  ),
+                ],
+              ),
+              EsmReturnStatement(EsmNumberLiteral(1)),
+              EsmExpressionStatement(EsmStringLiteral('unreachable')),
+            ],
+          ),
+        ],
+      );
+
+      final result = const Transformer().transform(
+        _loweringForModule(
+          input,
+          runtimeHelpers: const [EsmRuntimeHelper.print],
+        ),
+        profile: const Dart2EsmCompilerProfile(
+          platform: Dart2EsmPlatform.node,
+          optimization: Dart2EsmOptimizationLevel.release,
+        ),
+      );
+      final code = const Codegen().generate(result.module, minify: true).code;
+
+      expect(code, contains('{const scoped = 1;}return 1;'));
+      expect(code, isNot(contains('__dartPrint')));
+      expect(code, isNot(contains('unreachable')));
+    },
+  );
+
+  test('compact codegen is smaller without changing the AST', () {
+    const module = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [EsmReturnStatement(EsmNumberLiteral(1))],
+        ),
+      ],
+    );
+
+    final debug = const Codegen().generate(module).code;
+    final release = const Codegen().generate(module, minify: true).code;
+
+    expect(release, 'export function main() {return 1;}\n');
+    expect(release.length, lessThan(debug.length));
   });
 
   test('helper linker emits only symbol-reachable declarations', () {
@@ -315,7 +387,7 @@ LowererReturn _loweringForModule(
   library.addProcedure(main);
   final component = k.Component(libraries: [library]);
   component.setMainMethodAndMode(main.reference, true);
-  final kernel = ParserReturn(component: component, main: main);
+  final kernel = KernelProgram(component: component, main: main);
   final semantic = SemanticBuilderReturn(
     kernel: kernel,
     semantic: Semantic(

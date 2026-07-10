@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "specification": {
+    "languageRepository": "https://github.com/dart-lang/language",
+    "revision": "8db8e6b72490839ccc6e376a9c966a1c6c1df53a",
+    "dartSdk": "3.12.2",
+    "kernelFormat": 130
+  },
+  "semantics": {
+    "profile": "dart-web",
+    "primaryOracle": "dart2js-o2",
+    "portableOracle": "dart-vm",
+    "numbers": "ecmascript-number",
+    "integers": "safe-integer-with-runtime-guards",
+    "int64": "bigint-where-required"
+  },
+  "targets": [
+    {
+      "id": "neutral",
+      "host": "ecmascript",
+      "status": "supported"
+    },
+    {
+      "id": "browser",
+      "host": "mdn-web-api",
+      "status": "supported"
+    },
+    {
+      "id": "node",
+      "host": "node-esm",
+      "status": "supported"
+    }
+  ],
+  "featureGroups": [
+    {
+      "id": "classes",
+      "fixtureDirectory": "classes",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "control-flow",
+      "fixtureDirectory": "control_flow",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "enums",
+      "fixtureDirectory": "enums",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "functions",
+      "fixtureDirectory": "functions",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "imports",
+      "fixtureDirectory": "imports",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "sdk-libraries",
+      "fixtureDirectory": "libraries",
+      "status": "host-dependent",
+      "oracle": "profile"
+    },
+    {
+      "id": "packages",
+      "fixtureDirectory": "packages",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "records",
+      "fixtureDirectory": "records",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "syntax",
+      "fixtureDirectory": "syntax",
+      "status": "supported",
+      "oracle": "dart-vm"
+    },
+    {
+      "id": "variables",
+      "fixtureDirectory": "variables",
+      "status": "supported",
+      "oracle": "dart-vm"
+    }
+  ],
+  "compatibilityBoundaries": [
+    {
+      "id": "dart-ffi",
+      "status": "rejected",
+      "reason": "requires an explicit WebAssembly or Node native addon ABI"
+    },
+    {
+      "id": "dart-mirrors",
+      "status": "rejected",
+      "reason": "closed-world ESM does not expose VM reflection"
+    },
+    {
+      "id": "vm-service",
+      "status": "rejected",
+      "reason": "the Dart VM service protocol has no ESM host equivalent"
+    },
+    {
+      "id": "native-extensions",
+      "status": "rejected",
+      "reason": "requires an explicit host ABI"
+    },
+    {
+      "id": "isolates",
+      "status": "worker-subset",
+      "reason": "top-level entries and structured-clone messages map to module Workers"
+    },
+    {
+      "id": "dart-io",
+      "status": "host-dependent",
+      "reason": "value and Web API semantics are portable; filesystem and process APIs require Node"
+    }
+  ]
+}

@@ -16,7 +16,9 @@ extension _ModulePrinter on _EsmPrinter {
   void _emitModuleItem(EsmModuleItem item) {
     switch (item) {
       case EsmRawModuleItem():
-        _writeIndented(item.source.trimRight());
+        _writeIndented(
+          compact ? _compactRawSource(item.source) : item.source.trimRight(),
+        );
       case EsmClass():
         _emitClass(item);
       case EsmFunction():
@@ -24,6 +26,14 @@ extension _ModulePrinter on _EsmPrinter {
       case EsmStatement():
         _emitStatement(item);
     }
+  }
+
+  String _compactRawSource(String source) {
+    return source
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .join('\n');
   }
 
   void _emitClass(EsmClass klass) {

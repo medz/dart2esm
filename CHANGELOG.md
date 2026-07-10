@@ -1,3 +1,19 @@
+## Unreleased
+
+- Split CLI, compiler driver, Dart/CFE frontend, Kernel adapter, semantic core,
+  transforms, runtime linking, and code generation into explicit boundaries.
+- Add immutable compiler profiles for host, ECMAScript target, and debug or
+  release optimization; Kernel input now requires an explicit host profile.
+- Add stable structured diagnostics with codes, phases, and Kernel source
+  locations.
+- Add safe release optimization, runtime relinking, and compact ESM printing.
+- Define runtime helper ABI contracts for entry names, dependencies, host
+  requirements, and conservative effects.
+- Replace the network-dependent language-spec test with a pinned, machine-
+  readable conformance manifest and offline coverage checks.
+- Add a reproducible debug/release benchmark command with optional dart2js
+  comparison.
+
 ## 0.1.1
 
 - Bundle the minimal Dart 3.12.2 Kernel reader required by the compiler instead

@@ -2,7 +2,7 @@ import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 
 import '../foundation/diagnostics/unsupported_compiler_feature.dart';
 import '../foundation/names/js_names.dart';
-import '../parser/kernel_parser.dart';
+import '../kernel/kernel_program.dart';
 import 'model/class_runtime_plan.dart';
 import 'model/program_model.dart';
 import 'semantic.dart';
@@ -10,7 +10,7 @@ import 'semantic.dart';
 final class SemanticBuilderReturn {
   const SemanticBuilderReturn({required this.kernel, required this.semantic});
 
-  final ParserReturn kernel;
+  final KernelProgram kernel;
   final Semantic semantic;
 }
 
@@ -19,7 +19,7 @@ final class SemanticBuilder {
 
   final Set<String> generatedGlobalNames;
 
-  SemanticBuilderReturn build(ParserReturn kernel) {
+  SemanticBuilderReturn build(KernelProgram kernel) {
     final model = buildEsmProgramModel(kernel.component);
     final allocator = JsNameAllocator(
       generatedGlobalNames: generatedGlobalNames,

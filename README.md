@@ -8,8 +8,8 @@ where they are semantically equivalent, with small Dart semantic helpers emitted
 only when required.
 
 The 0.1 release targets broad Dart syntax and SDK lowering to native ESM. The
-compiler targets modern JavaScript directly; compatibility profiles are
-intentionally out of scope.
+compiler targets ES2022 or newer and separates host semantics from optimization
+mode.
 
 ## Installation
 
@@ -48,6 +48,11 @@ Use `--platform=node`, `--platform=browser`, or `--platform=neutral` to select
 host-specific SDK behavior. The default `auto` mode uses VM Kernel when
 possible and falls back to the browser frontend for web-only libraries.
 
+Use `--mode=debug` for readable stable output or `--mode=release` for safe
+control-flow pruning, runtime relinking, and compact output. The minimum syntax
+contract is selected with `--target=es2022`, `--target=es2023`, or
+`--target=esnext`.
+
 Use `--metrics` to print raw/gzip size, line count, and emitted helper count for
 the generated ESM module. Add `--compare-dart2js` to also compile the same Dart
 source with `dart compile js -O2` and print dart2esm/dart2js size ratios:
@@ -62,21 +67,44 @@ You can also compile an existing Kernel component:
 dart2esm build/input.dill -o dist/input.mjs
 ```
 
+The same stable entrypoint is available as a Dart API:
+
+```dart
+import 'dart:io';
+import 'package:dart2esm/dart2esm.dart';
+
+final result = await compileDartToEsm(
+  Dart2EsmOptions(
+    inputPath: 'bin/main.dart',
+    outputPath: 'dist/main.mjs',
+    workingDirectory: Directory.current,
+    optimization: Dart2EsmOptimizationLevel.release,
+  ),
+);
+```
+
 ## Architecture
 
-1. Dart source is lowered to Kernel with `dart compile kernel
+1. The driver resolves an immutable compiler profile, and the frontend lowers
+   Dart source to Kernel with `dart compile kernel
    --no-link-platform`, falling back to the SDK `frontend_server` with the DDC
    platform for JS/web-only SDK libraries.
-2. Kernel bytes are read with `package:kernel`.
+2. Kernel bytes are validated and adapted into a compiler `KernelProgram`.
 3. Reachability and semantic passes build the declarations and runtime symbols
    needed by the entry module.
-4. Kernel nodes are lowered to a structured ESM AST, normalized, and linked
-   against runtime helpers at symbol granularity. Unreferenced helper functions
-   are not emitted.
-5. Code generation prints native `.mjs`. Public entry-library declarations are
+4. Kernel nodes are lowered to a structured ESM AST and normalized. Release
+   transforms run before runtime linking.
+5. Runtime helper contracts declare entry names, dependencies, host
+   requirements, and effects. Unreferenced helper functions are not emitted.
+6. Code generation prints native `.mjs`. Public entry-library declarations are
    exported as ESM bindings. Imported
    local Dart libraries are bundled into the same output module and only
    re-exported when the Dart entry library exports them.
+
+The complete pipeline and invariants are documented in
+[`doc/compiler-architecture.md`](doc/compiler-architecture.md). The pinned,
+machine-readable support matrix is
+[`spec/conformance.json`](spec/conformance.json).
 
 ## Platform Limits
 

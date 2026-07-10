@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:dart2esm/src/codegen/esm_codegen.dart';
 import 'package:dart2esm/src/compiler.dart';
-import 'package:dart2esm/src/parser/kernel_parser.dart';
+import 'package:dart2esm/src/kernel/kernel_program.dart';
 import 'package:dart2esm/src/ast/esm_ast.dart';
 import 'package:dart2esm/src/lowering/kernel_to_esm_ast.dart';
 import 'package:dart2esm/src/transformer/helpers/helper_loader.dart';
@@ -16,7 +16,7 @@ import 'package:test/test.dart';
 
 void main() {
   test('compiler exposes the concrete pipeline components', () {
-    expect(const KernelParser().parse, isA<Function>());
+    expect(const KernelAdapter().read, isA<Function>());
     expect(const SemanticBuilder().build, isA<Function>());
     expect(const Lowerer().lower, isA<Function>());
     expect(const Transformer().transform, isA<Function>());
@@ -624,7 +624,7 @@ export function main() {
     component.setMainMethodAndMode(main.reference, true);
 
     final semantic = const SemanticBuilder().build(
-      ParserReturn(component: component, main: main),
+      KernelProgram(component: component, main: main),
     );
 
     expect(
@@ -680,7 +680,7 @@ console.log(main());
     expect(result.code, contains('export function* main() {\n  yield 1;\n}'));
   });
 
-  test('rejects components without a main method in the parser component', () {
+  test('kernel adapter rejects components without a main method', () {
     final compiler = Compiler(options: const CompilerOptions(runMain: true));
 
     expect(
@@ -766,7 +766,7 @@ LowererReturn _loweringForModule(
   library.addProcedure(main);
   final component = k.Component(libraries: [library]);
   component.setMainMethodAndMode(main.reference, true);
-  final kernel = ParserReturn(component: component, main: main);
+  final kernel = KernelProgram(component: component, main: main);
   final semantic = SemanticBuilderReturn(
     kernel: kernel,
     semantic: Semantic(

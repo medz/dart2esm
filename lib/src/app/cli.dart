@@ -2,9 +2,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:dart2esm/dart2esm.dart';
-import 'package:dart2esm/src/app/compiler.dart';
 import 'package:dart2esm/src/foundation/diagnostics/metrics.dart';
-import 'package:dart2esm/src/options.dart';
 
 Future<int> runDart2Esm(
   List<String> args, {
@@ -63,12 +61,14 @@ Future<int> runDart2Esm(
         environmentDefines: results['define'] as List<String>,
         runMain: results['run-main'] as bool,
         platform: _parsePlatform(results['platform'] as String),
+        ecmaTarget: _parseEcmaTarget(results['target'] as String),
+        optimization: _parseOptimization(results['mode'] as String),
         collectMetrics: printMetrics,
         compareDart2JsMetrics: results['compare-dart2js'] as bool,
       ),
     );
-    for (final diagnostic in result.diagnostics) {
-      err.writeln(diagnostic);
+    for (final diagnostic in result.diagnosticEntries) {
+      err.writeln(diagnostic.render());
     }
     final esmMetrics = result.esmMetrics;
     if (result.success && esmMetrics != null) {
@@ -117,6 +117,20 @@ ArgParser _buildParser() {
       defaultsTo: Dart2EsmPlatform.auto.cliName,
       help: 'Select host platform semantics for dart:* and Web APIs.',
     )
+    ..addOption(
+      'target',
+      allowed: [for (final target in Dart2EsmEcmaTarget.values) target.cliName],
+      defaultsTo: Dart2EsmEcmaTarget.es2022.cliName,
+      help: 'Set the minimum ECMAScript target.',
+    )
+    ..addOption(
+      'mode',
+      allowed: [
+        for (final level in Dart2EsmOptimizationLevel.values) level.cliName,
+      ],
+      defaultsTo: Dart2EsmOptimizationLevel.debug.cliName,
+      help: 'Select readable debug or optimized release output.',
+    )
     ..addFlag(
       'run-main',
       defaultsTo: true,
@@ -149,6 +163,22 @@ Dart2EsmPlatform _parsePlatform(String value) {
     throw Dart2EsmUsageException('Unsupported platform: $value');
   }
   return platform;
+}
+
+Dart2EsmEcmaTarget _parseEcmaTarget(String value) {
+  final target = Dart2EsmEcmaTarget.tryParse(value);
+  if (target == null) {
+    throw Dart2EsmUsageException('Unsupported ECMAScript target: $value');
+  }
+  return target;
+}
+
+Dart2EsmOptimizationLevel _parseOptimization(String value) {
+  final level = Dart2EsmOptimizationLevel.tryParse(value);
+  if (level == null) {
+    throw Dart2EsmUsageException('Unsupported compiler mode: $value');
+  }
+  return level;
 }
 
 String _usage(ArgParser parser) {

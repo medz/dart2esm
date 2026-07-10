@@ -5,6 +5,7 @@ import 'package:dart2esm/src/compiler.dart';
 import 'package:dart2esm/src/kernel/kernel_program.dart';
 import 'package:dart2esm/src/ast/esm_ast.dart';
 import 'package:dart2esm/src/lowering/kernel_to_esm_ast.dart';
+import 'package:dart2esm/src/options.dart';
 import 'package:dart2esm/src/transformer/helpers/helper_loader.dart';
 import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
 import 'package:dart2esm/src/semantic/semantic.dart';
@@ -484,6 +485,7 @@ try {
     final linked = const HelperLoader().load(
       module: module,
       helpers: const [EsmRuntimeHelper.print],
+      platform: Dart2EsmPlatform.node,
     );
 
     expect(linked.helpers, [

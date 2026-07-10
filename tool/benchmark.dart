@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart2esm/src/app/compiler.dart';
+import 'package:dart2esm/src/foundation/compiler_process.dart';
 import 'package:dart2esm/src/foundation/diagnostics/metrics.dart';
 import 'package:dart2esm/src/options.dart';
 import 'package:path/path.dart' as p;
@@ -72,10 +73,12 @@ Future<void> main(List<String> arguments) async {
             ),
           );
           final baselineStopwatch = Stopwatch()..start();
-          final baselineResult = await Process.run(
+          final baselineResult = await runCompilerProcess(
             Platform.resolvedExecutable,
             ['compile', 'js', '-O2', '-o', baselineOutput.path, source.path],
             workingDirectory: Directory.current.path,
+            timeout: defaultCompilerProcessTimeout,
+            description: 'dart2js benchmark compilation',
           );
           baselineStopwatch.stop();
           if (baselineResult.exitCode != 0) {

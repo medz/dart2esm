@@ -6,6 +6,8 @@ import 'package:dart2esm/src/foundation/diagnostics/compiler_exception.dart';
 import 'package:dart2esm/src/foundation/diagnostics/metrics.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_kernel_node.dart';
+import 'package:dart2esm/src/foundation/compiler_process.dart';
+import 'package:dart2esm/src/foundation/file_paths.dart';
 import 'package:dart2esm/src/foundation/kernel/kernel_header.dart';
 import 'package:dart2esm/src/frontend/dart_frontend.dart';
 import 'package:dart2esm/src/options.dart';
@@ -24,12 +26,12 @@ final class CompilerDriver {
   final DartFrontend frontend;
 
   Future<Dart2EsmResult> compile(Dart2EsmOptions options) async {
-    final input = _resolveFile(options.workingDirectory, options.inputPath);
+    final input = resolveFile(options.workingDirectory, options.inputPath);
     if (!input.existsSync()) {
       throw Dart2EsmUsageException('Input file does not exist: ${input.path}');
     }
 
-    final output = _resolveFile(options.workingDirectory, options.outputPath);
+    final output = resolveFile(options.workingDirectory, options.outputPath);
     final tempDir = await Directory.systemTemp.createTemp('dart2esm-');
     Dart2EsmCompilerProfile? profile;
     try {
@@ -40,6 +42,7 @@ final class CompilerDriver {
           requestedPlatform: options.platform,
           packagesPath: options.packagesPath,
           environmentDefines: options.environmentDefines,
+          processTimeout: options.processTimeout,
         ),
         tempDir,
       );
@@ -121,14 +124,17 @@ final class CompilerDriver {
         diagnosticEntries: [error.toDiagnostic()],
       );
     } finally {
-      await tempDir.delete(recursive: true);
+      await _deleteTemporaryDirectory(tempDir);
     }
   }
 }
 
-File _resolveFile(Directory workingDirectory, String path) {
-  if (p.isAbsolute(path)) return File(path);
-  return File(p.normalize(p.join(workingDirectory.path, path)));
+Future<void> _deleteTemporaryDirectory(Directory directory) async {
+  try {
+    await directory.delete(recursive: true);
+  } on FileSystemException {
+    // Cleanup must not replace the compilation result or its original error.
+  }
 }
 
 Future<CodeSizeMetrics> _compileDart2JsMetrics(
@@ -150,14 +156,16 @@ Future<CodeSizeMetrics> _compileDart2JsMetrics(
     '-o',
     output.path,
     if (options.packagesPath case final packagesPath?)
-      '--packages=${_resolveFile(options.workingDirectory, packagesPath).path}',
+      '--packages=${resolveFile(options.workingDirectory, packagesPath).path}',
     for (final define in options.environmentDefines) '-D$define',
     input.path,
   ];
-  final result = await Process.run(
+  final result = await runCompilerProcess(
     Platform.resolvedExecutable,
     args,
     workingDirectory: options.workingDirectory.path,
+    timeout: options.processTimeout,
+    description: 'dart2js metrics compilation',
   );
   if (result.exitCode != 0) {
     throw Dart2EsmException(
@@ -186,6 +194,7 @@ final class Dart2EsmOptions {
     this.optimization = Dart2EsmOptimizationLevel.debug,
     this.collectMetrics = false,
     this.compareDart2JsMetrics = false,
+    this.processTimeout = defaultCompilerProcessTimeout,
   });
 
   final String inputPath;
@@ -199,6 +208,7 @@ final class Dart2EsmOptions {
   final Dart2EsmOptimizationLevel optimization;
   final bool collectMetrics;
   final bool compareDart2JsMetrics;
+  final Duration processTimeout;
 }
 
 final class Dart2EsmResult {

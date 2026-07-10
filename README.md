@@ -122,7 +122,7 @@ final result = await compileDartToEsm(
    re-exported when the Dart entry library exports them.
 
 The complete pipeline and invariants are documented in
-[`doc/compiler-architecture.md`](doc/compiler-architecture.md). The pinned,
+[`docs/compiler-architecture.md`](docs/compiler-architecture.md). The pinned,
 machine-readable support matrix is
 [`spec/conformance.json`](spec/conformance.json).
 

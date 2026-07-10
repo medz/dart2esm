@@ -67,6 +67,10 @@ extension _ExpressionPrinter on _EsmPrinter {
     );
     final operator = _emitBinaryOperator(expression.operator);
     if (compact && operator != 'instanceof' && operator != 'in') {
+      if (expression.operator == EsmBinaryOperator.subtract &&
+          right.startsWith('-')) {
+        return '$left- $right';
+      }
       return '$left$operator$right';
     }
     return '$left $operator $right';

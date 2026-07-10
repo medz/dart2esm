@@ -1,3 +1,5 @@
+const defaultCompilerProcessTimeout = Duration(minutes: 5);
+
 enum Dart2EsmPlatform {
   auto('auto'),
   neutral('neutral'),

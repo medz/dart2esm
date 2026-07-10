@@ -1,9 +1,10 @@
+import 'package:dart2esm/src/options.dart';
 import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
 import 'package:test/test.dart';
 
 void main() {
   test('helper references record the required runtime helper', () {
-    final helpers = EsmRuntimeHelperUseSet();
+    final helpers = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
 
     final identifier = helpers.reference(
       const EsmRuntimeHelperRegistry(),
@@ -18,7 +19,7 @@ void main() {
   });
 
   test('helper requirements own transitive helper closure', () {
-    final helpers = EsmRuntimeHelperUseSet();
+    final helpers = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
 
     helpers.require(EsmRuntimeHelper.mapSet);
 
@@ -49,7 +50,7 @@ void main() {
   });
 
   test('iterable materialization helper is shared across runtime helpers', () {
-    final helpers = EsmRuntimeHelperUseSet();
+    final helpers = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
 
     helpers
       ..require(EsmRuntimeHelper.iterableJoin)

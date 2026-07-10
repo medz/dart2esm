@@ -2,7 +2,7 @@ part of 'runtime_helpers.dart';
 
 final class EsmRuntimeHelperUseSet {
   EsmRuntimeHelperUseSet({
-    this.platform = Dart2EsmPlatform.node,
+    required this.platform,
     this.registry = const EsmRuntimeHelperRegistry(),
   });
 

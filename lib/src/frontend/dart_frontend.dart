@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:dart2esm/src/foundation/diagnostics/compiler_exception.dart';
+import 'package:dart2esm/src/foundation/compiler_process.dart';
+import 'package:dart2esm/src/foundation/file_paths.dart';
 import 'package:dart2esm/src/options.dart';
 import 'package:path/path.dart' as p;
 
@@ -11,6 +13,7 @@ final class DartFrontendRequest {
     required this.requestedPlatform,
     this.packagesPath,
     this.environmentDefines = const [],
+    this.processTimeout = defaultCompilerProcessTimeout,
   });
 
   final File input;
@@ -18,6 +21,7 @@ final class DartFrontendRequest {
   final Dart2EsmPlatform requestedPlatform;
   final String? packagesPath;
   final List<String> environmentDefines;
+  final Duration processTimeout;
 }
 
 final class DartFrontendResult {
@@ -88,14 +92,16 @@ Future<ProcessResult> _buildVmKernel(DartFrontendRequest request, File output) {
     '-o',
     output.path,
     if (request.packagesPath case final packagesPath?)
-      '--packages=${_resolveFile(request.workingDirectory, packagesPath).path}',
+      '--packages=${resolveFile(request.workingDirectory, packagesPath).path}',
     for (final define in request.environmentDefines) '-D$define',
     request.input.path,
   ];
-  return Process.run(
+  return runCompilerProcess(
     Platform.resolvedExecutable,
     args,
     workingDirectory: request.workingDirectory.path,
+    timeout: request.processTimeout,
+    description: 'Dart VM Kernel compilation',
   );
 }
 
@@ -137,21 +143,18 @@ Future<ProcessResult> _buildDdcKernel(
     output.path,
     if (request.packagesPath case final packagesPath?) ...[
       '--packages',
-      _resolveFile(request.workingDirectory, packagesPath).path,
+      resolveFile(request.workingDirectory, packagesPath).path,
     ],
     for (final define in request.environmentDefines) '-D$define',
     request.input.path,
   ];
-  return Process.run(
+  return runCompilerProcess(
     dartaotruntime.path,
     args,
     workingDirectory: request.workingDirectory.path,
+    timeout: request.processTimeout,
+    description: 'DDC Kernel compilation',
   );
-}
-
-File _resolveFile(Directory workingDirectory, String path) {
-  if (p.isAbsolute(path)) return File(path);
-  return File(p.normalize(p.join(workingDirectory.path, path)));
 }
 
 Directory _dartSdkRoot() {

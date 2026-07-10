@@ -505,6 +505,31 @@ function __dartPrint(value) {
     expect(release.length, lessThan(debug.length));
   });
 
+  test('compact codegen separates subtraction from a negative operand', () {
+    const module = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmReturnStatement(
+              EsmBinary(
+                left: EsmNumberLiteral(1),
+                operator: EsmBinaryOperator.subtract,
+                right: EsmNumberLiteral(-2),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final code = const Codegen().generate(module, minify: true).code;
+
+    expect(code, 'export function main(){return 1- -2;}\n');
+  });
+
   test('compact codegen preserves raw JavaScript token semantics', () {
     const module = EsmModule(
       items: [
@@ -539,6 +564,7 @@ function test(value) {
     final linked = const HelperLoader().load(
       module: module,
       helpers: const [EsmRuntimeHelper.mapOps],
+      platform: Dart2EsmPlatform.node,
     );
     final code = const Codegen().generate(linked.module).code;
 
@@ -554,8 +580,25 @@ function test(value) {
     );
 
     expect(
-      () => const HelperLoader().load(module: module, helpers: const []),
+      () => const HelperLoader().load(
+        module: module,
+        helpers: const [],
+        platform: Dart2EsmPlatform.node,
+      ),
       throwsStateError,
+    );
+  });
+
+  test('helper loader validates helpers against the active platform', () {
+    const module = EsmModule(items: []);
+
+    expect(
+      () => const HelperLoader().load(
+        module: module,
+        helpers: const [EsmRuntimeHelper.ioNode],
+        platform: Dart2EsmPlatform.browser,
+      ),
+      throwsA(isA<UnsupportedCompilerFeature>()),
     );
   });
 

@@ -1,4 +1,5 @@
 import '../../ast/esm_ast.dart';
+import '../../options.dart';
 import 'runtime_helper_linker.dart';
 import 'runtime_helpers.dart';
 
@@ -26,8 +27,9 @@ final class HelperLoader {
   HelperLoaderReturn load({
     required EsmModule module,
     required Iterable<EsmRuntimeHelper> helpers,
+    required Dart2EsmPlatform platform,
   }) {
-    final helperUseSet = EsmRuntimeHelperUseSet();
+    final helperUseSet = EsmRuntimeHelperUseSet(platform: platform);
     for (final helper in helpers) {
       helperUseSet.require(helper);
     }

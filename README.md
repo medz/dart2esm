@@ -1,166 +1,268 @@
 # dart2esm
 
-`dart2esm` is a Dart-to-native-ESM compiler.
+[![pub package](https://img.shields.io/pub/v/dart2esm.svg)](https://pub.dev/packages/dart2esm)
+[![Dart SDK](https://img.shields.io/badge/Dart-3.12-0175C2?logo=dart)](https://dart.dev/)
+[![license](https://img.shields.io/github/license/medz/dart2esm.svg)](LICENSE)
 
-The compiler uses Dart's Common Front End and Kernel IR as the frontend, then
-emits clean ECMAScript modules. JavaScript and Node primitives are used directly
-where they are semantically equivalent, with small Dart semantic helpers emitted
-only when required.
+A Dart-to-native-ESM compiler built on Dart's Common Front End and Kernel IR.
 
-The 0.1 release targets broad Dart syntax and SDK lowering to native ESM. The
-compiler targets ES2022 or newer and separates host semantics from optimization
-mode.
+`dart2esm` emits modern ECMAScript modules directly. It uses JavaScript, Web
+APIs, and Node primitives where their behavior matches Dart, then links only the
+small runtime helpers required by the program.
+
+## Highlights
+
+- Native ESM output with real `import` and `export` bindings.
+- ES2022, ES2023, and ESNext syntax targets.
+- Neutral ECMAScript, browser, and Node host profiles.
+- Readable debug output and optimized release output.
+- Member reachability, runtime tree shaking, safe name mangling, and constant
+  compaction in release builds.
+- Node-backed `dart:io` and Worker-backed isolate support where host semantics
+  exist.
+- Structured diagnostics and raw/gzip output metrics.
+- Dart VM versus Node behavior tests and a pinned conformance manifest.
+
+> [!IMPORTANT]
+> `dart2esm` is a 0.x compiler, not a byte-for-byte Dart VM replacement. FFI,
+> VM service APIs, native extensions, and full reflection require runtime
+> facilities that native ESM does not provide.
+
+## Requirements
+
+`dart2esm 0.2.x` requires Dart 3.12.x. The compiler reads the Dart 3.12 Kernel
+binary format directly, so newer SDK versions are intentionally rejected until
+their Kernel format is adopted and tested.
+
+Generated modules require an ES2022-capable host. Host-specific APIs additionally
+require the selected browser or Node capabilities.
 
 ## Installation
 
-dart2esm 0.1.x requires Dart 3.12 because it reads that SDK's Kernel binary
-format directly.
+Install the command globally from pub.dev:
 
 ```sh
 dart pub global activate dart2esm
 ```
 
-## Usage
+Verify the installation:
 
 ```sh
-dart2esm bin/main.dart -o dist/main.mjs
+dart2esm --version
 ```
 
-For a complete first run:
+## Quick start
+
+Given `hello.dart`:
+
+```dart
+void main() {
+  print('Hello from native ESM');
+}
+```
+
+Compile and run it:
 
 ```sh
-dart2esm example/hello.dart -o /tmp/hello.mjs
-node /tmp/hello.mjs
+dart2esm hello.dart -o hello.mjs --mode=release
+node hello.mjs
 ```
 
-By default the generated module invokes `main()` at top level. Use
-`--no-run-main` when the output should be imported as a module without executing
-the Dart entrypoint:
+By default, the generated module invokes `main()` at module evaluation time.
+Use `--no-run-main` when the output will be imported by another ESM module:
 
 ```sh
-dart2esm lib/example.dart -o dist/example.mjs --no-run-main
+dart2esm lib/api.dart -o dist/api.mjs --mode=release --no-run-main
 ```
 
-Pass compile-time environment declarations with `-Dkey=value` or
-`--define=key=value`; multiple values can be repeated or comma-separated.
+```js
+import { calculate } from "./dist/api.mjs";
 
-Use `--platform=node`, `--platform=browser`, or `--platform=neutral` to select
-host-specific SDK behavior. The default `auto` mode uses VM Kernel when
-possible and falls back to the browser frontend for web-only libraries.
+console.log(calculate());
+```
 
-Use `--mode=debug` for readable stable output or `--mode=release` for safe
-control-flow pruning, member-level tree shaking, internal and local binding
-mangling, private member shortening, constant compaction, runtime relinking, and
-compact output. Exported names, runtime ABI contracts, dynamic member names,
-raw JavaScript properties, and user-visible strings remain stable. Linked
-runtime bindings are module-private and shortened only after dependency
-resolution. The minimum syntax contract is selected with `--target=es2022`,
-`--target=es2023`, or `--target=esnext`.
+Only declarations exported by the Dart entry library become public ESM exports.
+Imported Dart libraries are bundled into the same output module.
 
-Use `--metrics` to print raw/gzip size, line count, and emitted helper count for
-the generated ESM module. Add `--compare-dart2js` to also compile the same Dart
-source with `dart compile js -O2` and print dart2esm/dart2js size ratios:
+## Compiler modes
+
+### Debug
+
+`--mode=debug` is the default. It keeps stable, readable names and formatted
+output for inspection.
+
+### Release
+
+`--mode=release` applies behavior-preserving production transforms:
+
+- unreachable control-flow removal;
+- conservative member reachability;
+- local, internal, private-member, and runtime binding shortening;
+- canonical constant and frozen-object compaction;
+- runtime dependency relinking;
+- compact structured ESM and runtime printing.
+
+Exports, runtime ABI contracts, dynamic selector names, raw JavaScript
+properties, and user-visible strings remain protected.
+
+## Command reference
+
+```text
+dart2esm <input.dart|input.dill> -o <output.mjs> [options]
+```
+
+| Option | Description |
+| --- | --- |
+| `-o, --output` | Required output `.mjs` path. |
+| `--packages` | Explicit `package_config.json` path. |
+| `-D, --define` | Compile-time environment declaration; repeatable. |
+| `--platform` | `auto`, `neutral`, `browser`, or `node`. |
+| `--target` | `es2022`, `es2023`, or `esnext`. |
+| `--mode` | `debug` or `release`. |
+| `--[no-]run-main` | Enable or disable the top-level `main()` invocation. |
+| `--metrics` | Print raw/gzip size, line count, and runtime helper count. |
+| `--compare-dart2js` | Compile a dart2js `-O2` baseline and print size ratios. |
+| `--version` | Print the package version. |
+| `-h, --help` | Print complete CLI help. |
+
+Existing Kernel components can also be compiled, but they require an explicit
+host profile:
 
 ```sh
-dart2esm lib/example.dart -o dist/example.mjs --metrics --compare-dart2js
+dart2esm build/input.dill -o dist/input.mjs --platform=node
 ```
 
-Generated code is native ESM without CommonJS wrappers or legacy `var`
-bindings. Only the public entry-library surface is exported; compiler and
-runtime implementation details stay module-private. Compiler-owned output uses
-ES2022 `const`/`let`, classes, arrow functions, `async`/`await`, optional
-chaining, and nullish coalescing where they preserve Kernel semantics. Release
-quality is gated by Dart VM versus Node behavior tests plus raw and gzip
-benchmarks.
+## Platform profiles
 
-Release output uses numeric canonical-constant ids, compact frozen object
-literals, and one module-local helper for repeated writable field descriptors.
-On the checked-in YAML benchmark, release ESM is 175,963 raw bytes and 38,532
-gzip bytes versus 196,930 and 61,256 for dart2js `-O2` (0.894x raw, 0.629x
-gzip). Runtime helpers remain controlled raw ESM and are compacted with a
-token-aware printer. Source maps are not emitted yet and remain the main debug
-output quality gap.
+| Profile | Intended host | Behavior |
+| --- | --- | --- |
+| `auto` | CLI convenience | Uses VM Kernel when possible and selects the concrete host profile; retries the browser frontend for web-only libraries. |
+| `neutral` | Portable ECMAScript | Rejects Node-only and Web-only runtime capabilities. |
+| `browser` | Modern browsers | Uses MDN Web API semantics and browser module Workers. |
+| `node` | Modern Node.js | Enables `node:` imports, filesystem/process APIs, Web APIs, and module Workers. |
 
-You can also compile an existing Kernel component:
+### `dart:io`
 
-```sh
-dart2esm build/input.dill -o dist/input.mjs
-```
+`dart:io` lowering is capability-based:
 
-The same stable entrypoint is available as a Dart API:
+- Value APIs such as `FileMode`, `HeaderValue`, `ContentType`, and `Cookie`
+  emit ordinary ECMAScript.
+- Client HTTP maps to Fetch and Headers.
+- Client WebSockets map to the host WebSocket API.
+- Files, directories, links, processes, and standard IO require the Node
+  profile and emit static `node:` imports.
+
+Unsupported raw sockets, HTTP servers, custom TLS contexts, and browser
+handshake features fail explicitly instead of receiving approximate behavior.
+
+### Isolates
+
+Top-level `Isolate.spawn` and `Isolate.run` entries map to Node Workers or
+browser module Workers. Ports use `MessageChannel`, and messages use structured
+cloning. Closures, custom object prototypes, paused startup, and VM-specific
+error/exit-port behavior remain outside the supported Worker subset.
+
+## Compatibility boundary
+
+The compiler covers Dart features that can be represented with ECMAScript,
+Web APIs, Node APIs, and a finite runtime library.
+
+| Area | Status |
+| --- | --- |
+| Classes, functions, records, enums, patterns, control flow | Supported |
+| Imports and packages | Bundled into one ESM output module |
+| SDK libraries | Host-dependent |
+| JavaScript numbers and guarded safe integers | Supported |
+| 64-bit operations requiring exact width | BigInt where required |
+| `dart:io` | Portable subset plus Node capabilities |
+| `dart:isolate` | Worker-compatible subset |
+| `dart:ffi` | Rejected; requires a WebAssembly or Node native-addon ABI |
+| `dart:mirrors` | Rejected; closed-world ESM has no VM reflection service |
+| VM service and native extensions | Rejected |
+| Source maps | Not emitted yet |
+
+The authoritative machine-readable matrix is
+[`spec/conformance.json`](spec/conformance.json).
+
+## Dart API
+
+The compiler is also available as a library:
 
 ```dart
 import 'dart:io';
+
 import 'package:dart2esm/dart2esm.dart';
 
-final result = await compileDartToEsm(
-  Dart2EsmOptions(
-    inputPath: 'bin/main.dart',
-    outputPath: 'dist/main.mjs',
-    workingDirectory: Directory.current,
-    optimization: Dart2EsmOptimizationLevel.release,
-  ),
-);
+Future<void> main() async {
+  final result = await compileDartToEsm(
+    Dart2EsmOptions(
+      inputPath: 'bin/main.dart',
+      outputPath: 'dist/main.mjs',
+      workingDirectory: Directory.current,
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    ),
+  );
+
+  if (!result.success) {
+    for (final diagnostic in result.diagnosticEntries) {
+      stderr.writeln(diagnostic.render());
+    }
+    exitCode = 1;
+  }
+}
 ```
+
+The public API exposes compiler profiles, structured diagnostics, code-size
+metrics, results, and the `CompilerDriver` entrypoint.
+
+## Output size
+
+Use the repository benchmark instead of assuming that one compiler is always
+smaller:
+
+```sh
+dart run tool/benchmark.dart --compare-dart2js
+```
+
+On the checked-in YAML fixture with Dart 3.12.2:
+
+| Compiler | Raw | Gzip |
+| --- | ---: | ---: |
+| dart2esm release | 175,963 B | 38,532 B |
+| dart2js `-O2` | 196,930 B | 61,256 B |
+| Ratio | **0.894x** | **0.629x** |
+
+This fixture is a regression benchmark, not a universal size guarantee.
 
 ## Architecture
 
-1. The driver resolves an immutable compiler profile, and the frontend lowers
-   Dart source to Kernel with `dart compile kernel
-   --no-link-platform`, falling back to the SDK `frontend_server` with the DDC
-   platform for JS/web-only SDK libraries.
-2. Kernel bytes are validated and adapted into a compiler `KernelProgram`.
-3. Reachability and semantic passes build the declarations and runtime symbols
-   needed by the entry module.
-4. Kernel nodes are lowered to a structured ESM AST and normalized. Release
-   transforms run before runtime linking.
-5. Runtime helper contracts declare entry names, dependencies, host
-   requirements, and effects. Unreferenced helper functions are not emitted.
-6. Code generation prints native `.mjs`. Public entry-library declarations are
-   exported as ESM bindings. Imported
-   local Dart libraries are bundled into the same output module and only
-   re-exported when the Dart entry library exports them.
+The production pipeline is:
 
-The complete pipeline and invariants are documented in
-[`doc/compiler-architecture.md`](doc/compiler-architecture.md). The pinned,
-machine-readable support matrix is
-[`spec/conformance.json`](spec/conformance.json).
+```text
+Dart source / Kernel
+  -> frontend and profile resolution
+  -> Kernel validation
+  -> semantic analysis and reachability
+  -> structured ESM lowering
+  -> release transforms
+  -> runtime contract linking
+  -> ESM code generation
+```
 
-## Platform Limits
+See [`doc/compiler-architecture.md`](doc/compiler-architecture.md) for stage
+contracts and invariants.
 
-`dart:io` lowering is split by host capability:
+## Development
 
-- Pure value APIs such as `FileMode`, `HeaderValue`, `ContentType`, and `Cookie`
-  emit ordinary ECMAScript and remain available in neutral output.
-- Client HTTP uses the Fetch and Headers Web APIs. Client WebSockets use the
-  WebSocket Web API. These mappings work in browser builds and modern Node
-  runtimes without importing Node modules.
-- Files, directories, links, processes, and standard IO require
-  `--platform=node` or the default `auto` mode. They emit static `node:`
-  imports and are rejected by browser and neutral builds.
+```sh
+dart analyze
+dart test
+npm run test:esm
+dart run tool/benchmark.dart --compare-dart2js
+dart pub publish --dry-run
+```
 
-Fetch behavior intentionally follows the host Web API, including CORS,
-credential, forbidden-header, and redirect rules. WebSocket custom handshake
-headers, custom `HttpClient` instances, and Dart ping intervals have no Web API
-equivalent and fail explicitly. Raw sockets, HTTP servers, custom TLS contexts,
-and synchronous compression are not rewritten to superficially similar browser
-APIs.
+## License
 
-## VM Compatibility Boundary
-
-Native ESM can cover Dart language semantics and SDK APIs that have an
-equivalent JavaScript, Web API, or Node primitive. It cannot be a byte-for-byte
-replacement for the Dart VM runtime:
-
-- `Isolate.spawn` and `Isolate.run` use real Node Workers or browser module
-  Workers for top-level entry functions. Ports use `MessageChannel`, and
-  supported messages cross the worker boundary using structured cloning.
-  Closures, custom object prototypes, paused startup, and VM-specific error/exit
-  port behavior are rejected until the compiler can emit dedicated worker entry
-  modules and reconstruction metadata.
-- `dart:ffi` is rejected. A Dart `Pointer` refers to native C memory and
-  `DynamicLibrary` resolves C symbols; wrapping an integer address in a JavaScript
-  object does not implement either behavior. Future FFI support requires an
-  explicit Node Native Addon ABI or WebAssembly ABI backend.
-- VM service APIs, native extensions, and full runtime reflection have no
-  general ESM equivalent and remain explicit compatibility boundaries.
+[MIT](LICENSE)

@@ -20,4 +20,4 @@ export 'src/options.dart'
         Dart2EsmPlatform;
 
 /// The current package version.
-const packageVersion = '0.1.1';
+const packageVersion = '0.2.0';

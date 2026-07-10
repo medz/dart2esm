@@ -1,6 +1,6 @@
 name: dart2esm
 description: A Dart-to-native-ESM compiler that emits clean modern JavaScript modules.
-version: 0.1.1
+version: 0.2.0
 repository: https://github.com/medz/dart2esm
 issue_tracker: https://github.com/medz/dart2esm/issues
 

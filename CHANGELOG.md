@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.0
 
 - Split CLI, compiler driver, Dart/CFE frontend, Kernel adapter, semantic core,
   transforms, runtime linking, and code generation into explicit boundaries.

@@ -1,65 +1,19 @@
 import 'package:dart2esm/src/ast/esm_ast.dart';
 import 'package:dart2esm/src/codegen/esm_codegen.dart';
-import 'package:dart2esm/src/component.dart';
+import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
 import 'package:dart2esm/src/lowering/kernel_to_esm_ast.dart';
+import 'package:dart2esm/src/options.dart';
 import 'package:dart2esm/src/parser/kernel_parser.dart';
 import 'package:dart2esm/src/semantic/semantic.dart';
 import 'package:dart2esm/src/semantic/semantic_builder.dart';
 import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
+import 'package:dart2esm/src/transformer/helpers/helper_loader.dart';
 import 'package:dart2esm/src/transformer/module_transformer.dart';
 import 'package:dart2esm/src/transformer/transform_pass.dart';
 import 'package:kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {
-  test('component contracts describe the executable compiler pipeline', () {
-    expect(compilerComponentOrder, [
-      CompilerComponentId.parser,
-      CompilerComponentId.semantic,
-      CompilerComponentId.lowerer,
-      CompilerComponentId.transformer,
-      CompilerComponentId.codegen,
-    ]);
-    expect(
-      compilerComponentContracts.map((contract) => contract.id),
-      compilerComponentOrder,
-    );
-    expect(
-      compilerComponentContracts.map((contract) => contract.ownerDirectory),
-      ['parser', 'semantic', 'lowering', 'transformer', 'codegen'],
-    );
-
-    expect(
-      compilerComponentContractFor(CompilerComponentId.parser),
-      predicate<CompilerComponentContract>(
-        (contract) =>
-            contract.input == 'k.Component' &&
-            contract.output == 'ParserReturn' &&
-            contract.allowsKernelAccess,
-      ),
-    );
-    expect(
-      compilerComponentContractFor(CompilerComponentId.transformer),
-      predicate<CompilerComponentContract>(
-        (contract) =>
-            contract.input == 'LowererReturn' &&
-            contract.output == 'TransformerReturn' &&
-            contract.allowsRuntimeHelperReference &&
-            contract.allowsRuntimeHelperDeclaration,
-      ),
-    );
-    expect(
-      compilerComponentContractFor(CompilerComponentId.codegen),
-      predicate<CompilerComponentContract>(
-        (contract) =>
-            contract.input == 'EsmModule' &&
-            contract.output == 'CodegenReturn' &&
-            contract.isCodePrinter &&
-            !contract.allowsKernelAccess,
-      ),
-    );
-  });
-
   test('transformer runs passes in order and merges pass results', () {
     const input = EsmModule(
       items: [EsmExpressionStatement(EsmStringLiteral('input'))],
@@ -75,7 +29,6 @@ void main() {
         _RecordingPass(
           name: 'second',
           log: log,
-          invalidatesSemantic: true,
           linkedHelpers: const [EsmRuntimeHelper.print],
         ),
       ],
@@ -86,10 +39,7 @@ void main() {
     );
 
     expect(log, ['first:1:1', 'second:2:1']);
-    expect(result.changed, isTrue);
-    expect(result.invalidatesSemantic, isTrue);
     expect(result.linkedHelpers, [EsmRuntimeHelper.print]);
-    expect(result.runtimeHelpers, [EsmRuntimeHelper.print]);
     expect(result.module.items, hasLength(2));
   });
 
@@ -117,8 +67,6 @@ void main() {
       _loweringForModule(input, runtimeHelpers: const [EsmRuntimeHelper.print]),
     );
 
-    expect(result.changed, isTrue);
-    expect(result.invalidatesSemantic, isFalse);
     expect(result.linkedHelpers, [
       EsmRuntimeHelper.print,
       EsmRuntimeHelper.stringify,
@@ -129,6 +77,98 @@ void main() {
     expect(main.name, 'main');
     expect(main.body, hasLength(1));
     expect(main.body.single, isA<EsmExpressionStatement>());
+  });
+
+  test('helper linker emits only symbol-reachable declarations', () {
+    const module = EsmModule(
+      items: [
+        EsmExpressionStatement(
+          EsmCall(
+            callee: EsmIdentifier('__dartMapRemove'),
+            arguments: [EsmIdentifier('map'), EsmIdentifier('key')],
+          ),
+        ),
+      ],
+    );
+
+    final linked = const HelperLoader().load(
+      module: module,
+      helpers: const [EsmRuntimeHelper.mapOps],
+    );
+    final code = const Codegen().generate(linked.module).code;
+
+    expect(code, contains('function __dartMapRemove('));
+    expect(code, contains('function __dartMapKey('));
+    expect(code, isNot(contains('function __dartMapUpdate(')));
+    expect(code, isNot(contains('function __dartMapClear(')));
+  });
+
+  test('helper linker rejects runtime symbols without a required group', () {
+    const module = EsmModule(
+      items: [EsmExpressionStatement(EsmIdentifier('__dartMapRemove'))],
+    );
+
+    expect(
+      () => const HelperLoader().load(module: module, helpers: const []),
+      throwsStateError,
+    );
+  });
+
+  test('dart:io helpers enforce web and Node platform boundaries', () {
+    final browser = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.browser);
+    expect(browser.add(EsmRuntimeHelper.ioWeb), isTrue);
+    expect(
+      () => browser.add(EsmRuntimeHelper.ioNode),
+      throwsA(isA<UnsupportedCompilerFeature>()),
+    );
+
+    final node = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
+    expect(node.add(EsmRuntimeHelper.ioWeb), isTrue);
+    expect(node.add(EsmRuntimeHelper.ioNode), isTrue);
+
+    final neutral = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.neutral);
+    expect(
+      () => neutral.add(EsmRuntimeHelper.ioWeb),
+      throwsA(isA<UnsupportedCompilerFeature>()),
+    );
+  });
+
+  test('dart:isolate helpers enforce Worker platform boundaries', () {
+    final browser = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.browser);
+    expect(browser.add(EsmRuntimeHelper.isolateWeb), isTrue);
+    expect(
+      () => browser.add(EsmRuntimeHelper.isolateNode),
+      throwsA(isA<UnsupportedCompilerFeature>()),
+    );
+
+    final node = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
+    expect(node.add(EsmRuntimeHelper.isolateNode), isTrue);
+
+    final neutral = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.neutral);
+    expect(
+      () => neutral.add(EsmRuntimeHelper.isolate),
+      throwsA(isA<UnsupportedCompilerFeature>()),
+    );
+  });
+
+  test('codegen groups static ESM imports before declarations', () {
+    const module = EsmModule(
+      items: [
+        EsmRawModuleItem('import * as fs from "node:fs";\n'),
+        EsmRawModuleItem('import * as path from "node:path";\n'),
+        EsmFunction(name: 'main', export: true, parameters: [], body: []),
+      ],
+    );
+
+    expect(const Codegen().generate(module).code, '''
+// Generated by dart2esm.
+
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+export function main() {
+}
+''');
   });
 
   test(
@@ -242,14 +282,12 @@ final class _RecordingPass implements TransformPass {
     required this.name,
     required this.log,
     this.append,
-    this.invalidatesSemantic = false,
     this.linkedHelpers = const [],
   });
 
   final String name;
   final List<String> log;
   final EsmModuleItem? append;
-  final bool invalidatesSemantic;
   final List<EsmRuntimeHelper> linkedHelpers;
 
   @override
@@ -262,8 +300,6 @@ final class _RecordingPass implements TransformPass {
       module: append == null
           ? module
           : EsmModule(items: [...module.items, append]),
-      changed: append != null,
-      invalidatesSemantic: invalidatesSemantic,
       linkedHelpers: linkedHelpers,
     );
   }
@@ -296,6 +332,7 @@ LowererReturn _loweringForModule(
           kind: EsmProcedureKind.method,
         ),
       ],
+      constructorTearOffs: const [],
     ),
   );
   return LowererReturn(

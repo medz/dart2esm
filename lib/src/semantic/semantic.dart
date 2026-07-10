@@ -11,10 +11,12 @@ final class Semantic {
     required List<EsmExtensionTypeSymbol> extensionTypes,
     required List<EsmFieldSymbol> fields,
     required List<EsmProcedureSymbol> procedures,
+    required List<EsmConstructorTearOffSymbol> constructorTearOffs,
   }) : classes = List.unmodifiable(classes),
        extensionTypes = List.unmodifiable(extensionTypes),
        fields = List.unmodifiable(fields),
        procedures = List.unmodifiable(procedures),
+       constructorTearOffs = List.unmodifiable(constructorTearOffs),
        _classSymbols = {for (final klass in classes) klass.node: klass},
        _extensionTypeSymbols = {
          for (final extensionType in extensionTypes)
@@ -75,6 +77,9 @@ final class Semantic {
        _procedureSymbolsByReference = {
          for (final procedure in procedures)
            kernelReferencePath(procedure.node.reference): procedure,
+       },
+       _constructorTearOffSymbols = {
+         for (final tearOff in constructorTearOffs) tearOff.target: tearOff,
        };
 
   final k.Component component;
@@ -83,6 +88,7 @@ final class Semantic {
   final List<EsmExtensionTypeSymbol> extensionTypes;
   final List<EsmFieldSymbol> fields;
   final List<EsmProcedureSymbol> procedures;
+  final List<EsmConstructorTearOffSymbol> constructorTearOffs;
   late final Set<String> globalBindingNames = Set.unmodifiable({
     for (final klass in classes) ...[
       klass.name,
@@ -98,6 +104,7 @@ final class Semantic {
       if (field.backingName case final backingName?) backingName,
     ],
     for (final procedure in procedures) procedure.name,
+    for (final tearOff in constructorTearOffs) tearOff.name,
   });
   final Map<k.Class, EsmClassSymbol> _classSymbols;
   final Map<k.ExtensionTypeDeclaration, EsmExtensionTypeSymbol>
@@ -118,6 +125,7 @@ final class Semantic {
   final Map<k.Field, EsmFieldSymbol> _fieldSymbols;
   final Map<k.Procedure, EsmProcedureSymbol> _procedureSymbols;
   final Map<String, EsmProcedureSymbol> _procedureSymbolsByReference;
+  final Map<k.Member, EsmConstructorTearOffSymbol> _constructorTearOffSymbols;
 
   EsmClassSymbol? classSymbolFor(k.Class klass) {
     return _classSymbols[klass];
@@ -208,6 +216,21 @@ final class Semantic {
     }
     return symbol;
   }
+
+  EsmConstructorTearOffSymbol constructorTearOffSymbolFor(k.Member target) {
+    final symbol = _constructorTearOffSymbols[target];
+    if (symbol == null) {
+      throw UnsupportedCompilerFeature(target, 'unbound constructor tear-off');
+    }
+    return symbol;
+  }
+}
+
+final class EsmConstructorTearOffSymbol {
+  const EsmConstructorTearOffSymbol({required this.target, required this.name});
+
+  final k.Member target;
+  final String name;
 }
 
 final class EsmClassSymbol {

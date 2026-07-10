@@ -7,29 +7,8 @@ function __dartCompare(left, right, compare = null) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function __dartCoreError(typeName, message) {
-  const text = message == null ? "" : String(message);
-  const display = text === "" ? typeName : typeName + ": " + text;
-  const error = new Error(text);
-  error.name = typeName;
-  Object.defineProperty(error, "__dartCoreErrorType", { value: typeName });
-  Object.defineProperty(error, "toString", { value() { return display; } });
-  return error;
-}
-function __dartIsCoreError(value, typeName) {
-  const actual = value == null ? null : value.__dartCoreErrorType;
-  if (actual != null) {
-    if (actual === typeName) return true;
-    if (typeName === "Exception" && actual === "FormatException") return true;
-    if (typeName === "RangeError" && actual === "IndexError") return true;
-    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
-    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
-  }
-  if (typeName === "TypeError" && value instanceof TypeError) return true;
-  return typeName === "Error" && value instanceof Error;
-}
-
 const __dartConstValues = new Map();
+
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
     __dartConstValues.set(key, create());
@@ -48,6 +27,7 @@ function __dartDurationToString(micros) {
   const hours = Math.trunc(totalMinutes / 60);
   return sign + hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(microseconds).padStart(6, "0");
 }
+
 function __dartDuration(options = {}) {
   const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));
   return {
@@ -121,6 +101,7 @@ function __dartFutureDelayed(duration, computation = null) {
     }, delay);
   });
 }
+
 function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
   const entries = Array.from(futures);
   if (entries.length === 0) return Promise.resolve([]);
@@ -161,6 +142,7 @@ function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
     });
   });
 }
+
 function __dartFutureForEach(elements, action) {
   let chain = Promise.resolve(null);
   for (const element of Array.from(elements)) {
@@ -168,17 +150,21 @@ function __dartFutureForEach(elements, action) {
   }
   return chain.then(() => null);
 }
+
 async function __dartFutureDoWhile(action) {
   while (await action()) {}
   return null;
 }
+
 function __dartFutureIgnore(future) {
   Promise.resolve(future).catch(() => null);
   return null;
 }
+
 function __dartFutureAsStream(future) {
   return __dartStreamFromFuture(future);
 }
+
 function __dartFutureTimeout(future, duration, onTimeout = null) {
   const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
   let id;
@@ -194,6 +180,7 @@ function __dartFutureTimeout(future, duration, onTimeout = null) {
   });
   return Promise.race([Promise.resolve(future), timeout]).finally(() => clearTimeout(id));
 }
+
 function __dartStreamFromIterable(values, isBroadcast = false) {
   return {
     __dartType: "Stream",
@@ -203,6 +190,7 @@ function __dartStreamFromIterable(values, isBroadcast = false) {
     },
   };
 }
+
 function __dartStreamFromFuture(future) {
   return {
     __dartType: "Stream",
@@ -212,6 +200,7 @@ function __dartStreamFromFuture(future) {
     },
   };
 }
+
 function __dartStreamFromFutures(futures) {
   return {
     __dartType: "Stream",
@@ -221,6 +210,7 @@ function __dartStreamFromFutures(futures) {
     },
   };
 }
+
 function __dartStreamError(error) {
   return {
     __dartType: "Stream",
@@ -230,6 +220,7 @@ function __dartStreamError(error) {
     },
   };
 }
+
 function __dartStreamPeriodic(period, computation = null) {
   const delay = Math.max(0, period == null ? 0 : (typeof period === "number" ? period : period.inMilliseconds));
   return {
@@ -245,6 +236,7 @@ function __dartStreamPeriodic(period, computation = null) {
     },
   };
 }
+
 async function* __dartStreamValues(stream) {
   const iterator = __dartStreamIterator(stream);
   try {
@@ -253,6 +245,7 @@ async function* __dartStreamValues(stream) {
     await iterator.cancel();
   }
 }
+
 function __dartStreamTake(stream, count) {
   return {
     __dartType: "Stream",
@@ -267,44 +260,7 @@ function __dartStreamTake(stream, count) {
     },
   };
 }
-function __dartStreamMap(stream, convert) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: stream?.isBroadcast === true,
-    async *[Symbol.asyncIterator]() {
-      for await (const value of __dartStreamValues(stream)) yield convert(value);
-    },
-  };
-}
-function __dartStreamWhere(stream, test) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: stream?.isBroadcast === true,
-    async *[Symbol.asyncIterator]() {
-      for await (const value of __dartStreamValues(stream)) {
-        if (test(value)) yield value;
-      }
-    },
-  };
-}
-function __dartStreamExpand(stream, convert) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: stream?.isBroadcast === true,
-    async *[Symbol.asyncIterator]() {
-      for await (const value of __dartStreamValues(stream)) {
-        for (const expanded of Array.from(convert(value) ?? [])) yield expanded;
-      }
-    },
-  };
-}
-function __dartStreamTransform(stream, transformer) {
-  if (transformer != null && typeof transformer.bind === "function") {
-    return transformer.bind(stream);
-  }
-  if (typeof transformer === "function") return transformer(stream);
-  throw new TypeError("StreamTransformer has no bind method");
-}
+
 function __dartStreamIterator(stream) {
   const iterator = stream?.[Symbol.asyncIterator]?.();
   if (iterator == null && typeof stream?.listen === "function") {
@@ -361,15 +317,18 @@ function __dartStreamIterator(stream) {
     },
   };
 }
+
 async function __dartStreamToList(stream) {
   const values = [];
   for await (const value of __dartStreamValues(stream)) values.push(value);
   return values;
 }
+
 async function __dartStreamFirst(stream) {
   for await (const value of __dartStreamValues(stream)) return value;
   throw new Error("No element");
 }
+
 async function __dartStreamSingle(stream) {
   let found = false;
   let single;
@@ -381,12 +340,15 @@ async function __dartStreamSingle(stream) {
   if (!found) throw new Error("No element");
   return single;
 }
+
 async function __dartStreamJoin(stream, separator = "") {
   return (await __dartStreamToList(stream)).map((value) => __dartStr(value)).join(String(separator));
 }
+
 function __dartStreamController(broadcast = false, options = {}) {
   let closed = false;
   let listened = false;
+  let paused = false;
   const handlers = {
     onListen: options.onListen ?? null,
     onPause: options.onPause ?? null,
@@ -453,9 +415,11 @@ function __dartStreamController(broadcast = false, options = {}) {
       return () => listeners.delete(listener);
     },
     __dartPauseRaw() {
+      paused = true;
       if (typeof handlers.onPause === "function") handlers.onPause();
     },
     __dartResumeRaw() {
+      paused = false;
       if (typeof handlers.onResume === "function") handlers.onResume();
     },
     __dartCancelRaw() {
@@ -469,17 +433,24 @@ function __dartStreamController(broadcast = false, options = {}) {
     get sink() { return this; },
     get done() { return Promise.resolve(null); },
     get isClosed() { return closed; },
+    get isPaused() { return paused; },
+    get hasListener() { return listeners.size > 0 || waiters.length > 0; },
     add(value) { if (!closed) deliver({ value }); return null; },
     addError(error, stackTrace = null) { if (!closed) deliver({ error }); return null; },
     async addStream(source, options = {}) {
+      const iterator = __dartStreamIterator(source);
       try {
-        for await (const value of __dartStreamValues(source)) {
-          if (closed) break;
-          deliver({ value });
+        while (!closed) {
+          try {
+            if (!(await iterator.moveNext())) break;
+            deliver({ value: iterator.current });
+          } catch (error) {
+            deliver({ error });
+            if (options.cancelOnError === true) break;
+          }
         }
-      } catch (error) {
-        deliver({ error });
-        if (options.cancelOnError === true) return null;
+      } finally {
+        await iterator.cancel();
       }
       return null;
     },
@@ -494,16 +465,31 @@ function __dartStreamController(broadcast = false, options = {}) {
     set onCancel(value) { handlers.onCancel = value; },
   };
 }
+
 function __dartStreamMulti(onListen, isBroadcast = false) {
   const controller = __dartStreamController(isBroadcast);
   Promise.resolve().then(() => onListen(controller));
   return controller.stream;
 }
+
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
   let canceled = false;
   let paused = false;
+  let done = false;
+  let failed = false;
+  let failure = null;
+  let asFutureValue = null;
+  let asFutureResolve = null;
+  let asFutureReject = null;
   const pausedItems = [];
   const resumeWaiters = [];
+  function completeAsFuture() {
+    if (asFutureResolve == null) return;
+    if (failed) asFutureReject(failure);
+    else asFutureResolve(asFutureValue);
+    asFutureResolve = null;
+    asFutureReject = null;
+  }
   function flushPausedItems() {
     while (!paused && pausedItems.length > 0 && !canceled) handleItem(pausedItems.shift());
   }
@@ -518,15 +504,20 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       return;
     }
     if (item.done === true) {
+      done = true;
       if (typeof onDone === "function") onDone();
+      completeAsFuture();
       return;
     }
     if ("error" in item) {
+      failed = true;
+      failure = item.error;
       if (typeof onError === "function") onError(item.error);
+      completeAsFuture();
       if (cancelOnError) canceled = true;
       return;
     }
-    onData(item.value);
+    if (typeof onData === "function") onData(item.value);
   };
   const remove = typeof stream?.__dartListenRaw === "function" ? stream.__dartListenRaw(handleItem) : null;
   if (remove == null) {
@@ -536,16 +527,22 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
           if (canceled) break;
           await waitWhilePaused();
           if (canceled) break;
-          onData(value);
+          if (typeof onData === "function") onData(value);
         }
         if (!canceled && typeof onDone === "function") onDone();
+        done = true;
+        completeAsFuture();
       } catch (error) {
+        failed = true;
+        failure = error;
         if (typeof onError === "function") onError(error);
         else throw error;
+        completeAsFuture();
       }
     })();
   }
   return {
+    __dartType: "StreamSubscription",
     get isPaused() { return paused; },
     cancel() {
       canceled = true;
@@ -569,8 +566,21 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       }
       return null;
     },
+    onData(callback) { onData = callback; return null; },
+    onError(callback) { onError = callback; return null; },
+    onDone(callback) { onDone = callback; return null; },
+    asFuture(value = null) {
+      asFutureValue = value;
+      if (done && !failed) return Promise.resolve(value);
+      if (failed) return Promise.reject(failure);
+      return new Promise((resolve, reject) => {
+        asFutureResolve = resolve;
+        asFutureReject = reject;
+      });
+    },
   };
 }
+
 function __dartTimer(duration, callback, periodic = false) {
   const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
   let active = true;
@@ -603,6 +613,7 @@ function __dartTimer(duration, callback, periodic = false) {
   }
   return timer;
 }
+
 function __dartCreateZone(parent = null, values = null) {
   const zoneValues = values instanceof Map ? values : new Map();
   const zone = {
@@ -638,19 +649,24 @@ function __dartCreateZone(parent = null, values = null) {
   };
   return Object.freeze(zone);
 }
+
 const __dartRootZone = __dartCreateZone(null, new Map());
+
 let __dartCurrentZone = __dartRootZone;
+
 function __dartZoneValuesMap(zoneValues) {
   if (zoneValues == null) return new Map();
   if (zoneValues instanceof Map) return zoneValues;
   return new Map(Array.from(zoneValues));
 }
+
 function __dartScheduleMicrotask(callback, zone = __dartCurrentZone) {
   const run = () => __dartRunInZone(zone, callback);
   if (typeof queueMicrotask === "function") queueMicrotask(run);
   else Promise.resolve().then(run);
   return null;
 }
+
 function __dartRunInZone(zone, body) {
   const previous = __dartCurrentZone;
   __dartCurrentZone = zone;
@@ -666,6 +682,7 @@ function __dartRunInZone(zone, body) {
     throw error;
   }
 }
+
 function __dartRunZoned(body, options = {}) {
   const parent = options.parentZone ?? __dartCurrentZone;
   const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));
@@ -676,6 +693,7 @@ function __dartRunZoned(body, options = {}) {
     throw error;
   }
 }
+
 function __dartRunZonedGuarded(body, onError, options = {}) {
   try {
     const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });
@@ -688,6 +706,7 @@ function __dartRunZonedGuarded(body, onError, options = {}) {
     return null;
   }
 }
+
 function __dartAsyncError(error, stackTrace = null) {
   return Object.freeze({
     __dartType: "AsyncError",
@@ -696,6 +715,7 @@ function __dartAsyncError(error, stackTrace = null) {
     toString() { return "AsyncError: " + String(error); },
   });
 }
+
 function __dartParallelWaitError(values, errors, errorCount, defaultError) {
   const suffix = errorCount > 1 ? "(" + errorCount + " errors)" : "";
   const message = defaultError == null ? "ParallelWaitError" + suffix : "ParallelWaitError" + suffix + ": " + String(defaultError.error);
@@ -709,6 +729,7 @@ function __dartParallelWaitError(values, errors, errorCount, defaultError) {
   error.toString = function() { return message; };
   return error;
 }
+
 async function __dartFutureWaitAllSettled(futures) {
   const entries = Array.from(futures);
   return Promise.all(entries.map((future) => Promise.resolve(future).then(
@@ -716,6 +737,7 @@ async function __dartFutureWaitAllSettled(futures) {
     (error) => ({ value: null, asyncError: __dartAsyncError(error) }),
   )));
 }
+
 async function __dartFutureIterableWait(futures) {
   const results = await __dartFutureWaitAllSettled(futures);
   const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);
@@ -724,6 +746,7 @@ async function __dartFutureIterableWait(futures) {
   const errors = results.map((result) => result.asyncError);
   throw __dartParallelWaitError(values, errors, errorCount, errors.find((error) => error != null));
 }
+
 async function __dartFutureRecordWait(record) {
   const shape = Array.isArray(record?.[__dartRecordShape]) ? record[__dartRecordShape].filter((name) => /^\$\d+$/.test(name)) : Object.keys(record).filter((name) => /^\$\d+$/.test(name)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
   const results = await __dartFutureWaitAllSettled(shape.map((name) => record[name]));
@@ -764,6 +787,7 @@ function __dartListLikeGet(list, index) {
   const op = list == null ? null : list["[]"];
   return typeof op === "function" ? op.call(list, index) : list[index];
 }
+
 function __dartListLikeSet(list, index, value) {
   if (Array.isArray(list) || ArrayBuffer.isView(list)) {
     list[index] = value;
@@ -773,26 +797,6 @@ function __dartListLikeSet(list, index, value) {
   if (typeof op === "function") return op.call(list, index, value);
   list[index] = value;
   return value;
-}
-function __dartListMixinFirst(list) {
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinLast(list) {
-  return __dartListLikeGet(list, list.length - 1);
-}
-function __dartListMixinSingle(list) {
-  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinInsert(list, index, value) {
-  index = Number(index);
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let i = length; i > index; i--) {
-    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
-  }
-  __dartListLikeSet(list, index, value);
-  return null;
 }
 
 function __dartMapAddAll(map, entries) {
@@ -806,31 +810,9 @@ function __dartMapFromEntries(entries) {
   __dartMapAddAll(map, entries);
   return map;
 }
-function __dartMapFromIterable(iterable, key = null, value = null) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (const element of iterable) {
-    __dartMapSet(
-      map,
-      typeof key === "function" ? key(element) : element,
-      typeof value === "function" ? value(element) : element,
-    );
-  }
-  return map;
-}
-function __dartMapFromIterables(keys, values) {
-  const keyList = Array.from(keys);
-  const valueList = Array.from(values);
-  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (let index = 0; index < keyList.length; index++) {
-    __dartMapSet(map, keyList[index], valueList[index]);
-  }
-  return map;
-}
 
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+
 function __dartMapKey(map, key) {
   if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
   if (map.__dartSplayCompare !== undefined) {
@@ -851,11 +833,6 @@ function __dartMapKey(map, key) {
     if (__dartEquals(candidate, key)) return candidate;
   }
   return __dartMapMissingKey;
-}
-function __dartMapGet(map, key) {
-  if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
-  const actualKey = __dartMapKey(map, key);
-  return actualKey === __dartMapMissingKey ? null : map.get(actualKey);
 }
 
 function __dartMapSet(map, key, value) {
@@ -904,6 +881,12 @@ function __dartRecord(positional, named) {
   return Object.freeze(record);
 }
 
+function __dartSplaySortMap(map) {
+  const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
+  map.clear();
+  for (const [key, value] of entries) map.set(key, value);
+}
+
 function __dartStr(value) {
   if (value == null) return "null";
   if (Array.isArray(value)) {
@@ -925,6 +908,7 @@ function __dartStr(value) {
 }
 
 const __dartSymbolCache = new Map();
+
 function __dartSymbol(key, name) {
   if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
   const value = Object.freeze({

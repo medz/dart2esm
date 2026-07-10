@@ -9,10 +9,9 @@ part 'expression_printer.dart';
 part 'literal_printer.dart';
 
 final class CodegenReturn {
-  const CodegenReturn({required this.code, required this.diagnostics});
+  const CodegenReturn({required this.code});
 
   final String code;
-  final List<String> diagnostics;
 }
 
 final class Codegen {
@@ -20,7 +19,7 @@ final class Codegen {
 
   CodegenReturn generate(EsmModule module) {
     final printer = _EsmPrinter();
-    return CodegenReturn(code: printer.print(module), diagnostics: const []);
+    return CodegenReturn(code: printer.print(module));
   }
 }
 
@@ -34,7 +33,7 @@ final class _EsmPrinter {
     for (var i = 0; i < module.items.length; i++) {
       _emitModuleItem(module.items[i]);
       if (i != module.items.length - 1 &&
-          _needsBlankLineAfter(module.items[i])) {
+          _needsBlankLineBetween(module.items[i], module.items[i + 1])) {
         _buffer.writeln();
       }
     }

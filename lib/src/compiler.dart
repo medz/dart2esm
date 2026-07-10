@@ -1,7 +1,6 @@
 import 'package:kernel/kernel.dart' as k;
 
 import 'codegen/esm_codegen.dart';
-import 'component.dart';
 import 'parser/kernel_parser.dart';
 import 'lowering/kernel_to_esm_ast.dart';
 import 'options.dart';
@@ -13,50 +12,44 @@ final class CompilerOptions {
   const CompilerOptions({
     this.runMain = true,
     this.platform = Dart2EsmPlatform.auto,
-    this.target = Dart2EsmTarget.esnext,
   });
 
   final bool runMain;
   final Dart2EsmPlatform platform;
-  final Dart2EsmTarget target;
-
-  Dart2EsmTargetCapabilities get targetCapabilities =>
-      Dart2EsmTargetCapabilities.forTarget(target);
 }
 
 final class CompilerReturn {
   CompilerReturn({
     required this.code,
-    required this.diagnostics,
     required this.kernel,
-    required Iterable<CompilerComponentId> completedComponents,
-    this.semantic,
-    this.lowering,
-    this.transform,
-    this.codegen,
-  }) : completedComponents = List.unmodifiable(completedComponents);
+    required this.semantic,
+    required this.lowering,
+    required this.transform,
+    required this.codegen,
+  });
 
   final String code;
-  final List<String> diagnostics;
   final ParserReturn kernel;
-  final List<CompilerComponentId> completedComponents;
-  final SemanticBuilderReturn? semantic;
-  final LowererReturn? lowering;
-  final TransformerReturn? transform;
-  final CodegenReturn? codegen;
+  final SemanticBuilderReturn semantic;
+  final LowererReturn lowering;
+  final TransformerReturn transform;
+  final CodegenReturn codegen;
 }
 
 final class Compiler {
-  const Compiler({
+  Compiler({
     required this.options,
     this.parser = const KernelParser(),
-    this.semantic = const SemanticBuilder(
-      generatedGlobalNames: EsmRuntimeHelperRegistry.generatedGlobalNames,
-    ),
+    SemanticBuilder? semantic,
     this.lowering = const Lowerer(),
     this.transformer = const Transformer(),
     this.codegen = const Codegen(),
-  });
+  }) : semantic =
+           semantic ??
+           SemanticBuilder(
+             generatedGlobalNames:
+                 EsmRuntimeHelperRegistry.generatedGlobalNames,
+           );
 
   final CompilerOptions options;
   final KernelParser parser;
@@ -66,26 +59,18 @@ final class Compiler {
   final Codegen codegen;
 
   CompilerReturn compile(k.Component component) {
-    final completedComponents = <CompilerComponentId>[];
     final kernel = parser.parse(component);
-    completedComponents.add(CompilerComponentId.parser);
     final semanticResult = semantic.build(kernel);
-    completedComponents.add(CompilerComponentId.semantic);
     final lowered = lowering.lower(
       semanticResult,
       runMain: options.runMain,
       platform: options.platform,
     );
-    completedComponents.add(CompilerComponentId.lowerer);
     final transformed = transformer.transform(lowered);
-    completedComponents.add(CompilerComponentId.transformer);
     final codegenResult = codegen.generate(transformed.module);
-    completedComponents.add(CompilerComponentId.codegen);
     return CompilerReturn(
       code: codegenResult.code,
-      diagnostics: codegenResult.diagnostics,
       kernel: kernel,
-      completedComponents: completedComponents,
       semantic: semanticResult,
       lowering: lowered,
       transform: transformed,

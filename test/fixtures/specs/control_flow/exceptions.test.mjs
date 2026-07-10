@@ -33,35 +33,32 @@ describe('control_flow/exceptions.mjs', () => {
         (line) =>
           line === '} catch ($error) {' ||
           line === 'if ($error instanceof ParseIssue) {' ||
-          line === '} else if ($error instanceof NotFound) {' ||
+          line === 'if ($error instanceof NotFound) {' ||
           line ===
-            'const stack = $error?.stack ?? "<javascript stack unavailable>";' ||
-          line === '} else if (typeof $error === "string") {' ||
-          line === '} else if ($error != null) {' ||
-          line === 'throw $error;' ||
-          line === '} catch ($error_1) {' ||
-          line === 'if ($error_1 instanceof ParseIssue) {' ||
-          line === '} else if ($error_1 != null) {' ||
-          line === '(() => { throw $error_1; })();' ||
-          line === 'throw $error_1;',
+            'const stack = ($error?.stack ?? "<javascript stack unavailable>");' ||
+          line === 'if (typeof $error === "string") {' ||
+          line === 'if ($error != null) {' ||
+          line === 'throw $error;',
       );
 
     expect(shapeLines).toEqual([
       '} catch ($error) {',
       'if ($error instanceof ParseIssue) {',
-      '} else if ($error instanceof NotFound) {',
-      'const stack = $error?.stack ?? "<javascript stack unavailable>";',
-      '} else if (typeof $error === "string") {',
-      '} else if ($error != null) {',
+      'if ($error instanceof NotFound) {',
+      'const stack = ($error?.stack ?? "<javascript stack unavailable>");',
+      'if (typeof $error === "string") {',
+      'if ($error != null) {',
       'throw $error;',
       '} catch ($error) {',
+      'if ($error != null) {',
       'throw $error;',
-      '} catch ($error_1) {',
-      'if ($error_1 instanceof ParseIssue) {',
-      '} else if ($error_1 != null) {',
-      '(() => { throw $error_1; })();',
-      'throw $error_1;',
       '} catch ($error) {',
+      'if ($error instanceof ParseIssue) {',
+      'if ($error != null) {',
+      'throw $error;',
+      'throw $error;',
+      '} catch ($error) {',
+      'if ($error instanceof NotFound) {',
       'throw $error;',
     ]);
   });

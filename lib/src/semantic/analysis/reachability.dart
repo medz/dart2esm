@@ -23,6 +23,7 @@ final class EsmProgramPlan {
     required this.extensionTypes,
     required this.topLevelFields,
     required this.topLevelProcedures,
+    this.constructorTearOffTargets = const {},
   });
 
   final Set<k.Library> libraries;
@@ -30,6 +31,7 @@ final class EsmProgramPlan {
   final Set<k.ExtensionTypeDeclaration> extensionTypes;
   final Set<k.Field> topLevelFields;
   final Set<k.Procedure> topLevelProcedures;
+  final Set<k.Member> constructorTearOffTargets;
 }
 
 final class _EsmReachability {
@@ -50,6 +52,7 @@ final class _EsmReachability {
   final _extensionTypes = <k.ExtensionTypeDeclaration>{};
   final _topLevelFields = <k.Field>{};
   final _topLevelProcedures = <k.Procedure>{};
+  final _constructorTearOffTargets = <k.Member>{};
   final _extensionTypeByMember = <k.Member, k.ExtensionTypeDeclaration>{};
   final _pendingNodes = <k.TreeNode>[];
   final _queuedNodes = <k.TreeNode>{};
@@ -71,6 +74,7 @@ final class _EsmReachability {
       extensionTypes: Set.unmodifiable(_extensionTypes),
       topLevelFields: Set.unmodifiable(_topLevelFields),
       topLevelProcedures: Set.unmodifiable(_topLevelProcedures),
+      constructorTearOffTargets: Set.unmodifiable(_constructorTearOffTargets),
     );
   }
 
@@ -359,11 +363,13 @@ final class _EsmReachability {
       case k.ConstructorTearOffConstant():
         final target = constant.targetReference.node;
         if (target is k.Member) {
+          _constructorTearOffTargets.add(target);
           _markMember(target);
         }
       case k.RedirectingFactoryTearOffConstant():
         final target = constant.targetReference.node;
         if (target is k.Member) {
+          _constructorTearOffTargets.add(target);
           _markMember(target);
         }
       case k.InstantiationConstant():
@@ -470,11 +476,13 @@ final class _ReachabilityVisitor extends k.RecursiveVisitor {
 
   @override
   void visitConstructorTearOff(k.ConstructorTearOff node) {
+    reachability._constructorTearOffTargets.add(node.target);
     reachability._markMember(node.target);
   }
 
   @override
   void visitRedirectingFactoryTearOff(k.RedirectingFactoryTearOff node) {
+    reachability._constructorTearOffTargets.add(node.target);
     reachability._markMember(node.target);
   }
 

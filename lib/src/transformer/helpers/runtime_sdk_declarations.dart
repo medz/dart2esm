@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _SdkHelperDeclaration on EsmRuntimeHelperRegistry {
+extension _SdkHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _sdkHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.concurrent => EsmRawModuleItem('''
@@ -9,74 +9,6 @@ function __dartMutex() {
     __dartType: "Mutex",
     runLocked(action) { return action(); },
   });
-}
-'''),
-      EsmRuntimeHelper.ffi => EsmRawModuleItem('''
-function __dartPointer(address) {
-  const value = Number(address);
-  return Object.freeze({
-    __dartType: "Pointer",
-    get address() { return value; },
-    cast() { return __dartPointer(value); },
-    toString() { return "Pointer: address=0x" + value.toString(16); },
-  });
-}
-function __dartSizeOf(typeName = "") {
-  return ({
-    Int8: 1,
-    Uint8: 1,
-    Int16: 2,
-    Uint16: 2,
-    Int32: 4,
-    Uint32: 4,
-    Int64: 8,
-    Uint64: 8,
-    Float: 4,
-    Double: 8,
-  })[String(typeName)] ?? 8;
-}
-'''),
-      EsmRuntimeHelper.isolate => EsmRawModuleItem('''
-function __dartSendPort(deliver) {
-  return Object.freeze({
-    __dartType: "SendPort",
-    send(message) {
-      __dartScheduleMicrotask(() => deliver(message));
-      return null;
-    },
-  });
-}
-function __dartReceivePort(name = null) {
-  const controller = __dartStreamController(false);
-  let closed = false;
-  const port = {
-    __dartType: "ReceivePort",
-    get sendPort() { return __dartSendPort((message) => { if (!closed) controller.add(message); }); },
-    listen(onData, options = {}) {
-      return controller.stream.listen(onData, options);
-    },
-    close() {
-      closed = true;
-      controller.close();
-      return null;
-    },
-  };
-  return Object.freeze(port);
-}
-function __dartRawReceivePort(handler = null, name = null) {
-  let closed = false;
-  const port = {
-    __dartType: "RawReceivePort",
-    get handler() { return handler; },
-    set handler(value) { handler = value; },
-    get sendPort() { return __dartSendPort((message) => { if (!closed && typeof handler === "function") handler(message); }); },
-    close() { closed = true; return null; },
-  };
-  return port;
-}
-function __dartSpawnIsolate(entry, message) {
-  __dartScheduleMicrotask(() => entry(message));
-  return Promise.resolve(null);
 }
 '''),
       EsmRuntimeHelper.jsInterop => EsmRawModuleItem('''

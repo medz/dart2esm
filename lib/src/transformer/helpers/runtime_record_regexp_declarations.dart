@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Recordregexphelperdeclaration on EsmRuntimeHelperRegistry {
+extension _RecordRegExpHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _recordRegExpHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.recordShape => const EsmRawModuleItem(

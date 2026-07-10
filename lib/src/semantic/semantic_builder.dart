@@ -104,6 +104,15 @@ final class SemanticBuilder {
         'entrypoint procedure shape',
       );
     }
+    final constructorTearOffs = [
+      for (final target in model.semantic.constructorTearOffTargets)
+        EsmConstructorTearOffSymbol(
+          target: target,
+          name: allocator.freshGlobal(
+            '\$${target.enclosingClass!.name}_${target.name.text.isEmpty ? 'new' : target.name.text}_tearoff',
+          ),
+        ),
+    ];
     return SemanticBuilderReturn(
       kernel: kernel,
       semantic: Semantic(
@@ -113,6 +122,7 @@ final class SemanticBuilder {
         extensionTypes: extensionTypes,
         fields: fields,
         procedures: procedures,
+        constructorTearOffs: constructorTearOffs,
       ),
     );
   }

@@ -9,6 +9,7 @@ function __dartCoreError(typeName, message) {
   Object.defineProperty(error, "toString", { value() { return display; } });
   return error;
 }
+
 function __dartIsCoreError(value, typeName) {
   const actual = value == null ? null : value.__dartCoreErrorType;
   if (actual != null) {

@@ -16,20 +16,9 @@ function __dartCoreError(typeName, message) {
   Object.defineProperty(error, "toString", { value() { return display; } });
   return error;
 }
-function __dartIsCoreError(value, typeName) {
-  const actual = value == null ? null : value.__dartCoreErrorType;
-  if (actual != null) {
-    if (actual === typeName) return true;
-    if (typeName === "Exception" && actual === "FormatException") return true;
-    if (typeName === "RangeError" && actual === "IndexError") return true;
-    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
-    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
-  }
-  if (typeName === "TypeError" && value instanceof TypeError) return true;
-  return typeName === "Error" && value instanceof Error;
-}
 
 const __dartConstValues = new Map();
+
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
     __dartConstValues.set(key, create());
@@ -67,6 +56,10 @@ function __dartEquals(left, right) {
 
 function __dartShr(left, right) {
   return Math.floor(Number(left) / (2 ** Number(right)));
+}
+
+function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
 }
 
 function __dartIterableToArray(iterable) {
@@ -146,6 +139,7 @@ function __dartListLikeGet(list, index) {
   const op = list == null ? null : list["[]"];
   return typeof op === "function" ? op.call(list, index) : list[index];
 }
+
 function __dartListLikeSet(list, index, value) {
   if (Array.isArray(list) || ArrayBuffer.isView(list)) {
     list[index] = value;
@@ -156,30 +150,7 @@ function __dartListLikeSet(list, index, value) {
   list[index] = value;
   return value;
 }
-function __dartListMixinFirst(list) {
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinLast(list) {
-  return __dartListLikeGet(list, list.length - 1);
-}
-function __dartListMixinSingle(list) {
-  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinInsert(list, index, value) {
-  index = Number(index);
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let i = length; i > index; i--) {
-    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
-  }
-  __dartListLikeSet(list, index, value);
-  return null;
-}
 
-function __dartListRangeRead(list, index) {
-  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
-}
 function __dartListRangeWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -187,23 +158,12 @@ function __dartListRangeWrite(list, index, value) {
     list[index] = value;
   }
 }
+
 function __dartListRangeValues(source, start = 0, end = null) {
   const from = Number(start);
   return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
 }
-function __dartListCopyRange(target, at, source, start = 0, end = null) {
-  const values = __dartListRangeValues(source, start, end);
-  let index = Number(at);
-  for (const value of values) __dartListRangeWrite(target, index++, value);
-  return null;
-}
-function __dartListWriteIterable(target, at, source) {
-  let index = Number(at);
-  for (const value of __dartListRangeValues(source)) {
-    __dartListRangeWrite(target, index++, value);
-  }
-  return null;
-}
+
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const from = Number(skipCount);
   const count = Number(end) - Number(start);
@@ -224,31 +184,9 @@ function __dartMapFromEntries(entries) {
   __dartMapAddAll(map, entries);
   return map;
 }
-function __dartMapFromIterable(iterable, key = null, value = null) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (const element of iterable) {
-    __dartMapSet(
-      map,
-      typeof key === "function" ? key(element) : element,
-      typeof value === "function" ? value(element) : element,
-    );
-  }
-  return map;
-}
-function __dartMapFromIterables(keys, values) {
-  const keyList = Array.from(keys);
-  const valueList = Array.from(values);
-  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (let index = 0; index < keyList.length; index++) {
-    __dartMapSet(map, keyList[index], valueList[index]);
-  }
-  return map;
-}
 
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+
 function __dartMapKey(map, key) {
   if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
   if (map.__dartSplayCompare !== undefined) {
@@ -270,6 +208,7 @@ function __dartMapKey(map, key) {
   }
   return __dartMapMissingKey;
 }
+
 function __dartMapGet(map, key) {
   if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
   const actualKey = __dartMapKey(map, key);
@@ -289,15 +228,19 @@ function __dartNullCheck(value) {
 }
 
 const __dartIdentityHashes = new WeakMap();
+
 let __dartNextIdentityHash = 1;
+
 function __dartCombineHash(hash, value) {
   hash = (((hash + value) & 0x1fffffff) + (((hash & 0x0007ffff) << 10) & 0x1fffffff)) & 0x1fffffff;
   return hash ^ (hash >> 6);
 }
+
 function __dartFinishHash(hash) {
   hash = (((hash + (((hash & 0x03ffffff) << 3) & 0x1fffffff)) & 0x1fffffff) ^ (hash >> 11));
   return (hash + (((hash & 0x00003fff) << 15) & 0x1fffffff)) & 0x1fffffff;
 }
+
 function __dartHashValue(value) {
   if (value == null) return 0;
   if (typeof value === "boolean") return value ? 1231 : 1237;
@@ -317,23 +260,6 @@ function __dartHashValue(value) {
     __dartNextIdentityHash = (__dartNextIdentityHash + 1) & 0x1fffffff || 1;
   }
   return __dartIdentityHashes.get(value);
-}
-function __dartObjectHash(values) {
-  let hash = 0;
-  for (const value of values) hash = __dartCombineHash(hash, __dartHashValue(value));
-  return __dartFinishHash(hash);
-}
-function __dartObjectHashUnordered(values) {
-  let sum = 0;
-  let xor = 0;
-  let count = 0;
-  for (const value of values) {
-    const hash = __dartHashValue(value);
-    sum = (sum + hash) & 0x1fffffff;
-    xor ^= hash;
-    count++;
-  }
-  return __dartObjectHash([sum, xor, count]);
 }
 
 function __dartPrint(value) {
@@ -360,21 +286,12 @@ function __dartSetContains(set, needle) {
   }
   return false;
 }
+
 function __dartSetAdd(set, value) {
   if (__dartSetContains(set, value)) return false;
   set.add(value);
   if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
   return true;
-}
-function __dartSetFrom(values) {
-  const set = new Set();
-  Object.defineProperty(set, "__dartEqualitySet", { value: true });
-  for (const value of values) __dartSetAdd(set, value);
-  return set;
-}
-function __dartSetAddAll(set, values) {
-  for (const value of values) __dartSetAdd(set, value);
-  return null;
 }
 
 function __dartSplayTreeSet(compare = null, isValidKey = null) {
@@ -384,32 +301,17 @@ function __dartSplayTreeSet(compare = null, isValidKey = null) {
   Object.defineProperty(set, "__dartSplayIsValidKey", { value: isValidKey });
   return set;
 }
+
 function __dartSplaySortSet(set) {
   const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
   set.clear();
   for (const value of values) set.add(value);
 }
-function __dartSplayTreeSetFrom(values, compare = null, isValidKey = null) {
-  const set = __dartSplayTreeSet(compare, isValidKey);
-  for (const value of values) __dartSetAdd(set, value);
-  return set;
-}
-function __dartSplayTreeMap(compare = null, isValidKey = null) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  Object.defineProperty(map, "__dartSplayCompare", { value: compare });
-  Object.defineProperty(map, "__dartSplayIsValidKey", { value: isValidKey });
-  return map;
-}
+
 function __dartSplaySortMap(map) {
   const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
   map.clear();
   for (const [key, value] of entries) map.set(key, value);
-}
-function __dartSplayTreeMapFromEntries(entries, compare = null, isValidKey = null) {
-  const map = __dartSplayTreeMap(compare, isValidKey);
-  for (const [key, value] of entries) __dartMapSet(map, key, value);
-  return map;
 }
 
 function __dartStr(value) {
@@ -583,17 +485,17 @@ class _UnorderedEquality {
     if ((elements1 === null || elements2 === null)) {
       return false;
     }
-    let counts = __dartCustomHashMap(__dartAs((function() {
+    let counts = __dartCustomHashMap(__dartAs((() => {
       const $receiver = this._elementEquality_package_collection_src_equality_dart;
       return function(e1, e2) {
         return $receiver.equals(e1, e2);
       };
-    })(), (value) => typeof value === "function", "FunctionType(bool Function(_UnorderedEquality.E%, _UnorderedEquality.E%))"), __dartAs((function() {
+    })(), (value) => typeof value === "function", "FunctionType(bool Function(_UnorderedEquality.E%, _UnorderedEquality.E%))"), __dartAs((() => {
       const $receiver = this._elementEquality_package_collection_src_equality_dart;
       return function(e) {
         return $receiver.hash(e);
       };
-    })(), (value) => typeof value === "function", "FunctionType(int Function(_UnorderedEquality.E%))"), (function() {
+    })(), (value) => typeof value === "function", "FunctionType(int Function(_UnorderedEquality.E%))"), (() => {
       const $receiver = this._elementEquality_package_collection_src_equality_dart;
       return function(o) {
         return $receiver.isValidKey(o);
@@ -1233,7 +1135,7 @@ export function main() {
     })();
   })();
   const ordered = [queue.removeFirst(), queue.removeFirst(), queue.removeFirst()];
-  __dartPrint(`collection ${__dartStr(firstEven)} ${__dartStr(__dartIterableToArray(__dartNullCheck(__dartMapGet(groups, 2))).join("|"))} ${__dartStr(deepEqual)} ${__dartStr(__dartIterableToArray(ordered).join(","))}`);
+  __dartPrint(`collection ${__dartStr(firstEven)} ${__dartStr(__dartIterableJoin(__dartNullCheck(__dartMapGet(groups, 2)), "|"))} ${__dartStr(deepEqual)} ${__dartStr(__dartIterableJoin(ordered, ","))}`);
 }
 
 main();

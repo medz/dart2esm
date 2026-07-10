@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Timehelperdeclaration on EsmRuntimeHelperRegistry {
+extension _TimeHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _timeHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.dateTime => EsmRawModuleItem(r'''

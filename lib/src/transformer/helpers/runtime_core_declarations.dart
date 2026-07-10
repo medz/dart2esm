@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Corehelperdeclaration on EsmRuntimeHelperRegistry {
+extension _CoreHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _coreHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.compare => EsmRawModuleItem('''

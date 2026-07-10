@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _AsyncHelperDeclaration on EsmRuntimeHelperRegistry {
+extension _AsyncHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _asyncHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.completer => EsmRawModuleItem('''

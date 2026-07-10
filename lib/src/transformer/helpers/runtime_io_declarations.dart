@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _IoHelperDeclaration on EsmRuntimeHelperRegistry {
+extension _IoHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _ioHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.io => EsmRawModuleItem(r'''
@@ -113,13 +113,148 @@ function __dartIoPlatform(name) {
       return null;
   }
 }
+function __dartIoHeaderParameters(parameters = null) {
+  const entries = parameters instanceof Map
+    ? parameters.entries()
+    : Object.entries(parameters ?? {});
+  return new Map(Array.from(entries, ([name, value]) => [String(name).toLowerCase(), value == null ? null : String(value)]));
+}
+function __dartIoHeaderValue(value = "", parameters = null) {
+  const normalized = __dartIoHeaderParameters(parameters);
+  return Object.freeze({
+    __dartType: "HeaderValue",
+    value: String(value),
+    parameters: normalized,
+    toString() {
+      let result = this.value;
+      for (const [name, parameter] of normalized) {
+        result += "; " + name + (parameter == null ? "" : "=" + parameter);
+      }
+      return result;
+    },
+  });
+}
+function __dartIoHeaderValueParse(source, options = {}) {
+  const separator = String(options.parameterSeparator ?? ";");
+  const parts = String(source).split(separator);
+  const value = parts.shift()?.trim() ?? "";
+  const parameters = new Map();
+  for (const part of parts) {
+    const index = part.indexOf("=");
+    const name = (index === -1 ? part : part.slice(0, index)).trim().toLowerCase();
+    if (name.length === 0) continue;
+    let parameter = index === -1 ? null : part.slice(index + 1).trim();
+    if (parameter != null && parameter.length >= 2 && parameter.startsWith('"') && parameter.endsWith('"')) {
+      parameter = parameter.slice(1, -1).replace(/\\([\\"])/g, "$1");
+    }
+    parameters.set(name, parameter);
+  }
+  return __dartIoHeaderValue(value, parameters);
+}
+function __dartIoContentType(primaryType, subType, options = {}) {
+  const primary = String(primaryType).toLowerCase();
+  const sub = String(subType).toLowerCase();
+  const parameters = __dartIoHeaderParameters(options.parameters);
+  if (options.charset != null) parameters.set("charset", String(options.charset).toLowerCase());
+  const header = __dartIoHeaderValue(primary + "/" + sub, parameters);
+  return Object.freeze({
+    __dartType: "ContentType",
+    value: header.value,
+    parameters,
+    mimeType: primary + "/" + sub,
+    primaryType: primary,
+    subType: sub,
+    get charset() { return parameters.get("charset") ?? null; },
+    toString() { return header.toString(); },
+  });
+}
+function __dartIoContentTypeParse(source) {
+  const header = __dartIoHeaderValueParse(source);
+  const separator = header.value.indexOf("/");
+  const primary = separator === -1 ? header.value : header.value.slice(0, separator);
+  const sub = separator === -1 ? "" : header.value.slice(separator + 1);
+  return __dartIoContentType(primary, sub, { parameters: header.parameters });
+}
+function __dartIoSameSite(name, index) {
+  const value = __dartIoEnum("SameSite", name.toLowerCase(), index);
+  return Object.freeze({
+    ...value,
+    name,
+    toString() { return "SameSite=" + name; },
+  });
+}
+function __dartIoCookie(name, value) {
+  const cookie = {
+    __dartType: "Cookie",
+    name: String(name),
+    value: String(value),
+    expires: null,
+    maxAge: null,
+    domain: null,
+    path: null,
+    secure: false,
+    httpOnly: true,
+    sameSite: null,
+    toString() {
+      let result = this.name + "=" + this.value;
+      if (this.expires != null) {
+        const millis = Number(this.expires.millisecondsSinceEpoch ?? this.expires);
+        result += "; Expires=" + new Date(millis).toUTCString();
+      }
+      if (this.maxAge != null) result += "; Max-Age=" + Number(this.maxAge);
+      if (this.domain != null) result += "; Domain=" + this.domain;
+      if (this.path != null) result += "; Path=" + this.path;
+      if (this.secure) result += "; Secure";
+      if (this.httpOnly) result += "; HttpOnly";
+      if (this.sameSite != null) result += "; SameSite=" + this.sameSite.name;
+      return result;
+    },
+  };
+  return cookie;
+}
+function __dartIoCookieParse(source) {
+  const parts = String(source).split(";");
+  const first = parts.shift() ?? "";
+  const separator = first.indexOf("=");
+  const cookie = __dartIoCookie(
+    (separator === -1 ? first : first.slice(0, separator)).trim(),
+    separator === -1 ? "" : first.slice(separator + 1).trim(),
+  );
+  for (const part of parts) {
+    const index = part.indexOf("=");
+    const name = (index === -1 ? part : part.slice(0, index)).trim().toLowerCase();
+    const value = index === -1 ? "" : part.slice(index + 1).trim();
+    switch (name) {
+      case "expires": {
+        const timestamp = Date.parse(value);
+        if (!Number.isNaN(timestamp)) cookie.expires = __dartDateTimeFromMicros(timestamp * 1000, false);
+        break;
+      }
+      case "max-age": cookie.maxAge = Number(value); break;
+      case "domain": cookie.domain = value; break;
+      case "path": cookie.path = value; break;
+      case "secure": cookie.secure = true; break;
+      case "httponly": cookie.httpOnly = true; break;
+      case "samesite": {
+        const lower = value.toLowerCase();
+        cookie.sameSite = lower === "strict"
+          ? __dartIoSameSite("Strict", 1)
+          : lower === "none"
+          ? __dartIoSameSite("None", 2)
+          : __dartIoSameSite("Lax", 0);
+        break;
+      }
+    }
+  }
+  return cookie;
+}
 '''),
       EsmRuntimeHelper.ioNode => EsmRawModuleItem(r'''
-const __dartNodeFs = await import("node:fs");
-const __dartNodeFsPromises = await import("node:fs/promises");
-const __dartNodePath = await import("node:path");
-const __dartNodeOs = await import("node:os");
-const __dartNodeChildProcess = await import("node:child_process");
+import * as __dartNodeFs from "node:fs";
+import * as __dartNodeFsPromises from "node:fs/promises";
+import * as __dartNodePath from "node:path";
+import * as __dartNodeOs from "node:os";
+import * as __dartNodeChildProcess from "node:child_process";
 
 function __dartIoToArray(value) {
   if (value == null) return [];
@@ -422,7 +557,7 @@ function __dartDirectory(path) {
 }
 function __dartLink(path) {
   path = String(path);
-  return Object.freeze({
+  const link = {
     __dartType: "Link",
     get path() { return path; },
     get uri() { return __dartUriFile(path, globalThis.process?.platform === "win32", false); },
@@ -430,10 +565,41 @@ function __dartLink(path) {
     get parent() { return __dartDirectory(__dartNodePath.dirname(path)); },
     existsSync() { try { return __dartNodeFs.lstatSync(path).isSymbolicLink(); } catch (_) { return false; } },
     exists() { return Promise.resolve(this.existsSync()); },
+    createSync(target, options = {}) {
+      try {
+        if (options.recursive === true) __dartNodeFs.mkdirSync(__dartNodePath.dirname(path), { recursive: true });
+        __dartNodeFs.symlinkSync(String(target), path);
+        return null;
+      } catch (error) { __dartIoNodeError(error, "Cannot create link", path); }
+    },
+    async create(target, options = {}) { this.createSync(target, options); return link; },
+    updateSync(target) {
+      try {
+        __dartNodeFs.rmSync(path, { force: true });
+        __dartNodeFs.symlinkSync(String(target), path);
+        return null;
+      } catch (error) { __dartIoNodeError(error, "Cannot update link", path); }
+    },
+    async update(target) { this.updateSync(target); return link; },
+    deleteSync() {
+      try { __dartNodeFs.unlinkSync(path); return null; } catch (error) { __dartIoNodeError(error, "Cannot delete link", path); }
+    },
+    async delete() { this.deleteSync(); return null; },
+    renameSync(newPath) {
+      try { __dartNodeFs.renameSync(path, String(newPath)); return __dartLink(newPath); } catch (error) { __dartIoNodeError(error, "Cannot rename link", path); }
+    },
+    async rename(newPath) { return this.renameSync(newPath); },
     targetSync() { try { return __dartNodeFs.readlinkSync(path); } catch (error) { __dartIoNodeError(error, "Cannot read link", path); } },
     async target() { return this.targetSync(); },
+    statSync() { return __dartFileStat(path); },
+    async stat() { return this.statSync(); },
+    resolveSymbolicLinksSync() {
+      try { return __dartNodeFs.realpathSync(path); } catch (error) { __dartIoNodeError(error, "Cannot resolve symbolic links", path); }
+    },
+    async resolveSymbolicLinks() { return this.resolveSymbolicLinksSync(); },
     toString() { return "Link: '" + path + "'"; },
-  });
+  };
+  return Object.freeze(link);
 }
 function __dartFileSink(path, mode = null, encoding = null) {
   let closed = false;
@@ -488,10 +654,22 @@ function __dartStderr() {
   return __dartStdSink(2);
 }
 function __dartStdin() {
+  let lines = null;
+  let index = 0;
   return Object.freeze({
     __dartType: "Stdin",
     get hasTerminal() { return Boolean(globalThis.process?.stdin?.isTTY); },
-    readLineSync() { return null; },
+    readLineSync(options = {}) {
+      if (lines == null) {
+        const text = __dartNodeFs.readFileSync(0, "utf8");
+        const retainNewlines = options.retainNewlines === true;
+        lines = retainNewlines
+          ? (text.match(/.*(?:\r\n|\n|\r)|.+$/g) ?? [])
+          : text.split(/\r\n|\n|\r/);
+        if (!retainNewlines && lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+      }
+      return index < lines.length ? lines[index++] : null;
+    },
   });
 }
 function __dartProcessRunSync(executable, arguments_, options = {}) {

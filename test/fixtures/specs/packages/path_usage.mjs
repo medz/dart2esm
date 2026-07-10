@@ -9,6 +9,7 @@ function __dartCoreError(typeName, message) {
   Object.defineProperty(error, "toString", { value() { return display; } });
   return error;
 }
+
 function __dartIsCoreError(value, typeName) {
   const actual = value == null ? null : value.__dartCoreErrorType;
   if (actual != null) {
@@ -23,6 +24,7 @@ function __dartIsCoreError(value, typeName) {
 }
 
 const __dartConstValues = new Map();
+
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
     __dartConstValues.set(key, create());
@@ -49,17 +51,10 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
-function __dartIterableFirstWhere(iterable, test, orElse = null) {
-  for (const value of __dartIterableToArray(iterable)) {
-    if (test(value)) return value;
-  }
-  if (typeof orElse === "function") return orElse();
-  throw new Error("No element");
+function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
 }
-function __dartIterableFirstOrNull(iterable) {
-  for (const value of __dartIterableToArray(iterable)) return value;
-  return null;
-}
+
 function __dartIterableLastWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
@@ -72,48 +67,6 @@ function __dartIterableLastWhere(iterable, test, orElse = null) {
   if (found) return result;
   if (typeof orElse === "function") return orElse();
   throw new Error("No element");
-}
-function __dartIterableLastOrNull(iterable) {
-  let found = false;
-  let result;
-  for (const value of __dartIterableToArray(iterable)) {
-    found = true;
-    result = value;
-  }
-  return found ? result : null;
-}
-function __dartIterableSingle(iterable) {
-  const values = __dartIterableToArray(iterable);
-  if (values.length !== 1) throw new Error(values.length === 0 ? "No element" : "Too many elements");
-  return values[0];
-}
-function __dartIterableSingleWhere(iterable, test, orElse = null) {
-  let found = false;
-  let result;
-  for (const value of __dartIterableToArray(iterable)) {
-    if (!test(value)) continue;
-    if (found) throw new Error("Too many elements");
-    found = true;
-    result = value;
-  }
-  if (found) return result;
-  if (typeof orElse === "function") return orElse();
-  throw new Error("No element");
-}
-function __dartIterableSingleOrNull(iterable) {
-  let found = false;
-  let result;
-  for (const value of __dartIterableToArray(iterable)) {
-    if (found) return null;
-    found = true;
-    result = value;
-  }
-  return found ? result : null;
-}
-function __dartIterableElementAtOrNull(iterable, index) {
-  const values = __dartIterableToArray(iterable);
-  const offset = Number(index);
-  return offset >= 0 && offset < values.length ? values[offset] : null;
 }
 
 function __dartIterableToArray(iterable) {
@@ -200,20 +153,15 @@ function __dartFixedList(values) {
   Object.preventExtensions(list);
   return list;
 }
+
 function __dartListOf(values, growable = true) {
   const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
+
 function __dartListFilled(length, fill, growable = false) {
   const list = Array(Number(length)).fill(fill);
   return growable ? list : __dartFixedList(list);
-}
-function __dartListGenerate(length, generator, growable = true) {
-  const list = Array.from({ length: Number(length) }, (_, index) => generator(index));
-  return growable ? list : __dartFixedList(list);
-}
-function __dartUnmodifiableList(values) {
-  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -221,6 +169,7 @@ function __dartListLikeGet(list, index) {
   const op = list == null ? null : list["[]"];
   return typeof op === "function" ? op.call(list, index) : list[index];
 }
+
 function __dartListLikeSet(list, index, value) {
   if (Array.isArray(list) || ArrayBuffer.isView(list)) {
     list[index] = value;
@@ -231,30 +180,11 @@ function __dartListLikeSet(list, index, value) {
   list[index] = value;
   return value;
 }
-function __dartListMixinFirst(list) {
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinLast(list) {
-  return __dartListLikeGet(list, list.length - 1);
-}
-function __dartListMixinSingle(list) {
-  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinInsert(list, index, value) {
-  index = Number(index);
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let i = length; i > index; i--) {
-    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
-  }
-  __dartListLikeSet(list, index, value);
-  return null;
-}
 
 function __dartListMutationRead(list, index) {
   return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
 }
+
 function __dartListMutationWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -262,24 +192,18 @@ function __dartListMutationWrite(list, index, value) {
     list[index] = value;
   }
 }
+
 function __dartListMutationValues(values) {
   return __dartIterableToArray(values);
 }
-function __dartListShuffle(list, random = null) {
-  for (let index = list.length - 1; index > 0; index--) {
-    const nextInt = random == null ? Math.floor(Math.random() * (index + 1)) : Number(random.nextInt(index + 1));
-    const current = __dartListMutationRead(list, index);
-    __dartListMutationWrite(list, index, __dartListMutationRead(list, nextInt));
-    __dartListMutationWrite(list, nextInt, current);
-  }
-  return null;
-}
+
 function __dartListRemoveAt(list, index) {
   index = Number(index);
   const value = __dartListMutationRead(list, index);
   __dartListRemoveRange(list, index, index + 1);
   return value;
 }
+
 function __dartListInsert(list, index, value) {
   index = Number(index);
   if (Array.isArray(list)) {
@@ -294,18 +218,11 @@ function __dartListInsert(list, index, value) {
   __dartListMutationWrite(list, index, value);
   return null;
 }
-function __dartListRemove(list, value) {
-  for (let index = 0; index < list.length; index++) {
-    if (__dartEquals(__dartListMutationRead(list, index), value)) {
-      __dartListRemoveRange(list, index, index + 1);
-      return true;
-    }
-  }
-  return false;
-}
+
 function __dartListRemoveLast(list) {
   return __dartListRemoveAt(list, list.length - 1);
 }
+
 function __dartListInsertAll(list, index, values) {
   index = Number(index);
   const inserted = __dartListMutationValues(values);
@@ -323,27 +240,7 @@ function __dartListInsertAll(list, index, values) {
   }
   return null;
 }
-function __dartListSetAll(list, index, values) {
-  let cursor = Number(index);
-  for (const value of __dartListMutationValues(values)) {
-    __dartListMutationWrite(list, cursor++, value);
-  }
-  return null;
-}
-function __dartListFillRange(list, start, end, fill = null) {
-  for (let index = Number(start); index < Number(end); index++) {
-    __dartListMutationWrite(list, index, fill);
-  }
-  return null;
-}
-function __dartListReplaceRange(list, start, end, values) {
-  start = Number(start);
-  end = Number(end);
-  const replacement = __dartListMutationValues(values);
-  __dartListRemoveRange(list, start, end);
-  __dartListInsertAll(list, start, replacement);
-  return null;
-}
+
 function __dartListRemoveRange(list, start, end) {
   start = Number(start);
   end = Number(end);
@@ -359,217 +256,12 @@ function __dartListRemoveRange(list, start, end) {
   list.length = length - count;
   return null;
 }
-function __dartListRemoveWhere(list, test) {
-  for (let index = list.length - 1; index >= 0; index--) {
-    if (test(__dartListMutationRead(list, index))) {
-      __dartListRemoveRange(list, index, index + 1);
-    }
-  }
-  return null;
-}
-function __dartListRetainWhere(list, test) {
-  for (let index = list.length - 1; index >= 0; index--) {
-    if (!test(__dartListMutationRead(list, index))) {
-      __dartListRemoveRange(list, index, index + 1);
-    }
-  }
-  return null;
-}
-function __dartListAsMap(list) {
-  const map = new Map();
-  for (let index = 0; index < list.length; index++) map.set(index, __dartListMutationRead(list, index));
-  return map;
-}
 
 function __dartNullCheck(value) {
   if (value == null) throw new TypeError("Null check operator used on a null value");
   return value;
 }
 
-function __dartPatternRegExp(pattern, global = false) {
-  if (pattern != null && typeof pattern.__dartRegExpMake === "function") return pattern.__dartRegExpMake(global);
-  if (pattern instanceof RegExp) {
-    let flags = pattern.flags;
-    flags = global ? (flags.includes("g") ? flags : flags + "g") : flags.replace(/g/g, "");
-    return new RegExp(pattern.source, flags);
-  }
-  return null;
-}
-function __dartPatternAllMatches(pattern, input, start = 0) {
-  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.allMatches === "function") return pattern.allMatches(input, start);
-  const text = String(input);
-  const regexp = __dartPatternRegExp(pattern, true);
-  if (regexp != null) {
-    const matches = [];
-    regexp.lastIndex = start;
-    let match;
-    while ((match = regexp.exec(text)) !== null) {
-      matches.push(__dartRegExpMatch(match, 0, text, pattern));
-      if (match[0] === "") regexp.lastIndex++;
-    }
-    return matches;
-  }
-  return __dartStringAllMatches(pattern, text, start);
-}
-function __dartPatternMatchAsPrefix(pattern, input, start = 0) {
-  if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.matchAsPrefix === "function") return pattern.matchAsPrefix(input, start);
-  const text = String(input);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const match = regexp.exec(text.slice(start));
-    return match == null || match.index !== 0 ? null : __dartRegExpMatch(match, start, text, pattern);
-  }
-  return __dartStringMatchAsPrefix(pattern, text, start);
-}
-function __dartStringContains(source, pattern, start = 0) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) return regexp.test(text.slice(start));
-  return text.includes(String(pattern), start);
-}
-function __dartStringStartsWith(source, pattern, start = 0) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const match = regexp.exec(text.slice(start));
-    return match != null && match.index === 0;
-  }
-  return text.startsWith(String(pattern), start);
-}
-function __dartStringIndexOf(source, pattern, start = 0) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const match = regexp.exec(text.slice(start));
-    return match == null ? -1 : start + match.index;
-  }
-  return text.indexOf(String(pattern), start);
-}
-function __dartStringLastIndexOf(source, pattern, start = null) {
-  const text = String(source);
-  const limit = start == null ? text.length : start;
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    for (let index = Math.min(limit, text.length); index >= 0; index--) {
-      const match = regexp.exec(text.slice(index));
-      if (match != null && match.index === 0) return index;
-    }
-    return -1;
-  }
-  return text.lastIndexOf(String(pattern), limit);
-}
-function __dartStringSplit(source, pattern) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  return regexp == null ? text.split(String(pattern)) : text.split(regexp);
-}
-function __dartStringReplaceAll(source, pattern, replacement) {
-  const text = String(source);
-  const replacementText = String(replacement);
-  const regexp = __dartPatternRegExp(pattern, true);
-  return regexp == null ? text.split(String(pattern)).join(replacementText) : text.replace(regexp, () => replacementText);
-}
-function __dartStringReplaceAllMapped(source, pattern, replace) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, true);
-  if (regexp != null) return text.replace(regexp, (...args) => String(replace(__dartJsRegExpReplacementMatch(args))));
-  return __dartStringReplaceStringMapped(text, String(pattern), replace, true, 0);
-}
-function __dartStringReplaceFirstMapped(source, pattern, replace, startIndex = 0) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const tail = text.slice(startIndex);
-    const match = regexp.exec(tail);
-    if (match == null) return text;
-    const dartMatch = __dartRegExpMatch(match, startIndex);
-    return text.slice(0, dartMatch.start) + String(replace(dartMatch)) + text.slice(dartMatch.end);
-  }
-  return __dartStringReplaceStringMapped(text, String(pattern), replace, false, startIndex);
-}
-function __dartStringReplaceStringMapped(text, needle, replace, all, startIndex) {
-  if (needle === "") return text;
-  let result = "";
-  let cursor = 0;
-  let index = text.indexOf(needle, startIndex);
-  let replaced = false;
-  while (index >= 0) {
-    result += text.slice(cursor, index);
-    result += String(replace(__dartStringMatch(text, index, needle)));
-    cursor = index + needle.length;
-    replaced = true;
-    if (!all) break;
-    index = text.indexOf(needle, cursor);
-  }
-  return replaced ? result + text.slice(cursor) : text;
-}
-function __dartStringSplitMapJoin(source, pattern, onMatch = null, onNonMatch = null) {
-  const text = String(source);
-  const matchMapper = typeof onMatch === "function" ? onMatch : (match) => match.group(0);
-  const nonMatchMapper = typeof onNonMatch === "function" ? onNonMatch : (part) => part;
-  const matches = __dartStringPatternMatches(text, pattern);
-  if (matches.length === 0) return String(nonMatchMapper(text));
-  let result = "";
-  let cursor = 0;
-  for (const match of matches) {
-    result += String(nonMatchMapper(text.slice(cursor, match.start)));
-    result += String(matchMapper(match));
-    cursor = match.end;
-  }
-  result += String(nonMatchMapper(text.slice(cursor)));
-  return result;
-}
-function __dartStringPatternMatches(text, pattern) {
-  const regexp = __dartPatternRegExp(pattern, true);
-  if (regexp != null) {
-    const matches = [];
-    let match;
-    while ((match = regexp.exec(text)) !== null) {
-      matches.push(__dartRegExpMatch(match));
-      if (match[0] === "") regexp.lastIndex++;
-    }
-    return matches;
-  }
-  const needle = String(pattern);
-  if (needle === "") return [];
-  const matches = [];
-  let index = text.indexOf(needle);
-  while (index >= 0) {
-    matches.push(__dartStringMatch(text, index, needle));
-    index = text.indexOf(needle, index + needle.length);
-  }
-  return matches;
-}
-function __dartStringAllMatches(pattern, input, start = 0) {
-  const text = String(input);
-  const needle = String(pattern);
-  const matches = [];
-  if (needle === "") return matches;
-  let index = text.indexOf(needle, start);
-  while (index >= 0) {
-    matches.push(__dartStringMatch(text, index, needle));
-    index = text.indexOf(needle, index + needle.length);
-  }
-  return matches;
-}
-function __dartStringMatchAsPrefix(pattern, input, start = 0) {
-  const text = String(input);
-  const needle = String(pattern);
-  return text.startsWith(needle, start) ? __dartStringMatch(text, start, needle) : null;
-}
-function __dartStringMatch(input, start, value) {
-  return {
-    input,
-    start,
-    end: start + value.length,
-    get groupCount() { return 0; },
-    group(index) { return index === 0 ? value : null; },
-    groups(indices) { return Array.from(indices, (index) => this.group(index)); },
-    namedGroup() { return null; },
-    get groupNames() { return new Set(); },
-    0: value,
-  };
-}
 function __dartRegExpMatch(match, offset = 0, input = null, pattern = null) {
   const namedGroups = match.groups ?? {};
   const result = {
@@ -587,29 +279,6 @@ function __dartRegExpMatch(match, offset = 0, input = null, pattern = null) {
     result[i] = match[i] ?? null;
   }
   return result;
-}
-function __dartJsRegExpReplacementMatch(args) {
-  const hasNamedGroups = args.length > 0 && args[args.length - 1] != null && typeof args[args.length - 1] === "object";
-  const input = args[args.length - (hasNamedGroups ? 2 : 1)];
-  const offset = args[args.length - (hasNamedGroups ? 3 : 2)];
-  const match = Array.prototype.slice.call(args, 0, args.length - (hasNamedGroups ? 3 : 2));
-  match.index = offset;
-  match.input = input;
-  if (hasNamedGroups) match.groups = args[args.length - 1];
-  return __dartRegExpMatch(match);
-}
-function __dartStringReplaceFirstPattern(source, pattern, replacement, startIndex = 0) {
-  const text = String(source);
-  const replacementText = String(replacement);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const tail = text.slice(startIndex);
-    const match = regexp.exec(tail);
-    if (match == null) return text;
-    const index = startIndex + match.index;
-    return text.slice(0, index) + replacementText + text.slice(index + match[0].length);
-  }
-  return __dartStringReplaceFirst(source, pattern, replacement, startIndex);
 }
 
 function __dartPrint(value) {
@@ -721,17 +390,13 @@ function __dartStringCodeUnits(source) {
   const text = String(source);
   return Array.from({ length: text.length }, (_, index) => text.charCodeAt(index));
 }
+
 function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {
   const text = String(source);
   const needle = String(pattern);
   const index = text.indexOf(needle, Number(startIndex));
   if (index < 0) return text;
   return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);
-}
-function __dartStringReplaceRange(source, start, end, replacement) {
-  const text = String(source);
-  const actualEnd = end == null ? text.length : Number(end);
-  return text.slice(0, Number(start)) + String(replacement) + text.slice(actualEnd);
 }
 
 function __dartStr(value) {
@@ -761,18 +426,6 @@ function __dartAs(value, test, typeName) {
   throw new TypeError("Type cast failed: expected " + typeName);
 }
 
-function __dartBase64Encode(bytes, urlSafe = false) {
-  const values = Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255));
-  let encoded;
-  if (typeof Buffer !== "undefined") {
-    encoded = Buffer.from(values).toString("base64");
-  } else {
-    let binary = "";
-    for (const byte of values) binary += String.fromCharCode(byte);
-    encoded = btoa(binary);
-  }
-  return urlSafe ? encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") : encoded;
-}
 function __dartUriParse(source, tryParse = false) {
   const text = String(source);
   let url;
@@ -832,7 +485,9 @@ function __dartUriParse(source, tryParse = false) {
     toString() { return text; },
   });
 }
+
 function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }
+
 function __dartUriEncodeQueryComponent(value, encoding = null) {
   const text = String(value);
   if (encoding == null || typeof encoding.encode !== "function") return encodeURIComponent(text).replace(/%20/g, "+");
@@ -845,39 +500,7 @@ function __dartUriEncodeQueryComponent(value, encoding = null) {
   }
   return result;
 }
-function __dartUriDecodeQueryComponent(value, encoding = null) {
-  const text = String(value).replace(/\+/g, " ");
-  if (encoding == null || typeof encoding.decode !== "function") return decodeURIComponent(text);
-  const bytes = [];
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    if (char === "%" && i + 2 < text.length) {
-      const hex = text.slice(i + 1, i + 3);
-      if (/^[0-9a-fA-F]{2}$/.test(hex)) {
-        bytes.push(parseInt(hex, 16));
-        i += 2;
-        continue;
-      }
-    }
-    bytes.push(char.charCodeAt(0));
-  }
-  return encoding.decode(bytes);
-}
-function __dartUriSplitQueryString(query, encoding = null) {
-  const map = new Map();
-  for (const element of String(query).split("&")) {
-    const index = element.indexOf("=");
-    if (index === -1) {
-      if (element !== "") map.set(__dartUriDecodeQueryComponent(element, encoding), "");
-      continue;
-    }
-    if (index === 0) continue;
-    const key = element.slice(0, index);
-    const value = element.slice(index + 1);
-    map.set(__dartUriDecodeQueryComponent(key, encoding), __dartUriDecodeQueryComponent(value, encoding));
-  }
-  return map;
-}
+
 function __dartUriBuildQuery(queryParameters) {
   const parts = [];
   for (const [key, value] of queryParameters) {
@@ -892,6 +515,7 @@ function __dartUriBuildQuery(queryParameters) {
   }
   return parts.join("&");
 }
+
 function __dartUri(options = {}) {
   const scheme = options.scheme == null ? "" : String(options.scheme);
   const userInfo = options.userInfo == null ? "" : String(options.userInfo);
@@ -923,107 +547,9 @@ function __dartUri(options = {}) {
   }
   return __dartUriParse(text, false);
 }
-function __dartUriFile(path, windows = false, directory = false) {
-  let text = String(path);
-  if (windows) text = text.replace(/\\/g, "/");
-  if (directory && text !== "" && !text.endsWith("/") && !(windows && /^[a-zA-Z]:$/.test(text))) text += "/";
-  const isAbsolute = windows ? (/^[a-zA-Z]:\//.test(text) || text.startsWith("//")) : text.startsWith("/");
-  const encoded = __dartUriEncodePath(text);
-  if (!isAbsolute) return __dartUriParse(encoded, false);
-  const filePath = windows && /^[a-zA-Z]:\//.test(encoded) ? "/" + encoded : encoded;
-  return __dartUriParse("file://" + filePath, false);
-}
-function __dartUriDataParameters(parameters) {
-  if (parameters == null) return "";
-  let result = "";
-  for (const [key, value] of parameters) {
-    result += ";" + encodeURIComponent(String(key)) + "=" + encodeURIComponent(String(value));
-  }
-  return result;
-}
-function __dartUriDataMediaType(mimeType) {
-  if (mimeType == null || String(mimeType).toLowerCase() === "text/plain") return "";
-  return String(mimeType);
-}
-function __dartUriPercentEncodeBytes(bytes) {
-  let result = "";
-  for (const byte of bytes) {
-    const value = Number(byte) & 255;
-    const char = String.fromCharCode(value);
-    result += /[A-Za-z0-9\-._~]/.test(char) ? char : "%" + value.toString(16).toUpperCase().padStart(2, "0");
-  }
-  return result;
-}
-function __dartUriDataFromString(content, mimeType = null, encoding = null, parameters = null, base64 = false) {
-  const text = String(content);
-  let metadata = __dartUriDataMediaType(mimeType);
-  if (encoding != null) metadata += ";charset=utf-8";
-  metadata += __dartUriDataParameters(parameters);
-  if (base64) {
-    const bytes = new TextEncoder().encode(text);
-    return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(bytes), false);
-  }
-  return __dartUriParse("data:" + metadata + "," + encodeURIComponent(text), false);
-}
-function __dartUriDataFromBytes(bytes, mimeType = null, parameters = null, percentEncoded = false) {
-  const byteList = Array.from(bytes, (byte) => Number(byte) & 255);
-  let metadata = mimeType == null ? "application/octet-stream" : __dartUriDataMediaType(mimeType);
-  metadata += __dartUriDataParameters(parameters);
-  if (percentEncoded) {
-    return __dartUriParse("data:" + metadata + "," + __dartUriPercentEncodeBytes(byteList), false);
-  }
-  return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(byteList), false);
-}
-function __dartUriAssignQueryParameters(url, queryParameters) {
-  const search = new URLSearchParams();
-  for (const [key, value] of queryParameters) {
-    if (value == null) continue;
-    if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {
-      for (const item of value) search.append(String(key), String(item));
-    } else {
-      search.append(String(key), String(value));
-    }
-  }
-  url.search = search.toString();
-}
+
 function __dartUriResolve(uri, reference) {
   return __dartUriParse(new URL(String(reference), String(uri)).toString());
-}
-function __dartUriNormalizePath(uri) {
-  return __dartUriParse(new URL(String(uri)).toString());
-}
-function __dartUriReplace(uri, options = {}) {
-  const url = new URL(String(uri));
-  if ("scheme" in options && options.scheme != null) url.protocol = String(options.scheme) + ":";
-  if ("userInfo" in options && options.userInfo != null) {
-    const parts = String(options.userInfo).split(":");
-    url.username = parts[0] ?? "";
-    url.password = parts.slice(1).join(":");
-  }
-  if ("host" in options && options.host != null) url.hostname = String(options.host);
-  if ("port" in options && options.port != null) url.port = String(options.port);
-  if ("pathSegments" in options && options.pathSegments != null) {
-    url.pathname = Array.from(options.pathSegments, (segment) => encodeURIComponent(String(segment))).join("/");
-  } else if ("path" in options && options.path != null) {
-    url.pathname = String(options.path);
-  }
-  if ("queryParameters" in options) {
-    if (options.queryParameters != null) __dartUriAssignQueryParameters(url, options.queryParameters);
-  } else if ("query" in options) {
-    if (options.query != null) url.search = String(options.query);
-  }
-  if (options.__removeFragment === true) url.hash = "";
-  else if ("fragment" in options && options.fragment != null) url.hash = String(options.fragment);
-  return __dartUriParse(url.toString());
-}
-function __dartUriBuild(scheme, authority, path, queryParameters = null) {
-  const url = new URL(String(scheme) + "://" + String(authority));
-  const rawPath = String(path);
-  url.pathname = rawPath.startsWith("/") ? rawPath : "/" + rawPath;
-  if (queryParameters != null) {
-    __dartUriAssignQueryParameters(url, queryParameters);
-  }
-  return __dartUriParse(url.toString());
 }
 
 function __dartUriToFilePath(uri, windows = false) {
@@ -1626,6 +1152,8 @@ class PathException {
   constructor(message) {
     Object.defineProperty(this, "message", { value: null, writable: true, enumerable: true, configurable: true });
     Object.defineProperty(this, "message", { value: message, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "__dartCoreErrorType", { value: "Exception", writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "name", { value: "Exception", writable: true, enumerable: true, configurable: true });
   }
   toString() {
     return `PathException: ${__dartStr(this.message)}`;
@@ -2333,9 +1861,9 @@ function _validateArgList(method, args) {
       }
       const message = __dartStringBuffer("");
       message.write(`${__dartStr(method)}(`);
-      message.write(__dartIterableToArray(Array.from(__dartIterableToArray(args).slice(0, numArgs), (arg) => {
+      message.write(__dartIterableJoin(Array.from(__dartIterableToArray(args).slice(0, numArgs), (arg) => {
         return (arg === null ? "null" : `"${__dartStr(arg)}"`);
-      })).join(", "));
+      }), ", "));
       message.write(`): part ${__dartStr(i - 1)} was null, but part ${__dartStr(i)} was not.`);
       throw __dartCoreError("ArgumentError", message.toString());
     }

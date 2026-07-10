@@ -1,8 +1,10 @@
 import 'package:kernel/kernel.dart' as k;
 
 import '../../ast/esm_ast.dart';
+import '../../foundation/diagnostics/unsupported_compiler_feature.dart';
 import '../../foundation/kernel/kernel_references.dart';
 import '../../foundation/kernel/sdk_symbols.dart';
+import '../../options.dart';
 import '../../transformer/helpers/runtime_helpers.dart';
 import 'dart_async_intrinsics.dart';
 import 'dart_collection_intrinsics.dart';
@@ -185,6 +187,22 @@ final class DartSdkIntrinsicRegistry {
         );
   }
 
+  EsmExpression? lowerInstanceSet({
+    required k.Reference reference,
+    required String name,
+    required EsmRuntimeHelperUseSet helpers,
+    required EsmExpression Function() lowerReceiver,
+    required EsmExpression Function() lowerValue,
+  }) {
+    return lowerDartIoInstanceSet(
+      reference: reference,
+      name: name,
+      helpers: helpers,
+      lowerReceiver: lowerReceiver,
+      lowerValue: lowerValue,
+    );
+  }
+
   EsmExpression? lowerStaticGet({
     required k.StaticGet expression,
     required EsmRuntimeHelperUseSet helpers,
@@ -230,10 +248,9 @@ final class DartSdkIntrinsicRegistry {
   }) {
     final path = kernelReferencePath(expression.targetReference);
     if (path == 'dart:ffi::@getters::nullptr') {
-      helpers.require(EsmRuntimeHelper.ffi);
-      return const EsmCall(
-        callee: EsmIdentifier('__dartPointer'),
-        arguments: [EsmNumberLiteral(0)],
+      throw UnsupportedCompilerFeature(
+        expression,
+        'dart:ffi requires a native ABI bridge unavailable in native ESM',
       );
     }
     if (path == 'dart:html::@getters::document') {
@@ -516,8 +533,7 @@ final class DartSdkIntrinsicRegistry {
   }) {
     final path = kernelReferencePath(expression.targetReference);
     final positional = expression.arguments.positional;
-    if (expression.arguments.named.isNotEmpty &&
-        path != 'dart:isolate::Isolate::@methods::spawn') {
+    if (expression.arguments.named.isNotEmpty) {
       return null;
     }
     if (path == 'dart:concurrent::Mutex::@factories::' && positional.isEmpty) {
@@ -526,21 +542,17 @@ final class DartSdkIntrinsicRegistry {
     }
     if (path == 'dart:ffi::Pointer::@factories::fromAddress' &&
         positional.length == 1) {
-      helpers.require(EsmRuntimeHelper.ffi);
-      return EsmCall(
-        callee: const EsmIdentifier('__dartPointer'),
-        arguments: [lower(positional.single)],
+      throw UnsupportedCompilerFeature(
+        expression,
+        'dart:ffi Pointer requires native memory unavailable in native ESM',
       );
     }
     if (path == 'dart:ffi::@methods::sizeOf' &&
         positional.isEmpty &&
         expression.arguments.types.length == 1) {
-      helpers.require(EsmRuntimeHelper.ffi);
-      return EsmCall(
-        callee: const EsmIdentifier('__dartSizeOf'),
-        arguments: [
-          EsmStringLiteral(_ffiTypeName(expression.arguments.types.single)),
-        ],
+      throw UnsupportedCompilerFeature(
+        expression,
+        'dart:ffi sizeOf requires an explicit target ABI',
       );
     }
     if (path == 'dart:isolate::ReceivePort::@factories::' &&
@@ -559,12 +571,48 @@ final class DartSdkIntrinsicRegistry {
         arguments: [for (final argument in positional) lower(argument)],
       );
     }
+    if (path == 'dart:isolate::Isolate::@methods::run' &&
+        positional.length == 1) {
+      final entry = lower(positional.single);
+      if (entry is! EsmIdentifier) {
+        throw UnsupportedCompilerFeature(
+          expression,
+          'Isolate.run entry must be a top-level function',
+        );
+      }
+      final workerHelper = helpers.platform == Dart2EsmPlatform.browser
+          ? EsmRuntimeHelper.isolateWeb
+          : EsmRuntimeHelper.isolateNode;
+      helpers.require(workerHelper);
+      return EsmCall(
+        callee: EsmIdentifier(
+          workerHelper == EsmRuntimeHelper.isolateWeb
+              ? '__dartRunWebIsolate'
+              : '__dartRunNodeIsolate',
+        ),
+        arguments: [EsmStringLiteral(entry.name)],
+      );
+    }
     if (path == 'dart:isolate::Isolate::@methods::spawn' &&
         positional.length >= 2) {
-      helpers.require(EsmRuntimeHelper.isolate);
+      final entry = lower(positional[0]);
+      if (entry is! EsmIdentifier) {
+        throw UnsupportedCompilerFeature(
+          expression,
+          'Isolate.spawn entry must be a top-level function',
+        );
+      }
+      final workerHelper = helpers.platform == Dart2EsmPlatform.browser
+          ? EsmRuntimeHelper.isolateWeb
+          : EsmRuntimeHelper.isolateNode;
+      helpers.require(workerHelper);
       return EsmCall(
-        callee: const EsmIdentifier('__dartSpawnIsolate'),
-        arguments: [lower(positional[0]), lower(positional[1])],
+        callee: EsmIdentifier(
+          workerHelper == EsmRuntimeHelper.isolateWeb
+              ? '__dartSpawnWebIsolate'
+              : '__dartSpawnNodeIsolate',
+        ),
+        arguments: [EsmStringLiteral(entry.name), lower(positional[1])],
       );
     }
     final jsInterop = _lowerJsInteropStaticInvocation(
@@ -1273,9 +1321,9 @@ final class DartSdkIntrinsicRegistry {
         name == 'cast' &&
         positional.isEmpty &&
         arguments.named.isEmpty) {
-      return EsmCall(
-        callee: EsmPropertyAccess(receiver: lowerReceiver(), property: 'cast'),
-        arguments: const [],
+      throw UnsupportedCompilerFeature(
+        reference,
+        'dart:ffi Pointer requires native memory unavailable in native ESM',
       );
     }
     if (target.startsWith('dart:isolate::SendPort::') &&
@@ -1323,6 +1371,15 @@ final class DartSdkIntrinsicRegistry {
         arguments: const [],
       );
     }
+    if (target.startsWith('dart:isolate::Isolate::') &&
+        name == 'kill' &&
+        positional.isEmpty &&
+        arguments.named.isEmpty) {
+      return EsmCall(
+        callee: EsmPropertyAccess(receiver: lowerReceiver(), property: 'kill'),
+        arguments: const [],
+      );
+    }
     if (target.startsWith('dart:core::Stopwatch::') &&
         (name == 'start' || name == 'stop' || name == 'reset') &&
         positional.isEmpty &&
@@ -1343,13 +1400,22 @@ final class DartSdkIntrinsicRegistry {
   }) {
     final target = kernelReferencePath(reference);
     if (target.startsWith('dart:ffi::Pointer::') && name == 'address') {
-      return EsmPropertyAccess(receiver: lowerReceiver(), property: 'address');
+      throw UnsupportedCompilerFeature(
+        reference,
+        'dart:ffi Pointer requires native memory unavailable in native ESM',
+      );
     }
     if ((target.startsWith('dart:isolate::ReceivePort::') ||
             target.startsWith('dart:isolate::RawReceivePort::')) &&
         name == 'sendPort') {
       helpers.require(EsmRuntimeHelper.isolate);
       return EsmPropertyAccess(receiver: lowerReceiver(), property: 'sendPort');
+    }
+    if (target.startsWith('dart:isolate::Isolate::') && name == 'debugName') {
+      return EsmPropertyAccess(
+        receiver: lowerReceiver(),
+        property: 'debugName',
+      );
     }
     if (target.startsWith('dart:core::Stopwatch::') &&
         (name == 'isRunning' ||
@@ -1367,13 +1433,6 @@ final class DartSdkIntrinsicRegistry {
       );
     }
     return null;
-  }
-
-  String _ffiTypeName(k.DartType type) {
-    return switch (type) {
-      k.InterfaceType(:final classNode) => classNode.name,
-      _ => type.toString(),
-    };
   }
 
   EsmExpression? lowerLegacyJsFactoryInvocation({

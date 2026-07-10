@@ -36,7 +36,6 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
       options: CompilerOptions(
         runMain: options.runMain,
         platform: options.platform,
-        target: options.target,
       ),
     ).compile(component);
     output.parent.createSync(recursive: true);
@@ -54,7 +53,6 @@ Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {
       diagnostics: [
         'Kernel input accepted: format ${header.formatVersion}, SDK hash ${header.sdkHash}.',
         'Kernel libraries: ${component.libraries.length}; main: ${component.mainMethod?.name.text ?? 'none'}.',
-        ...compilerResult.diagnostics,
       ],
       esmMetrics: esmMetrics,
       dart2jsMetrics: dart2jsMetrics,
@@ -90,19 +88,12 @@ Future<File> _loadOrBuildKernel(
   }
 
   final output = File(p.join(tempDir.path, 'input.dill'));
-  if (options.platform == Dart2EsmPlatform.browser) {
-    final ddcResult = await _buildDdcKernel(input, output, options);
-    if (ddcResult.exitCode != 0) {
-      throw _kernelBuildException(input, ddcResult);
-    }
-    return output;
-  }
-
   final vmResult = await _buildVmKernel(input, output, options);
   if (vmResult.exitCode == 0) {
     return output;
   }
-  if (options.platform != Dart2EsmPlatform.auto ||
+  if ((options.platform != Dart2EsmPlatform.auto &&
+          options.platform != Dart2EsmPlatform.browser) ||
       !_shouldRetryWithDdc(vmResult)) {
     throw _kernelBuildException(input, vmResult);
   }
@@ -264,7 +255,6 @@ final class Dart2EsmOptions {
     this.environmentDefines = const [],
     this.runMain = true,
     this.platform = Dart2EsmPlatform.auto,
-    this.target = Dart2EsmTarget.esnext,
     this.collectMetrics = false,
     this.compareDart2JsMetrics = false,
   });
@@ -276,7 +266,6 @@ final class Dart2EsmOptions {
   final List<String> environmentDefines;
   final bool runMain;
   final Dart2EsmPlatform platform;
-  final Dart2EsmTarget target;
   final bool collectMetrics;
   final bool compareDart2JsMetrics;
 }

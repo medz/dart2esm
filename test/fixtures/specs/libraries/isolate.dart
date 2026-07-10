@@ -1,8 +1,16 @@
 import 'dart:async';
 import 'dart:isolate';
 
+bool workerTouchedGlobal = false;
+
 void worker(SendPort port) {
-  port.send('worker');
+  workerTouchedGlobal = true;
+  port.send('worker:$workerTouchedGlobal');
+}
+
+String compute() {
+  workerTouchedGlobal = true;
+  return 'run:$workerTouchedGlobal';
 }
 
 Future<void> main() async {
@@ -19,11 +27,17 @@ Future<void> main() async {
   });
 
   receivePort.sendPort.send('direct');
-  await Isolate.spawn(worker, receivePort.sendPort);
+  final spawned = await Isolate.spawn(worker, receivePort.sendPort);
   await done.future;
   await subscription.cancel();
   final dynamic receiveSendPort = receivePort.sendPort;
-  print('receive ${messages.join('|')} ${receiveSendPort is SendPort}');
+  final dynamic spawnedIsolate = spawned;
+  print(
+    'receive ${messages.join('|')} ${receiveSendPort is SendPort} '
+    '$workerTouchedGlobal ${spawnedIsolate is Isolate} '
+    '${spawned.debugName == null}',
+  );
+  print('${await Isolate.run(compute)} $workerTouchedGlobal');
 
   final rawMessages = <Object?>[];
   final rawPort = RawReceivePort((message) {

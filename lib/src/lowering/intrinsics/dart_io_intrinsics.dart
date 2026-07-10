@@ -37,6 +37,17 @@ EsmExpression? lowerDartIoInstanceConstant(k.InstanceConstant constant) {
         _constantStringField(constant, 'name') ?? 'SIGTERM',
         _constantIntField(constant, 'signalNumber') ?? 15,
       );
+    case 'dart:io::SameSite' || 'dart:_http::SameSite':
+      final name = _constantStringField(constant, 'name') ?? 'Lax';
+      return _sameSite(name);
+    case 'dart:io::HttpClientResponseCompressionState' ||
+        'dart:_http::HttpClientResponseCompressionState':
+      final index = _constantIntField(constant, 'index') ?? 0;
+      return _ioEnum('HttpClientResponseCompressionState', switch (index) {
+        1 => 'decompressed',
+        2 => 'compressed',
+        _ => 'notCompressed',
+      }, index);
     case 'dart:io::OSError':
       return EsmCall(
         callee: const EsmIdentifier('__dartIoOSError'),
@@ -123,6 +134,16 @@ EsmExpression? lowerDartIoStaticGet({
   if (ioEnum != null) {
     helpers.require(EsmRuntimeHelper.io);
     return ioEnum;
+  }
+  final sameSite = _staticSameSite(path);
+  if (sameSite != null) {
+    helpers.require(EsmRuntimeHelper.io);
+    return sameSite;
+  }
+  final contentType = _staticContentType(path);
+  if (contentType != null) {
+    helpers.require(EsmRuntimeHelper.io);
+    return contentType;
   }
   if (path == 'dart:io::@getters::stdout') {
     helpers.require(EsmRuntimeHelper.ioNode);
@@ -213,6 +234,121 @@ EsmExpression? lowerDartIoStaticInvocation({
   final path = kernelReferencePath(expression.targetReference);
   final positional = expression.arguments.positional;
   switch (path) {
+    case 'dart:io::HttpClient::@factories::' ||
+        'dart:_http::HttpClient::@factories::':
+      if (positional.isNotEmpty ||
+          !_hasOnlyNamedArguments(expression.arguments, const {'context'})) {
+        return null;
+      }
+      helpers.require(EsmRuntimeHelper.ioWeb);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoHttpClient'),
+        arguments: [
+          _namedIoOptions(expression.arguments, lowerNamedArgument, const [
+            'context',
+          ]),
+        ],
+      );
+    case 'dart:io::HeaderValue::@factories::' ||
+        'dart:_http::HeaderValue::@factories::':
+      if (positional.length > 2 || expression.arguments.named.isNotEmpty) {
+        return null;
+      }
+      helpers.require(EsmRuntimeHelper.io);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoHeaderValue'),
+        arguments: [for (final argument in positional) lower(argument)],
+      );
+    case 'dart:io::HeaderValue::@methods::parse' ||
+        'dart:_http::HeaderValue::@methods::parse':
+      if (positional.length != 1) return null;
+      helpers.require(EsmRuntimeHelper.io);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoHeaderValueParse'),
+        arguments: [
+          lower(positional.single),
+          _namedIoOptions(expression.arguments, lowerNamedArgument, const [
+            'parameterSeparator',
+            'valueSeparator',
+            'preserveBackslash',
+          ]),
+        ],
+      );
+    case 'dart:io::ContentType::@factories::' ||
+        'dart:_http::ContentType::@factories::':
+      if (positional.length != 2 ||
+          !_hasOnlyNamedArguments(expression.arguments, const {
+            'charset',
+            'parameters',
+          })) {
+        return null;
+      }
+      helpers.require(EsmRuntimeHelper.io);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoContentType'),
+        arguments: [
+          lower(positional[0]),
+          lower(positional[1]),
+          _namedIoOptions(expression.arguments, lowerNamedArgument, const [
+            'charset',
+            'parameters',
+          ]),
+        ],
+      );
+    case 'dart:io::ContentType::@methods::parse' ||
+        'dart:_http::ContentType::@methods::parse':
+      if (positional.length != 1 || expression.arguments.named.isNotEmpty) {
+        return null;
+      }
+      helpers.require(EsmRuntimeHelper.io);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoContentTypeParse'),
+        arguments: [lower(positional.single)],
+      );
+    case 'dart:io::Cookie::@factories::' || 'dart:_http::Cookie::@factories::':
+      if (positional.length != 2 || expression.arguments.named.isNotEmpty) {
+        return null;
+      }
+      helpers.require(EsmRuntimeHelper.io);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoCookie'),
+        arguments: [lower(positional[0]), lower(positional[1])],
+      );
+    case 'dart:io::Cookie::@factories::fromSetCookieValue' ||
+        'dart:_http::Cookie::@factories::fromSetCookieValue':
+      if (positional.length != 1 || expression.arguments.named.isNotEmpty) {
+        return null;
+      }
+      helpers.require(EsmRuntimeHelper.io);
+      helpers.require(EsmRuntimeHelper.dateTime);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoCookieParse'),
+        arguments: [lower(positional.single)],
+      );
+    case 'dart:io::WebSocket::@methods::connect' ||
+        'dart:_http::WebSocket::@methods::connect':
+      if (positional.length != 1 ||
+          !_hasOnlyNamedArguments(expression.arguments, const {
+            'protocols',
+            'headers',
+            'compression',
+            'customClient',
+          })) {
+        return null;
+      }
+      helpers.require(EsmRuntimeHelper.ioWeb);
+      return EsmCall(
+        callee: const EsmIdentifier('__dartIoWebSocketConnect'),
+        arguments: [
+          lower(positional.single),
+          _namedIoOptions(expression.arguments, lowerNamedArgument, const [
+            'protocols',
+            'headers',
+            'compression',
+            'customClient',
+          ]),
+        ],
+      );
     case 'dart:io::File::@factories::':
       if (positional.length != 1 || expression.arguments.named.isNotEmpty) {
         return null;
@@ -356,14 +492,17 @@ EsmExpression? lowerDartIoInstanceInvocation({
   required EsmExpression Function(k.Expression argument) lower,
 }) {
   final path = kernelReferencePath(reference);
-  if (!path.startsWith('dart:io::') || arguments.types.isNotEmpty) {
+  if (!_isDartIoPath(path) ||
+      arguments.types.isNotEmpty ||
+      !_supportsIoInstanceMethod(path, name)) {
     return null;
   }
-  helpers.require(
-    _pureIoInstancePath(path) ? EsmRuntimeHelper.io : EsmRuntimeHelper.ioNode,
-  );
+  helpers.require(_ioHelperForInstancePath(path));
+  final methodName = _ioClassPath(path, const ['HttpHeaders']) && name == '[]'
+      ? 'valuesFor'
+      : name;
   return EsmCall(
-    callee: EsmPropertyAccess(receiver: lowerReceiver(), property: name),
+    callee: EsmPropertyAccess(receiver: lowerReceiver(), property: methodName),
     arguments: [
       for (final argument in arguments.positional) lower(argument),
       if (arguments.named.isNotEmpty)
@@ -378,16 +517,283 @@ EsmExpression? lowerDartIoInstanceInvocation({
   );
 }
 
+bool _supportsIoInstanceMethod(String path, String name) {
+  if (_pureIoInstancePath(path)) {
+    return name == 'toString';
+  }
+  if (_ioClassPath(path, const ['HttpClient', '_HttpClient'])) {
+    return const {
+      'open',
+      'openUrl',
+      'get',
+      'getUrl',
+      'post',
+      'postUrl',
+      'put',
+      'putUrl',
+      'patch',
+      'patchUrl',
+      'delete',
+      'deleteUrl',
+      'head',
+      'headUrl',
+      'close',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['HttpHeaders', '_HttpHeaders'])) {
+    return const {
+      '[]',
+      'value',
+      'add',
+      'set',
+      'remove',
+      'removeAll',
+      'forEach',
+      'noFolding',
+      'clear',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['HttpClientRequest', '_HttpClientRequest'])) {
+    return const {
+      'write',
+      'writeln',
+      'writeAll',
+      'writeCharCode',
+      'add',
+      'addError',
+      'addStream',
+      'flush',
+      'close',
+      'abort',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['WebSocket', '_WebSocketImpl'])) {
+    return const {
+      'add',
+      'addUtf8Text',
+      'addStream',
+      'addError',
+      'close',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['FileSystemEntity'])) {
+    return const {
+      'exists',
+      'existsSync',
+      'delete',
+      'deleteSync',
+      'rename',
+      'renameSync',
+      'resolveSymbolicLinks',
+      'resolveSymbolicLinksSync',
+      'stat',
+      'statSync',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['File', '_File'])) {
+    return const {
+      'exists',
+      'existsSync',
+      'create',
+      'createSync',
+      'delete',
+      'deleteSync',
+      'rename',
+      'renameSync',
+      'copy',
+      'copySync',
+      'length',
+      'lengthSync',
+      'lastModified',
+      'lastModifiedSync',
+      'stat',
+      'statSync',
+      'readAsBytes',
+      'readAsBytesSync',
+      'readAsString',
+      'readAsStringSync',
+      'readAsLines',
+      'readAsLinesSync',
+      'writeAsBytes',
+      'writeAsBytesSync',
+      'writeAsString',
+      'writeAsStringSync',
+      'open',
+      'openSync',
+      'openWrite',
+      'resolveSymbolicLinks',
+      'resolveSymbolicLinksSync',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['Directory', '_Directory'])) {
+    return const {
+      'exists',
+      'existsSync',
+      'create',
+      'createSync',
+      'createTemp',
+      'createTempSync',
+      'delete',
+      'deleteSync',
+      'rename',
+      'renameSync',
+      'list',
+      'listSync',
+      'stat',
+      'statSync',
+      'resolveSymbolicLinks',
+      'resolveSymbolicLinksSync',
+      'childFile',
+      'childDirectory',
+      'childLink',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['Link', '_Link'])) {
+    return const {
+      'exists',
+      'existsSync',
+      'create',
+      'createSync',
+      'update',
+      'updateSync',
+      'delete',
+      'deleteSync',
+      'rename',
+      'renameSync',
+      'target',
+      'targetSync',
+      'stat',
+      'statSync',
+      'resolveSymbolicLinks',
+      'resolveSymbolicLinksSync',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['RandomAccessFile', '_RandomAccessFile'])) {
+    return const {
+      'close',
+      'closeSync',
+      'readByte',
+      'readByteSync',
+      'read',
+      'readSync',
+      'readInto',
+      'readIntoSync',
+      'writeByte',
+      'writeByteSync',
+      'writeFrom',
+      'writeFromSync',
+      'writeString',
+      'writeStringSync',
+      'position',
+      'positionSync',
+      'setPosition',
+      'setPositionSync',
+      'length',
+      'lengthSync',
+      'truncate',
+      'truncateSync',
+      'flush',
+      'flushSync',
+      'lock',
+      'lockSync',
+      'unlock',
+      'unlockSync',
+      'toString',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['IOSink'])) {
+    return const {
+      'write',
+      'writeln',
+      'writeAll',
+      'writeCharCode',
+      'add',
+      'addError',
+      'addStream',
+      'flush',
+      'close',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['Stdout', '_Stdout', '_StdSink'])) {
+    return const {
+      'write',
+      'writeln',
+      'writeAll',
+      'writeCharCode',
+      'add',
+      'addError',
+      'addStream',
+      'flush',
+      'close',
+    }.contains(name);
+  }
+  if (_ioClassPath(path, const ['Stdin', '_Stdin'])) {
+    return name == 'readLineSync';
+  }
+  return false;
+}
+
+bool _ioClassPath(String path, List<String> classNames) {
+  return classNames.any((name) => path.contains('::$name::'));
+}
+
 EsmExpression? lowerDartIoInstanceGet({
   required k.Reference reference,
   required String name,
   required EsmExpression Function() lowerReceiver,
 }) {
   final path = kernelReferencePath(reference);
-  if (!path.startsWith('dart:io::')) return null;
+  if (!_isDartIoPath(path)) return null;
   final property = switch (name) {
     'path' ||
     'uri' ||
+    'method' ||
+    'headers' ||
+    'cookies' ||
+    'contentLength' ||
+    'bufferOutput' ||
+    'persistentConnection' ||
+    'followRedirects' ||
+    'maxRedirects' ||
+    'connectionInfo' ||
+    'statusCode' ||
+    'reasonPhrase' ||
+    'compressionState' ||
+    'isRedirect' ||
+    'redirects' ||
+    'certificate' ||
+    'readyState' ||
+    'extensions' ||
+    'protocol' ||
+    'closeCode' ||
+    'closeReason' ||
+    'pingInterval' ||
+    'idleTimeout' ||
+    'connectionTimeout' ||
+    'maxConnectionsPerHost' ||
+    'autoUncompress' ||
+    'userAgent' ||
+    'value' ||
+    'parameters' ||
+    'mimeType' ||
+    'primaryType' ||
+    'subType' ||
+    'charset' ||
+    'name' ||
+    'expires' ||
+    'maxAge' ||
+    'domain' ||
+    'secure' ||
+    'httpOnly' ||
+    'sameSite' ||
     'absolute' ||
     'parent' ||
     'exitCode' ||
@@ -413,6 +819,56 @@ EsmExpression? lowerDartIoInstanceGet({
   };
   if (property == null) return null;
   return EsmPropertyAccess(receiver: lowerReceiver(), property: property);
+}
+
+EsmExpression? lowerDartIoInstanceSet({
+  required k.Reference reference,
+  required String name,
+  required EsmRuntimeHelperUseSet helpers,
+  required EsmExpression Function() lowerReceiver,
+  required EsmExpression Function() lowerValue,
+}) {
+  final path = kernelReferencePath(reference);
+  if (!_isDartIoPath(path)) return null;
+  final supported =
+      (_ioClassPath(path, const ['Cookie', '_Cookie']) &&
+          const {
+            'name',
+            'value',
+            'expires',
+            'maxAge',
+            'domain',
+            'path',
+            'secure',
+            'httpOnly',
+            'sameSite',
+          }.contains(name)) ||
+      (_ioClassPath(path, const ['HttpClient', '_HttpClient']) &&
+          const {
+            'idleTimeout',
+            'connectionTimeout',
+            'maxConnectionsPerHost',
+            'autoUncompress',
+            'userAgent',
+          }.contains(name)) ||
+      (_ioClassPath(path, const ['HttpClientRequest', '_HttpClientRequest']) &&
+          const {
+            'contentLength',
+            'bufferOutput',
+            'persistentConnection',
+            'followRedirects',
+            'maxRedirects',
+          }.contains(name)) ||
+      (_ioClassPath(path, const ['HttpHeaders', '_HttpHeaders']) &&
+          const {'contentLength', 'contentType'}.contains(name)) ||
+      (_ioClassPath(path, const ['WebSocket', '_WebSocketImpl']) &&
+          name == 'pingInterval');
+  if (!supported) return null;
+  helpers.require(_ioHelperForInstancePath(path));
+  return EsmAssignment(
+    target: EsmPropertyAccess(receiver: lowerReceiver(), property: name),
+    value: lowerValue(),
+  );
 }
 
 EsmExpression _ioOptions(
@@ -485,6 +941,42 @@ EsmExpression? _staticIoEnum(String path) {
   return null;
 }
 
+EsmExpression? _staticSameSite(String path) {
+  if (!_ioClassPath(path, const ['SameSite'])) return null;
+  return switch (_staticFieldName(path)) {
+    'lax' => _sameSite('Lax'),
+    'strict' => _sameSite('Strict'),
+    'none' => _sameSite('None'),
+    _ => null,
+  };
+}
+
+EsmExpression? _staticContentType(String path) {
+  if (!_ioClassPath(path, const ['ContentType'])) return null;
+  final (primaryType, subType, charset) = switch (_staticFieldName(path)) {
+    'text' => ('text', 'plain', 'utf-8'),
+    'html' => ('text', 'html', 'utf-8'),
+    'json' => ('application', 'json', 'utf-8'),
+    'binary' => ('application', 'octet-stream', null),
+    _ => (null, null, null),
+  };
+  if (primaryType == null || subType == null) return null;
+  return EsmCall(
+    callee: const EsmIdentifier('__dartIoContentType'),
+    arguments: [
+      EsmStringLiteral(primaryType),
+      EsmStringLiteral(subType),
+      if (charset != null)
+        EsmObjectLiteral([
+          EsmObjectLiteralProperty.static(
+            key: 'charset',
+            value: EsmStringLiteral(charset),
+          ),
+        ]),
+    ],
+  );
+}
+
 String? _staticFieldName(String path) {
   const markers = ['::@getters::', '::@fields::'];
   for (final marker in markers) {
@@ -533,6 +1025,58 @@ EsmCall _ioEnum(String typeName, String name, int index) {
       EsmNumberLiteral(index),
     ],
   );
+}
+
+EsmCall _sameSite(String name) {
+  return EsmCall(
+    callee: const EsmIdentifier('__dartIoSameSite'),
+    arguments: [
+      EsmStringLiteral(name),
+      EsmNumberLiteral(switch (name) {
+        'Strict' => 1,
+        'None' => 2,
+        _ => 0,
+      }),
+    ],
+  );
+}
+
+EsmRuntimeHelper _ioHelperForInstancePath(String path) {
+  if (_pureIoInstancePath(path) || _ioClassPath(path, const ['IOSink'])) {
+    return EsmRuntimeHelper.io;
+  }
+  if (_ioClassPath(path, const [
+    'HttpClient',
+    '_HttpClient',
+    'HttpHeaders',
+    '_HttpHeaders',
+    'HttpClientRequest',
+    '_HttpClientRequest',
+    'HttpClientResponse',
+    '_HttpClientResponse',
+    'WebSocket',
+    '_WebSocketImpl',
+  ])) {
+    return EsmRuntimeHelper.ioWeb;
+  }
+  return EsmRuntimeHelper.ioNode;
+}
+
+bool _hasOnlyNamedArguments(k.Arguments arguments, Set<String> names) {
+  return arguments.named.every((argument) => names.contains(argument.name));
+}
+
+EsmExpression _namedIoOptions(
+  k.Arguments arguments,
+  EsmExpression? Function(k.Arguments arguments, String name)
+  lowerNamedArgument,
+  List<String> names,
+) {
+  return EsmObjectLiteral([
+    for (final name in names)
+      if (lowerNamedArgument(arguments, name) case final value?)
+        EsmObjectLiteralProperty.static(key: name, value: value),
+  ]);
 }
 
 EsmExpression _nullableString(String? value) {
@@ -624,6 +1168,7 @@ bool _fieldReferenceMatches(k.Reference reference, String name) {
 }
 
 bool _pureIoInstancePath(String path) {
+  if (!_isDartIoPath(path)) return false;
   return path.startsWith('dart:io::OSError::') ||
       path.startsWith('dart:io::FileSystemException::') ||
       path.startsWith('dart:io::PathAccessException::') ||
@@ -634,5 +1179,21 @@ bool _pureIoInstancePath(String path) {
       path.startsWith('dart:io::FileSystemEntityType::') ||
       path.startsWith('dart:io::ProcessResult::') ||
       path.startsWith('dart:io::ProcessStartMode::') ||
-      path.startsWith('dart:io::ProcessSignal::');
+      path.startsWith('dart:io::ProcessSignal::') ||
+      path.startsWith('dart:io::HeaderValue::') ||
+      path.startsWith('dart:io::ContentType::') ||
+      path.startsWith('dart:io::Cookie::') ||
+      path.startsWith('dart:io::SameSite::') ||
+      path.startsWith('dart:io::HttpClientResponseCompressionState::') ||
+      _ioClassPath(path, const [
+        'HeaderValue',
+        'ContentType',
+        'Cookie',
+        'SameSite',
+        'HttpClientResponseCompressionState',
+      ]);
+}
+
+bool _isDartIoPath(String path) {
+  return path.startsWith('dart:io::') || path.startsWith('dart:_http::');
 }

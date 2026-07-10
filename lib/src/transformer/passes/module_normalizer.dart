@@ -9,7 +9,6 @@ final class ModuleNormalizer implements TransformPass {
     final normalized = _normalizeModuleItems(module.items);
     return TransformPassReturn(
       module: normalized.changed ? EsmModule(items: normalized.items) : module,
-      changed: normalized.changed,
     );
   }
 

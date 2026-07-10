@@ -1,8 +1,16 @@
 part of 'esm_codegen.dart';
 
 extension _ModulePrinter on _EsmPrinter {
-  bool _needsBlankLineAfter(EsmModuleItem item) {
-    return item is EsmRawModuleItem || item is EsmClass || item is EsmFunction;
+  bool _needsBlankLineBetween(EsmModuleItem current, EsmModuleItem next) {
+    if (_isRawImport(current) && _isRawImport(next)) return false;
+    return current is EsmRawModuleItem ||
+        current is EsmClass ||
+        current is EsmFunction;
+  }
+
+  bool _isRawImport(EsmModuleItem item) {
+    return item is EsmRawModuleItem &&
+        item.source.trimLeft().startsWith('import ');
   }
 
   void _emitModuleItem(EsmModuleItem item) {

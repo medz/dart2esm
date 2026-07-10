@@ -7,9 +7,9 @@ emits clean ECMAScript modules. JavaScript and Node primitives are used directly
 where they are semantically equivalent, with small Dart semantic helpers emitted
 only when required.
 
-The 0.1.0 goal is complete Dart syntax and Dart SDK lowering to native ESM,
-except for `dart:io`. ESM version targeting is intentionally not split into
-compatibility profiles yet.
+The 0.1.0 goal is broad Dart syntax and SDK lowering to native ESM. The compiler
+targets modern JavaScript directly; compatibility profiles are intentionally
+out of scope.
 
 ## Usage
 
@@ -27,6 +27,10 @@ dart2esm lib/example.dart -o dist/example.mjs --no-run-main
 
 Pass compile-time environment declarations with `-Dkey=value` or
 `--define=key=value`; multiple values can be repeated or comma-separated.
+
+Use `--platform=node`, `--platform=browser`, or `--platform=neutral` to select
+host-specific SDK behavior. The default `auto` mode uses VM Kernel when
+possible and falls back to the browser frontend for web-only libraries.
 
 Use `--metrics` to print raw/gzip size, line count, and emitted helper count for
 the generated ESM module. Add `--compare-dart2js` to also compile the same Dart
@@ -48,11 +52,51 @@ dart2esm build/input.dill -o dist/input.mjs
    --no-link-platform`, falling back to the SDK `frontend_server` with the DDC
    platform for JS/web-only SDK libraries.
 2. Kernel bytes are read with `package:kernel`.
-3. The backend walks the entry component and emits native `.mjs`.
-4. Public entry-library declarations are exported as ESM bindings. Imported
+3. Reachability and semantic passes build the declarations and runtime symbols
+   needed by the entry module.
+4. Kernel nodes are lowered to a structured ESM AST, normalized, and linked
+   against runtime helpers at symbol granularity. Unreferenced helper functions
+   are not emitted.
+5. Code generation prints native `.mjs`. Public entry-library declarations are
+   exported as ESM bindings. Imported
    local Dart libraries are bundled into the same output module and only
    re-exported when the Dart entry library exports them.
 
-## Unsupported Libraries
+## Platform Limits
 
-`dart:io` APIs are not supported in 0.1.0.
+`dart:io` lowering is split by host capability:
+
+- Pure value APIs such as `FileMode`, `HeaderValue`, `ContentType`, and `Cookie`
+  emit ordinary ECMAScript and remain available in neutral output.
+- Client HTTP uses the Fetch and Headers Web APIs. Client WebSockets use the
+  WebSocket Web API. These mappings work in browser builds and modern Node
+  runtimes without importing Node modules.
+- Files, directories, links, processes, and standard IO require
+  `--platform=node` or the default `auto` mode. They emit static `node:`
+  imports and are rejected by browser and neutral builds.
+
+Fetch behavior intentionally follows the host Web API, including CORS,
+credential, forbidden-header, and redirect rules. WebSocket custom handshake
+headers, custom `HttpClient` instances, and Dart ping intervals have no Web API
+equivalent and fail explicitly. Raw sockets, HTTP servers, custom TLS contexts,
+and synchronous compression are not rewritten to superficially similar browser
+APIs.
+
+## VM Compatibility Boundary
+
+Native ESM can cover Dart language semantics and SDK APIs that have an
+equivalent JavaScript, Web API, or Node primitive. It cannot be a byte-for-byte
+replacement for the Dart VM runtime:
+
+- `Isolate.spawn` and `Isolate.run` use real Node Workers or browser module
+  Workers for top-level entry functions. Ports use `MessageChannel`, and
+  supported messages cross the worker boundary using structured cloning.
+  Closures, custom object prototypes, paused startup, and VM-specific error/exit
+  port behavior are rejected until the compiler can emit dedicated worker entry
+  modules and reconstruction metadata.
+- `dart:ffi` is rejected. A Dart `Pointer` refers to native C memory and
+  `DynamicLibrary` resolves C symbols; wrapping an integer address in a JavaScript
+  object does not implement either behavior. Future FFI support requires an
+  explicit Node Native Addon ABI or WebAssembly ABI backend.
+- VM service APIs, native extensions, and full runtime reflection have no
+  general ESM equivalent and remain explicit compatibility boundaries.

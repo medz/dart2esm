@@ -65,10 +65,12 @@ Future<void> main() async {
   print('lines ${lines.join('|')} $staticLines');
 
   final boundUtf8 = await utf8.decoder
-      .bind(Stream<List<int>>.fromIterable([
-        [104],
-        [105],
-      ]))
+      .bind(
+        Stream<List<int>>.fromIterable([
+          [104],
+          [105],
+        ]),
+      )
       .join('|');
   final transformedUtf8 = await Stream<List<int>>.fromIterable([
     [33],

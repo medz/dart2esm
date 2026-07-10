@@ -16,6 +16,7 @@ function __dartCoreError(typeName, message) {
   Object.defineProperty(error, "toString", { value() { return display; } });
   return error;
 }
+
 function __dartIsCoreError(value, typeName) {
   const actual = value == null ? null : value.__dartCoreErrorType;
   if (actual != null) {
@@ -30,6 +31,7 @@ function __dartIsCoreError(value, typeName) {
 }
 
 const __dartConstValues = new Map();
+
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
     __dartConstValues.set(key, create());
@@ -41,11 +43,13 @@ function __dartDateTimeFromParts(isUtc, year, month = 1, day = 1, hour = 0, minu
   const millis = isUtc ? Date.UTC(year, month - 1, day, hour, minute, second, millisecond) : new Date(year, month - 1, day, hour, minute, second, millisecond).getTime();
   return __dartDateTimeFromMicros(millis * 1000 + microsecond, isUtc);
 }
+
 function __dartDateTimeFromMicros(micros, isUtc) {
   const millis = Math.floor(micros / 1000);
   const microsecond = ((micros % 1000) + 1000) % 1000;
   return __dartDateTime(millis, isUtc, microsecond);
 }
+
 function __dartDateTime(millis, isUtc = false, microsecond = 0) {
   const date = new Date(millis);
   const read = (utcName, localName) => isUtc ? date[utcName]() : date[localName]();
@@ -79,22 +83,6 @@ function __dartDateTime(millis, isUtc = false, microsecond = 0) {
     toString() { return this.toIso8601String(); },
   };
 }
-function __dartDateTimeParse(source, tryParse = false) {
-  const text = String(source);
-  const millis = Date.parse(text);
-  if (Number.isNaN(millis)) {
-    if (tryParse) return null;
-    throw __dartCoreError("FormatException", "Invalid date format");
-  }
-  const isUtc = /(?:z|[+-]\d\d(?::?\d\d)?)$/i.test(text);
-  const fraction = /\.(\d+)/.exec(text);
-  const microsecond = fraction == null ? 0 : Number((fraction[1] + "000000").slice(0, 6).slice(3));
-  return __dartDateTime(millis, isUtc, microsecond);
-}
-function __dartDateTimeCopyWith(value, options = {}) {
-  const isUtc = options.isUtc ?? value.isUtc;
-  return __dartDateTimeFromParts(isUtc, options.year ?? value.year, options.month ?? value.month, options.day ?? value.day, options.hour ?? value.hour, options.minute ?? value.minute, options.second ?? value.second, options.millisecond ?? value.millisecond, options.microsecond ?? value.microsecond);
-}
 
 function __dartDurationToString(micros) {
   const sign = micros < 0 ? "-" : "";
@@ -107,6 +95,7 @@ function __dartDurationToString(micros) {
   const hours = Math.trunc(totalMinutes / 60);
   return sign + hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + "." + String(microseconds).padStart(6, "0");
 }
+
 function __dartDuration(options = {}) {
   const micros = Math.trunc((options.days ?? 0) * 86400000000 + (options.hours ?? 0) * 3600000000 + (options.minutes ?? 0) * 60000000 + (options.seconds ?? 0) * 1000000 + (options.milliseconds ?? 0) * 1000 + (options.microseconds ?? 0));
   return {
@@ -144,142 +133,6 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
-function __dartFutureDelayed(duration, computation = null) {
-  const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      try {
-        resolve(typeof computation === "function" ? computation() : null);
-      } catch (error) {
-        reject(error);
-      }
-    }, delay);
-  });
-}
-function __dartFutureWait(futures, eagerError = false, cleanUp = null) {
-  const entries = Array.from(futures);
-  if (entries.length === 0) return Promise.resolve([]);
-  const values = new Array(entries.length);
-  const cleaned = new Set();
-  let firstError;
-  function clean(value, index) {
-    if (cleanUp == null || value == null || cleaned.has(index)) return;
-    cleaned.add(index);
-    Promise.resolve().then(() => cleanUp(value));
-  }
-  return new Promise((resolve, reject) => {
-    let remaining = entries.length;
-    entries.forEach((future, index) => {
-      Promise.resolve(future).then(
-        (value) => {
-          values[index] = value;
-          if (firstError != null) clean(value, index);
-          remaining -= 1;
-          if (remaining === 0) {
-            if (firstError != null) reject(firstError);
-            else resolve(values);
-          }
-        },
-        (error) => {
-          if (firstError == null) {
-            firstError = error;
-            for (let i = 0; i < values.length; i++) clean(values[i], i);
-            if (eagerError) {
-              reject(error);
-              return;
-            }
-          }
-          remaining -= 1;
-          if (remaining === 0) reject(firstError);
-        },
-      );
-    });
-  });
-}
-function __dartFutureForEach(elements, action) {
-  let chain = Promise.resolve(null);
-  for (const element of Array.from(elements)) {
-    chain = chain.then(() => action(element));
-  }
-  return chain.then(() => null);
-}
-async function __dartFutureDoWhile(action) {
-  while (await action()) {}
-  return null;
-}
-function __dartFutureIgnore(future) {
-  Promise.resolve(future).catch(() => null);
-  return null;
-}
-function __dartFutureAsStream(future) {
-  return __dartStreamFromFuture(future);
-}
-function __dartFutureTimeout(future, duration, onTimeout = null) {
-  const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
-  let id;
-  const timeout = new Promise((resolve, reject) => {
-    id = setTimeout(() => {
-      try {
-        if (typeof onTimeout === "function") resolve(onTimeout());
-        else reject(new Error("Future timeout"));
-      } catch (error) {
-        reject(error);
-      }
-    }, delay);
-  });
-  return Promise.race([Promise.resolve(future), timeout]).finally(() => clearTimeout(id));
-}
-function __dartStreamFromIterable(values, isBroadcast = false) {
-  return {
-    __dartType: "Stream",
-    isBroadcast,
-    async *[Symbol.asyncIterator]() {
-      for (const value of Array.from(values ?? [])) yield value;
-    },
-  };
-}
-function __dartStreamFromFuture(future) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: false,
-    async *[Symbol.asyncIterator]() {
-      yield await future;
-    },
-  };
-}
-function __dartStreamFromFutures(futures) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: false,
-    async *[Symbol.asyncIterator]() {
-      for (const future of Array.from(futures ?? [])) yield await future;
-    },
-  };
-}
-function __dartStreamError(error) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: false,
-    async *[Symbol.asyncIterator]() {
-      throw error;
-    },
-  };
-}
-function __dartStreamPeriodic(period, computation = null) {
-  const delay = Math.max(0, period == null ? 0 : (typeof period === "number" ? period : period.inMilliseconds));
-  return {
-    __dartType: "Stream",
-    isBroadcast: false,
-    async *[Symbol.asyncIterator]() {
-      let tick = 0;
-      while (true) {
-        await __dartFutureDelayed(delay);
-        yield typeof computation === "function" ? computation(tick) : tick;
-        tick++;
-      }
-    },
-  };
-}
 async function* __dartStreamValues(stream) {
   const iterator = __dartStreamIterator(stream);
   try {
@@ -288,58 +141,7 @@ async function* __dartStreamValues(stream) {
     await iterator.cancel();
   }
 }
-function __dartStreamTake(stream, count) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: stream?.isBroadcast === true,
-    async *[Symbol.asyncIterator]() {
-      let seen = 0;
-      for await (const value of __dartStreamValues(stream)) {
-        if (seen++ >= count) break;
-        yield value;
-        if (seen >= count) break;
-      }
-    },
-  };
-}
-function __dartStreamMap(stream, convert) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: stream?.isBroadcast === true,
-    async *[Symbol.asyncIterator]() {
-      for await (const value of __dartStreamValues(stream)) yield convert(value);
-    },
-  };
-}
-function __dartStreamWhere(stream, test) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: stream?.isBroadcast === true,
-    async *[Symbol.asyncIterator]() {
-      for await (const value of __dartStreamValues(stream)) {
-        if (test(value)) yield value;
-      }
-    },
-  };
-}
-function __dartStreamExpand(stream, convert) {
-  return {
-    __dartType: "Stream",
-    isBroadcast: stream?.isBroadcast === true,
-    async *[Symbol.asyncIterator]() {
-      for await (const value of __dartStreamValues(stream)) {
-        for (const expanded of Array.from(convert(value) ?? [])) yield expanded;
-      }
-    },
-  };
-}
-function __dartStreamTransform(stream, transformer) {
-  if (transformer != null && typeof transformer.bind === "function") {
-    return transformer.bind(stream);
-  }
-  if (typeof transformer === "function") return transformer(stream);
-  throw new TypeError("StreamTransformer has no bind method");
-}
+
 function __dartStreamIterator(stream) {
   const iterator = stream?.[Symbol.asyncIterator]?.();
   if (iterator == null && typeof stream?.listen === "function") {
@@ -396,32 +198,11 @@ function __dartStreamIterator(stream) {
     },
   };
 }
-async function __dartStreamToList(stream) {
-  const values = [];
-  for await (const value of __dartStreamValues(stream)) values.push(value);
-  return values;
-}
-async function __dartStreamFirst(stream) {
-  for await (const value of __dartStreamValues(stream)) return value;
-  throw new Error("No element");
-}
-async function __dartStreamSingle(stream) {
-  let found = false;
-  let single;
-  for await (const value of __dartStreamValues(stream)) {
-    if (found) throw new Error("Too many elements");
-    found = true;
-    single = value;
-  }
-  if (!found) throw new Error("No element");
-  return single;
-}
-async function __dartStreamJoin(stream, separator = "") {
-  return (await __dartStreamToList(stream)).map((value) => __dartStr(value)).join(String(separator));
-}
+
 function __dartStreamController(broadcast = false, options = {}) {
   let closed = false;
   let listened = false;
+  let paused = false;
   const handlers = {
     onListen: options.onListen ?? null,
     onPause: options.onPause ?? null,
@@ -488,9 +269,11 @@ function __dartStreamController(broadcast = false, options = {}) {
       return () => listeners.delete(listener);
     },
     __dartPauseRaw() {
+      paused = true;
       if (typeof handlers.onPause === "function") handlers.onPause();
     },
     __dartResumeRaw() {
+      paused = false;
       if (typeof handlers.onResume === "function") handlers.onResume();
     },
     __dartCancelRaw() {
@@ -504,17 +287,24 @@ function __dartStreamController(broadcast = false, options = {}) {
     get sink() { return this; },
     get done() { return Promise.resolve(null); },
     get isClosed() { return closed; },
+    get isPaused() { return paused; },
+    get hasListener() { return listeners.size > 0 || waiters.length > 0; },
     add(value) { if (!closed) deliver({ value }); return null; },
     addError(error, stackTrace = null) { if (!closed) deliver({ error }); return null; },
     async addStream(source, options = {}) {
+      const iterator = __dartStreamIterator(source);
       try {
-        for await (const value of __dartStreamValues(source)) {
-          if (closed) break;
-          deliver({ value });
+        while (!closed) {
+          try {
+            if (!(await iterator.moveNext())) break;
+            deliver({ value: iterator.current });
+          } catch (error) {
+            deliver({ error });
+            if (options.cancelOnError === true) break;
+          }
         }
-      } catch (error) {
-        deliver({ error });
-        if (options.cancelOnError === true) return null;
+      } finally {
+        await iterator.cancel();
       }
       return null;
     },
@@ -529,16 +319,25 @@ function __dartStreamController(broadcast = false, options = {}) {
     set onCancel(value) { handlers.onCancel = value; },
   };
 }
-function __dartStreamMulti(onListen, isBroadcast = false) {
-  const controller = __dartStreamController(isBroadcast);
-  Promise.resolve().then(() => onListen(controller));
-  return controller.stream;
-}
+
 function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
   let canceled = false;
   let paused = false;
+  let done = false;
+  let failed = false;
+  let failure = null;
+  let asFutureValue = null;
+  let asFutureResolve = null;
+  let asFutureReject = null;
   const pausedItems = [];
   const resumeWaiters = [];
+  function completeAsFuture() {
+    if (asFutureResolve == null) return;
+    if (failed) asFutureReject(failure);
+    else asFutureResolve(asFutureValue);
+    asFutureResolve = null;
+    asFutureReject = null;
+  }
   function flushPausedItems() {
     while (!paused && pausedItems.length > 0 && !canceled) handleItem(pausedItems.shift());
   }
@@ -553,15 +352,20 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       return;
     }
     if (item.done === true) {
+      done = true;
       if (typeof onDone === "function") onDone();
+      completeAsFuture();
       return;
     }
     if ("error" in item) {
+      failed = true;
+      failure = item.error;
       if (typeof onError === "function") onError(item.error);
+      completeAsFuture();
       if (cancelOnError) canceled = true;
       return;
     }
-    onData(item.value);
+    if (typeof onData === "function") onData(item.value);
   };
   const remove = typeof stream?.__dartListenRaw === "function" ? stream.__dartListenRaw(handleItem) : null;
   if (remove == null) {
@@ -571,16 +375,22 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
           if (canceled) break;
           await waitWhilePaused();
           if (canceled) break;
-          onData(value);
+          if (typeof onData === "function") onData(value);
         }
         if (!canceled && typeof onDone === "function") onDone();
+        done = true;
+        completeAsFuture();
       } catch (error) {
+        failed = true;
+        failure = error;
         if (typeof onError === "function") onError(error);
         else throw error;
+        completeAsFuture();
       }
     })();
   }
   return {
+    __dartType: "StreamSubscription",
     get isPaused() { return paused; },
     cancel() {
       canceled = true;
@@ -604,169 +414,19 @@ function __dartStreamListen(stream, onData, onError = null, onDone = null, cance
       }
       return null;
     },
-  };
-}
-function __dartTimer(duration, callback, periodic = false) {
-  const delay = Math.max(0, duration == null ? 0 : (typeof duration === "number" ? duration : duration.inMilliseconds));
-  let active = true;
-  let tick = 0;
-  let id;
-  const timer = {
-    __dartType: "Timer",
-    get tick() { return tick; },
-    get isActive() { return active; },
-    cancel() {
-      if (!active) return null;
-      active = false;
-      periodic ? clearInterval(id) : clearTimeout(id);
-      return null;
+    onData(callback) { onData = callback; return null; },
+    onError(callback) { onError = callback; return null; },
+    onDone(callback) { onDone = callback; return null; },
+    asFuture(value = null) {
+      asFutureValue = value;
+      if (done && !failed) return Promise.resolve(value);
+      if (failed) return Promise.reject(failure);
+      return new Promise((resolve, reject) => {
+        asFutureResolve = resolve;
+        asFutureReject = reject;
+      });
     },
   };
-  if (periodic) {
-    id = setInterval(() => {
-      if (!active) return;
-      tick++;
-      callback(timer);
-    }, delay);
-  } else {
-    id = setTimeout(() => {
-      if (!active) return;
-      active = false;
-      tick = 1;
-      callback();
-    }, delay);
-  }
-  return timer;
-}
-function __dartCreateZone(parent = null, values = null) {
-  const zoneValues = values instanceof Map ? values : new Map();
-  const zone = {
-    __dartType: "Zone",
-    parent,
-    get errorZone() { return zone; },
-    get(key) {
-      if (zoneValues.has(key)) return zoneValues.get(key);
-      return parent == null ? null : parent.get(key);
-    },
-    "[]"(key) { return this.get(key); },
-    run(body) { return __dartRunInZone(zone, body); },
-    runUnary(body, argument) { return __dartRunInZone(zone, () => body(argument)); },
-    runBinary(body, first, second) { return __dartRunInZone(zone, () => body(first, second)); },
-    runGuarded(body) { try { return __dartRunInZone(zone, body); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
-    runUnaryGuarded(body, argument) { try { return __dartRunInZone(zone, () => body(argument)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
-    runBinaryGuarded(body, first, second) { try { return __dartRunInZone(zone, () => body(first, second)); } catch (error) { return zone.handleUncaughtError(error, error?.stack ?? "<javascript stack unavailable>"); } },
-    bindCallback(callback) { return () => zone.run(callback); },
-    bindUnaryCallback(callback) { return argument => zone.runUnary(callback, argument); },
-    bindBinaryCallback(callback) { return (first, second) => zone.runBinary(callback, first, second); },
-    bindCallbackGuarded(callback) { return () => zone.runGuarded(callback); },
-    bindUnaryCallbackGuarded(callback) { return argument => zone.runUnaryGuarded(callback, argument); },
-    bindBinaryCallbackGuarded(callback) { return (first, second) => zone.runBinaryGuarded(callback, first, second); },
-    registerCallback(callback) { return zone.bindCallback(callback); },
-    registerUnaryCallback(callback) { return zone.bindUnaryCallback(callback); },
-    registerBinaryCallback(callback) { return zone.bindBinaryCallback(callback); },
-    fork(options = {}) { return __dartCreateZone(zone, options.zoneValues); },
-    scheduleMicrotask(callback) { return __dartScheduleMicrotask(callback, zone); },
-    handleUncaughtError(error, stackTrace = null) { throw error; },
-    inSameErrorZone(other) { return true; },
-    print(line) { console.log(String(line)); return null; },
-    toString() { return "Zone"; },
-  };
-  return Object.freeze(zone);
-}
-const __dartRootZone = __dartCreateZone(null, new Map());
-let __dartCurrentZone = __dartRootZone;
-function __dartZoneValuesMap(zoneValues) {
-  if (zoneValues == null) return new Map();
-  if (zoneValues instanceof Map) return zoneValues;
-  return new Map(Array.from(zoneValues));
-}
-function __dartScheduleMicrotask(callback, zone = __dartCurrentZone) {
-  const run = () => __dartRunInZone(zone, callback);
-  if (typeof queueMicrotask === "function") queueMicrotask(run);
-  else Promise.resolve().then(run);
-  return null;
-}
-function __dartRunInZone(zone, body) {
-  const previous = __dartCurrentZone;
-  __dartCurrentZone = zone;
-  try {
-    const result = body();
-    if (result != null && typeof result.then === "function") {
-      return result.finally(() => { __dartCurrentZone = previous; });
-    }
-    __dartCurrentZone = previous;
-    return result;
-  } catch (error) {
-    __dartCurrentZone = previous;
-    throw error;
-  }
-}
-function __dartRunZoned(body, options = {}) {
-  const parent = options.parentZone ?? __dartCurrentZone;
-  const zone = __dartCreateZone(parent, __dartZoneValuesMap(options.zoneValues));
-  try {
-    return __dartRunInZone(zone, body);
-  } catch (error) {
-    if (typeof options.onError === "function") return options.onError(error, error?.stack ?? "<javascript stack unavailable>");
-    throw error;
-  }
-}
-function __dartRunZonedGuarded(body, onError, options = {}) {
-  try {
-    const result = __dartRunZoned(body, { zoneValues: options.zoneValues, parentZone: options.parentZone ?? __dartCurrentZone });
-    if (result != null && typeof result.then === "function") {
-      return result.catch((error) => { onError(error, error?.stack ?? "<javascript stack unavailable>"); return null; });
-    }
-    return result;
-  } catch (error) {
-    onError(error, error?.stack ?? "<javascript stack unavailable>");
-    return null;
-  }
-}
-function __dartAsyncError(error, stackTrace = null) {
-  return Object.freeze({
-    __dartType: "AsyncError",
-    error,
-    stackTrace: stackTrace ?? error?.stack ?? "<javascript stack unavailable>",
-    toString() { return "AsyncError: " + String(error); },
-  });
-}
-function __dartParallelWaitError(values, errors, errorCount, defaultError) {
-  const suffix = errorCount > 1 ? "(" + errorCount + " errors)" : "";
-  const message = defaultError == null ? "ParallelWaitError" + suffix : "ParallelWaitError" + suffix + ": " + String(defaultError.error);
-  const error = new Error(message);
-  error.__dartType = "ParallelWaitError";
-  error.values = values;
-  error.errors = errors;
-  error.errorCount = errorCount;
-  error.defaultError = defaultError;
-  error.stackTrace = defaultError?.stackTrace ?? error.stack ?? null;
-  error.toString = function() { return message; };
-  return error;
-}
-async function __dartFutureWaitAllSettled(futures) {
-  const entries = Array.from(futures);
-  return Promise.all(entries.map((future) => Promise.resolve(future).then(
-    (value) => ({ value, asyncError: null }),
-    (error) => ({ value: null, asyncError: __dartAsyncError(error) }),
-  )));
-}
-async function __dartFutureIterableWait(futures) {
-  const results = await __dartFutureWaitAllSettled(futures);
-  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);
-  if (errorCount === 0) return results.map((result) => result.value);
-  const values = results.map((result) => result.value);
-  const errors = results.map((result) => result.asyncError);
-  throw __dartParallelWaitError(values, errors, errorCount, errors.find((error) => error != null));
-}
-async function __dartFutureRecordWait(record) {
-  const shape = Array.isArray(record?.[__dartRecordShape]) ? record[__dartRecordShape].filter((name) => /^\$\d+$/.test(name)) : Object.keys(record).filter((name) => /^\$\d+$/.test(name)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
-  const results = await __dartFutureWaitAllSettled(shape.map((name) => record[name]));
-  const errorCount = results.reduce((count, result) => count + (result.asyncError == null ? 0 : 1), 0);
-  if (errorCount === 0) return __dartRecord(results.map((result) => result.value), {});
-  const values = __dartRecord(results.map((result) => result.value), {});
-  const errors = __dartRecord(results.map((result) => result.asyncError), {});
-  throw __dartParallelWaitError(values, errors, errorCount, results.map((result) => result.asyncError).find((error) => error != null));
 }
 
 function __dartFormatException(message) {
@@ -774,6 +434,7 @@ function __dartFormatException(message) {
   error.name = "FormatException";
   return error;
 }
+
 function __dartIntTryParse(source, radix = null) {
   const text = String(source).trim();
   let base = radix == null ? null : Number(radix);
@@ -790,6 +451,7 @@ function __dartIntTryParse(source, radix = null) {
   }
   return Number.parseInt(text, base);
 }
+
 function __dartIntParse(source, radix = null) {
   const value = __dartIntTryParse(source, radix);
   if (value == null) throw __dartFormatException("Invalid integer literal");
@@ -804,17 +466,6 @@ function __dartIterableJoin(iterable, separator = "") {
   return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
 }
 
-function __dartIterableFirstWhere(iterable, test, orElse = null) {
-  for (const value of __dartIterableToArray(iterable)) {
-    if (test(value)) return value;
-  }
-  if (typeof orElse === "function") return orElse();
-  throw new Error("No element");
-}
-function __dartIterableFirstOrNull(iterable) {
-  for (const value of __dartIterableToArray(iterable)) return value;
-  return null;
-}
 function __dartIterableLastWhere(iterable, test, orElse = null) {
   let found = false;
   let result;
@@ -827,48 +478,6 @@ function __dartIterableLastWhere(iterable, test, orElse = null) {
   if (found) return result;
   if (typeof orElse === "function") return orElse();
   throw new Error("No element");
-}
-function __dartIterableLastOrNull(iterable) {
-  let found = false;
-  let result;
-  for (const value of __dartIterableToArray(iterable)) {
-    found = true;
-    result = value;
-  }
-  return found ? result : null;
-}
-function __dartIterableSingle(iterable) {
-  const values = __dartIterableToArray(iterable);
-  if (values.length !== 1) throw new Error(values.length === 0 ? "No element" : "Too many elements");
-  return values[0];
-}
-function __dartIterableSingleWhere(iterable, test, orElse = null) {
-  let found = false;
-  let result;
-  for (const value of __dartIterableToArray(iterable)) {
-    if (!test(value)) continue;
-    if (found) throw new Error("Too many elements");
-    found = true;
-    result = value;
-  }
-  if (found) return result;
-  if (typeof orElse === "function") return orElse();
-  throw new Error("No element");
-}
-function __dartIterableSingleOrNull(iterable) {
-  let found = false;
-  let result;
-  for (const value of __dartIterableToArray(iterable)) {
-    if (found) return null;
-    found = true;
-    result = value;
-  }
-  return found ? result : null;
-}
-function __dartIterableElementAtOrNull(iterable, index) {
-  const values = __dartIterableToArray(iterable);
-  const offset = Number(index);
-  return offset >= 0 && offset < values.length ? values[offset] : null;
 }
 
 function __dartIterableToArray(iterable) {
@@ -955,20 +564,15 @@ function __dartFixedList(values) {
   Object.preventExtensions(list);
   return list;
 }
+
 function __dartListOf(values, growable = true) {
   const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
+
 function __dartListFilled(length, fill, growable = false) {
   const list = Array(Number(length)).fill(fill);
   return growable ? list : __dartFixedList(list);
-}
-function __dartListGenerate(length, generator, growable = true) {
-  const list = Array.from({ length: Number(length) }, (_, index) => generator(index));
-  return growable ? list : __dartFixedList(list);
-}
-function __dartUnmodifiableList(values) {
-  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -976,6 +580,7 @@ function __dartListLikeGet(list, index) {
   const op = list == null ? null : list["[]"];
   return typeof op === "function" ? op.call(list, index) : list[index];
 }
+
 function __dartListLikeSet(list, index, value) {
   if (Array.isArray(list) || ArrayBuffer.isView(list)) {
     list[index] = value;
@@ -986,30 +591,11 @@ function __dartListLikeSet(list, index, value) {
   list[index] = value;
   return value;
 }
-function __dartListMixinFirst(list) {
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinLast(list) {
-  return __dartListLikeGet(list, list.length - 1);
-}
-function __dartListMixinSingle(list) {
-  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinInsert(list, index, value) {
-  index = Number(index);
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let i = length; i > index; i--) {
-    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
-  }
-  __dartListLikeSet(list, index, value);
-  return null;
-}
 
 function __dartListMutationRead(list, index) {
   return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
 }
+
 function __dartListMutationWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -1017,24 +603,18 @@ function __dartListMutationWrite(list, index, value) {
     list[index] = value;
   }
 }
+
 function __dartListMutationValues(values) {
   return __dartIterableToArray(values);
 }
-function __dartListShuffle(list, random = null) {
-  for (let index = list.length - 1; index > 0; index--) {
-    const nextInt = random == null ? Math.floor(Math.random() * (index + 1)) : Number(random.nextInt(index + 1));
-    const current = __dartListMutationRead(list, index);
-    __dartListMutationWrite(list, index, __dartListMutationRead(list, nextInt));
-    __dartListMutationWrite(list, nextInt, current);
-  }
-  return null;
-}
+
 function __dartListRemoveAt(list, index) {
   index = Number(index);
   const value = __dartListMutationRead(list, index);
   __dartListRemoveRange(list, index, index + 1);
   return value;
 }
+
 function __dartListInsert(list, index, value) {
   index = Number(index);
   if (Array.isArray(list)) {
@@ -1049,18 +629,11 @@ function __dartListInsert(list, index, value) {
   __dartListMutationWrite(list, index, value);
   return null;
 }
-function __dartListRemove(list, value) {
-  for (let index = 0; index < list.length; index++) {
-    if (__dartEquals(__dartListMutationRead(list, index), value)) {
-      __dartListRemoveRange(list, index, index + 1);
-      return true;
-    }
-  }
-  return false;
-}
+
 function __dartListRemoveLast(list) {
   return __dartListRemoveAt(list, list.length - 1);
 }
+
 function __dartListInsertAll(list, index, values) {
   index = Number(index);
   const inserted = __dartListMutationValues(values);
@@ -1078,27 +651,7 @@ function __dartListInsertAll(list, index, values) {
   }
   return null;
 }
-function __dartListSetAll(list, index, values) {
-  let cursor = Number(index);
-  for (const value of __dartListMutationValues(values)) {
-    __dartListMutationWrite(list, cursor++, value);
-  }
-  return null;
-}
-function __dartListFillRange(list, start, end, fill = null) {
-  for (let index = Number(start); index < Number(end); index++) {
-    __dartListMutationWrite(list, index, fill);
-  }
-  return null;
-}
-function __dartListReplaceRange(list, start, end, values) {
-  start = Number(start);
-  end = Number(end);
-  const replacement = __dartListMutationValues(values);
-  __dartListRemoveRange(list, start, end);
-  __dartListInsertAll(list, start, replacement);
-  return null;
-}
+
 function __dartListRemoveRange(list, start, end) {
   start = Number(start);
   end = Number(end);
@@ -1114,6 +667,7 @@ function __dartListRemoveRange(list, start, end) {
   list.length = length - count;
   return null;
 }
+
 function __dartListRemoveWhere(list, test) {
   for (let index = list.length - 1; index >= 0; index--) {
     if (test(__dartListMutationRead(list, index))) {
@@ -1122,55 +676,7 @@ function __dartListRemoveWhere(list, test) {
   }
   return null;
 }
-function __dartListRetainWhere(list, test) {
-  for (let index = list.length - 1; index >= 0; index--) {
-    if (!test(__dartListMutationRead(list, index))) {
-      __dartListRemoveRange(list, index, index + 1);
-    }
-  }
-  return null;
-}
-function __dartListAsMap(list) {
-  return new (class extends Map {
-    get size() { return Number(list.length); }
-    get(key) {
-      return Number.isInteger(key) && key >= 0 && key < list.length
-        ? __dartListMutationRead(list, key)
-        : undefined;
-    }
-    has(key) {
-      return Number.isInteger(key) && key >= 0 && key < list.length;
-    }
-    entries() {
-      return Array.from(
-        { length: Number(list.length) },
-        (_, index) => [index, __dartListMutationRead(list, index)],
-      )[Symbol.iterator]();
-    }
-    keys() {
-      return Array.from({ length: Number(list.length) }, (_, index) => index)[Symbol.iterator]();
-    }
-    values() {
-      return Array.from(
-        { length: Number(list.length) },
-        (_, index) => __dartListMutationRead(list, index),
-      )[Symbol.iterator]();
-    }
-    [Symbol.iterator]() { return this.entries(); }
-    forEach(callback, thisArg = undefined) {
-      for (let index = 0; index < list.length; index++) {
-        callback.call(thisArg, __dartListMutationRead(list, index), index, this);
-      }
-    }
-    set() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
-    delete() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
-    clear() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
-  })();
-}
 
-function __dartListRangeRead(list, index) {
-  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
-}
 function __dartListRangeWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -1178,23 +684,12 @@ function __dartListRangeWrite(list, index, value) {
     list[index] = value;
   }
 }
+
 function __dartListRangeValues(source, start = 0, end = null) {
   const from = Number(start);
   return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
 }
-function __dartListCopyRange(target, at, source, start = 0, end = null) {
-  const values = __dartListRangeValues(source, start, end);
-  let index = Number(at);
-  for (const value of values) __dartListRangeWrite(target, index++, value);
-  return null;
-}
-function __dartListWriteIterable(target, at, source) {
-  let index = Number(at);
-  for (const value of __dartListRangeValues(source)) {
-    __dartListRangeWrite(target, index++, value);
-  }
-  return null;
-}
+
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const from = Number(skipCount);
   const count = Number(end) - Number(start);
@@ -1211,25 +706,10 @@ function __dartListIndexOf(list, needle, start = 0) {
   }
   return -1;
 }
-function __dartListLastIndexOf(list, needle, start = null) {
-  const values = Array.from(list);
-  let index = start == null ? values.length - 1 : Math.min(Number(start), values.length - 1);
-  for (; index >= 0; index--) {
-    if (__dartEquals(values[index], needle)) return index;
-  }
-  return -1;
-}
+
 function __dartListIndexWhere(list, test, start = 0) {
   const values = Array.from(list);
   for (let index = Math.max(0, Number(start)); index < values.length; index++) {
-    if (test(values[index])) return index;
-  }
-  return -1;
-}
-function __dartListLastIndexWhere(list, test, start = null) {
-  const values = Array.from(list);
-  let index = start == null ? values.length - 1 : Math.min(Number(start), values.length - 1);
-  for (; index >= 0; index--) {
     if (test(values[index])) return index;
   }
   return -1;
@@ -1251,31 +731,9 @@ function __dartMapFromEntries(entries) {
   __dartMapAddAll(map, entries);
   return map;
 }
-function __dartMapFromIterable(iterable, key = null, value = null) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (const element of iterable) {
-    __dartMapSet(
-      map,
-      typeof key === "function" ? key(element) : element,
-      typeof value === "function" ? value(element) : element,
-    );
-  }
-  return map;
-}
-function __dartMapFromIterables(keys, values) {
-  const keyList = Array.from(keys);
-  const valueList = Array.from(values);
-  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (let index = 0; index < keyList.length; index++) {
-    __dartMapSet(map, keyList[index], valueList[index]);
-  }
-  return map;
-}
 
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+
 function __dartMapKey(map, key) {
   if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
   if (map.__dartSplayCompare !== undefined) {
@@ -1297,6 +755,7 @@ function __dartMapKey(map, key) {
   }
   return __dartMapMissingKey;
 }
+
 function __dartMapGet(map, key) {
   if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
   const actualKey = __dartMapKey(map, key);
@@ -1307,12 +766,7 @@ function __dartMapAddEntries(map, entries) {
   for (const [key, value] of entries) __dartMapSet(map, key, value);
   return null;
 }
-function __dartMapContainsValue(map, value) {
-  for (const candidate of map.values()) {
-    if (__dartEquals(candidate, value)) return true;
-  }
-  return false;
-}
+
 function __dartMapPutIfAbsent(map, key, ifAbsent) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey !== __dartMapMissingKey) return map.get(actualKey);
@@ -1320,6 +774,7 @@ function __dartMapPutIfAbsent(map, key, ifAbsent) {
   __dartMapSet(map, key, value);
   return value;
 }
+
 function __dartMapUpdate(map, key, update, ifAbsent = null) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey !== __dartMapMissingKey) {
@@ -1334,6 +789,7 @@ function __dartMapUpdate(map, key, update, ifAbsent = null) {
   }
   throw new Error("Key not found");
 }
+
 function __dartMapForEach(map, action) {
   if (map != null && typeof map[Symbol.iterator] !== "function" && typeof map.forEach === "function") {
     map.forEach(action);
@@ -1342,6 +798,7 @@ function __dartMapForEach(map, action) {
   for (const [key, value] of map) action(key, value);
   return null;
 }
+
 function __dartMapMap(map, transform) {
   const result = new Map();
   Object.defineProperty(result, "__dartEqualityMap", { value: true });
@@ -1351,6 +808,7 @@ function __dartMapMap(map, transform) {
   }
   return result;
 }
+
 function __dartMapRemove(map, key) {
   const actualKey = __dartMapKey(map, key);
   if (actualKey === __dartMapMissingKey) return null;
@@ -1358,18 +816,21 @@ function __dartMapRemove(map, key) {
   map.delete(actualKey);
   return value;
 }
+
 function __dartMapUpdateAll(map, update) {
   for (const [key, value] of Array.from(map)) {
     map.set(key, update(key, value));
   }
   return null;
 }
+
 function __dartMapRemoveWhere(map, test) {
   for (const [key, value] of Array.from(map)) {
     if (test(key, value)) map.delete(key);
   }
   return null;
 }
+
 function __dartMapClear(map) {
   map.clear();
   return null;
@@ -1388,15 +849,19 @@ function __dartNullCheck(value) {
 }
 
 const __dartIdentityHashes = new WeakMap();
+
 let __dartNextIdentityHash = 1;
+
 function __dartCombineHash(hash, value) {
   hash = (((hash + value) & 0x1fffffff) + (((hash & 0x0007ffff) << 10) & 0x1fffffff)) & 0x1fffffff;
   return hash ^ (hash >> 6);
 }
+
 function __dartFinishHash(hash) {
   hash = (((hash + (((hash & 0x03ffffff) << 3) & 0x1fffffff)) & 0x1fffffff) ^ (hash >> 11));
   return (hash + (((hash & 0x00003fff) << 15) & 0x1fffffff)) & 0x1fffffff;
 }
+
 function __dartHashValue(value) {
   if (value == null) return 0;
   if (typeof value === "boolean") return value ? 1231 : 1237;
@@ -1417,22 +882,11 @@ function __dartHashValue(value) {
   }
   return __dartIdentityHashes.get(value);
 }
+
 function __dartObjectHash(values) {
   let hash = 0;
   for (const value of values) hash = __dartCombineHash(hash, __dartHashValue(value));
   return __dartFinishHash(hash);
-}
-function __dartObjectHashUnordered(values) {
-  let sum = 0;
-  let xor = 0;
-  let count = 0;
-  for (const value of values) {
-    const hash = __dartHashValue(value);
-    sum = (sum + hash) & 0x1fffffff;
-    xor ^= hash;
-    count++;
-  }
-  return __dartObjectHash([sum, xor, count]);
 }
 
 function __dartPatternRegExp(pattern, global = false) {
@@ -1444,6 +898,7 @@ function __dartPatternRegExp(pattern, global = false) {
   }
   return null;
 }
+
 function __dartPatternAllMatches(pattern, input, start = 0) {
   if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.allMatches === "function") return pattern.allMatches(input, start);
   const text = String(input);
@@ -1460,6 +915,7 @@ function __dartPatternAllMatches(pattern, input, start = 0) {
   }
   return __dartStringAllMatches(pattern, text, start);
 }
+
 function __dartPatternMatchAsPrefix(pattern, input, start = 0) {
   if (pattern != null && typeof pattern !== "string" && !(pattern instanceof RegExp) && typeof pattern.matchAsPrefix === "function") return pattern.matchAsPrefix(input, start);
   const text = String(input);
@@ -1470,21 +926,14 @@ function __dartPatternMatchAsPrefix(pattern, input, start = 0) {
   }
   return __dartStringMatchAsPrefix(pattern, text, start);
 }
+
 function __dartStringContains(source, pattern, start = 0) {
   const text = String(source);
   const regexp = __dartPatternRegExp(pattern, false);
   if (regexp != null) return regexp.test(text.slice(start));
   return text.includes(String(pattern), start);
 }
-function __dartStringStartsWith(source, pattern, start = 0) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const match = regexp.exec(text.slice(start));
-    return match != null && match.index === 0;
-  }
-  return text.startsWith(String(pattern), start);
-}
+
 function __dartStringIndexOf(source, pattern, start = 0) {
   const text = String(source);
   const regexp = __dartPatternRegExp(pattern, false);
@@ -1494,6 +943,7 @@ function __dartStringIndexOf(source, pattern, start = 0) {
   }
   return text.indexOf(String(pattern), start);
 }
+
 function __dartStringLastIndexOf(source, pattern, start = null) {
   const text = String(source);
   const limit = start == null ? text.length : start;
@@ -1507,35 +957,14 @@ function __dartStringLastIndexOf(source, pattern, start = null) {
   }
   return text.lastIndexOf(String(pattern), limit);
 }
-function __dartStringSplit(source, pattern) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  return regexp == null ? text.split(String(pattern)) : text.split(regexp);
-}
-function __dartStringReplaceAll(source, pattern, replacement) {
-  const text = String(source);
-  const replacementText = String(replacement);
-  const regexp = __dartPatternRegExp(pattern, true);
-  return regexp == null ? text.split(String(pattern)).join(replacementText) : text.replace(regexp, () => replacementText);
-}
+
 function __dartStringReplaceAllMapped(source, pattern, replace) {
   const text = String(source);
   const regexp = __dartPatternRegExp(pattern, true);
   if (regexp != null) return text.replace(regexp, (...args) => String(replace(__dartJsRegExpReplacementMatch(args))));
   return __dartStringReplaceStringMapped(text, String(pattern), replace, true, 0);
 }
-function __dartStringReplaceFirstMapped(source, pattern, replace, startIndex = 0) {
-  const text = String(source);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const tail = text.slice(startIndex);
-    const match = regexp.exec(tail);
-    if (match == null) return text;
-    const dartMatch = __dartRegExpMatch(match, startIndex);
-    return text.slice(0, dartMatch.start) + String(replace(dartMatch)) + text.slice(dartMatch.end);
-  }
-  return __dartStringReplaceStringMapped(text, String(pattern), replace, false, startIndex);
-}
+
 function __dartStringReplaceStringMapped(text, needle, replace, all, startIndex) {
   if (needle === "") return text;
   let result = "";
@@ -1552,43 +981,7 @@ function __dartStringReplaceStringMapped(text, needle, replace, all, startIndex)
   }
   return replaced ? result + text.slice(cursor) : text;
 }
-function __dartStringSplitMapJoin(source, pattern, onMatch = null, onNonMatch = null) {
-  const text = String(source);
-  const matchMapper = typeof onMatch === "function" ? onMatch : (match) => match.group(0);
-  const nonMatchMapper = typeof onNonMatch === "function" ? onNonMatch : (part) => part;
-  const matches = __dartStringPatternMatches(text, pattern);
-  if (matches.length === 0) return String(nonMatchMapper(text));
-  let result = "";
-  let cursor = 0;
-  for (const match of matches) {
-    result += String(nonMatchMapper(text.slice(cursor, match.start)));
-    result += String(matchMapper(match));
-    cursor = match.end;
-  }
-  result += String(nonMatchMapper(text.slice(cursor)));
-  return result;
-}
-function __dartStringPatternMatches(text, pattern) {
-  const regexp = __dartPatternRegExp(pattern, true);
-  if (regexp != null) {
-    const matches = [];
-    let match;
-    while ((match = regexp.exec(text)) !== null) {
-      matches.push(__dartRegExpMatch(match));
-      if (match[0] === "") regexp.lastIndex++;
-    }
-    return matches;
-  }
-  const needle = String(pattern);
-  if (needle === "") return [];
-  const matches = [];
-  let index = text.indexOf(needle);
-  while (index >= 0) {
-    matches.push(__dartStringMatch(text, index, needle));
-    index = text.indexOf(needle, index + needle.length);
-  }
-  return matches;
-}
+
 function __dartStringAllMatches(pattern, input, start = 0) {
   const text = String(input);
   const needle = String(pattern);
@@ -1601,11 +994,13 @@ function __dartStringAllMatches(pattern, input, start = 0) {
   }
   return matches;
 }
+
 function __dartStringMatchAsPrefix(pattern, input, start = 0) {
   const text = String(input);
   const needle = String(pattern);
   return text.startsWith(needle, start) ? __dartStringMatch(text, start, needle) : null;
 }
+
 function __dartStringMatch(input, start, value) {
   return {
     input,
@@ -1619,6 +1014,7 @@ function __dartStringMatch(input, start, value) {
     0: value,
   };
 }
+
 function __dartRegExpMatch(match, offset = 0, input = null, pattern = null) {
   const namedGroups = match.groups ?? {};
   const result = {
@@ -1637,6 +1033,7 @@ function __dartRegExpMatch(match, offset = 0, input = null, pattern = null) {
   }
   return result;
 }
+
 function __dartJsRegExpReplacementMatch(args) {
   const hasNamedGroups = args.length > 0 && args[args.length - 1] != null && typeof args[args.length - 1] === "object";
   const input = args[args.length - (hasNamedGroups ? 2 : 1)];
@@ -1647,39 +1044,24 @@ function __dartJsRegExpReplacementMatch(args) {
   if (hasNamedGroups) match.groups = args[args.length - 1];
   return __dartRegExpMatch(match);
 }
-function __dartStringReplaceFirstPattern(source, pattern, replacement, startIndex = 0) {
-  const text = String(source);
-  const replacementText = String(replacement);
-  const regexp = __dartPatternRegExp(pattern, false);
-  if (regexp != null) {
-    const tail = text.slice(startIndex);
-    const match = regexp.exec(tail);
-    if (match == null) return text;
-    const index = startIndex + match.index;
-    return text.slice(0, index) + replacementText + text.slice(index + match[0].length);
-  }
-  return __dartStringReplaceFirst(source, pattern, replacement, startIndex);
-}
 
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }
 
-function __dartCheckValueInInterval(value, minValue, maxValue, name = null, message = null) {
-  if (value < minValue || value > maxValue) throw __dartCoreError("RangeError", message ?? (String(name ?? "value") + " out of range"));
-  return value;
-}
 function __dartCheckValidIndex(index, indexable, name = null, length = null, message = null) {
   length ??= indexable.length;
   if (index < 0 || index >= length) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " out of range"));
   return index;
 }
+
 function __dartCheckValidRange(start, end, length, startName = null, endName = null, message = null) {
   if (start < 0 || start > length) throw __dartCoreError("RangeError", message ?? (String(startName ?? "start") + " out of range"));
   if (end == null) return length;
   if (end < start || end > length) throw __dartCoreError("RangeError", message ?? (String(endName ?? "end") + " out of range"));
   return end;
 }
+
 function __dartCheckNotNegative(value, name = null, message = null) {
   if (value < 0) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " must not be negative"));
   return value;
@@ -1689,30 +1071,6 @@ const __dartRecordShape = Symbol("dart.recordShape");
 
 function __dartIsRecord(value) {
   return value != null && typeof value === "object" && Array.isArray(value[__dartRecordShape]);
-}
-
-function __dartRecord(positional, named) {
-  const record = {};
-  const shape = [];
-  for (let i = 0; i < positional.length; i++) {
-    const name = "$" + (i + 1);
-    shape.push(name);
-    Object.defineProperty(record, name, { value: positional[i], enumerable: true });
-  }
-  for (const name of Object.keys(named).sort()) {
-    shape.push(name);
-    Object.defineProperty(record, name, { value: named[name], enumerable: true });
-  }
-  Object.defineProperty(record, __dartRecordShape, { value: Object.freeze(shape) });
-  Object.defineProperty(record, "toString", {
-    value() {
-      return "(" + shape.map((name) => {
-        const value = String(record[name]);
-        return name.startsWith("$") ? value : name + ": " + value;
-      }).join(", ") + ")";
-    },
-  });
-  return Object.freeze(record);
 }
 
 function __dartRuntimeType(value) {
@@ -1802,6 +1160,12 @@ function __dartSafeToString(value) {
   }
 }
 
+function __dartSplaySortMap(map) {
+  const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
+  map.clear();
+  for (const [key, value] of entries) map.set(key, value);
+}
+
 function __dartStringBuffer(initial = "") {
   let value = initial == null ? "" : __dartStr(initial);
   return {
@@ -1850,17 +1214,13 @@ function __dartStringCodeUnits(source) {
   const text = String(source);
   return Array.from({ length: text.length }, (_, index) => text.charCodeAt(index));
 }
+
 function __dartStringReplaceFirst(source, pattern, replacement, startIndex = 0) {
   const text = String(source);
   const needle = String(pattern);
   const index = text.indexOf(needle, Number(startIndex));
   if (index < 0) return text;
   return text.slice(0, index) + String(replacement) + text.slice(index + needle.length);
-}
-function __dartStringReplaceRange(source, start, end, replacement) {
-  const text = String(source);
-  const actualEnd = end == null ? text.length : Number(end);
-  return text.slice(0, Number(start)) + String(replacement) + text.slice(actualEnd);
 }
 
 function __dartStr(value) {
@@ -1884,6 +1244,7 @@ function __dartStr(value) {
 }
 
 const __dartTypeCache = new Map();
+
 function __dartType(name) {
   if (__dartTypeCache.has(name)) return __dartTypeCache.get(name);
   const value = Object.freeze({
@@ -1901,19 +1262,6 @@ function __dartAs(value, test, typeName) {
   throw new TypeError("Type cast failed: expected " + typeName);
 }
 
-function __dartUnmodifiableListView(source) {
-  const list = Array.isArray(source) ? source : Array.from(source);
-  const readonly = new Set(["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"]);
-  return new Proxy(list, {
-    get(target, property, receiver) {
-      if (readonly.has(property)) return () => { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); };
-      return Reflect.get(target, property, receiver);
-    },
-    set() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
-    deleteProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
-    defineProperty() { throw new TypeError("Unsupported operation: Cannot modify an unmodifiable list"); },
-  });
-}
 function __dartUnmodifiableMapView(source) {
   const mapLike = source != null && typeof source === "object" && (source instanceof Map || typeof source["[]"] === "function");
   const map = mapLike ? source : new Map(source);
@@ -1932,18 +1280,6 @@ function __dartUnmodifiableMapView(source) {
   });
 }
 
-function __dartBase64Encode(bytes, urlSafe = false) {
-  const values = Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255));
-  let encoded;
-  if (typeof Buffer !== "undefined") {
-    encoded = Buffer.from(values).toString("base64");
-  } else {
-    let binary = "";
-    for (const byte of values) binary += String.fromCharCode(byte);
-    encoded = btoa(binary);
-  }
-  return urlSafe ? encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") : encoded;
-}
 function __dartUriParse(source, tryParse = false) {
   const text = String(source);
   let url;
@@ -2003,7 +1339,9 @@ function __dartUriParse(source, tryParse = false) {
     toString() { return text; },
   });
 }
+
 function __dartUriEncodePath(path) { return String(path).split("/").map(encodeURIComponent).join("/"); }
+
 function __dartUriEncodeQueryComponent(value, encoding = null) {
   const text = String(value);
   if (encoding == null || typeof encoding.encode !== "function") return encodeURIComponent(text).replace(/%20/g, "+");
@@ -2016,39 +1354,7 @@ function __dartUriEncodeQueryComponent(value, encoding = null) {
   }
   return result;
 }
-function __dartUriDecodeQueryComponent(value, encoding = null) {
-  const text = String(value).replace(/\+/g, " ");
-  if (encoding == null || typeof encoding.decode !== "function") return decodeURIComponent(text);
-  const bytes = [];
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    if (char === "%" && i + 2 < text.length) {
-      const hex = text.slice(i + 1, i + 3);
-      if (/^[0-9a-fA-F]{2}$/.test(hex)) {
-        bytes.push(parseInt(hex, 16));
-        i += 2;
-        continue;
-      }
-    }
-    bytes.push(char.charCodeAt(0));
-  }
-  return encoding.decode(bytes);
-}
-function __dartUriSplitQueryString(query, encoding = null) {
-  const map = new Map();
-  for (const element of String(query).split("&")) {
-    const index = element.indexOf("=");
-    if (index === -1) {
-      if (element !== "") map.set(__dartUriDecodeQueryComponent(element, encoding), "");
-      continue;
-    }
-    if (index === 0) continue;
-    const key = element.slice(0, index);
-    const value = element.slice(index + 1);
-    map.set(__dartUriDecodeQueryComponent(key, encoding), __dartUriDecodeQueryComponent(value, encoding));
-  }
-  return map;
-}
+
 function __dartUriBuildQuery(queryParameters) {
   const parts = [];
   for (const [key, value] of queryParameters) {
@@ -2063,6 +1369,7 @@ function __dartUriBuildQuery(queryParameters) {
   }
   return parts.join("&");
 }
+
 function __dartUri(options = {}) {
   const scheme = options.scheme == null ? "" : String(options.scheme);
   const userInfo = options.userInfo == null ? "" : String(options.userInfo);
@@ -2094,107 +1401,9 @@ function __dartUri(options = {}) {
   }
   return __dartUriParse(text, false);
 }
-function __dartUriFile(path, windows = false, directory = false) {
-  let text = String(path);
-  if (windows) text = text.replace(/\\/g, "/");
-  if (directory && text !== "" && !text.endsWith("/") && !(windows && /^[a-zA-Z]:$/.test(text))) text += "/";
-  const isAbsolute = windows ? (/^[a-zA-Z]:\//.test(text) || text.startsWith("//")) : text.startsWith("/");
-  const encoded = __dartUriEncodePath(text);
-  if (!isAbsolute) return __dartUriParse(encoded, false);
-  const filePath = windows && /^[a-zA-Z]:\//.test(encoded) ? "/" + encoded : encoded;
-  return __dartUriParse("file://" + filePath, false);
-}
-function __dartUriDataParameters(parameters) {
-  if (parameters == null) return "";
-  let result = "";
-  for (const [key, value] of parameters) {
-    result += ";" + encodeURIComponent(String(key)) + "=" + encodeURIComponent(String(value));
-  }
-  return result;
-}
-function __dartUriDataMediaType(mimeType) {
-  if (mimeType == null || String(mimeType).toLowerCase() === "text/plain") return "";
-  return String(mimeType);
-}
-function __dartUriPercentEncodeBytes(bytes) {
-  let result = "";
-  for (const byte of bytes) {
-    const value = Number(byte) & 255;
-    const char = String.fromCharCode(value);
-    result += /[A-Za-z0-9\-._~]/.test(char) ? char : "%" + value.toString(16).toUpperCase().padStart(2, "0");
-  }
-  return result;
-}
-function __dartUriDataFromString(content, mimeType = null, encoding = null, parameters = null, base64 = false) {
-  const text = String(content);
-  let metadata = __dartUriDataMediaType(mimeType);
-  if (encoding != null) metadata += ";charset=utf-8";
-  metadata += __dartUriDataParameters(parameters);
-  if (base64) {
-    const bytes = new TextEncoder().encode(text);
-    return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(bytes), false);
-  }
-  return __dartUriParse("data:" + metadata + "," + encodeURIComponent(text), false);
-}
-function __dartUriDataFromBytes(bytes, mimeType = null, parameters = null, percentEncoded = false) {
-  const byteList = Array.from(bytes, (byte) => Number(byte) & 255);
-  let metadata = mimeType == null ? "application/octet-stream" : __dartUriDataMediaType(mimeType);
-  metadata += __dartUriDataParameters(parameters);
-  if (percentEncoded) {
-    return __dartUriParse("data:" + metadata + "," + __dartUriPercentEncodeBytes(byteList), false);
-  }
-  return __dartUriParse("data:" + metadata + ";base64," + __dartBase64Encode(byteList), false);
-}
-function __dartUriAssignQueryParameters(url, queryParameters) {
-  const search = new URLSearchParams();
-  for (const [key, value] of queryParameters) {
-    if (value == null) continue;
-    if (typeof value !== "string" && value != null && typeof value[Symbol.iterator] === "function") {
-      for (const item of value) search.append(String(key), String(item));
-    } else {
-      search.append(String(key), String(value));
-    }
-  }
-  url.search = search.toString();
-}
+
 function __dartUriResolve(uri, reference) {
   return __dartUriParse(new URL(String(reference), String(uri)).toString());
-}
-function __dartUriNormalizePath(uri) {
-  return __dartUriParse(new URL(String(uri)).toString());
-}
-function __dartUriReplace(uri, options = {}) {
-  const url = new URL(String(uri));
-  if ("scheme" in options && options.scheme != null) url.protocol = String(options.scheme) + ":";
-  if ("userInfo" in options && options.userInfo != null) {
-    const parts = String(options.userInfo).split(":");
-    url.username = parts[0] ?? "";
-    url.password = parts.slice(1).join(":");
-  }
-  if ("host" in options && options.host != null) url.hostname = String(options.host);
-  if ("port" in options && options.port != null) url.port = String(options.port);
-  if ("pathSegments" in options && options.pathSegments != null) {
-    url.pathname = Array.from(options.pathSegments, (segment) => encodeURIComponent(String(segment))).join("/");
-  } else if ("path" in options && options.path != null) {
-    url.pathname = String(options.path);
-  }
-  if ("queryParameters" in options) {
-    if (options.queryParameters != null) __dartUriAssignQueryParameters(url, options.queryParameters);
-  } else if ("query" in options) {
-    if (options.query != null) url.search = String(options.query);
-  }
-  if (options.__removeFragment === true) url.hash = "";
-  else if ("fragment" in options && options.fragment != null) url.hash = String(options.fragment);
-  return __dartUriParse(url.toString());
-}
-function __dartUriBuild(scheme, authority, path, queryParameters = null) {
-  const url = new URL(String(scheme) + "://" + String(authority));
-  const rawPath = String(path);
-  url.pathname = rawPath.startsWith("/") ? rawPath : "/" + rawPath;
-  if (queryParameters != null) {
-    __dartUriAssignQueryParameters(url, queryParameters);
-  }
-  return __dartUriParse(url.toString());
 }
 
 function __dartUriToFilePath(uri, windows = false) {

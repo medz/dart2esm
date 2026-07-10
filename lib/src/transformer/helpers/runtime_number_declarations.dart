@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Numberhelperdeclaration on EsmRuntimeHelperRegistry {
+extension _NumberHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _numberHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.bigIntBitLength => EsmRawModuleItem('''

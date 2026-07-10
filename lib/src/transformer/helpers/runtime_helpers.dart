@@ -1,6 +1,7 @@
 import '../../ast/esm_ast.dart';
 import '../../foundation/diagnostics/unsupported_compiler_feature.dart';
 import '../../options.dart';
+import 'runtime_helper_linker.dart';
 
 part 'runtime_helper.dart';
 part 'runtime_helper_registry.dart';
@@ -11,6 +12,8 @@ part 'runtime_dynamic_declarations.dart';
 part 'runtime_async_declarations.dart';
 part 'runtime_convert_declarations.dart';
 part 'runtime_io_declarations.dart';
+part 'runtime_io_web_declarations.dart';
+part 'runtime_isolate_declarations.dart';
 part 'runtime_sdk_declarations.dart';
 part 'runtime_math_declarations.dart';
 part 'runtime_iterable_map_declarations.dart';

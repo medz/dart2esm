@@ -164,11 +164,15 @@ extension _ConstantLowering on Lowerer {
     }
     if (constant is k.ConstructorTearOffConstant ||
         constant is k.RedirectingFactoryTearOffConstant) {
-      return _lowerCanonicalConstant(
-        helpers,
-        constant,
-        _lowerConstructorTearOffConstant(semantic, helpers, constant, context),
-      );
+      final target = switch (constant) {
+        k.ConstructorTearOffConstant() => constant.target,
+        k.RedirectingFactoryTearOffConstant() => constant.target,
+        _ => throw UnsupportedCompilerFeature(
+          context,
+          'constructor tear-off constant lowering',
+        ),
+      };
+      return _constructorTearOffReference(semantic, target);
     }
     if (constant is k.InstantiationConstant) {
       return _lowerConstant(
@@ -789,23 +793,15 @@ extension _ConstantLowering on Lowerer {
     return null;
   }
 
-  EsmExpression _lowerConstructorTearOffConstant(
+  EsmFunction _lowerConstructorTearOff(
     Semantic semantic,
     EsmRuntimeHelperUseSet helpers,
-    k.Constant constant,
-    Object context,
+    EsmConstructorTearOffSymbol tearOff,
   ) {
-    final target = switch (constant) {
-      k.ConstructorTearOffConstant() => constant.target,
-      k.RedirectingFactoryTearOffConstant() => constant.target,
-      _ => throw UnsupportedCompilerFeature(
-        context,
-        'constant expression lowering',
-      ),
-    };
+    final target = tearOff.target;
     final function = target.function;
     if (function == null || function.asyncMarker != k.AsyncMarker.Sync) {
-      throw UnsupportedCompilerFeature(context, 'constant expression lowering');
+      throw UnsupportedCompilerFeature(target, 'constructor tear-off lowering');
     }
     final locals = <k.VariableDeclaration, String>{};
     final usedParameters = <String>{};
@@ -816,7 +812,9 @@ extension _ConstantLowering on Lowerer {
       usedParameters,
       function,
     );
-    return EsmFunctionExpression(
+    return EsmFunction(
+      name: tearOff.name,
+      export: false,
       parameters: parameters,
       body: [
         EsmReturnStatement(
@@ -829,6 +827,13 @@ extension _ConstantLowering on Lowerer {
         ),
       ],
     );
+  }
+
+  EsmExpression _constructorTearOffReference(
+    Semantic semantic,
+    k.Member target,
+  ) {
+    return EsmIdentifier(semantic.constructorTearOffSymbolFor(target).name);
   }
 
   EsmExpression _lowerConstructorTearOffInvocation(

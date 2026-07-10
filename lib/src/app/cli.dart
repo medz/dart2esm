@@ -63,7 +63,6 @@ Future<int> runDart2Esm(
         environmentDefines: results['define'] as List<String>,
         runMain: results['run-main'] as bool,
         platform: _parsePlatform(results['platform'] as String),
-        target: _parseTarget(results['target'] as String),
         collectMetrics: printMetrics,
         compareDart2JsMetrics: results['compare-dart2js'] as bool,
       ),
@@ -118,13 +117,6 @@ ArgParser _buildParser() {
       defaultsTo: Dart2EsmPlatform.auto.cliName,
       help: 'Select host platform semantics for dart:* and Web APIs.',
     )
-    ..addOption(
-      'target',
-      allowed: [for (final target in Dart2EsmTarget.values) target.cliName],
-      defaultsTo: Dart2EsmTarget.esnext.cliName,
-      help:
-          'Select the JavaScript syntax target. Only esnext is supported in 0.1.0.',
-    )
     ..addFlag(
       'run-main',
       defaultsTo: true,
@@ -157,14 +149,6 @@ Dart2EsmPlatform _parsePlatform(String value) {
     throw Dart2EsmUsageException('Unsupported platform: $value');
   }
   return platform;
-}
-
-Dart2EsmTarget _parseTarget(String value) {
-  final target = Dart2EsmTarget.tryParse(value);
-  if (target == null) {
-    throw Dart2EsmUsageException('Unsupported target: $value');
-  }
-  return target;
 }
 
 String _usage(ArgParser parser) {

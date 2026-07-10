@@ -35,6 +35,10 @@ function __dartEquals(left, right) {
   return typeof equals === "function" ? equals.call(left, right) : false;
 }
 
+function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
+}
+
 function __dartIterableToArray(iterable) {
   if (Array.isArray(iterable)) return Array.from(iterable);
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
@@ -68,25 +72,27 @@ function __dartFixedList(values) {
   Object.preventExtensions(list);
   return list;
 }
+
 function __dartListOf(values, growable = true) {
   const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
-function __dartListFilled(length, fill, growable = false) {
-  const list = Array(Number(length)).fill(fill);
-  return growable ? list : __dartFixedList(list);
-}
-function __dartListGenerate(length, generator, growable = true) {
-  const list = Array.from({ length: Number(length) }, (_, index) => generator(index));
-  return growable ? list : __dartFixedList(list);
-}
-function __dartUnmodifiableList(values) {
-  return Object.freeze(__dartIterableToArray(values));
+
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
 }
 
 function __dartListMutationRead(list, index) {
   return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
 }
+
 function __dartListMutationWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -94,38 +100,7 @@ function __dartListMutationWrite(list, index, value) {
     list[index] = value;
   }
 }
-function __dartListMutationValues(values) {
-  return __dartIterableToArray(values);
-}
-function __dartListShuffle(list, random = null) {
-  for (let index = list.length - 1; index > 0; index--) {
-    const nextInt = random == null ? Math.floor(Math.random() * (index + 1)) : Number(random.nextInt(index + 1));
-    const current = __dartListMutationRead(list, index);
-    __dartListMutationWrite(list, index, __dartListMutationRead(list, nextInt));
-    __dartListMutationWrite(list, nextInt, current);
-  }
-  return null;
-}
-function __dartListRemoveAt(list, index) {
-  index = Number(index);
-  const value = __dartListMutationRead(list, index);
-  __dartListRemoveRange(list, index, index + 1);
-  return value;
-}
-function __dartListInsert(list, index, value) {
-  index = Number(index);
-  if (Array.isArray(list)) {
-    list.splice(index, 0, value);
-    return null;
-  }
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let cursor = length; cursor > index; cursor--) {
-    __dartListMutationWrite(list, cursor, __dartListMutationRead(list, cursor - 1));
-  }
-  __dartListMutationWrite(list, index, value);
-  return null;
-}
+
 function __dartListRemove(list, value) {
   for (let index = 0; index < list.length; index++) {
     if (__dartEquals(__dartListMutationRead(list, index), value)) {
@@ -135,47 +110,7 @@ function __dartListRemove(list, value) {
   }
   return false;
 }
-function __dartListRemoveLast(list) {
-  return __dartListRemoveAt(list, list.length - 1);
-}
-function __dartListInsertAll(list, index, values) {
-  index = Number(index);
-  const inserted = __dartListMutationValues(values);
-  if (Array.isArray(list)) {
-    list.splice(index, 0, ...inserted);
-    return null;
-  }
-  const length = Number(list.length);
-  list.length = length + inserted.length;
-  for (let cursor = length - 1; cursor >= index; cursor--) {
-    __dartListMutationWrite(list, cursor + inserted.length, __dartListMutationRead(list, cursor));
-  }
-  for (let cursor = 0; cursor < inserted.length; cursor++) {
-    __dartListMutationWrite(list, index + cursor, inserted[cursor]);
-  }
-  return null;
-}
-function __dartListSetAll(list, index, values) {
-  let cursor = Number(index);
-  for (const value of __dartListMutationValues(values)) {
-    __dartListMutationWrite(list, cursor++, value);
-  }
-  return null;
-}
-function __dartListFillRange(list, start, end, fill = null) {
-  for (let index = Number(start); index < Number(end); index++) {
-    __dartListMutationWrite(list, index, fill);
-  }
-  return null;
-}
-function __dartListReplaceRange(list, start, end, values) {
-  start = Number(start);
-  end = Number(end);
-  const replacement = __dartListMutationValues(values);
-  __dartListRemoveRange(list, start, end);
-  __dartListInsertAll(list, start, replacement);
-  return null;
-}
+
 function __dartListRemoveRange(list, start, end) {
   start = Number(start);
   end = Number(end);
@@ -191,6 +126,7 @@ function __dartListRemoveRange(list, start, end) {
   list.length = length - count;
   return null;
 }
+
 function __dartListRemoveWhere(list, test) {
   for (let index = list.length - 1; index >= 0; index--) {
     if (test(__dartListMutationRead(list, index))) {
@@ -199,6 +135,7 @@ function __dartListRemoveWhere(list, test) {
   }
   return null;
 }
+
 function __dartListRetainWhere(list, test) {
   for (let index = list.length - 1; index >= 0; index--) {
     if (!test(__dartListMutationRead(list, index))) {
@@ -206,11 +143,6 @@ function __dartListRetainWhere(list, test) {
     }
   }
   return null;
-}
-function __dartListAsMap(list) {
-  const map = new Map();
-  for (let index = 0; index < list.length; index++) map.set(index, __dartListMutationRead(list, index));
-  return map;
 }
 
 function __dartMapAddAll(map, entries) {
@@ -229,31 +161,9 @@ function __dartMapFromEntries(entries) {
   __dartMapAddAll(map, entries);
   return map;
 }
-function __dartMapFromIterable(iterable, key = null, value = null) {
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (const element of iterable) {
-    __dartMapSet(
-      map,
-      typeof key === "function" ? key(element) : element,
-      typeof value === "function" ? value(element) : element,
-    );
-  }
-  return map;
-}
-function __dartMapFromIterables(keys, values) {
-  const keyList = Array.from(keys);
-  const valueList = Array.from(values);
-  if (keyList.length !== valueList.length) throw new Error("Iterables do not have same length");
-  const map = new Map();
-  Object.defineProperty(map, "__dartEqualityMap", { value: true });
-  for (let index = 0; index < keyList.length; index++) {
-    __dartMapSet(map, keyList[index], valueList[index]);
-  }
-  return map;
-}
 
 const __dartMapMissingKey = Symbol("dart.mapMissingKey");
+
 function __dartMapKey(map, key) {
   if (typeof map.__dartSplayIsValidKey === "function" && !map.__dartSplayIsValidKey(key)) return __dartMapMissingKey;
   if (map.__dartSplayCompare !== undefined) {
@@ -275,6 +185,7 @@ function __dartMapKey(map, key) {
   }
   return __dartMapMissingKey;
 }
+
 function __dartMapGet(map, key) {
   if (!(map instanceof Map) && map != null && typeof map["[]"] === "function") return map["[]"](key);
   const actualKey = __dartMapKey(map, key);
@@ -312,18 +223,21 @@ function __dartSetContains(set, needle) {
   }
   return false;
 }
+
 function __dartSetAdd(set, value) {
   if (__dartSetContains(set, value)) return false;
   set.add(value);
   if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
   return true;
 }
+
 function __dartSetFrom(values) {
   const set = new Set();
   Object.defineProperty(set, "__dartEqualitySet", { value: true });
   for (const value of values) __dartSetAdd(set, value);
   return set;
 }
+
 function __dartSetAddAll(set, values) {
   for (const value of values) __dartSetAdd(set, value);
   return null;
@@ -336,16 +250,19 @@ function __dartSplayTreeSet(compare = null, isValidKey = null) {
   Object.defineProperty(set, "__dartSplayIsValidKey", { value: isValidKey });
   return set;
 }
+
 function __dartSplaySortSet(set) {
   const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
   set.clear();
   for (const value of values) set.add(value);
 }
+
 function __dartSplayTreeSetFrom(values, compare = null, isValidKey = null) {
   const set = __dartSplayTreeSet(compare, isValidKey);
   for (const value of values) __dartSetAdd(set, value);
   return set;
 }
+
 function __dartSplayTreeMap(compare = null, isValidKey = null) {
   const map = new Map();
   Object.defineProperty(map, "__dartEqualityMap", { value: true });
@@ -353,11 +270,13 @@ function __dartSplayTreeMap(compare = null, isValidKey = null) {
   Object.defineProperty(map, "__dartSplayIsValidKey", { value: isValidKey });
   return map;
 }
+
 function __dartSplaySortMap(map) {
   const entries = Array.from(map).sort(([left], [right]) => __dartCompare(left, right, map.__dartSplayCompare));
   map.clear();
   for (const [key, value] of entries) map.set(key, value);
 }
+
 function __dartSplayTreeMapFromEntries(entries, compare = null, isValidKey = null) {
   const map = __dartSplayTreeMap(compare, isValidKey);
   for (const [key, value] of entries) __dartMapSet(map, key, value);
@@ -401,17 +320,17 @@ export function main() {
   __dartSetAdd(set, "a");
   __dartSetAdd(set, "b");
   __dartSetAdd(set, "a");
-  __dartPrint(`hashSet ${__dartStr(__dartIterableToArray(set).length)} ${__dartStr(__dartSetContains(set, "a"))} ${__dartStr(__dartIterableToArray(set).join(","))}`);
+  __dartPrint(`hashSet ${__dartStr(__dartIterableToArray(set).length)} ${__dartStr(__dartSetContains(set, "a"))} ${__dartStr(__dartIterableJoin(set, ","))}`);
   const queue = [];
   __dartListAdd(queue, 1);
   queue.unshift(0);
   __dartListAdd(queue, 2);
-  __dartPrint(`queue ${__dartStr(__dartIterableToArray(queue).length)} ${__dartStr(Array.from(queue)[0])} ${__dartStr(Array.from(queue).at(-1))} ${__dartStr(__dartIterableToArray(queue).join(","))}`);
-  __dartPrint(`remove ${__dartStr(queue.shift())} ${__dartStr(queue.pop())} ${__dartStr(__dartIterableToArray(queue).join(","))}`);
+  __dartPrint(`queue ${__dartStr(__dartIterableToArray(queue).length)} ${__dartStr(Array.from(queue)[0])} ${__dartStr(Array.from(queue).at(-1))} ${__dartStr(__dartIterableJoin(queue, ","))}`);
+  __dartPrint(`remove ${__dartStr(queue.shift())} ${__dartStr(queue.pop())} ${__dartStr(__dartIterableJoin(queue, ","))}`);
   const linked = [];
   __dartListAddAll(linked, ["b", "c"]);
   linked.unshift("a");
-  __dartPrint(`linkedQueue ${__dartStr(linked.length)} ${__dartStr(__dartListRemove(linked, "b"))} ${__dartStr(__dartIterableToArray(linked).join(","))}`);
+  __dartPrint(`linkedQueue ${__dartStr(linked.length)} ${__dartStr(__dartListRemove(linked, "b"))} ${__dartStr(__dartIterableJoin(linked, ","))}`);
   const copied = __dartIterableToArray([1, 2, 3, 4]);
   __dartListRemoveWhere(copied, (value) => {
     return Math.trunc(value) % 2 !== 0;
@@ -420,8 +339,8 @@ export function main() {
     return value > 2;
   });
   __dartListAddAll(copied, __dartIterableToArray([5, 6]));
-  __dartPrint(`listQueue ${__dartStr(copied[0])} ${__dartStr(copied.at(-1))} ${__dartStr(__dartIterableToArray(copied).length > 0)} ${__dartStr(__dartIterableToArray(copied).join(","))}`);
-  __dartPrint(`queueIter ${__dartStr(__dartIterableToArray(copied)[1])} ${__dartStr(__dartIterableToArray(__dartListOf(copied, true)).join("|"))} ${__dartStr(__dartIterableToArray(copied).some((value) => {
+  __dartPrint(`listQueue ${__dartStr(copied[0])} ${__dartStr(copied.at(-1))} ${__dartStr(__dartIterableToArray(copied).length > 0)} ${__dartStr(__dartIterableJoin(copied, ","))}`);
+  __dartPrint(`queueIter ${__dartStr(__dartIterableToArray(copied)[1])} ${__dartStr(__dartIterableJoin(__dartListOf(copied, true), "|"))} ${__dartStr(__dartIterableToArray(copied).some((value) => {
     return __dartEquals(value, 5);
   }))} ${__dartStr(__dartIterableToArray(copied).every((value) => {
     return value > 0;
@@ -430,19 +349,19 @@ export function main() {
   __dartPrint(`queueClear ${__dartStr(copied.length)} ${__dartStr(copied.length === 0)}`);
   const sortedSet = __dartSplayTreeSet(null, null);
   __dartSetAddAll(sortedSet, [3, 1, 2]);
-  __dartPrint(`splaySet ${__dartStr(__dartIterableToArray(sortedSet).join(","))} ${__dartStr(__dartSetContains(sortedSet, 2))}`);
+  __dartPrint(`splaySet ${__dartStr(__dartIterableJoin(sortedSet, ","))} ${__dartStr(__dartSetContains(sortedSet, 2))}`);
   const sortedMap = __dartSplayTreeMap(null, null);
   __dartMapSet(sortedMap, "b", 2);
   __dartMapSet(sortedMap, "a", 1);
-  __dartPrint(`splayMap ${__dartStr(__dartIterableToArray(__dartIterableToArray(sortedMap.keys())).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(sortedMap.values())).join(","))} ${__dartStr(__dartMapGet(sortedMap, "b"))}`);
+  __dartPrint(`splayMap ${__dartStr(__dartIterableJoin(__dartIterableToArray(sortedMap.keys()), ","))} ${__dartStr(__dartIterableJoin(__dartIterableToArray(sortedMap.values()), ","))} ${__dartStr(__dartMapGet(sortedMap, "b"))}`);
   const reversedSet = __dartSplayTreeSetFrom([1, 3, 2], descendingInt, null);
   const duplicateAdded = __dartSetAdd(reversedSet, 2);
   const newAdded = __dartSetAdd(reversedSet, 0);
-  __dartPrint(`splaySetOf ${__dartStr(__dartIterableToArray(reversedSet).join(","))} ${__dartStr(duplicateAdded)} ${__dartStr(newAdded)}`);
+  __dartPrint(`splaySetOf ${__dartStr(__dartIterableJoin(reversedSet, ","))} ${__dartStr(duplicateAdded)} ${__dartStr(newAdded)}`);
   const reversedMap = __dartSplayTreeMapFromEntries(__dartMapFromEntries([["a", 1], ["c", 3], ["b", 2]]), descendingString, null);
   __dartMapSet(reversedMap, "d", 4);
   __dartMapSet(reversedMap, "a", 10);
-  __dartPrint(`splayMapOf ${__dartStr(__dartIterableToArray(__dartIterableToArray(reversedMap.keys())).join(","))} ${__dartStr(__dartIterableToArray(__dartIterableToArray(reversedMap.values())).join(","))} ${__dartStr(__dartMapGet(reversedMap, "a"))}`);
+  __dartPrint(`splayMapOf ${__dartStr(__dartIterableJoin(__dartIterableToArray(reversedMap.keys()), ","))} ${__dartStr(__dartIterableJoin(__dartIterableToArray(reversedMap.values()), ","))} ${__dartStr(__dartMapGet(reversedMap, "a"))}`);
 }
 
 main();

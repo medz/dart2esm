@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Mathhelperdeclaration on EsmRuntimeHelperRegistry {
+extension _MathHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _mathHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.mathPoint => EsmRawModuleItem('''

@@ -69,6 +69,17 @@ function __dartListAdd(list, value) {
   return null;
 }
 
+function __dartListLikeSet(list, index, value) {
+  if (Array.isArray(list) || ArrayBuffer.isView(list)) {
+    list[index] = value;
+    return value;
+  }
+  const op = list == null ? null : list["[]="];
+  if (typeof op === "function") return op.call(list, index, value);
+  list[index] = value;
+  return value;
+}
+
 function __dartPrint(value) {
   console.log(__dartStr(value));
 }

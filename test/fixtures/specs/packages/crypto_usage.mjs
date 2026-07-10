@@ -5,30 +5,12 @@ function __dartSinkAdd(sink, value) {
   if (typeof sink === "function") return sink(value);
   throw new TypeError("Sink has no add method");
 }
+
 function __dartSinkClose(sink) {
   if (sink != null && typeof sink.close === "function") return sink.close();
   return null;
 }
-function __dartByteConversionSink(callback) {
-  return Object.freeze({
-    add(chunk) {
-      callback(Array.from(chunk));
-      return null;
-    },
-    addSlice(chunk, start, end, isLast) {
-      callback(Array.from(chunk).slice(start, end));
-      if (isLast) this.close();
-      return null;
-    },
-    addByte(byte) {
-      callback([Number(byte) & 255]);
-      return null;
-    },
-    close() {
-      return null;
-    },
-  });
-}
+
 function __dartByteConversionSinkFrom(sink) {
   return Object.freeze({
     add(chunk) {
@@ -60,20 +42,9 @@ function __dartCoreError(typeName, message) {
   Object.defineProperty(error, "toString", { value() { return display; } });
   return error;
 }
-function __dartIsCoreError(value, typeName) {
-  const actual = value == null ? null : value.__dartCoreErrorType;
-  if (actual != null) {
-    if (actual === typeName) return true;
-    if (typeName === "Exception" && actual === "FormatException") return true;
-    if (typeName === "RangeError" && actual === "IndexError") return true;
-    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
-    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
-  }
-  if (typeName === "TypeError" && value instanceof TypeError) return true;
-  return typeName === "Error" && value instanceof Error;
-}
 
 const __dartConstValues = new Map();
+
 function __dartConst(key, create) {
   if (!__dartConstValues.has(key)) {
     __dartConstValues.set(key, create());
@@ -81,25 +52,136 @@ function __dartConst(key, create) {
   return __dartConstValues.get(key);
 }
 
-function __dartLatin1Codec(allowInvalid = false) {
-  return Object.freeze({
-    name: "latin1",
-    encode(source) {
-      return Array.from(String(source), (char) => char.charCodeAt(0) & 255);
+function __dartUtf8Codec(allowMalformed = false) {
+  return __dartCodec("utf8", __dartUtf8Encoder(), __dartUtf8Decoder(allowMalformed));
+}
+
+function __dartSliceInput(input, start = 0, end = null) {
+  return Array.from(input).slice(Number(start), end == null ? undefined : Number(end));
+}
+
+function __dartStringSlice(input, start = 0, end = null) {
+  return String(input).slice(Number(start), end == null ? undefined : Number(end));
+}
+
+function __dartConverter(convert, options = {}) {
+  const converter = {
+    __dartType: "Converter",
+    convert,
+    bind(stream) {
+      if (typeof options.bind === "function") return options.bind(stream);
+      return __dartStreamMap(stream, (value) => convert(value));
     },
-    decode(bytes) {
-      return String.fromCharCode.apply(null, Array.from(bytes, (byte) => Number(byte) & 255));
+    cast() { return converter; },
+    fuse(next) { return __dartFusedConverter(converter, next); },
+    startChunkedConversion(sink) {
+      if (typeof options.startChunkedConversion === "function") {
+        return options.startChunkedConversion(sink);
+      }
+      return __dartChunkedSink((values) => __dartSinkAdd(sink, convert(values.length === 1 ? values[0] : values)), sink);
     },
+  };
+  return Object.freeze(converter);
+}
+
+function __dartFusedConverter(first, second) {
+  return __dartConverter((input, ...rest) => second.convert(first.convert(input, ...rest)), {
+    bind(stream) { return second.bind(first.bind(stream)); },
   });
 }
-function __dartUtf8Codec(allowMalformed = false) {
-  return Object.freeze({
-    name: "utf8",
-    encode(source) {
-      return Array.from(new TextEncoder().encode(String(source)));
+
+function __dartCodec(name, encoder, decoder) {
+  const codec = {
+    __dartType: "Codec",
+    name,
+    get encoder() { return encoder; },
+    get decoder() { return decoder; },
+    encode(input) { return encoder.convert(input); },
+    decode(input, options = {}) {
+      if (name === "utf8" && options?.allowMalformed != null) return __dartUtf8Decoder(options.allowMalformed).convert(input);
+      if ((name === "ascii" || name === "latin1") && options?.allowInvalid != null) return (name === "ascii" ? __dartAsciiDecoder(options.allowInvalid) : __dartLatin1Decoder(options.allowInvalid)).convert(input);
+      return decoder.convert(input);
     },
-    decode(bytes) {
-      return new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(Array.from(bytes, (byte) => Number(byte) & 255)));
+    fuse(next) {
+      return {
+        __dartType: "Codec",
+        get encoder() { return encoder.fuse(next.encoder ?? next); },
+        get decoder() { return (next.decoder ?? next).fuse(decoder); },
+        encode(input) { return (next.encoder ?? next).convert(encoder.convert(input)); },
+        decode(input) { return decoder.convert((next.decoder ?? next).convert(input)); },
+      };
+    },
+  };
+  return Object.freeze(codec);
+}
+
+function __dartUtf8Encoder() {
+  const convert = (source, start = 0, end = null) => Array.from(new TextEncoder().encode(__dartStringSlice(source, start, end)));
+  return __dartConverter(convert, { startChunkedConversion: (sink) => __dartStringCollectingSink((text) => { __dartSinkAdd(sink, convert(text)); __dartSinkClose(sink); }) });
+}
+
+function __dartUtf8Decoder(allowMalformed = false) {
+  const convert = (bytes, start = 0, end = null) => new TextDecoder("utf-8", { fatal: !allowMalformed }).decode(Uint8Array.from(__dartSliceInput(bytes, start, end)));
+  return __dartConverter(convert, { startChunkedConversion: (sink) => __dartByteCollectingSink((bytes) => { __dartSinkAdd(sink, convert(bytes)); __dartSinkClose(sink); }) });
+}
+
+function __dartAsciiDecoder(allowInvalid = false) {
+  const convert = (bytes, start = 0, end = null) => String.fromCharCode.apply(null, __dartSliceInput(bytes, start, end).map((byte) => {
+    const code = Number(byte) & 255;
+    if (code > 0x7f && !allowInvalid) throw __dartCoreError("FormatException", "Invalid ASCII byte");
+    return code > 0x7f ? 0xfffd : code;
+  }));
+  return __dartConverter(convert, { startChunkedConversion: (sink) => __dartByteCollectingSink((bytes) => { __dartSinkAdd(sink, convert(bytes)); __dartSinkClose(sink); }) });
+}
+
+function __dartLatin1Decoder(allowInvalid = false) {
+  const convert = (bytes, start = 0, end = null) => String.fromCharCode.apply(null, __dartSliceInput(bytes, start, end).map((byte) => {
+    const code = Number(byte);
+    if ((code < 0 || code > 255) && !allowInvalid) throw __dartCoreError("FormatException", "Invalid Latin-1 byte");
+    return code < 0 || code > 255 ? 0xfffd : code;
+  }));
+  return __dartConverter(convert, { startChunkedConversion: (sink) => __dartByteCollectingSink((bytes) => { __dartSinkAdd(sink, convert(bytes)); __dartSinkClose(sink); }) });
+}
+
+function __dartStringCollectingSink(callback) {
+  let text = "";
+  return Object.freeze({
+    add(chunk) { text += String(chunk); return null; },
+    addSlice(chunk, start, end, isLast) {
+      text += String(chunk).slice(start, end);
+      if (isLast) this.close();
+      return null;
+    },
+    close() { callback(text); return null; },
+  });
+}
+
+function __dartByteCollectingSink(callback) {
+  const bytes = [];
+  return Object.freeze({
+    add(chunk) { bytes.push(...Array.from(chunk)); return null; },
+    addSlice(chunk, start, end, isLast) {
+      bytes.push(...Array.from(chunk).slice(start, end));
+      if (isLast) this.close();
+      return null;
+    },
+    close() { callback(bytes); return null; },
+  });
+}
+
+function __dartChunkedSink(callback, target = null) {
+  const values = [];
+  return Object.freeze({
+    add(value) { values.push(value); return null; },
+    addSlice(valuesSource, start, end, isLast) {
+      values.push(...Array.from(valuesSource).slice(start, end));
+      if (isLast) this.close();
+      return null;
+    },
+    close() {
+      callback(values);
+      if (target != null) __dartSinkClose(target);
+      return null;
     },
   });
 }
@@ -121,6 +203,312 @@ function __dartEquals(left, right) {
   }
   const equals = left["=="];
   return typeof equals === "function" ? equals.call(left, right) : false;
+}
+
+async function* __dartStreamValues(stream) {
+  const iterator = __dartStreamIterator(stream);
+  try {
+    while (await iterator.moveNext()) yield iterator.current;
+  } finally {
+    await iterator.cancel();
+  }
+}
+
+function __dartStreamMap(stream, convert) {
+  return {
+    __dartType: "Stream",
+    isBroadcast: stream?.isBroadcast === true,
+    async *[Symbol.asyncIterator]() {
+      for await (const value of __dartStreamValues(stream)) yield convert(value);
+    },
+  };
+}
+
+function __dartStreamIterator(stream) {
+  const iterator = stream?.[Symbol.asyncIterator]?.();
+  if (iterator == null && typeof stream?.listen === "function") {
+    const controller = __dartStreamController(stream?.isBroadcast === true);
+    const subscription = stream.listen(
+      (value) => controller.add(value),
+      { onError: (error) => controller.addError(error), onDone: () => controller.close(), cancelOnError: false },
+    );
+    const listenedIterator = controller.stream[Symbol.asyncIterator]();
+    let current = null;
+    return {
+      __dartType: "StreamIterator",
+      get current() { return current; },
+      get _subscription() { return subscription ?? null; },
+      async moveNext() {
+        const step = await listenedIterator.next();
+        if (step.done === true) {
+          current = null;
+          return false;
+        }
+        current = step.value;
+        return true;
+      },
+      cancel() {
+        if (subscription != null && typeof subscription.cancel === "function") {
+          return Promise.resolve(subscription.cancel()).then(() => null, () => null);
+        }
+        if (typeof listenedIterator.return === "function") {
+          return Promise.resolve(listenedIterator.return()).then(() => null, () => null);
+        }
+        return Promise.resolve(null);
+      },
+    };
+  }
+  let current = null;
+  return {
+    __dartType: "StreamIterator",
+    get current() { return current; },
+    get _subscription() { return null; },
+    async moveNext() {
+      const step = await iterator.next();
+      if (step.done === true) {
+        current = null;
+        return false;
+      }
+      current = step.value;
+      return true;
+    },
+    cancel() {
+      if (iterator != null && typeof iterator.return === "function") {
+        return Promise.resolve(iterator.return()).then(() => null, () => null);
+      }
+      return Promise.resolve(null);
+    },
+  };
+}
+
+function __dartStreamController(broadcast = false, options = {}) {
+  let closed = false;
+  let listened = false;
+  let paused = false;
+  const handlers = {
+    onListen: options.onListen ?? null,
+    onPause: options.onPause ?? null,
+    onResume: options.onResume ?? null,
+    onCancel: options.onCancel ?? null,
+  };
+  const queue = [];
+  const waiters = [];
+  const listeners = new Set();
+  function ensureListened() {
+    if (!listened) {
+      listened = true;
+      if (typeof handlers.onListen === "function") handlers.onListen();
+    }
+  }
+  function deliver(item) {
+    let delivered = false;
+    for (const listener of Array.from(listeners)) {
+      listener(item);
+      delivered = true;
+    }
+    if (waiters.length > 0) {
+      waiters.shift()(item);
+      delivered = true;
+    }
+    if (!delivered) queue.push(item);
+  }
+  function closeQueue() {
+    if (closed) return;
+    closed = true;
+    deliver({ done: true });
+  }
+  const stream = {
+    __dartType: "Stream",
+    get isBroadcast() { return broadcast; },
+    listen(onData, options = {}) {
+      return __dartStreamListen(stream, onData, options.onError ?? null, options.onDone ?? null, options.cancelOnError === true);
+    },
+    [Symbol.asyncIterator]() {
+      ensureListened();
+      let done = false;
+      return {
+        async next() {
+          if (done) return { done: true };
+          const item = queue.length > 0 ? queue.shift() : await new Promise((resolve) => waiters.push(resolve));
+          if (item.done === true) {
+            done = true;
+            return { done: true };
+          }
+          if ("error" in item) throw item.error;
+          return { value: item.value, done: false };
+        },
+        async return() {
+          done = true;
+          if (typeof handlers.onCancel === "function") await handlers.onCancel();
+          return { done: true };
+        },
+      };
+    },
+    __dartListenRaw(listener) {
+      ensureListened();
+      listeners.add(listener);
+      while (queue.length > 0) listener(queue.shift());
+      return () => listeners.delete(listener);
+    },
+    __dartPauseRaw() {
+      paused = true;
+      if (typeof handlers.onPause === "function") handlers.onPause();
+    },
+    __dartResumeRaw() {
+      paused = false;
+      if (typeof handlers.onResume === "function") handlers.onResume();
+    },
+    __dartCancelRaw() {
+      if (typeof handlers.onCancel === "function") return handlers.onCancel();
+      return null;
+    },
+  };
+  return {
+    __dartType: "StreamController",
+    get stream() { return stream; },
+    get sink() { return this; },
+    get done() { return Promise.resolve(null); },
+    get isClosed() { return closed; },
+    get isPaused() { return paused; },
+    get hasListener() { return listeners.size > 0 || waiters.length > 0; },
+    add(value) { if (!closed) deliver({ value }); return null; },
+    addError(error, stackTrace = null) { if (!closed) deliver({ error }); return null; },
+    async addStream(source, options = {}) {
+      const iterator = __dartStreamIterator(source);
+      try {
+        while (!closed) {
+          try {
+            if (!(await iterator.moveNext())) break;
+            deliver({ value: iterator.current });
+          } catch (error) {
+            deliver({ error });
+            if (options.cancelOnError === true) break;
+          }
+        }
+      } finally {
+        await iterator.cancel();
+      }
+      return null;
+    },
+    close() { closeQueue(); return Promise.resolve(null); },
+    get onListen() { return handlers.onListen; },
+    set onListen(value) { handlers.onListen = value; },
+    get onPause() { return handlers.onPause; },
+    set onPause(value) { handlers.onPause = value; },
+    get onResume() { return handlers.onResume; },
+    set onResume(value) { handlers.onResume = value; },
+    get onCancel() { return handlers.onCancel; },
+    set onCancel(value) { handlers.onCancel = value; },
+  };
+}
+
+function __dartStreamListen(stream, onData, onError = null, onDone = null, cancelOnError = false) {
+  let canceled = false;
+  let paused = false;
+  let done = false;
+  let failed = false;
+  let failure = null;
+  let asFutureValue = null;
+  let asFutureResolve = null;
+  let asFutureReject = null;
+  const pausedItems = [];
+  const resumeWaiters = [];
+  function completeAsFuture() {
+    if (asFutureResolve == null) return;
+    if (failed) asFutureReject(failure);
+    else asFutureResolve(asFutureValue);
+    asFutureResolve = null;
+    asFutureReject = null;
+  }
+  function flushPausedItems() {
+    while (!paused && pausedItems.length > 0 && !canceled) handleItem(pausedItems.shift());
+  }
+  function waitWhilePaused() {
+    if (!paused) return Promise.resolve(null);
+    return new Promise((resolve) => resumeWaiters.push(resolve));
+  }
+  const handleItem = (item) => {
+    if (canceled) return;
+    if (paused) {
+      pausedItems.push(item);
+      return;
+    }
+    if (item.done === true) {
+      done = true;
+      if (typeof onDone === "function") onDone();
+      completeAsFuture();
+      return;
+    }
+    if ("error" in item) {
+      failed = true;
+      failure = item.error;
+      if (typeof onError === "function") onError(item.error);
+      completeAsFuture();
+      if (cancelOnError) canceled = true;
+      return;
+    }
+    if (typeof onData === "function") onData(item.value);
+  };
+  const remove = typeof stream?.__dartListenRaw === "function" ? stream.__dartListenRaw(handleItem) : null;
+  if (remove == null) {
+    (async () => {
+      try {
+        for await (const value of __dartStreamValues(stream)) {
+          if (canceled) break;
+          await waitWhilePaused();
+          if (canceled) break;
+          if (typeof onData === "function") onData(value);
+        }
+        if (!canceled && typeof onDone === "function") onDone();
+        done = true;
+        completeAsFuture();
+      } catch (error) {
+        failed = true;
+        failure = error;
+        if (typeof onError === "function") onError(error);
+        else throw error;
+        completeAsFuture();
+      }
+    })();
+  }
+  return {
+    __dartType: "StreamSubscription",
+    get isPaused() { return paused; },
+    cancel() {
+      canceled = true;
+      if (remove != null) remove();
+      const result = typeof stream?.__dartCancelRaw === "function" ? stream.__dartCancelRaw() : null;
+      return Promise.resolve(result).then(() => null);
+    },
+    pause() {
+      if (!paused) {
+        paused = true;
+        if (typeof stream?.__dartPauseRaw === "function") stream.__dartPauseRaw();
+      }
+      return null;
+    },
+    resume() {
+      if (paused) {
+        paused = false;
+        if (typeof stream?.__dartResumeRaw === "function") stream.__dartResumeRaw();
+        while (resumeWaiters.length > 0) resumeWaiters.shift()(null);
+        flushPausedItems();
+      }
+      return null;
+    },
+    onData(callback) { onData = callback; return null; },
+    onError(callback) { onError = callback; return null; },
+    onDone(callback) { onDone = callback; return null; },
+    asFuture(value = null) {
+      asFutureValue = value;
+      if (done && !failed) return Promise.resolve(value);
+      if (failed) return Promise.reject(failure);
+      return new Promise((resolve, reject) => {
+        asFutureResolve = resolve;
+        asFutureReject = reject;
+      });
+    },
+  };
 }
 
 function __dartShr(left, right) {
@@ -174,6 +562,7 @@ function __dartListLikeGet(list, index) {
   const op = list == null ? null : list["[]"];
   return typeof op === "function" ? op.call(list, index) : list[index];
 }
+
 function __dartListLikeSet(list, index, value) {
   if (Array.isArray(list) || ArrayBuffer.isView(list)) {
     list[index] = value;
@@ -184,30 +573,7 @@ function __dartListLikeSet(list, index, value) {
   list[index] = value;
   return value;
 }
-function __dartListMixinFirst(list) {
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinLast(list) {
-  return __dartListLikeGet(list, list.length - 1);
-}
-function __dartListMixinSingle(list) {
-  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinInsert(list, index, value) {
-  index = Number(index);
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let i = length; i > index; i--) {
-    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
-  }
-  __dartListLikeSet(list, index, value);
-  return null;
-}
 
-function __dartListRangeRead(list, index) {
-  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
-}
 function __dartListRangeWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -215,23 +581,12 @@ function __dartListRangeWrite(list, index, value) {
     list[index] = value;
   }
 }
+
 function __dartListRangeValues(source, start = 0, end = null) {
   const from = Number(start);
   return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
 }
-function __dartListCopyRange(target, at, source, start = 0, end = null) {
-  const values = __dartListRangeValues(source, start, end);
-  let index = Number(at);
-  for (const value of values) __dartListRangeWrite(target, index++, value);
-  return null;
-}
-function __dartListWriteIterable(target, at, source) {
-  let index = Number(at);
-  for (const value of __dartListRangeValues(source)) {
-    __dartListRangeWrite(target, index++, value);
-  }
-  return null;
-}
+
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const from = Number(skipCount);
   const count = Number(end) - Number(start);
@@ -247,15 +602,19 @@ function __dartNullCheck(value) {
 }
 
 const __dartIdentityHashes = new WeakMap();
+
 let __dartNextIdentityHash = 1;
+
 function __dartCombineHash(hash, value) {
   hash = (((hash + value) & 0x1fffffff) + (((hash & 0x0007ffff) << 10) & 0x1fffffff)) & 0x1fffffff;
   return hash ^ (hash >> 6);
 }
+
 function __dartFinishHash(hash) {
   hash = (((hash + (((hash & 0x03ffffff) << 3) & 0x1fffffff)) & 0x1fffffff) ^ (hash >> 11));
   return (hash + (((hash & 0x00003fff) << 15) & 0x1fffffff)) & 0x1fffffff;
 }
+
 function __dartHashValue(value) {
   if (value == null) return 0;
   if (typeof value === "boolean") return value ? 1231 : 1237;
@@ -276,22 +635,11 @@ function __dartHashValue(value) {
   }
   return __dartIdentityHashes.get(value);
 }
+
 function __dartObjectHash(values) {
   let hash = 0;
   for (const value of values) hash = __dartCombineHash(hash, __dartHashValue(value));
   return __dartFinishHash(hash);
-}
-function __dartObjectHashUnordered(values) {
-  let sum = 0;
-  let xor = 0;
-  let count = 0;
-  for (const value of values) {
-    const hash = __dartHashValue(value);
-    sum = (sum + hash) & 0x1fffffff;
-    xor ^= hash;
-    count++;
-  }
-  return __dartObjectHash([sum, xor, count]);
 }
 
 function __dartPrint(value) {

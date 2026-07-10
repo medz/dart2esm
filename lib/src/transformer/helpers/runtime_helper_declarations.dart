@@ -30,7 +30,6 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.extensionTypeRep => '__dartExtensionTypeRep',
       EsmRuntimeHelper.completer => '__dartCompleter',
       EsmRuntimeHelper.finalizer => '__dartFinalizer',
-      EsmRuntimeHelper.ffi => '__dartPointer',
       EsmRuntimeHelper.future => '__dartFutureDelayed',
       EsmRuntimeHelper.functionApply => '__dartFunctionApply',
       EsmRuntimeHelper.intGcd => '__dartIntGcd',
@@ -38,6 +37,7 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.intParse => '__dartIntParse',
       EsmRuntimeHelper.intShift => '__dartShr',
       EsmRuntimeHelper.io => '__dartIoEnum',
+      EsmRuntimeHelper.ioWeb => '__dartIoHttpClient',
       EsmRuntimeHelper.ioNode => '__dartFile',
       EsmRuntimeHelper.iterableJoin => '__dartIterableJoin',
       EsmRuntimeHelper.iterableSearch => '__dartIterableFirstWhere',
@@ -93,6 +93,8 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.uri => '__dartUriParse',
       EsmRuntimeHelper.uriToFilePath => '__dartUriToFilePath',
       EsmRuntimeHelper.web => '__dartDomRequest',
+      EsmRuntimeHelper.isolateWeb => '__dartSpawnWebIsolate',
+      EsmRuntimeHelper.isolateNode => '__dartSpawnNodeIsolate',
       EsmRuntimeHelper.weakReference => '__dartWeakReference',
     };
   }
@@ -111,7 +113,8 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.intShift ||
       EsmRuntimeHelper.intModular ||
       EsmRuntimeHelper.intParse => _numberHelperDeclaration(helper),
-      EsmRuntimeHelper.io ||
+      EsmRuntimeHelper.io => _ioHelperDeclaration(helper),
+      EsmRuntimeHelper.ioWeb => _ioWebHelperDeclaration(helper),
       EsmRuntimeHelper.ioNode => _ioHelperDeclaration(helper),
       EsmRuntimeHelper.compare ||
       EsmRuntimeHelper.coreError ||
@@ -149,11 +152,12 @@ extension EsmRuntimeHelperDeclarations on EsmRuntimeHelperRegistry {
       EsmRuntimeHelper.encoding ||
       EsmRuntimeHelper.byteConversionSink => _convertHelperDeclaration(helper),
       EsmRuntimeHelper.concurrent ||
-      EsmRuntimeHelper.ffi ||
-      EsmRuntimeHelper.isolate ||
       EsmRuntimeHelper.jsInterop ||
       EsmRuntimeHelper.stopwatch ||
       EsmRuntimeHelper.web => _sdkHelperDeclaration(helper),
+      EsmRuntimeHelper.isolate ||
+      EsmRuntimeHelper.isolateWeb ||
+      EsmRuntimeHelper.isolateNode => _isolateHelperDeclaration(helper),
       EsmRuntimeHelper.mathPoint ||
       EsmRuntimeHelper.mathRandom ||
       EsmRuntimeHelper.mathRectangle => _mathHelperDeclaration(helper),

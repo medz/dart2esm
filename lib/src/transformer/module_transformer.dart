@@ -7,21 +7,10 @@ import 'passes/module_normalizer.dart';
 import 'transform_pass.dart';
 
 final class TransformerReturn {
-  const TransformerReturn({
-    required this.lowering,
-    required this.module,
-    required this.changed,
-    required this.invalidatesSemantic,
-    required this.linkedHelpers,
-  });
+  const TransformerReturn({required this.module, required this.linkedHelpers});
 
-  final LowererReturn lowering;
   final EsmModule module;
-  final bool changed;
-  final bool invalidatesSemantic;
   final List<EsmRuntimeHelper> linkedHelpers;
-
-  get runtimeHelpers => lowering.runtimeHelpers;
 }
 
 final class Transformer {
@@ -39,24 +28,14 @@ final class Transformer {
       helperLoader: helperLoader,
     );
     var module = lowering.module;
-    var changed = false;
-    var invalidatesSemantic = false;
     var linkedHelpers = const <EsmRuntimeHelper>[];
     for (final pass in passes) {
       final result = pass.apply(module, context);
       module = result.module;
-      changed = changed || result.changed;
-      invalidatesSemantic = invalidatesSemantic || result.invalidatesSemantic;
       if (result.linkedHelpers.isNotEmpty) {
         linkedHelpers = result.linkedHelpers;
       }
     }
-    return TransformerReturn(
-      lowering: lowering,
-      module: module,
-      changed: changed,
-      invalidatesSemantic: invalidatesSemantic,
-      linkedHelpers: linkedHelpers,
-    );
+    return TransformerReturn(module: module, linkedHelpers: linkedHelpers);
   }
 }

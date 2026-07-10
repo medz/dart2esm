@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Dynamichelperdeclaration on EsmRuntimeHelperRegistry {
+extension _DynamicHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _dynamicHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.dynamicCall => EsmRawModuleItem('''

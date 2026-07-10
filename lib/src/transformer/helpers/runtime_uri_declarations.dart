@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Urihelperdeclaration on EsmRuntimeHelperRegistry {
+extension _UriHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _uriHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.uri => EsmRawModuleItem(r'''

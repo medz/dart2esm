@@ -467,7 +467,7 @@ extension _TypeLowering on Lowerer {
     }
     final className = target.substring('dart:isolate::'.length);
     return switch (className) {
-      'ReceivePort' || 'RawReceivePort' || 'SendPort' => _andAll([
+      'ReceivePort' || 'RawReceivePort' || 'SendPort' || 'Isolate' => _andAll([
         _notNull(value),
         _typeofEquals(value, 'object'),
         _strictEquals(
@@ -537,25 +537,21 @@ extension _TypeLowering on Lowerer {
     if (!target.startsWith('dart:ffi::')) {
       return null;
     }
-    final className = target.substring('dart:ffi::'.length);
-    return switch (className) {
-      'Pointer' => _andAll([
-        _notNull(value),
-        _typeofEquals(value, 'object'),
-        _strictEquals(
-          EsmPropertyAccess(receiver: value, property: '__dartType'),
-          const EsmStringLiteral('Pointer'),
-        ),
-      ]),
-      _ => null,
-    };
+    throw UnsupportedCompilerFeature(
+      target,
+      'dart:ffi requires a native ABI bridge unavailable in native ESM',
+    );
   }
 
   EsmExpression? _lowerDartIoTypeTest(EsmExpression value, String target) {
-    if (!target.startsWith('dart:io::')) {
+    const ioPrefix = 'dart:io::';
+    const httpPrefix = 'dart:_http::';
+    if (!target.startsWith(ioPrefix) && !target.startsWith(httpPrefix)) {
       return null;
     }
-    final className = target.substring('dart:io::'.length);
+    final className = target.substring(
+      target.startsWith(ioPrefix) ? ioPrefix.length : httpPrefix.length,
+    );
     return switch (className) {
       'File' ||
       'Directory' ||
@@ -574,6 +570,16 @@ extension _TypeLowering on Lowerer {
       'ProcessResult' ||
       'ProcessStartMode' ||
       'ProcessSignal' ||
+      'HeaderValue' ||
+      'ContentType' ||
+      'Cookie' ||
+      'SameSite' ||
+      'HttpClient' ||
+      'HttpHeaders' ||
+      'HttpClientRequest' ||
+      'HttpClientResponse' ||
+      'HttpClientResponseCompressionState' ||
+      'WebSocket' ||
       'Stdout' ||
       'Stdin' ||
       'IOSink' => _andAll([
@@ -594,6 +600,17 @@ extension _TypeLowering on Lowerer {
                   const EsmStringLiteral('Link'),
                 ),
               ])
+            : className == 'HeaderValue'
+            ? _or(
+                _strictEquals(
+                  EsmPropertyAccess(receiver: value, property: '__dartType'),
+                  const EsmStringLiteral('HeaderValue'),
+                ),
+                _strictEquals(
+                  EsmPropertyAccess(receiver: value, property: '__dartType'),
+                  const EsmStringLiteral('ContentType'),
+                ),
+              )
             : className == 'IOSink'
             ? _or(
                 _strictEquals(

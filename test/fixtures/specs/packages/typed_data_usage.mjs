@@ -16,18 +16,6 @@ function __dartCoreError(typeName, message) {
   Object.defineProperty(error, "toString", { value() { return display; } });
   return error;
 }
-function __dartIsCoreError(value, typeName) {
-  const actual = value == null ? null : value.__dartCoreErrorType;
-  if (actual != null) {
-    if (actual === typeName) return true;
-    if (typeName === "Exception" && actual === "FormatException") return true;
-    if (typeName === "RangeError" && actual === "IndexError") return true;
-    if (typeName === "ArgumentError" && (actual === "RangeError" || actual === "IndexError")) return true;
-    return typeName === "Error" && actual !== "Exception" && actual !== "FormatException";
-  }
-  if (typeName === "TypeError" && value instanceof TypeError) return true;
-  return typeName === "Error" && value instanceof Error;
-}
 
 function __dartEquals(left, right) {
   if (left === right) return true;
@@ -52,6 +40,10 @@ function __dartShr(left, right) {
   return Math.floor(Number(left) / (2 ** Number(right)));
 }
 
+function __dartIterableJoin(iterable, separator = "") {
+  return __dartIterableToArray(iterable).map((value) => __dartStr(value)).join(String(separator));
+}
+
 function __dartIterableToArray(iterable) {
   if (Array.isArray(iterable)) return Array.from(iterable);
   if (iterable != null && typeof iterable["[]"] === "function" && typeof iterable.length === "number") {
@@ -68,6 +60,7 @@ function __dartIterableTakeWhile(iterable, test) {
   }
   return values;
 }
+
 function __dartIterableSkipWhile(iterable, test) {
   const values = [];
   let skipping = true;
@@ -155,20 +148,15 @@ function __dartFixedList(values) {
   Object.preventExtensions(list);
   return list;
 }
+
 function __dartListOf(values, growable = true) {
   const list = __dartIterableToArray(values);
   return growable ? list : __dartFixedList(list);
 }
+
 function __dartListFilled(length, fill, growable = false) {
   const list = Array(Number(length)).fill(fill);
   return growable ? list : __dartFixedList(list);
-}
-function __dartListGenerate(length, generator, growable = true) {
-  const list = Array.from({ length: Number(length) }, (_, index) => generator(index));
-  return growable ? list : __dartFixedList(list);
-}
-function __dartUnmodifiableList(values) {
-  return Object.freeze(__dartIterableToArray(values));
 }
 
 function __dartListLikeGet(list, index) {
@@ -176,6 +164,7 @@ function __dartListLikeGet(list, index) {
   const op = list == null ? null : list["[]"];
   return typeof op === "function" ? op.call(list, index) : list[index];
 }
+
 function __dartListLikeSet(list, index, value) {
   if (Array.isArray(list) || ArrayBuffer.isView(list)) {
     list[index] = value;
@@ -186,30 +175,11 @@ function __dartListLikeSet(list, index, value) {
   list[index] = value;
   return value;
 }
-function __dartListMixinFirst(list) {
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinLast(list) {
-  return __dartListLikeGet(list, list.length - 1);
-}
-function __dartListMixinSingle(list) {
-  if (list.length !== 1) throw __dartCoreError("StateError", "Too many elements");
-  return __dartListLikeGet(list, 0);
-}
-function __dartListMixinInsert(list, index, value) {
-  index = Number(index);
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let i = length; i > index; i--) {
-    __dartListLikeSet(list, i, __dartListLikeGet(list, i - 1));
-  }
-  __dartListLikeSet(list, index, value);
-  return null;
-}
 
 function __dartListMutationRead(list, index) {
   return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
 }
+
 function __dartListMutationWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -217,67 +187,11 @@ function __dartListMutationWrite(list, index, value) {
     list[index] = value;
   }
 }
+
 function __dartListMutationValues(values) {
   return __dartIterableToArray(values);
 }
-function __dartListShuffle(list, random = null) {
-  for (let index = list.length - 1; index > 0; index--) {
-    const nextInt = random == null ? Math.floor(Math.random() * (index + 1)) : Number(random.nextInt(index + 1));
-    const current = __dartListMutationRead(list, index);
-    __dartListMutationWrite(list, index, __dartListMutationRead(list, nextInt));
-    __dartListMutationWrite(list, nextInt, current);
-  }
-  return null;
-}
-function __dartListRemoveAt(list, index) {
-  index = Number(index);
-  const value = __dartListMutationRead(list, index);
-  __dartListRemoveRange(list, index, index + 1);
-  return value;
-}
-function __dartListInsert(list, index, value) {
-  index = Number(index);
-  if (Array.isArray(list)) {
-    list.splice(index, 0, value);
-    return null;
-  }
-  const length = Number(list.length);
-  list.length = length + 1;
-  for (let cursor = length; cursor > index; cursor--) {
-    __dartListMutationWrite(list, cursor, __dartListMutationRead(list, cursor - 1));
-  }
-  __dartListMutationWrite(list, index, value);
-  return null;
-}
-function __dartListRemove(list, value) {
-  for (let index = 0; index < list.length; index++) {
-    if (__dartEquals(__dartListMutationRead(list, index), value)) {
-      __dartListRemoveRange(list, index, index + 1);
-      return true;
-    }
-  }
-  return false;
-}
-function __dartListRemoveLast(list) {
-  return __dartListRemoveAt(list, list.length - 1);
-}
-function __dartListInsertAll(list, index, values) {
-  index = Number(index);
-  const inserted = __dartListMutationValues(values);
-  if (Array.isArray(list)) {
-    list.splice(index, 0, ...inserted);
-    return null;
-  }
-  const length = Number(list.length);
-  list.length = length + inserted.length;
-  for (let cursor = length - 1; cursor >= index; cursor--) {
-    __dartListMutationWrite(list, cursor + inserted.length, __dartListMutationRead(list, cursor));
-  }
-  for (let cursor = 0; cursor < inserted.length; cursor++) {
-    __dartListMutationWrite(list, index + cursor, inserted[cursor]);
-  }
-  return null;
-}
+
 function __dartListSetAll(list, index, values) {
   let cursor = Number(index);
   for (const value of __dartListMutationValues(values)) {
@@ -285,20 +199,14 @@ function __dartListSetAll(list, index, values) {
   }
   return null;
 }
+
 function __dartListFillRange(list, start, end, fill = null) {
   for (let index = Number(start); index < Number(end); index++) {
     __dartListMutationWrite(list, index, fill);
   }
   return null;
 }
-function __dartListReplaceRange(list, start, end, values) {
-  start = Number(start);
-  end = Number(end);
-  const replacement = __dartListMutationValues(values);
-  __dartListRemoveRange(list, start, end);
-  __dartListInsertAll(list, start, replacement);
-  return null;
-}
+
 function __dartListRemoveRange(list, start, end) {
   start = Number(start);
   end = Number(end);
@@ -314,6 +222,7 @@ function __dartListRemoveRange(list, start, end) {
   list.length = length - count;
   return null;
 }
+
 function __dartListRemoveWhere(list, test) {
   for (let index = list.length - 1; index >= 0; index--) {
     if (test(__dartListMutationRead(list, index))) {
@@ -322,6 +231,7 @@ function __dartListRemoveWhere(list, test) {
   }
   return null;
 }
+
 function __dartListRetainWhere(list, test) {
   for (let index = list.length - 1; index >= 0; index--) {
     if (!test(__dartListMutationRead(list, index))) {
@@ -330,15 +240,45 @@ function __dartListRetainWhere(list, test) {
   }
   return null;
 }
+
 function __dartListAsMap(list) {
-  const map = new Map();
-  for (let index = 0; index < list.length; index++) map.set(index, __dartListMutationRead(list, index));
-  return map;
+  return new (class extends Map {
+    get size() { return Number(list.length); }
+    get(key) {
+      return Number.isInteger(key) && key >= 0 && key < list.length
+        ? __dartListMutationRead(list, key)
+        : undefined;
+    }
+    has(key) {
+      return Number.isInteger(key) && key >= 0 && key < list.length;
+    }
+    entries() {
+      return Array.from(
+        { length: Number(list.length) },
+        (_, index) => [index, __dartListMutationRead(list, index)],
+      )[Symbol.iterator]();
+    }
+    keys() {
+      return Array.from({ length: Number(list.length) }, (_, index) => index)[Symbol.iterator]();
+    }
+    values() {
+      return Array.from(
+        { length: Number(list.length) },
+        (_, index) => __dartListMutationRead(list, index),
+      )[Symbol.iterator]();
+    }
+    [Symbol.iterator]() { return this.entries(); }
+    forEach(callback, thisArg = undefined) {
+      for (let index = 0; index < list.length; index++) {
+        callback.call(thisArg, __dartListMutationRead(list, index), index, this);
+      }
+    }
+    set() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    delete() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+    clear() { throw new TypeError("Unsupported operation: Cannot modify unmodifiable map"); }
+  })();
 }
 
-function __dartListRangeRead(list, index) {
-  return list != null && typeof list["[]"] === "function" ? list["[]"](index) : list[index];
-}
 function __dartListRangeWrite(list, index, value) {
   if (list != null && typeof list["[]="] === "function") {
     list["[]="](index, value);
@@ -346,23 +286,12 @@ function __dartListRangeWrite(list, index, value) {
     list[index] = value;
   }
 }
+
 function __dartListRangeValues(source, start = 0, end = null) {
   const from = Number(start);
   return __dartIterableToArray(source).slice(from, end == null ? undefined : Number(end));
 }
-function __dartListCopyRange(target, at, source, start = 0, end = null) {
-  const values = __dartListRangeValues(source, start, end);
-  let index = Number(at);
-  for (const value of values) __dartListRangeWrite(target, index++, value);
-  return null;
-}
-function __dartListWriteIterable(target, at, source) {
-  let index = Number(at);
-  for (const value of __dartListRangeValues(source)) {
-    __dartListRangeWrite(target, index++, value);
-  }
-  return null;
-}
+
 function __dartListSetRange(target, start, end, source, skipCount = 0) {
   const from = Number(skipCount);
   const count = Number(end) - Number(start);
@@ -412,17 +341,20 @@ function __dartCheckValueInInterval(value, minValue, maxValue, name = null, mess
   if (value < minValue || value > maxValue) throw __dartCoreError("RangeError", message ?? (String(name ?? "value") + " out of range"));
   return value;
 }
+
 function __dartCheckValidIndex(index, indexable, name = null, length = null, message = null) {
   length ??= indexable.length;
   if (index < 0 || index >= length) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " out of range"));
   return index;
 }
+
 function __dartCheckValidRange(start, end, length, startName = null, endName = null, message = null) {
   if (start < 0 || start > length) throw __dartCoreError("RangeError", message ?? (String(startName ?? "start") + " out of range"));
   if (end == null) return length;
   if (end < start || end > length) throw __dartCoreError("RangeError", message ?? (String(endName ?? "end") + " out of range"));
   return end;
 }
+
 function __dartCheckNotNegative(value, name = null, message = null) {
   if (value < 0) throw __dartCoreError("RangeError", message ?? (String(name ?? "index") + " must not be negative"));
   return value;
@@ -448,21 +380,25 @@ function __dartSetContains(set, needle) {
   }
   return false;
 }
+
 function __dartSetAdd(set, value) {
   if (__dartSetContains(set, value)) return false;
   set.add(value);
   if (set.__dartSplayCompare !== undefined) __dartSplaySortSet(set);
   return true;
 }
+
 function __dartSetFrom(values) {
   const set = new Set();
   Object.defineProperty(set, "__dartEqualitySet", { value: true });
   for (const value of values) __dartSetAdd(set, value);
   return set;
 }
-function __dartSetAddAll(set, values) {
-  for (const value of values) __dartSetAdd(set, value);
-  return null;
+
+function __dartSplaySortSet(set) {
+  const values = Array.from(set).sort((left, right) => __dartCompare(left, right, set.__dartSplayCompare));
+  set.clear();
+  for (const value of values) set.add(value);
 }
 
 function __dartStringBuffer(initial = "") {
@@ -525,6 +461,7 @@ function __dartStr(value) {
 }
 
 const __dartTypeCache = new Map();
+
 function __dartType(name) {
   if (__dartTypeCache.has(name)) return __dartTypeCache.get(name);
   const value = Object.freeze({
@@ -2540,7 +2477,7 @@ export function main() {
       return v;
     })();
   })();
-  __dartPrint(`typed_data ${__dartStr(__dartIterableToArray(buffer).join(","))} ${__dartStr(first)} ${__dartStr(last)} ${__dartStr(queue.join("|"))} ${__dartStr(floats["[]"](0) + floats["[]"](1))} ${__dartStr(bytes.length)}`);
+  __dartPrint(`typed_data ${__dartStr(__dartIterableJoin(buffer, ","))} ${__dartStr(first)} ${__dartStr(last)} ${__dartStr(queue.join("|"))} ${__dartStr(floats["[]"](0) + floats["[]"](1))} ${__dartStr(bytes.length)}`);
 }
 
 main();

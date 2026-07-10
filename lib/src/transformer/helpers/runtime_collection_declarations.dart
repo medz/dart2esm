@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Collectionhelperdeclaration on EsmRuntimeHelperRegistry {
+extension _CollectionHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _collectionHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.unmodifiableViews => EsmRawModuleItem('''

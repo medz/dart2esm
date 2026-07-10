@@ -366,6 +366,14 @@ extension _ExpressionLowering on Lowerer {
         expression,
         thisExpression: thisExpression,
       ),
+      k.ConstructorTearOff() => _constructorTearOffReference(
+        semantic,
+        expression.target,
+      ),
+      k.RedirectingFactoryTearOff() => _constructorTearOffReference(
+        semantic,
+        expression.target,
+      ),
       k.Instantiation() => _lowerExpression(
         semantic,
         helpers,

@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Converthelperdeclaration on EsmRuntimeHelperRegistry {
+extension _ConvertHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _convertHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.encoding => EsmRawModuleItem('''

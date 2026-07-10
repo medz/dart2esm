@@ -79,29 +79,64 @@ final class Lowerer {
         ..._lowerFieldItems(semantic, helpers, field),
       for (final procedure in semantic.procedures)
         _lowerProcedure(semantic, helpers, procedure),
-      if (runMain)
-        EsmExpressionStatement(
-          semantic.main.function.asyncMarker == k.AsyncMarker.Async
-              ? EsmAwait(
-                  EsmCall(
-                    callee: EsmIdentifier(
-                      semantic.symbolForRequired(semantic.main).name,
-                    ),
-                    arguments: const [],
-                  ),
-                )
-              : EsmCall(
-                  callee: EsmIdentifier(
-                    semantic.symbolForRequired(semantic.main).name,
-                  ),
-                  arguments: const [],
-                ),
-        ),
+      for (final tearOff in semantic.constructorTearOffs)
+        _lowerConstructorTearOff(semantic, helpers, tearOff),
     ];
+    final usesWorker =
+        helpers.contains(EsmRuntimeHelper.isolateWeb) ||
+        helpers.contains(EsmRuntimeHelper.isolateNode);
+    if (usesWorker) {
+      for (final procedure in semantic.procedures) {
+        items.add(
+          EsmExpressionStatement(
+            EsmCall(
+              callee: const EsmIdentifier('__dartRegisterIsolateEntry'),
+              arguments: [
+                EsmStringLiteral(procedure.name),
+                EsmIdentifier(procedure.name),
+              ],
+            ),
+          ),
+        );
+      }
+      items.add(
+        EsmIfStatement(
+          condition: const EsmCall(
+            callee: EsmIdentifier('__dartIsolateWorkerMode'),
+            arguments: [],
+          ),
+          thenBody: const [
+            EsmExpressionStatement(
+              EsmAwait(
+                EsmCall(
+                  callee: EsmIdentifier('__dartRunIsolateWorker'),
+                  arguments: [],
+                ),
+              ),
+            ),
+          ],
+          otherwiseBody: runMain ? [_mainInvocation(semantic)] : null,
+        ),
+      );
+    } else if (runMain) {
+      items.add(_mainInvocation(semantic));
+    }
     return LowererReturn(
       semantic: semanticReturn,
       items: items,
       runtimeHelpers: context.runtimeHelperUses,
+    );
+  }
+
+  EsmExpressionStatement _mainInvocation(Semantic semantic) {
+    final call = EsmCall(
+      callee: EsmIdentifier(semantic.symbolForRequired(semantic.main).name),
+      arguments: const [],
+    );
+    return EsmExpressionStatement(
+      semantic.main.function.asyncMarker == k.AsyncMarker.Async
+          ? EsmAwait(call)
+          : call,
     );
   }
 }

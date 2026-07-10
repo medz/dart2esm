@@ -1,6 +1,6 @@
 part of 'runtime_helpers.dart';
 
-extension _Iterablemaphelperdeclaration on EsmRuntimeHelperRegistry {
+extension _IterableMapHelperDeclarations on EsmRuntimeHelperRegistry {
   EsmModuleItem _iterableMapHelperDeclaration(EsmRuntimeHelper helper) {
     return switch (helper) {
       EsmRuntimeHelper.iterableToArray => EsmRawModuleItem('''

@@ -51,18 +51,14 @@ describe('control_flow/switch_continue.mjs', () => {
       'switch ($switchTarget) {',
       '$switchTarget = 1;',
       'continue $switchLoop;',
-      'break L;',
-      'break L;',
-      'const $switchValue = (value + i);',
+      'const $switchValue = value + i;',
       'let $switchTarget = -1;',
       '$switchTarget = 1;',
       '$switchTarget = 2;',
       '$switchLoop: while ($switchTarget !== -1) {',
       'switch ($switchTarget) {',
-      'break L;',
       '$switchTarget = 2;',
       'continue $switchLoop;',
-      'break L_1;',
     ]);
   });
 });

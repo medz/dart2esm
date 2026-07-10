@@ -115,6 +115,26 @@ extension _MemberSetLowering on Lowerer {
     EsmExpression thisExpression = const EsmThis(),
   }) {
     final name = expression.name.text;
+    final io = sdkIntrinsics.lowerInstanceSet(
+      reference: expression.interfaceTargetReference,
+      name: name,
+      helpers: helpers,
+      lowerReceiver: () => _lowerExpression(
+        semantic,
+        helpers,
+        locals,
+        expression.receiver,
+        thisExpression: thisExpression,
+      ),
+      lowerValue: () => _lowerExpression(
+        semantic,
+        helpers,
+        locals,
+        expression.value,
+        thisExpression: thisExpression,
+      ),
+    );
+    if (io != null) return io;
     if (isDartAsyncStreamConsumerMember(
           expression.interfaceTargetReference,
           name,

@@ -50,6 +50,7 @@ function __dartStr(value) {
 }
 
 const __dartSymbolCache = new Map();
+
 function __dartSymbol(key, name) {
   if (__dartSymbolCache.has(key)) return __dartSymbolCache.get(key);
   const value = Object.freeze({
@@ -61,6 +62,7 @@ function __dartSymbol(key, name) {
 }
 
 const __dartTypeCache = new Map();
+
 function __dartType(name) {
   if (__dartTypeCache.has(name)) return __dartTypeCache.get(name);
   const value = Object.freeze({

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dart2esm/src/app/cli.dart';
 import 'package:dart2esm/src/app/compiler.dart';
+import 'package:dart2esm/src/options.dart';
 import 'package:kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -3041,7 +3042,7 @@ void main() {
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
   });
 
-  test('CLI accepts explicit platform and target options', () async {
+  test('CLI accepts an explicit platform option', () async {
     final fixture = _GoldenFixture(
       root: fixtureDir,
       source: File(
@@ -3066,7 +3067,6 @@ void main() {
         output.path,
         '--no-run-main',
         '--platform=neutral',
-        '--target=esnext',
       ],
       stdoutSink: stdoutLog,
       stderrSink: stderrLog,
@@ -3076,6 +3076,29 @@ void main() {
 
     expect(exitCode, ExitCode.success);
     expect(output.readAsStringSync(), _withoutMainCall(fixture.expectedCode));
+  });
+
+  test('browser platform retains the web Kernel fallback', () async {
+    final source = File(p.join(fixtureDir.path, 'libraries', 'html.dart'));
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-browser-kernel-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'html.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: source.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        platform: Dart2EsmPlatform.browser,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    final code = output.readAsStringSync();
+    expect(code, contains('globalThis.document'));
+    expect(code, isNot(contains('node:')));
   });
 
   test('CLI keeps pure dart:io lowering platform neutral', () async {
@@ -3091,6 +3114,13 @@ void main() {
   print(FileMode.append.toString());
   print(FileSystemEntityType.file.toString());
   print(Platform.operatingSystem);
+  print(ContentType('text', 'plain', charset: 'utf-8'));
+  print(Cookie('session', 'abc'));
+  print(HeaderValue.parse('text/plain; q=0.5').parameters['q']);
+  final parsedCookie = Cookie.fromSetCookieValue(
+    'theme=dark; Path=/; SameSite=Strict',
+  );
+  print('\${parsedCookie.path} \${parsedCookie.sameSite}');
 }
 ''');
     final output = File(p.join(tempDir.path, 'pure_io.mjs'));
@@ -3120,7 +3150,18 @@ void main() {
       0,
       reason: '${runResult.stdout}\n${runResult.stderr}',
     );
-    expect(runResult.stdout, contains('FileMode.append\nfile\nbrowser\n'));
+    expect(
+      runResult.stdout,
+      contains(
+        'FileMode.append\n'
+        'file\n'
+        'browser\n'
+        'text/plain; charset=utf-8\n'
+        'session=abc; HttpOnly\n'
+        '0.5\n'
+        '/ SameSite=Strict\n',
+      ),
+    );
   });
 
   test('CLI rejects Node-backed dart:io on neutral platform', () async {
@@ -3155,7 +3196,151 @@ void main() {
     expect(stderr, contains('neutral platform'));
   });
 
-  test('CLI rejects unsupported target values', () async {
+  test('CLI lowers web-backed dart:io without Node imports', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-browser-io-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'web_io.dart'))
+      ..writeAsStringSync('''
+import 'dart:io';
+
+void main() {
+  final client = HttpClient();
+  client.close();
+  print(ContentType('text', 'plain').mimeType);
+}
+''');
+    final output = File(p.join(tempDir.path, 'web_io.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [input.path, '-o', output.path, '--platform=browser'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.success);
+    final code = output.readAsStringSync();
+    expect(code, contains('globalThis.fetch'));
+    expect(code, contains('globalThis[name]'));
+    expect(code, isNot(contains('node:')));
+  });
+
+  test('CLI rejects web-backed dart:io on neutral platform', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-cli-neutral-web-io-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'web_io.dart'))
+      ..writeAsStringSync('''
+import 'dart:io';
+
+void main() {
+  HttpClient().close();
+}
+''');
+    final output = File(p.join(tempDir.path, 'web_io.mjs'));
+    final stdoutLog = File(p.join(tempDir.path, 'stdout.log')).openWrite();
+    final stderrLog = File(p.join(tempDir.path, 'stderr.log')).openWrite();
+
+    final exitCode = await runDart2Esm(
+      [input.path, '-o', output.path, '--platform=neutral'],
+      stdoutSink: stdoutLog,
+      stderrSink: stderrLog,
+    );
+    await stdoutLog.close();
+    await stderrLog.close();
+
+    expect(exitCode, ExitCode.software);
+    expect(output.existsSync(), isFalse);
+    final stderr = File(p.join(tempDir.path, 'stderr.log')).readAsStringSync();
+    expect(stderr, contains('Web-backed dart:io lowering'));
+    expect(stderr, contains('neutral platform'));
+  });
+
+  test('rejects dart:ffi without an explicit native ABI bridge', () async {
+    final tempDir = await Directory.systemTemp.createTemp('dart2esm-ffi-');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'ffi.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: p.join(fixtureDir.path, 'libraries', 'ffi.dart'),
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        platform: Dart2EsmPlatform.node,
+      ),
+    );
+
+    expect(result.success, isFalse);
+    expect(output.existsSync(), isFalse);
+    expect(result.diagnostics.join('\n'), contains('native memory'));
+    expect(result.diagnostics.join('\n'), contains('dart:ffi'));
+  });
+
+  test('browser platform lowers Isolate.spawn to a module Worker', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-browser-isolate-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final output = File(p.join(tempDir.path, 'isolate.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: p.join(fixtureDir.path, 'libraries', 'isolate.dart'),
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        platform: Dart2EsmPlatform.browser,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    final code = output.readAsStringSync();
+    expect(code, contains('new globalThis.Worker'));
+    expect(code, contains('__dartRunWebIsolate'));
+    expect(code, contains('type: "module"'));
+    expect(code, isNot(contains('node:')));
+  });
+
+  test('rejects Isolate.spawn closures that Workers cannot clone', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-isolate-closure-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'isolate_closure.dart'))
+      ..writeAsStringSync('''
+import 'dart:isolate';
+
+Future<void> main() async {
+  final port = ReceivePort();
+  await Isolate.spawn((SendPort target) => target.send('done'), port.sendPort);
+  port.close();
+}
+''');
+    final output = File(p.join(tempDir.path, 'isolate_closure.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+        platform: Dart2EsmPlatform.node,
+      ),
+    );
+
+    expect(result.success, isFalse);
+    expect(output.existsSync(), isFalse);
+    expect(
+      result.diagnostics.join('\n'),
+      contains('entry must be a top-level function'),
+    );
+  });
+
+  test('CLI rejects the obsolete target option', () async {
     final fixture = File(
       p.join(fixtureDir.path, 'functions', 'basic_functions.dart'),
     );
@@ -3751,6 +3936,56 @@ const indexedDB = {
 globalThis.indexedDB = indexedDB;
 globalThis.window = { indexedDB };
 ''', 'indexedDB true ok dart2esm\n');
+    return;
+  }
+  if (fixture.id == 'libraries/io_web') {
+    await _expectNodeOutputWithPrelude(
+      output,
+      '''
+globalThis.fetch = async (_url, options) => new Response(
+  options.method + ":" + await options.body.text() + ":" + options.headers.get("x-dart2esm"),
+  {
+    status: 201,
+    statusText: "Created",
+    headers: { "x-response": "mdn" },
+  },
+);
+class WebSocketStub extends EventTarget {
+  constructor(url, protocols) {
+    super();
+    this.url = url;
+    this.protocol = protocols?.[0] ?? "";
+    this.extensions = "";
+    this.readyState = 0;
+    queueMicrotask(() => {
+      this.readyState = 1;
+      this.dispatchEvent(new Event("open"));
+    });
+  }
+  send(data) {
+    queueMicrotask(() => {
+      const event = new Event("message");
+      Object.defineProperty(event, "data", { value: "pong:" + data });
+      this.dispatchEvent(event);
+    });
+  }
+  close(code, reason) {
+    this.readyState = 3;
+    queueMicrotask(() => {
+      const event = new Event("close");
+      Object.defineProperties(event, {
+        code: { value: code },
+        reason: { value: reason },
+      });
+      this.dispatchEvent(event);
+    });
+  }
+}
+globalThis.WebSocket = WebSocketStub;
+delete globalThis.process;
+''',
+      'ioWeb 201 mdn POST:payload:web application/json us-ascii session=abc; Path=/; SameSite=Lax dart2esm pong:ping\n',
+    );
     return;
   }
   if (fixture.id == 'libraries/js') {

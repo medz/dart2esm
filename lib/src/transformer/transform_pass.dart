@@ -13,14 +13,10 @@ final class TransformContext {
 final class TransformPassReturn {
   const TransformPassReturn({
     required this.module,
-    this.changed = false,
-    this.invalidatesSemantic = false,
     this.linkedHelpers = const [],
   });
 
   final EsmModule module;
-  final bool changed;
-  final bool invalidatesSemantic;
   final List<EsmRuntimeHelper> linkedHelpers;
 }
 

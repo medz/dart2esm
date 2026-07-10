@@ -19,13 +19,31 @@ final class EsmRuntimeHelperUseSet {
   }
 
   bool add(EsmRuntimeHelper helper) {
-    if (helper == EsmRuntimeHelper.ioNode &&
-        !_platformAllowsNodeBuiltins(platform)) {
+    if (helper == EsmRuntimeHelper.ioNode && !platform.allowsNodeIo) {
       throw UnsupportedCompilerFeature(
         helper,
         'Node-backed dart:io lowering on ${platform.cliName} platform',
       );
     }
+    if (helper == EsmRuntimeHelper.ioWeb && !platform.allowsWebIo) {
+      throw UnsupportedCompilerFeature(
+        helper,
+        'Web-backed dart:io lowering on ${platform.cliName} platform',
+      );
+    }
+    if (helper == EsmRuntimeHelper.isolate && !platform.allowsWebIo) {
+      throw UnsupportedCompilerFeature(
+        helper,
+        'Worker-backed dart:isolate lowering on ${platform.cliName} platform',
+      );
+    }
+    if (helper == EsmRuntimeHelper.isolateNode && !platform.allowsNodeIo) {
+      throw UnsupportedCompilerFeature(
+        helper,
+        'Node Worker-backed dart:isolate lowering on ${platform.cliName} platform',
+      );
+    }
+    if (!_helpers.add(helper)) return false;
     switch (helper) {
       case EsmRuntimeHelper.bigIntBitLength:
       case EsmRuntimeHelper.bigIntParse:
@@ -45,7 +63,6 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.expando:
       case EsmRuntimeHelper.extensionTypeRep:
       case EsmRuntimeHelper.finalizer:
-      case EsmRuntimeHelper.ffi:
       case EsmRuntimeHelper.intGcd:
       case EsmRuntimeHelper.intShift:
       case EsmRuntimeHelper.io:
@@ -59,129 +76,140 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.web:
       case EsmRuntimeHelper.weakReference:
         break;
+      case EsmRuntimeHelper.ioWeb:
+        add(EsmRuntimeHelper.io);
+        add(EsmRuntimeHelper.uri);
       case EsmRuntimeHelper.argumentChecks:
-        _helpers.add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.encoding:
-        _helpers.add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.byteConversionSink);
+        add(EsmRuntimeHelper.future);
       case EsmRuntimeHelper.dateTime:
-        _helpers.add(EsmRuntimeHelper.coreError);
-        _helpers.add(EsmRuntimeHelper.duration);
+        add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.duration);
       case EsmRuntimeHelper.pattern:
-        _helpers.add(EsmRuntimeHelper.stringOps);
+        add(EsmRuntimeHelper.stringOps);
       case EsmRuntimeHelper.regExp:
-        _helpers.add(EsmRuntimeHelper.pattern);
+        add(EsmRuntimeHelper.pattern);
       case EsmRuntimeHelper.regExpEscape:
         break;
       case EsmRuntimeHelper.stringBuffer:
-        _helpers.add(EsmRuntimeHelper.stringify);
-        _helpers.add(EsmRuntimeHelper.iterableToArray);
+        add(EsmRuntimeHelper.stringify);
+        add(EsmRuntimeHelper.iterableToArray);
       case EsmRuntimeHelper.constMap:
-        _helpers.add(EsmRuntimeHelper.mapFactories);
-        _helpers.add(EsmRuntimeHelper.mapAddAll);
-        _helpers.add(EsmRuntimeHelper.mapSet);
-        _helpers.add(EsmRuntimeHelper.mapGet);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.mapFactories);
+        add(EsmRuntimeHelper.mapAddAll);
+        add(EsmRuntimeHelper.mapSet);
+        add(EsmRuntimeHelper.mapGet);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.constSet:
-        _helpers.add(EsmRuntimeHelper.setAddAll);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.setAddAll);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.intModular:
-        _helpers.add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.equals:
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.isRecord:
-        _helpers.add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.recordShape);
       case EsmRuntimeHelper.record:
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.objectRuntimeType:
-        _helpers.add(EsmRuntimeHelper.type);
+        add(EsmRuntimeHelper.type);
       case EsmRuntimeHelper.dynamicGet:
       case EsmRuntimeHelper.dynamicSet:
-        _helpers.add(EsmRuntimeHelper.noSuchMethodDispatch);
+        add(EsmRuntimeHelper.noSuchMethodDispatch);
       case EsmRuntimeHelper.isolate:
-        _helpers.add(EsmRuntimeHelper.future);
+        add(EsmRuntimeHelper.future);
+      case EsmRuntimeHelper.isolateWeb:
+      case EsmRuntimeHelper.isolateNode:
+        add(EsmRuntimeHelper.isolate);
       case EsmRuntimeHelper.dynamicInvoke:
-        _helpers.add(EsmRuntimeHelper.iterableJoin);
-        _helpers.add(EsmRuntimeHelper.listMixin);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.noSuchMethodDispatch);
+        add(EsmRuntimeHelper.iterableJoin);
+        add(EsmRuntimeHelper.listMixin);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.noSuchMethodDispatch);
       case EsmRuntimeHelper.noSuchMethodDispatch:
-        _helpers.add(EsmRuntimeHelper.symbol);
+        add(EsmRuntimeHelper.symbol);
       case EsmRuntimeHelper.functionApply:
       case EsmRuntimeHelper.intParse:
       case EsmRuntimeHelper.iterableJoin:
-        _helpers.add(EsmRuntimeHelper.stringify);
-        _helpers.add(EsmRuntimeHelper.iterableToArray);
+        add(EsmRuntimeHelper.stringify);
+        add(EsmRuntimeHelper.iterableToArray);
       case EsmRuntimeHelper.ioNode:
-        _helpers.add(EsmRuntimeHelper.io);
-        _helpers.add(EsmRuntimeHelper.dateTime);
-        _helpers.add(EsmRuntimeHelper.future);
-        _helpers.add(EsmRuntimeHelper.uri);
-        _helpers.add(EsmRuntimeHelper.uriToFilePath);
+        add(EsmRuntimeHelper.io);
+        add(EsmRuntimeHelper.dateTime);
+        add(EsmRuntimeHelper.future);
+        add(EsmRuntimeHelper.uri);
+        add(EsmRuntimeHelper.uriToFilePath);
       case EsmRuntimeHelper.iterableSearch:
       case EsmRuntimeHelper.iterableWindow:
       case EsmRuntimeHelper.iterator:
       case EsmRuntimeHelper.listFactory:
       case EsmRuntimeHelper.listRangeOps:
-        _helpers.add(EsmRuntimeHelper.iterableToArray);
+        add(EsmRuntimeHelper.iterableToArray);
       case EsmRuntimeHelper.future:
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.record);
-        _helpers.add(EsmRuntimeHelper.stringify);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.record);
+        add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.lazyField:
-      case EsmRuntimeHelper.listAdd:
       case EsmRuntimeHelper.nullCheck:
         break;
+      case EsmRuntimeHelper.listAdd:
+        add(EsmRuntimeHelper.listMixin);
       case EsmRuntimeHelper.listAddAll:
-        _helpers.add(EsmRuntimeHelper.iterableToArray);
-        _helpers.add(EsmRuntimeHelper.listAdd);
+        add(EsmRuntimeHelper.iterableToArray);
+        add(EsmRuntimeHelper.listAdd);
       case EsmRuntimeHelper.listMixin:
-        _helpers.add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.print:
-        _helpers.add(EsmRuntimeHelper.stringify);
+        add(EsmRuntimeHelper.stringify);
       case EsmRuntimeHelper.listMutation:
-        _helpers.add(EsmRuntimeHelper.iterableToArray);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.iterableToArray);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.listSearch:
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mapAddAll:
       case EsmRuntimeHelper.mapSet:
-        _helpers.add(EsmRuntimeHelper.mapGet);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.mapGet);
+        add(EsmRuntimeHelper.splayTree);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mapContainsKey:
       case EsmRuntimeHelper.mapGet:
-        _helpers.add(EsmRuntimeHelper.mapGet);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.mapGet);
+        add(EsmRuntimeHelper.compare);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mapFactories:
-        _helpers.add(EsmRuntimeHelper.mapAddAll);
-        _helpers.add(EsmRuntimeHelper.mapSet);
-        _helpers.add(EsmRuntimeHelper.mapGet);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.mapAddAll);
+        add(EsmRuntimeHelper.mapSet);
+        add(EsmRuntimeHelper.mapGet);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mapOps:
-        _helpers.add(EsmRuntimeHelper.mapSet);
-        _helpers.add(EsmRuntimeHelper.mapGet);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.mapSet);
+        add(EsmRuntimeHelper.mapGet);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.mathRectangle:
-        _helpers.add(EsmRuntimeHelper.mathPoint);
+        add(EsmRuntimeHelper.mathPoint);
       case EsmRuntimeHelper.rangeChecks:
-        _helpers.add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.recordShape:
       case EsmRuntimeHelper.objectHash:
       case EsmRuntimeHelper.safeToString:
@@ -194,29 +222,30 @@ final class EsmRuntimeHelperUseSet {
       case EsmRuntimeHelper.unmodifiableViews:
         break;
       case EsmRuntimeHelper.uriToFilePath:
-        _helpers.add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.uri:
-        _helpers.add(EsmRuntimeHelper.coreError);
+        add(EsmRuntimeHelper.coreError);
       case EsmRuntimeHelper.setAddAll:
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.splayTree);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.setOps:
-        _helpers.add(EsmRuntimeHelper.setAddAll);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.setAddAll);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
       case EsmRuntimeHelper.splayTree:
-        _helpers.add(EsmRuntimeHelper.compare);
-        _helpers.add(EsmRuntimeHelper.setAddAll);
-        _helpers.add(EsmRuntimeHelper.mapAddAll);
-        _helpers.add(EsmRuntimeHelper.mapSet);
-        _helpers.add(EsmRuntimeHelper.mapGet);
-        _helpers.add(EsmRuntimeHelper.equals);
-        _helpers.add(EsmRuntimeHelper.recordShape);
-        _helpers.add(EsmRuntimeHelper.isRecord);
+        add(EsmRuntimeHelper.compare);
+        add(EsmRuntimeHelper.setAddAll);
+        add(EsmRuntimeHelper.mapAddAll);
+        add(EsmRuntimeHelper.mapSet);
+        add(EsmRuntimeHelper.mapGet);
+        add(EsmRuntimeHelper.equals);
+        add(EsmRuntimeHelper.recordShape);
+        add(EsmRuntimeHelper.isRecord);
     }
-    return _helpers.add(helper);
+    return true;
   }
 
   bool contains(EsmRuntimeHelper helper) => _helpers.contains(helper);
@@ -226,11 +255,4 @@ final class EsmRuntimeHelperUseSet {
         .where(_helpers.contains)
         .toList(growable: false);
   }
-}
-
-bool _platformAllowsNodeBuiltins(Dart2EsmPlatform platform) {
-  return switch (platform) {
-    Dart2EsmPlatform.auto || Dart2EsmPlatform.node => true,
-    Dart2EsmPlatform.neutral || Dart2EsmPlatform.browser => false,
-  };
 }

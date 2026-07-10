@@ -1,4 +1,4 @@
-import 'package:kernel/kernel.dart' as k;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 
 import '../../foundation/kernel/kernel_references.dart';
 import '../../foundation/kernel/sdk_symbols.dart';

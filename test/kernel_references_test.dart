@@ -1,5 +1,5 @@
 import 'package:dart2esm/src/foundation/kernel/kernel_references.dart';
-import 'package:kernel/kernel.dart' as k;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {

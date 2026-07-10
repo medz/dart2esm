@@ -1,4 +1,4 @@
-import 'package:kernel/kernel.dart' as k;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 
 import '../../ast/esm_ast.dart';
 import '../../foundation/diagnostics/unsupported_compiler_feature.dart';

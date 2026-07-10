@@ -1,0 +1,11 @@
+/.dart_tool/
+/build/
+/bun.lock
+/coverage/
+/doc/
+/node_modules/
+/package.json
+/pubspec.lock
+/test/
+/tool/
+/vitest.config.mjs

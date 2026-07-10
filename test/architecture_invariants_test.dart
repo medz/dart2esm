@@ -10,7 +10,7 @@ import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
 import 'package:dart2esm/src/transformer/helpers/helper_loader.dart';
 import 'package:dart2esm/src/transformer/module_transformer.dart';
 import 'package:dart2esm/src/transformer/transform_pass.dart';
-import 'package:kernel/kernel.dart' as k;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {

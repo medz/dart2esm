@@ -6,7 +6,7 @@ import 'package:dart2esm/src/foundation/kernel/kernel_header.dart';
 import 'package:dart2esm/src/compiler.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
 import 'package:dart2esm/src/options.dart';
-import 'package:kernel/kernel.dart' as kernel;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 
 Future<Dart2EsmResult> compileDartToEsm(Dart2EsmOptions options) async {

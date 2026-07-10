@@ -1,3 +1,12 @@
+## 0.1.1
+
+- Bundle the minimal Dart 3.12.2 Kernel reader required by the compiler instead
+  of cloning the complete Dart SDK as a Git dependency.
+- Pin the matching hosted `_fe_analyzer_shared` release and limit activation to
+  Dart 3.12, whose Kernel binary format this release supports.
+- Add a minimal pub.dev package manifest that excludes development fixtures and
+  JavaScript test tooling from the distributed archive.
+
 ## 0.1.0
 
 - Compile Dart source or Kernel `.dill` input into native ECMAScript modules.

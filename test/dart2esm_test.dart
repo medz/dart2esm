@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:dart2esm/src/app/cli.dart';
 import 'package:dart2esm/src/app/compiler.dart';
 import 'package:dart2esm/src/options.dart';
-import 'package:kernel/kernel.dart' as kernel;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as kernel;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

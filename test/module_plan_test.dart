@@ -1,6 +1,6 @@
 import 'package:dart2esm/src/semantic/model/esm_module_plan.dart';
 import 'package:dart2esm/src/semantic/analysis/reachability.dart';
-import 'package:kernel/kernel.dart' as k;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {

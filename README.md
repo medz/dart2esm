@@ -7,9 +7,18 @@ emits clean ECMAScript modules. JavaScript and Node primitives are used directly
 where they are semantically equivalent, with small Dart semantic helpers emitted
 only when required.
 
-The 0.1.0 goal is broad Dart syntax and SDK lowering to native ESM. The compiler
-targets modern JavaScript directly; compatibility profiles are intentionally
-out of scope.
+The 0.1 release targets broad Dart syntax and SDK lowering to native ESM. The
+compiler targets modern JavaScript directly; compatibility profiles are
+intentionally out of scope.
+
+## Installation
+
+dart2esm 0.1.x requires Dart 3.12 because it reads that SDK's Kernel binary
+format directly.
+
+```sh
+dart pub global activate dart2esm
+```
 
 ## Usage
 

@@ -11,7 +11,7 @@ import 'package:dart2esm/src/semantic/semantic.dart';
 import 'package:dart2esm/src/semantic/semantic_builder.dart';
 import 'package:dart2esm/src/transformer/module_transformer.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_kernel_node.dart';
-import 'package:kernel/kernel.dart' as k;
+import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 import 'package:test/test.dart';
 
 void main() {

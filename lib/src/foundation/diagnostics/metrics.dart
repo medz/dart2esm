@@ -10,14 +10,19 @@ final class CodeSizeMetrics {
     required this.runtimeHelperCount,
   });
 
-  factory CodeSizeMetrics.fromCode(String label, String code) {
+  factory CodeSizeMetrics.fromCode(
+    String label,
+    String code, {
+    int? runtimeHelperCount,
+  }) {
     final bytes = utf8.encode(code);
     return CodeSizeMetrics(
       label: label,
       rawBytes: bytes.length,
       gzipBytes: gzip.encode(bytes).length,
       lineCount: code.isEmpty ? 0 : const LineSplitter().convert(code).length,
-      runtimeHelperCount: countRuntimeHelperDeclarations(code),
+      runtimeHelperCount:
+          runtimeHelperCount ?? countRuntimeHelperDeclarations(code),
     );
   }
 

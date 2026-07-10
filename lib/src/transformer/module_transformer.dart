@@ -10,10 +10,15 @@ import 'passes/release_optimizer.dart';
 import 'transform_pass.dart';
 
 final class TransformerReturn {
-  const TransformerReturn({required this.module, required this.linkedHelpers});
+  const TransformerReturn({
+    required this.module,
+    required this.linkedHelpers,
+    required this.runtimeDeclarationCount,
+  });
 
   final EsmModule module;
   final List<EsmRuntimeHelper> linkedHelpers;
+  final int runtimeDeclarationCount;
 }
 
 final class Transformer {
@@ -24,6 +29,7 @@ final class Transformer {
       ReleaseOptimizer(),
       IdentifierMangler(),
       HelperLoadingPass(),
+      RuntimeIdentifierMangler(),
     ],
   });
 
@@ -41,13 +47,21 @@ final class Transformer {
     );
     var module = lowering.module;
     var linkedHelpers = const <EsmRuntimeHelper>[];
+    var runtimeDeclarationCount = 0;
     for (final pass in passes) {
       final result = pass.apply(module, context);
       module = result.module;
       if (result.linkedHelpers.isNotEmpty) {
         linkedHelpers = result.linkedHelpers;
       }
+      if (result.runtimeDeclarationCount case final count?) {
+        runtimeDeclarationCount = count;
+      }
     }
-    return TransformerReturn(module: module, linkedHelpers: linkedHelpers);
+    return TransformerReturn(
+      module: module,
+      linkedHelpers: linkedHelpers,
+      runtimeDeclarationCount: runtimeDeclarationCount,
+    );
   }
 }

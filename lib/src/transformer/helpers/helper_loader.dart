@@ -6,10 +6,12 @@ final class HelperLoaderReturn {
   HelperLoaderReturn({
     required this.module,
     required Iterable<EsmRuntimeHelper> helpers,
+    required this.runtimeDeclarationCount,
   }) : helpers = List.unmodifiable(helpers);
 
   final EsmModule module;
   final List<EsmRuntimeHelper> helpers;
+  final int runtimeDeclarationCount;
 }
 
 final class HelperLoader {
@@ -40,6 +42,14 @@ final class HelperLoader {
     return HelperLoaderReturn(
       module: EsmModule(items: [...declarations, ...module.items]),
       helpers: linkedHelpers,
+      runtimeDeclarationCount: declarations
+          .where((item) => !_isRuntimeImport(item))
+          .length,
     );
   }
+}
+
+bool _isRuntimeImport(EsmModuleItem item) {
+  return item is EsmRawModuleItem &&
+      item.source.trimLeft().startsWith('import ');
 }

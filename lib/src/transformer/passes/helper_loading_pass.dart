@@ -13,6 +13,7 @@ final class HelperLoadingPass implements TransformPass {
     return TransformPassReturn(
       module: loaded.module,
       linkedHelpers: loaded.helpers,
+      runtimeDeclarationCount: loaded.runtimeDeclarationCount,
     );
   }
 }

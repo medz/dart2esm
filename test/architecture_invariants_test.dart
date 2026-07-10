@@ -9,6 +9,7 @@ import 'package:dart2esm/src/semantic/semantic_builder.dart';
 import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
 import 'package:dart2esm/src/transformer/helpers/helper_loader.dart';
 import 'package:dart2esm/src/transformer/module_transformer.dart';
+import 'package:dart2esm/src/transformer/passes/identifier_mangler.dart';
 import 'package:dart2esm/src/transformer/transform_pass.dart';
 import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 import 'package:test/test.dart';
@@ -71,6 +72,7 @@ void main() {
       EsmRuntimeHelper.print,
       EsmRuntimeHelper.stringify,
     ]);
+    expect(result.runtimeDeclarationCount, 2);
     expect(result.module.items, hasLength(3));
     expect((result.module.items.first as EsmFunction).name, '__dartPrint');
     final main = result.module.items.last as EsmFunction;
@@ -126,20 +128,30 @@ void main() {
       );
       final code = const Codegen().generate(result.module, minify: true).code;
 
-      expect(code, contains('{const scoped=1;}return 1;'));
+      expect(code, contains('{const a=1;}return 1;'));
       expect(code, isNot(contains('__dartPrint')));
       expect(code, isNot(contains('unreachable')));
     },
   );
 
   test('release transformer mangles only safe module bindings', () {
-    const input = EsmModule(
+    final input = EsmModule(
       items: [
         EsmFunction(
           name: 'veryLongInternalFunction',
           export: false,
-          parameters: [EsmIdentifierParameter(name: 'a')],
-          body: [EsmReturnStatement(EsmIdentifier('veryLongInternalValue'))],
+          parameters: [
+            EsmIdentifierParameter(name: 'a'),
+            EsmIdentifierParameter(name: 'veryLongParameterName'),
+          ],
+          body: [
+            EsmVariableDeclaration(
+              binding: EsmIdentifierBinding('veryLongLocalName'),
+              initializer: EsmIdentifier('veryLongParameterName'),
+              mutable: false,
+            ),
+            EsmReturnStatement(EsmIdentifier('veryLongInternalValue')),
+          ],
         ),
         EsmVariableDeclaration(
           binding: EsmIdentifierBinding('veryLongInternalValue'),
@@ -165,6 +177,21 @@ void main() {
           mutable: false,
           export: true,
         ),
+        EsmVariableDeclaration(
+          binding: EsmObjectBindingPattern(
+            bindings: [
+              EsmObjectPatternBinding(property: 'value', name: 'publicAlias'),
+            ],
+          ),
+          initializer: EsmObjectLiteral([
+            EsmObjectLiteralProperty.static(
+              key: 'value',
+              value: EsmNumberLiteral(3),
+            ),
+          ]),
+          mutable: false,
+          export: true,
+        ),
         EsmFunction(
           name: 'main',
           export: true,
@@ -173,7 +200,7 @@ void main() {
             EsmExpressionStatement(
               EsmCall(
                 callee: EsmIdentifier('veryLongInternalFunction'),
-                arguments: [EsmNumberLiteral(0)],
+                arguments: [EsmNumberLiteral(0), EsmNumberLiteral(1)],
               ),
             ),
             EsmExpressionStatement(
@@ -200,14 +227,17 @@ void main() {
         .code;
 
     expect(code, isNot(contains('veryLongInternal')));
+    expect(code, isNot(contains('veryLongParameterName')));
+    expect(code, isNot(contains('veryLongLocalName')));
     expect(code, isNot(contains('VeryLongInternalClass')));
     expect(code, contains('export const publicValue=2;'));
+    expect(code, contains('export const {value:publicAlias}='));
     expect(code, contains('export function main()'));
-    expect(code, contains('function __dartPrint()'));
-    expect(code, contains('(a)'));
+    expect(code, isNot(contains('function __dartPrint()')));
+    expect(code, contains('(a,'));
     final internalFunction = transformed.module.items
         .whereType<EsmFunction>()
-        .singleWhere((item) => !item.export && item.name != '__dartPrint');
+        .singleWhere((item) => !item.export && item.parameters.length == 2);
     expect(internalFunction.name, isNot('a'));
 
     final debug = const Transformer().transform(_loweringForModule(input));
@@ -243,6 +273,51 @@ void main() {
         .code;
 
     expect(code, contains('veryLongInternalFunction'));
+  });
+
+  test('release transformer shortens linked runtime bindings only', () {
+    const input = EsmModule(
+      items: [
+        EsmRawModuleItem('''
+function __dartStr(value) { return value; }
+function __dartPrint(value) {
+  return __dartStr(value) + object.__dartStr +
+    ({ __dartStr: 1 }).__dartStr + "__dartStr";
+}
+'''),
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartPrint'),
+                arguments: [EsmNumberLiteral(1)],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer(
+      passes: [RuntimeIdentifierMangler()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, isNot(contains('function __dartStr')));
+    expect(code, isNot(contains('function __dartPrint')));
+    expect(code, contains('object.__dartStr'));
+    expect(code, contains('{ __dartStr: 1 }'));
+    expect(code, contains('"__dartStr"'));
+    expect(code, contains('export function main()'));
   });
 
   test('compact codegen is smaller without changing the AST', () {

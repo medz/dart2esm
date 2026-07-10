@@ -20,10 +20,12 @@ final class TransformPassReturn {
   const TransformPassReturn({
     required this.module,
     this.linkedHelpers = const [],
+    this.runtimeDeclarationCount,
   });
 
   final EsmModule module;
   final List<EsmRuntimeHelper> linkedHelpers;
+  final int? runtimeDeclarationCount;
 }
 
 abstract interface class TransformPass {

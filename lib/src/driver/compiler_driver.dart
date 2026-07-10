@@ -76,7 +76,12 @@ final class CompilerDriver {
       final collectMetrics =
           options.collectMetrics || options.compareDart2JsMetrics;
       final esmMetrics = collectMetrics
-          ? CodeSizeMetrics.fromCode('dart2esm', compilerResult.code)
+          ? CodeSizeMetrics.fromCode(
+              'dart2esm',
+              compilerResult.code,
+              runtimeHelperCount:
+                  compilerResult.transform.runtimeDeclarationCount,
+            )
           : null;
       final dart2jsMetrics = options.compareDart2JsMetrics
           ? await _compileDart2JsMetrics(input, options, tempDir)

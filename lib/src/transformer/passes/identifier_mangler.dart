@@ -1,6 +1,7 @@
 import '../../ast/esm_ast.dart';
 import '../../ast/esm_references.dart';
 import '../../foundation/names/js_names.dart';
+import '../helpers/runtime_helper_linker.dart';
 import '../helpers/runtime_helpers.dart';
 import '../transform_pass.dart';
 
@@ -14,23 +15,23 @@ final class IdentifierMangler implements TransformPass {
       return TransformPassReturn(module: module);
     }
 
-    final targets = <String>[];
-    final seenTargets = <String>{};
+    final protectedNames = <String>{};
     for (final item in module.items) {
-      final name = switch (item) {
-        EsmClass(:final name, export: false) => name,
-        EsmFunction(:final name, export: false) => name,
-        EsmVariableDeclaration(
-          binding: EsmIdentifierBinding(:final name),
-          export: false,
-        ) =>
-          name,
-        _ => null,
-      };
-      if (name != null &&
-          name.length > 1 &&
-          !EsmRuntimeHelperRegistry.generatedGlobalNames.contains(name) &&
-          seenTargets.add(name)) {
+      switch (item) {
+        case EsmClass(:final name, export: true) ||
+            EsmFunction(:final name, export: true):
+          protectedNames.add(name);
+        case EsmVariableDeclaration(:final binding, export: true):
+          _addBindingNames(protectedNames, binding);
+        default:
+          break;
+      }
+    }
+    final targets = <String>[];
+    for (final name in collectEsmBindingNames(module)) {
+      if (name.length > 1 &&
+          !protectedNames.contains(name) &&
+          !EsmRuntimeHelperRegistry.generatedGlobalNames.contains(name)) {
         targets.add(name);
       }
     }
@@ -55,6 +56,75 @@ final class IdentifierMangler implements TransformPass {
 
     return TransformPassReturn(
       module: _IdentifierRenamer(names).module(module),
+    );
+  }
+
+  void _addBindingNames(Set<String> names, EsmBinding binding) {
+    switch (binding) {
+      case EsmIdentifierBinding():
+        names.add(binding.name);
+      case EsmObjectBindingPattern():
+        names.addAll(binding.bindings.map((item) => item.name));
+      case EsmArrayBindingPattern():
+        for (final item in binding.elements) {
+          _addBindingNames(names, item);
+        }
+    }
+  }
+}
+
+final class RuntimeIdentifierMangler implements TransformPass {
+  const RuntimeIdentifierMangler();
+
+  @override
+  TransformPassReturn apply(EsmModule module, TransformContext context) {
+    if (!context.profile.isRelease) {
+      return TransformPassReturn(module: module);
+    }
+
+    final runtimeNames = EsmRuntimeHelperRegistry.generatedGlobalNames;
+    final targets = <String>{
+      for (final name in collectEsmBindingNames(module))
+        if (runtimeNames.contains(name)) name,
+      for (final name in collectEsmIdentifierReferences(module))
+        if (runtimeNames.contains(name)) name,
+      for (final item in module.items)
+        if (item case EsmRawModuleItem(:final source))
+          for (final name in collectRawRuntimeIdentifierReferences(source))
+            if (runtimeNames.contains(name)) name,
+    };
+    if (targets.isEmpty) return TransformPassReturn(module: module);
+
+    final occupied = {
+      ...collectEsmBindingNames(module),
+      ...collectEsmIdentifierReferences(module),
+      for (final item in module.items)
+        if (item case EsmRawModuleItem(:final source))
+          ...collectRawJsIdentifiers(source),
+    };
+    final generator = _ShortNameGenerator(occupied);
+    final names = <String, String>{};
+    for (final target in targets) {
+      final replacement = generator.next();
+      if (replacement.length >= target.length) break;
+      names[target] = replacement;
+      occupied.add(replacement);
+    }
+    if (names.isEmpty) return TransformPassReturn(module: module);
+
+    final renamer = _IdentifierRenamer(names);
+    return TransformPassReturn(
+      module: EsmModule(
+        items: [
+          for (final item in module.items)
+            if (item case EsmRawModuleItem(:final source))
+              EsmRawModuleItem(
+                renameRawRuntimeIdentifierReferences(source, names),
+              )
+            else
+              renamer.moduleItem(item),
+        ],
+      ),
     );
   }
 }

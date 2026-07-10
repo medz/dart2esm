@@ -10,8 +10,11 @@
 - Add release-only member reachability for imported classes, including
   conservative virtual, dynamic, `noSuchMethod`, and public API retention.
 - Mangle non-exported module bindings in release builds while preserving ESM
-  exports, runtime ABI names, dynamic members, raw JavaScript, and lexical
-  scope safety.
+  exports, dynamic members, raw JavaScript properties, string-visible names,
+  and lexical scope safety.
+- Extend release mangling to parameters, local bindings, and linked runtime
+  globals; reserve runtime ABI names during lowering so user locals cannot
+  shadow compiler calls.
 - Define runtime helper ABI contracts for entry names, dependencies, host
   requirements, and conservative effects.
 - Replace the network-dependent language-spec test with a pinned, machine-

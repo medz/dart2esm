@@ -147,7 +147,29 @@ Set<String> _rawReferences(String source) {
   };
 }
 
-bool _isIdentifierReference(String source, RegExpMatch match) {
+Set<String> collectRawRuntimeIdentifierReferences(String source) {
+  return _rawReferences(source);
+}
+
+Set<String> collectRawJsIdentifiers(String source) {
+  return {
+    for (final match in _jsIdentifierPattern.allMatches(source))
+      match.group(0)!,
+  };
+}
+
+String renameRawRuntimeIdentifierReferences(
+  String source,
+  Map<String, String> names,
+) {
+  return source.replaceAllMapped(_runtimeIdentifierPattern, (match) {
+    final original = match.group(0)!;
+    if (!_isIdentifierReference(source, match)) return original;
+    return names[original] ?? original;
+  });
+}
+
+bool _isIdentifierReference(String source, Match match) {
   if (match.start > 0) {
     final previous = source[match.start - 1];
     if (previous == '.' || previous == '"' || previous == "'") return false;
@@ -172,3 +194,4 @@ final _rawDeclarationPattern = RegExp(
 );
 
 final _runtimeIdentifierPattern = RegExp(r'\b__dart[A-Za-z0-9_$]*\b');
+final _jsIdentifierPattern = RegExp(r'[A-Za-z_$][A-Za-z0-9_$]*');

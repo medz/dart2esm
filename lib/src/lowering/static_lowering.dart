@@ -591,6 +591,7 @@ extension _StaticLowering on Lowerer {
   }) {
     return _freshIn({
       ...semantic.globalBindingNames,
+      ...EsmRuntimeHelperRegistry.generatedGlobalNames,
       ...reservedNames,
       ...usedNames,
     }, original);

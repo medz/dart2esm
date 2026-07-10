@@ -49,11 +49,12 @@ host-specific SDK behavior. The default `auto` mode uses VM Kernel when
 possible and falls back to the browser frontend for web-only libraries.
 
 Use `--mode=debug` for readable stable output or `--mode=release` for safe
-control-flow pruning, member-level tree shaking, internal module binding
+control-flow pruning, member-level tree shaking, internal and local binding
 mangling, runtime relinking, and compact output. Exported names, runtime ABI
-symbols, dynamic member names, and raw JavaScript remain stable. The minimum
-syntax contract is selected with `--target=es2022`, `--target=es2023`, or
-`--target=esnext`.
+contracts, dynamic member names, raw JavaScript properties, and string-visible
+Dart names remain stable. Linked runtime bindings are module-private and
+shortened only after dependency resolution. The minimum syntax contract is
+selected with `--target=es2022`, `--target=es2023`, or `--target=esnext`.
 
 Use `--metrics` to print raw/gzip size, line count, and emitted helper count for
 the generated ESM module. Add `--compare-dart2js` to also compile the same Dart
@@ -62,6 +63,21 @@ source with `dart compile js -O2` and print dart2esm/dart2js size ratios:
 ```sh
 dart2esm lib/example.dart -o dist/example.mjs --metrics --compare-dart2js
 ```
+
+Generated code is native ESM without CommonJS wrappers or legacy `var`
+bindings. Only the public entry-library surface is exported; compiler and
+runtime implementation details stay module-private. Compiler-owned output uses
+ES2022 `const`/`let`, classes, arrow functions, `async`/`await`, optional
+chaining, and nullish coalescing where they preserve Kernel semantics. Release
+quality is gated by Dart VM versus Node behavior tests plus raw and gzip
+benchmarks.
+
+Property descriptors and frozen constant objects are intentionally retained for
+Dart semantics. Runtime helpers remain controlled raw ESM; their linked global
+bindings and whitespace are conservatively compacted, while property and string
+names stay untouched. Deeper helper optimization requires moving them into the
+structured AST. Source maps are not emitted yet and remain the main debug output
+quality gap.
 
 You can also compile an existing Kernel component:
 

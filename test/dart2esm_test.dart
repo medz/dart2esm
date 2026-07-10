@@ -2987,6 +2987,33 @@ void main() {
     expect(helper.existsSync(), isTrue);
   });
 
+  test('local bindings avoid runtime helper ABI names', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'dart2esm-runtime-name-hygiene-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final input = File(p.join(tempDir.path, 'main.dart'))
+      ..writeAsStringSync('''
+void main() {
+  final __dartPrint = 'local';
+  print(__dartPrint);
+}
+''');
+    final output = File(p.join(tempDir.path, 'main.mjs'));
+
+    final result = await compileDartToEsm(
+      Dart2EsmOptions(
+        inputPath: input.path,
+        outputPath: output.path,
+        workingDirectory: Directory.current,
+      ),
+    );
+
+    expect(result.success, isTrue, reason: result.diagnostics.join('\n'));
+    expect(output.readAsStringSync(), contains('const __dartPrint_1'));
+    await _expectSameDartAndNodeOutput(input, output);
+  });
+
   test('can emit an ESM module without running main', () async {
     final fixture = _GoldenFixture(
       root: fixtureDir,

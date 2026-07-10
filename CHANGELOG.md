@@ -7,6 +7,8 @@
 - Add stable structured diagnostics with codes, phases, and Kernel source
   locations.
 - Add safe release optimization, runtime relinking, and compact ESM printing.
+- Add release-only member reachability for imported classes, including
+  conservative virtual, dynamic, `noSuchMethod`, and public API retention.
 - Define runtime helper ABI contracts for entry names, dependencies, host
   requirements, and conservative effects.
 - Replace the network-dependent language-spec test with a pinned, machine-

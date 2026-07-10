@@ -14,6 +14,7 @@ void main() {
     p.join('imports', 'relative_imports.dart'),
     p.join('libraries', 'collections.dart'),
     p.join('packages', 'path_usage.dart'),
+    p.join('packages', 'yaml_usage.dart'),
     p.join('records', 'basic_records.dart'),
     p.join('syntax', 'patterns.dart'),
     p.join('variables', 'top_level_variables.dart'),

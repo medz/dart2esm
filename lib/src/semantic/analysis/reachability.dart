@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 
 import '../model/program_roots.dart';
@@ -7,12 +9,14 @@ EsmProgramPlan computeEsmProgramPlan(
   required k.Procedure main,
   required Map<k.Library, Set<String>> exportNamesByLibrary,
   required EmittableTopLevelProcedurePredicate isEmittableTopLevelProcedure,
+  bool treeShakeMembers = false,
 }) {
   return _EsmReachability(
     component,
     main: main,
     exportNamesByLibrary: exportNamesByLibrary,
     isEmittableTopLevelProcedure: isEmittableTopLevelProcedure,
+    treeShakeMembers: treeShakeMembers,
   ).compute();
 }
 
@@ -23,6 +27,11 @@ final class EsmProgramPlan {
     required this.extensionTypes,
     required this.topLevelFields,
     required this.topLevelProcedures,
+    this.constructors = const {},
+    this.instanceFields = const {},
+    this.staticFields = const {},
+    this.instanceProcedures = const {},
+    this.staticProcedures = const {},
     this.constructorTearOffTargets = const {},
   });
 
@@ -31,6 +40,11 @@ final class EsmProgramPlan {
   final Set<k.ExtensionTypeDeclaration> extensionTypes;
   final Set<k.Field> topLevelFields;
   final Set<k.Procedure> topLevelProcedures;
+  final Set<k.Constructor> constructors;
+  final Set<k.Field> instanceFields;
+  final Set<k.Field> staticFields;
+  final Set<k.Procedure> instanceProcedures;
+  final Set<k.Procedure> staticProcedures;
   final Set<k.Member> constructorTearOffTargets;
 }
 
@@ -40,20 +54,29 @@ final class _EsmReachability {
     required this.main,
     required this.exportNamesByLibrary,
     required this.isEmittableTopLevelProcedure,
+    required this.treeShakeMembers,
   });
 
   final k.Component component;
   final k.Procedure main;
   final Map<k.Library, Set<String>> exportNamesByLibrary;
   final EmittableTopLevelProcedurePredicate isEmittableTopLevelProcedure;
+  final bool treeShakeMembers;
 
   final _libraries = <k.Library>{};
   final _classes = <k.Class>{};
   final _extensionTypes = <k.ExtensionTypeDeclaration>{};
   final _topLevelFields = <k.Field>{};
   final _topLevelProcedures = <k.Procedure>{};
+  final _constructors = <k.Constructor>{};
+  final _instanceFields = <k.Field>{};
+  final _staticFields = <k.Field>{};
+  final _instanceProcedures = <k.Procedure>{};
+  final _staticProcedures = <k.Procedure>{};
   final _constructorTearOffTargets = <k.Member>{};
   final _extensionTypeByMember = <k.Member, k.ExtensionTypeDeclaration>{};
+  final _instanceSelectors = <_InstanceSelector>{};
+  final _markedTypes = HashSet<k.DartType>.identity();
   final _pendingNodes = <k.TreeNode>[];
   final _queuedNodes = <k.TreeNode>{};
 
@@ -74,6 +97,11 @@ final class _EsmReachability {
       extensionTypes: Set.unmodifiable(_extensionTypes),
       topLevelFields: Set.unmodifiable(_topLevelFields),
       topLevelProcedures: Set.unmodifiable(_topLevelProcedures),
+      constructors: Set.unmodifiable(_constructors),
+      instanceFields: Set.unmodifiable(_instanceFields),
+      staticFields: Set.unmodifiable(_staticFields),
+      instanceProcedures: Set.unmodifiable(_instanceProcedures),
+      staticProcedures: Set.unmodifiable(_staticProcedures),
       constructorTearOffTargets: Set.unmodifiable(_constructorTearOffTargets),
     );
   }
@@ -152,7 +180,7 @@ final class _EsmReachability {
       case k.Procedure():
         _markProcedure(member);
       case k.Constructor():
-        _markClass(member.enclosingClass);
+        _markConstructor(member);
       case k.Field():
         _markField(member);
     }
@@ -166,7 +194,11 @@ final class _EsmReachability {
     }
     final klass = procedure.enclosingClass;
     if (klass != null) {
-      _markClass(klass);
+      if (procedure.isStatic) {
+        _markStaticProcedure(procedure);
+      } else {
+        _markInstanceProcedure(procedure);
+      }
       return;
     }
     if (!isEmittableTopLevelProcedure(procedure) ||
@@ -175,6 +207,7 @@ final class _EsmReachability {
     }
     if (_topLevelProcedures.add(procedure)) {
       _markLibrary(procedure.enclosingLibrary);
+      _markFunctionTypes(procedure.function);
       _enqueueNode(procedure.function);
     }
   }
@@ -187,7 +220,11 @@ final class _EsmReachability {
     }
     final klass = field.enclosingClass;
     if (klass != null) {
-      _markClass(klass);
+      if (field.isStatic) {
+        _markStaticField(field);
+      } else {
+        _markInstanceField(field);
+      }
       return;
     }
     if (!_isEmittableLibrary(field.enclosingLibrary)) {
@@ -216,25 +253,135 @@ final class _EsmReachability {
     for (final supertype in klass.implementedTypes) {
       _markSupertype(supertype);
     }
+    if (!treeShakeMembers || _isExportedClass(klass)) {
+      _markAllClassMembers(klass);
+      return;
+    }
+    _applyInstanceSelectors(klass);
+  }
+
+  bool _isExportedClass(k.Class klass) {
+    return exportNamesByLibrary[klass.enclosingLibrary]?.contains(klass.name) ??
+        false;
+  }
+
+  void _markAllClassMembers(k.Class klass) {
     for (final field in klass.fields) {
-      _markType(field.type);
-      _enqueueNode(field.initializer);
-      final initializer = field.initializer;
-      if (initializer is k.ConstantExpression) {
-        _markConstant(initializer.constant);
-      }
+      field.isStatic ? _markStaticField(field) : _markInstanceField(field);
     }
     for (final constructor in klass.constructors) {
-      if (!constructor.isExternal) {
-        _enqueueNode(constructor);
+      _markConstructor(constructor);
+    }
+    for (final procedure in klass.procedures) {
+      procedure.isStatic
+          ? _markStaticProcedure(procedure)
+          : _markInstanceProcedure(procedure);
+    }
+  }
+
+  void _markConstructor(k.Constructor constructor) {
+    final klass = constructor.enclosingClass;
+    _markClass(klass);
+    if (constructor.isExternal || !_constructors.add(constructor)) return;
+    _markInstantiatedClass(klass);
+    _markFunctionTypes(constructor.function);
+    _enqueueNode(constructor);
+  }
+
+  void _markInstantiatedClass(k.Class klass) {
+    _markClass(klass);
+    for (final field in klass.fields) {
+      if (!field.isStatic) _markInstanceField(field);
+    }
+  }
+
+  void _markInstanceField(k.Field field) {
+    _markClass(field.enclosingClass!);
+    if (field.isExternal || !_instanceFields.add(field)) return;
+    _markType(field.type);
+    _enqueueNode(field.initializer);
+    final initializer = field.initializer;
+    if (initializer is k.ConstantExpression) {
+      _markConstant(initializer.constant);
+    }
+  }
+
+  void _markStaticField(k.Field field) {
+    _markClass(field.enclosingClass!);
+    if (field.isExternal || !_staticFields.add(field)) return;
+    _markType(field.type);
+    _enqueueNode(field.initializer);
+    final initializer = field.initializer;
+    if (initializer is k.ConstantExpression) {
+      _markConstant(initializer.constant);
+    }
+  }
+
+  void _markInstanceProcedure(k.Procedure procedure) {
+    _markClass(procedure.enclosingClass!);
+    if (procedure.isExternal || !_instanceProcedures.add(procedure)) return;
+    _markFunctionTypes(procedure.function);
+    if (procedure.isNoSuchMethodForwarder) {
+      _markInstanceSelector(k.Name('noSuchMethod'), _InstanceSelectorKind.call);
+    }
+    if (!procedure.isAbstract && !procedure.isNoSuchMethodForwarder) {
+      _enqueueNode(procedure.function);
+    }
+  }
+
+  void _markStaticProcedure(k.Procedure procedure) {
+    _markClass(procedure.enclosingClass!);
+    if (procedure.isExternal || !_staticProcedures.add(procedure)) return;
+    _markFunctionTypes(procedure.function);
+    if (!procedure.isAbstract && !procedure.isNoSuchMethodForwarder) {
+      _enqueueNode(procedure.function);
+    }
+  }
+
+  void _markInstanceSelector(k.Name name, _InstanceSelectorKind kind) {
+    final selector = (name: _selectorName(name), kind: kind);
+    if (!_instanceSelectors.add(selector)) return;
+    for (final klass in _classes.toList(growable: false)) {
+      _applyInstanceSelector(klass, selector);
+    }
+  }
+
+  void _applyInstanceSelectors(k.Class klass) {
+    for (final selector in _instanceSelectors) {
+      _applyInstanceSelector(klass, selector);
+    }
+  }
+
+  void _applyInstanceSelector(k.Class klass, _InstanceSelector selector) {
+    for (final field in klass.fields) {
+      if (field.isStatic || _selectorName(field.name) != selector.name) {
+        continue;
+      }
+      if (selector.kind != _InstanceSelectorKind.set || field.hasSetter) {
+        _markInstanceField(field);
       }
     }
     for (final procedure in klass.procedures) {
-      if (!procedure.isExternal &&
-          !procedure.isAbstract &&
-          !procedure.isNoSuchMethodForwarder) {
-        _enqueueNode(procedure.function);
+      if (procedure.isStatic ||
+          _selectorName(procedure.name) != selector.name) {
+        continue;
       }
+      if (_procedureMatchesSelector(procedure, selector.kind)) {
+        _markInstanceProcedure(procedure);
+      }
+    }
+  }
+
+  void _markFunctionTypes(k.FunctionNode function) {
+    _markType(function.returnType);
+    for (final parameter in function.positionalParameters) {
+      _markType(parameter.type);
+    }
+    for (final parameter in function.namedParameters) {
+      _markType(parameter.type);
+    }
+    for (final parameter in function.typeParameters) {
+      _markType(parameter.bound);
     }
   }
 
@@ -250,6 +397,7 @@ final class _EsmReachability {
     for (final descriptor in declaration.memberDescriptors) {
       final member = descriptor.memberReference?.asMember;
       if (member is k.Procedure && !member.isExternal) {
+        _markFunctionTypes(member.function);
         _enqueueNode(member.function);
       } else if (member is k.Field) {
         _markType(member.type);
@@ -261,6 +409,7 @@ final class _EsmReachability {
       }
       final tearOff = descriptor.tearOffReference?.asMember;
       if (tearOff is k.Procedure && !tearOff.isExternal) {
+        _markFunctionTypes(tearOff.function);
         _enqueueNode(tearOff.function);
       }
     }
@@ -281,6 +430,7 @@ final class _EsmReachability {
 
   void _markType(k.DartType type) {
     type = type.unalias;
+    if (!_markedTypes.add(type)) return;
     switch (type) {
       case k.InterfaceType():
         final node = type.classReference.node;
@@ -340,13 +490,17 @@ final class _EsmReachability {
       case k.InstanceConstant():
         final node = constant.classReference.node;
         if (node is k.Class) {
-          _markClass(node);
+          _markInstantiatedClass(node);
         }
         for (final argument in constant.typeArguments) {
           _markType(argument);
         }
-        for (final value in constant.fieldValues.values) {
-          _markConstant(value);
+        for (final entry in constant.fieldValues.entries) {
+          final field = entry.key.node;
+          if (field is k.Field && field.enclosingClass != null) {
+            _markInstanceField(field);
+          }
+          _markConstant(entry.value);
         }
       case k.RecordConstant():
         for (final value in constant.positional) {
@@ -409,6 +563,41 @@ final class _EsmReachability {
   }
 }
 
+enum _InstanceSelectorKind { get, set, call }
+
+typedef _InstanceSelector = ({
+  _InstanceSelectorName name,
+  _InstanceSelectorKind kind,
+});
+
+typedef _InstanceSelectorName = ({String text, String? library});
+
+_InstanceSelectorName _selectorName(k.Name name) {
+  return (
+    text: name.text,
+    library: name.isPrivate
+        ? name.libraryReference?.canonicalName.toString()
+        : null,
+  );
+}
+
+bool _procedureMatchesSelector(
+  k.Procedure procedure,
+  _InstanceSelectorKind selector,
+) {
+  return switch (selector) {
+    _InstanceSelectorKind.get =>
+      procedure.kind == k.ProcedureKind.Getter ||
+          procedure.kind == k.ProcedureKind.Method ||
+          procedure.kind == k.ProcedureKind.Operator,
+    _InstanceSelectorKind.set => procedure.kind == k.ProcedureKind.Setter,
+    _InstanceSelectorKind.call =>
+      procedure.kind == k.ProcedureKind.Method ||
+          procedure.kind == k.ProcedureKind.Operator ||
+          procedure.kind == k.ProcedureKind.Getter,
+  };
+}
+
 final class _ReachabilityVisitor extends k.RecursiveVisitor {
   _ReachabilityVisitor(this.reachability);
 
@@ -439,10 +628,14 @@ final class _ReachabilityVisitor extends k.RecursiveVisitor {
   void visitInstanceCreation(k.InstanceCreation node) {
     final target = node.classReference.node;
     if (target is k.Class) {
-      reachability._markClass(target);
+      reachability._markInstantiatedClass(target);
     }
-    for (final value in node.fieldValues.values) {
-      value.accept(this);
+    for (final entry in node.fieldValues.entries) {
+      final field = entry.key.node;
+      if (field is k.Field && field.enclosingClass != null) {
+        reachability._markInstanceField(field);
+      }
+      entry.value.accept(this);
     }
     for (final assertStatement in node.asserts) {
       assertStatement.accept(this);
@@ -510,34 +703,51 @@ final class _ReachabilityVisitor extends k.RecursiveVisitor {
 
   @override
   void visitInstanceInvocation(k.InstanceInvocation node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Procedure) reachability._markInstanceProcedure(target);
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.call);
     node.receiver.accept(this);
     _visitArguments(node.arguments);
   }
 
   @override
   void visitInstanceGetterInvocation(k.InstanceGetterInvocation node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Member) reachability._markMember(target);
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.get);
     node.receiver.accept(this);
     _visitArguments(node.arguments);
   }
 
   @override
   void visitInstanceGet(k.InstanceGet node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Member) reachability._markMember(target);
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.get);
     node.receiver.accept(this);
   }
 
   @override
   void visitInstanceSet(k.InstanceSet node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Member) reachability._markMember(target);
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.set);
     node.receiver.accept(this);
     node.value.accept(this);
   }
 
   @override
   void visitInstanceTearOff(k.InstanceTearOff node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Procedure) reachability._markInstanceProcedure(target);
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.call);
     node.receiver.accept(this);
   }
 
   @override
   void visitSuperMethodInvocation(k.SuperMethodInvocation node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Procedure) reachability._markInstanceProcedure(target);
     _visitArguments(node.arguments);
   }
 
@@ -545,50 +755,76 @@ final class _ReachabilityVisitor extends k.RecursiveVisitor {
   void visitAbstractSuperMethodInvocation(
     k.AbstractSuperMethodInvocation node,
   ) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Procedure) reachability._markInstanceProcedure(target);
     _visitArguments(node.arguments);
   }
 
   @override
   void visitSuperPropertySet(k.SuperPropertySet node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Member) reachability._markMember(target);
     node.value.accept(this);
   }
 
   @override
   void visitAbstractSuperPropertySet(k.AbstractSuperPropertySet node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Member) reachability._markMember(target);
     node.value.accept(this);
   }
 
   @override
-  void visitSuperPropertyGet(k.SuperPropertyGet node) {}
+  void visitSuperPropertyGet(k.SuperPropertyGet node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Member) reachability._markMember(target);
+  }
 
   @override
-  void visitAbstractSuperPropertyGet(k.AbstractSuperPropertyGet node) {}
+  void visitAbstractSuperPropertyGet(k.AbstractSuperPropertyGet node) {
+    final target = node.interfaceTargetReference.node;
+    if (target is k.Member) reachability._markMember(target);
+  }
 
   @override
   void visitEqualsCall(k.EqualsCall node) {
+    reachability._markInstanceSelector(
+      k.Name.equalsName,
+      _InstanceSelectorKind.call,
+    );
     node.left.accept(this);
     node.right.accept(this);
   }
 
   @override
   void visitFunctionInvocation(k.FunctionInvocation node) {
+    reachability._markInstanceSelector(
+      k.Name.callName,
+      _InstanceSelectorKind.call,
+    );
     node.receiver.accept(this);
     _visitArguments(node.arguments);
   }
 
   @override
   void visitDynamicInvocation(k.DynamicInvocation node) {
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.call);
+    _markNoSuchMethod();
     node.receiver.accept(this);
     _visitArguments(node.arguments);
   }
 
   @override
   void visitDynamicGet(k.DynamicGet node) {
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.get);
+    _markNoSuchMethod();
     node.receiver.accept(this);
   }
 
   @override
   void visitDynamicSet(k.DynamicSet node) {
+    reachability._markInstanceSelector(node.name, _InstanceSelectorKind.set);
+    _markNoSuchMethod();
     node.receiver.accept(this);
     node.value.accept(this);
   }
@@ -600,6 +836,8 @@ final class _ReachabilityVisitor extends k.RecursiveVisitor {
 
   @override
   void visitRedirectingFactoryInvocation(k.RedirectingFactoryInvocation node) {
+    final target = node.redirectingFactoryTargetReference.node;
+    if (target is k.Procedure) reachability._markProcedure(target);
     node.expression.accept(this);
   }
 
@@ -676,5 +914,12 @@ final class _ReachabilityVisitor extends k.RecursiveVisitor {
     for (final type in arguments.types) {
       reachability._markType(type);
     }
+  }
+
+  void _markNoSuchMethod() {
+    reachability._markInstanceSelector(
+      k.Name('noSuchMethod'),
+      _InstanceSelectorKind.call,
+    );
   }
 }

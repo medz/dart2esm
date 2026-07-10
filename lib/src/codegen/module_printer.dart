@@ -41,12 +41,12 @@ extension _ModulePrinter on _EsmPrinter {
     final superclass = klass.superclass == null
         ? ''
         : ' extends ${_emitExpression(klass.superclass!)}';
-    _writeIndented('${exportPrefix}class ${klass.name}$superclass {');
+    _writeIndented('${exportPrefix}class ${klass.name}$superclass$_bodyOpen');
     _indent++;
     final constructor = klass.constructor;
     if (constructor != null) {
       _writeIndented(
-        'constructor(${constructor.parameters.map(_emitParameter).join(', ')}) {',
+        'constructor(${constructor.parameters.map(_emitParameter).join(_comma)})$_bodyOpen',
       );
       _indent++;
       for (final statement in constructor.body) {
@@ -72,7 +72,7 @@ extension _ModulePrinter on _EsmPrinter {
       EsmClassMethodKind.setter => 'set ',
     };
     _writeIndented(
-      '$staticPrefix$asyncPrefix$prefix$generatorMarker${_emitPropertyKey(method.key)}(${method.parameters.map(_emitParameter).join(', ')}) {',
+      '$staticPrefix$asyncPrefix$prefix$generatorMarker${_emitPropertyKey(method.key)}(${method.parameters.map(_emitParameter).join(_comma)})$_bodyOpen',
     );
     _indent++;
     for (final statement in method.body) {
@@ -87,7 +87,7 @@ extension _ModulePrinter on _EsmPrinter {
     final asyncPrefix = function.isAsync ? 'async ' : '';
     final generatorMarker = function.isGenerator ? '*' : '';
     _writeIndented(
-      '${exportPrefix}${asyncPrefix}function$generatorMarker ${function.name}(${function.parameters.map(_emitParameter).join(', ')}) {',
+      '${exportPrefix}${asyncPrefix}function$generatorMarker ${function.name}(${function.parameters.map(_emitParameter).join(_comma)})$_bodyOpen',
     );
     _indent++;
     for (final statement in function.body) {

@@ -126,7 +126,7 @@ void main() {
       );
       final code = const Codegen().generate(result.module, minify: true).code;
 
-      expect(code, contains('{const scoped = 1;}return 1;'));
+      expect(code, contains('{const scoped=1;}return 1;'));
       expect(code, isNot(contains('__dartPrint')));
       expect(code, isNot(contains('unreachable')));
     },
@@ -147,7 +147,7 @@ void main() {
     final debug = const Codegen().generate(module).code;
     final release = const Codegen().generate(module, minify: true).code;
 
-    expect(release, 'export function main() {return 1;}\n');
+    expect(release, 'export function main(){return 1;}\n');
     expect(release.length, lessThan(debug.length));
   });
 

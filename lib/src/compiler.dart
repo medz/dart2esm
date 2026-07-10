@@ -67,7 +67,10 @@ final class Compiler {
       );
     }
     final kernel = kernelAdapter.read(component);
-    final semanticResult = semantic.build(kernel);
+    final semanticResult = semantic.build(
+      kernel,
+      treeShakeMembers: options.profile.isRelease,
+    );
     final lowered = lowering.lower(
       semanticResult,
       runMain: options.runMain,

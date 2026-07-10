@@ -8,30 +8,38 @@ extension _ExpressionPrinter on _EsmPrinter {
       EsmStringLiteral() => jsonEncode(expression.value),
       EsmStringConcatenation() => _emitStringConcatenation(expression),
       EsmAssignment() =>
-        '${_emitExpression(expression.target)} = ${_emitExpression(expression.value)}',
+        '${_emitExpression(expression.target)}$_assignment${_emitExpression(expression.value)}',
       EsmBinary() => _emitBinaryExpression(expression),
       EsmUnary() => _emitUnaryExpression(expression),
       EsmConditional() =>
-        '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.thenExpression)} : ${_emitExpression(expression.otherwiseExpression)})',
+        compact
+            ? '(${_emitExpression(expression.condition)}?${_emitExpression(expression.thenExpression)}:${_emitExpression(expression.otherwiseExpression)})'
+            : '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.thenExpression)} : ${_emitExpression(expression.otherwiseExpression)})',
       EsmNullishCoalesce() =>
-        '(${_emitNullishOperand(expression.left)} ?? ${_emitNullishOperand(expression.right)})',
+        compact
+            ? '(${_emitNullishOperand(expression.left)}??${_emitNullishOperand(expression.right)})'
+            : '(${_emitNullishOperand(expression.left)} ?? ${_emitNullishOperand(expression.right)})',
       EsmParenthesized() => '(${_emitExpression(expression.expression)})',
       EsmNumberLiteral() => _emitNumber(expression.value),
       EsmBooleanLiteral() => expression.value ? 'true' : 'false',
       EsmNullLiteral() => 'null',
       EsmArrayLiteral() =>
-        '[${expression.elements.map(_emitExpression).join(', ')}]',
+        '[${expression.elements.map(_emitExpression).join(_comma)}]',
       EsmObjectLiteral() =>
-        '{ ${expression.properties.map(_emitObjectLiteralProperty).join(', ')} }',
+        compact
+            ? '{${expression.properties.map(_emitObjectLiteralProperty).join(_comma)}}'
+            : '{ ${expression.properties.map(_emitObjectLiteralProperty).join(_comma)} }',
       EsmArrowFunction() =>
-        '(${expression.parameters.map(_emitParameter).join(', ')}) => ${_emitExpression(expression.body)}',
+        compact
+            ? '(${expression.parameters.map(_emitParameter).join(_comma)})=>${_emitExpression(expression.body)}'
+            : '(${expression.parameters.map(_emitParameter).join(_comma)}) => ${_emitExpression(expression.body)}',
       EsmFunctionExpression() => _emitFunctionExpression(expression),
       EsmArrowBlockFunction() => _emitArrowBlockFunction(expression),
       EsmAwait() => 'await ${_emitAwaitOperand(expression.expression)}',
       EsmCall() =>
-        '${_emitCallCallee(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
+        '${_emitCallCallee(expression.callee)}(${expression.arguments.map(_emitExpression).join(_comma)})',
       EsmNew() =>
-        'new ${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(', ')})',
+        'new ${_emitExpression(expression.callee)}(${expression.arguments.map(_emitExpression).join(_comma)})',
       EsmPropertyAccess() =>
         '${_emitExpression(expression.receiver)}.${expression.property}',
       EsmComputedPropertyAccess() =>
@@ -39,7 +47,7 @@ extension _ExpressionPrinter on _EsmPrinter {
       EsmOptionalPropertyAccess() =>
         '${_emitExpression(expression.receiver)}?.${expression.property}',
       EsmOptionalMethodCall() =>
-        '${_emitExpression(expression.receiver)}?.${expression.property}(${expression.arguments.map(_emitExpression).join(', ')})',
+        '${_emitExpression(expression.receiver)}?.${expression.property}(${expression.arguments.map(_emitExpression).join(_comma)})',
       EsmThis() => 'this',
       EsmNewTarget() => 'new.target',
       EsmSuper() => 'super',
@@ -194,7 +202,7 @@ extension _ExpressionPrinter on _EsmPrinter {
   }
 
   String _emitObjectLiteralProperty(EsmObjectLiteralProperty property) {
-    return '${_emitPropertyKey(property.key)}: ${_emitExpression(property.value)}';
+    return '${_emitPropertyKey(property.key)}$_colon${_emitExpression(property.value)}';
   }
 
   String _emitPropertyKey(EsmPropertyKey key) {
@@ -205,11 +213,13 @@ extension _ExpressionPrinter on _EsmPrinter {
   }
 
   String _emitFunctionExpression(EsmFunctionExpression expression) {
-    final parameters = expression.parameters.map(_emitParameter).join(', ');
+    final parameters = expression.parameters.map(_emitParameter).join(_comma);
     final asyncPrefix = expression.isAsync ? 'async ' : '';
     final generatorMarker = expression.isGenerator ? '*' : '';
     if (expression.body.isEmpty) {
-      return '${asyncPrefix}function$generatorMarker($parameters) {}';
+      return compact
+          ? '${asyncPrefix}function$generatorMarker($parameters){}'
+          : '${asyncPrefix}function$generatorMarker($parameters) {}';
     }
     final bodyPrinter = _EsmPrinter(compact: compact).._indent = _indent + 1;
     for (final statement in expression.body) {
@@ -217,23 +227,25 @@ extension _ExpressionPrinter on _EsmPrinter {
     }
     final body = bodyPrinter._buffer.toString().trimRight();
     if (compact) {
-      return '${asyncPrefix}function$generatorMarker($parameters) {$body}';
+      return '${asyncPrefix}function$generatorMarker($parameters){$body}';
     }
     return '${asyncPrefix}function$generatorMarker($parameters) {\n$body\n${'  ' * _indent}}';
   }
 
   String _emitArrowBlockFunction(EsmArrowBlockFunction expression) {
-    final parameters = expression.parameters.map(_emitParameter).join(', ');
+    final parameters = expression.parameters.map(_emitParameter).join(_comma);
     final asyncPrefix = expression.isAsync ? 'async ' : '';
     if (expression.body.isEmpty) {
-      return '${asyncPrefix}($parameters) => {}';
+      return compact
+          ? '${asyncPrefix}($parameters)=>{}'
+          : '${asyncPrefix}($parameters) => {}';
     }
     final bodyPrinter = _EsmPrinter(compact: compact).._indent = _indent + 1;
     for (final statement in expression.body) {
       bodyPrinter._emitStatement(statement);
     }
     final body = bodyPrinter._buffer.toString().trimRight();
-    if (compact) return '${asyncPrefix}($parameters) => {$body}';
+    if (compact) return '${asyncPrefix}($parameters)=>{$body}';
     return '${asyncPrefix}($parameters) => {\n$body\n${'  ' * _indent}}';
   }
 

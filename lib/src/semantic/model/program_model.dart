@@ -22,7 +22,10 @@ final class EsmProgramModel {
   final EsmModulePlan module;
 }
 
-EsmProgramModel buildEsmProgramModel(k.Component component) {
+EsmProgramModel buildEsmProgramModel(
+  k.Component component, {
+  bool treeShakeMembers = false,
+}) {
   final main = component.mainMethod;
   if (main == null) {
     throw StateError(
@@ -35,6 +38,7 @@ EsmProgramModel buildEsmProgramModel(k.Component component) {
     main: main,
     exportNamesByLibrary: roots.exportNamesByLibrary,
     isEmittableTopLevelProcedure: isEmittableTopLevelProcedure,
+    treeShakeMembers: treeShakeMembers,
   );
   final orderedLibraries = orderLibrariesByDependencies(semantic.libraries);
   return EsmProgramModel(

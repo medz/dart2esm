@@ -1,13 +1,20 @@
 import 'esm_ast.dart';
 
 Set<String> collectEsmIdentifierReferences(EsmModule module) {
-  final collector = _EsmIdentifierReferenceCollector();
+  final collector = _EsmNameCollector();
   collector.visitModuleItems(module.items);
   return collector.references;
 }
 
-final class _EsmIdentifierReferenceCollector {
+Set<String> collectEsmBindingNames(EsmModule module) {
+  final collector = _EsmNameCollector();
+  collector.visitModuleItems(module.items);
+  return collector.bindings;
+}
+
+final class _EsmNameCollector {
   final references = <String>{};
+  final bindings = <String>{};
 
   void visitModuleItems(Iterable<EsmModuleItem> items) {
     for (final item in items) {
@@ -20,6 +27,7 @@ final class _EsmIdentifierReferenceCollector {
       case EsmRawModuleItem():
         break;
       case EsmClass():
+        bindings.add(item.name);
         visitExpression(item.superclass);
         final constructor = item.constructor;
         if (constructor != null) {
@@ -32,6 +40,7 @@ final class _EsmIdentifierReferenceCollector {
           visitStatements(method.body);
         }
       case EsmFunction():
+        bindings.add(item.name);
         visitParameters(item.parameters);
         visitStatements(item.body);
       case EsmStatement():
@@ -110,9 +119,11 @@ final class _EsmIdentifierReferenceCollector {
   void visitParameter(EsmParameter parameter) {
     switch (parameter) {
       case EsmIdentifierParameter():
+        bindings.add(parameter.name);
         visitExpression(parameter.defaultValue);
       case EsmObjectPatternParameter():
         for (final binding in parameter.bindings) {
+          bindings.add(binding.name);
           visitExpression(binding.defaultValue);
         }
       case EsmArrayPatternParameter():
@@ -123,9 +134,10 @@ final class _EsmIdentifierReferenceCollector {
   void visitBinding(EsmBinding binding) {
     switch (binding) {
       case EsmIdentifierBinding():
-        break;
+        bindings.add(binding.name);
       case EsmObjectBindingPattern():
         for (final item in binding.bindings) {
+          bindings.add(item.name);
           visitExpression(item.defaultValue);
         }
       case EsmArrayBindingPattern():

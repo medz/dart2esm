@@ -132,6 +132,119 @@ void main() {
     },
   );
 
+  test('release transformer mangles only safe module bindings', () {
+    const input = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'veryLongInternalFunction',
+          export: false,
+          parameters: [EsmIdentifierParameter(name: 'a')],
+          body: [EsmReturnStatement(EsmIdentifier('veryLongInternalValue'))],
+        ),
+        EsmVariableDeclaration(
+          binding: EsmIdentifierBinding('veryLongInternalValue'),
+          initializer: EsmNumberLiteral(1),
+          mutable: false,
+        ),
+        EsmClass(
+          name: 'VeryLongInternalClass',
+          export: false,
+          superclass: null,
+          constructor: null,
+          methods: [],
+        ),
+        EsmFunction(
+          name: '__dartPrint',
+          export: false,
+          parameters: [],
+          body: [],
+        ),
+        EsmVariableDeclaration(
+          binding: EsmIdentifierBinding('publicValue'),
+          initializer: EsmNumberLiteral(2),
+          mutable: false,
+          export: true,
+        ),
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('veryLongInternalFunction'),
+                arguments: [EsmNumberLiteral(0)],
+              ),
+            ),
+            EsmExpressionStatement(
+              EsmNew(
+                callee: EsmIdentifier('VeryLongInternalClass'),
+                arguments: [],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer().transform(
+      _loweringForModule(input),
+      profile: release,
+    );
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, isNot(contains('veryLongInternal')));
+    expect(code, isNot(contains('VeryLongInternalClass')));
+    expect(code, contains('export const publicValue=2;'));
+    expect(code, contains('export function main()'));
+    expect(code, contains('function __dartPrint()'));
+    expect(code, contains('(a)'));
+    final internalFunction = transformed.module.items
+        .whereType<EsmFunction>()
+        .singleWhere((item) => !item.export && item.name != '__dartPrint');
+    expect(internalFunction.name, isNot('a'));
+
+    final debug = const Transformer().transform(_loweringForModule(input));
+    final debugCode = const Codegen().generate(debug.module).code;
+    expect(debugCode, contains('veryLongInternalFunction'));
+    expect(debugCode, contains('VeryLongInternalClass'));
+  });
+
+  test('release transformer leaves analyzability-opaque raw modules alone', () {
+    const input = EsmModule(
+      items: [
+        EsmRawModuleItem('const alias = veryLongInternalFunction;\n'),
+        EsmFunction(
+          name: 'veryLongInternalFunction',
+          export: false,
+          parameters: [],
+          body: [],
+        ),
+        EsmFunction(name: 'main', export: true, parameters: [], body: []),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer().transform(
+      _loweringForModule(input),
+      profile: release,
+    );
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, contains('veryLongInternalFunction'));
+  });
+
   test('compact codegen is smaller without changing the AST', () {
     const module = EsmModule(
       items: [

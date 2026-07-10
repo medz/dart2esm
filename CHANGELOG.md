@@ -9,6 +9,9 @@
 - Add safe release optimization, runtime relinking, and compact ESM printing.
 - Add release-only member reachability for imported classes, including
   conservative virtual, dynamic, `noSuchMethod`, and public API retention.
+- Mangle non-exported module bindings in release builds while preserving ESM
+  exports, runtime ABI names, dynamic members, raw JavaScript, and lexical
+  scope safety.
 - Define runtime helper ABI contracts for entry names, dependencies, host
   requirements, and conservative effects.
 - Replace the network-dependent language-spec test with a pinned, machine-

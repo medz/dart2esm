@@ -4,6 +4,7 @@ import '../options.dart';
 import 'helpers/helper_loader.dart';
 import 'helpers/runtime_helpers.dart';
 import 'passes/helper_loading_pass.dart';
+import 'passes/identifier_mangler.dart';
 import 'passes/module_normalizer.dart';
 import 'passes/release_optimizer.dart';
 import 'transform_pass.dart';
@@ -21,6 +22,7 @@ final class Transformer {
     this.passes = const [
       ModuleNormalizer(),
       ReleaseOptimizer(),
+      IdentifierMangler(),
       HelperLoadingPass(),
     ],
   });

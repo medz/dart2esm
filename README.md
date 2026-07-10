@@ -49,9 +49,11 @@ host-specific SDK behavior. The default `auto` mode uses VM Kernel when
 possible and falls back to the browser frontend for web-only libraries.
 
 Use `--mode=debug` for readable stable output or `--mode=release` for safe
-control-flow pruning, member-level tree shaking, runtime relinking, and compact
-output. The minimum syntax contract is selected with `--target=es2022`,
-`--target=es2023`, or `--target=esnext`.
+control-flow pruning, member-level tree shaking, internal module binding
+mangling, runtime relinking, and compact output. Exported names, runtime ABI
+symbols, dynamic member names, and raw JavaScript remain stable. The minimum
+syntax contract is selected with `--target=es2022`, `--target=es2023`, or
+`--target=esnext`.
 
 Use `--metrics` to print raw/gzip size, line count, and emitted helper count for
 the generated ESM module. Add `--compare-dart2js` to also compile the same Dart

@@ -246,6 +246,172 @@ void main() {
     expect(debugCode, contains('VeryLongInternalClass'));
   });
 
+  test('release transformer replaces structural constant keys with ids', () {
+    const input = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartConst'),
+                arguments: [
+                  EsmStringLiteral('long structural key'),
+                  EsmArrowFunction(parameters: [], body: EsmNumberLiteral(1)),
+                ],
+              ),
+            ),
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartConst'),
+                arguments: [
+                  EsmStringLiteral('long structural key'),
+                  EsmArrowFunction(parameters: [], body: EsmNumberLiteral(2)),
+                ],
+              ),
+            ),
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartConst'),
+                arguments: [
+                  EsmStringLiteral('different structural key'),
+                  EsmArrowFunction(parameters: [], body: EsmNumberLiteral(3)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer(
+      passes: [ConstantOptimizer()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(RegExp(r'__dartConst\(0,').allMatches(code), hasLength(2));
+    expect(RegExp(r'__dartConst\(1,').allMatches(code), hasLength(1));
+    expect(code, isNot(contains('structural key')));
+  });
+
+  test('release transformer emits compact frozen constant objects', () {
+    final input = EsmModule(
+      items: [
+        const EsmClass(
+          name: 'Example',
+          export: false,
+          superclass: null,
+          constructor: null,
+          methods: [],
+        ),
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: const [],
+          body: [
+            EsmReturnStatement(
+              EsmCall(
+                callee: const EsmPropertyAccess(
+                  receiver: EsmIdentifier('Object'),
+                  property: 'freeze',
+                ),
+                arguments: [
+                  EsmCall(
+                    callee: const EsmPropertyAccess(
+                      receiver: EsmIdentifier('Object'),
+                      property: 'create',
+                    ),
+                    arguments: [
+                      const EsmPropertyAccess(
+                        receiver: EsmIdentifier('Example'),
+                        property: 'prototype',
+                      ),
+                      EsmObjectLiteral([
+                        _constantProperty('value', 1),
+                        _constantProperty('__proto__', 2),
+                      ]),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer(
+      passes: [ConstantOptimizer()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, isNot(contains('Object.create')));
+    expect(code, isNot(contains('Object.setPrototypeOf')));
+    expect(
+      code,
+      contains(
+        'Object.freeze({__proto__:Example.prototype,value:1,'
+        '["__proto__"]:2})',
+      ),
+    );
+  });
+
+  test('release transformer factors repeated field definitions', () {
+    final input = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmVariableDeclaration(
+              binding: EsmIdentifierBinding('target'),
+              initializer: EsmObjectLiteral([]),
+              mutable: false,
+            ),
+            EsmExpressionStatement(
+              _fieldDefinition('first', const EsmNumberLiteral(1)),
+            ),
+            EsmExpressionStatement(
+              _fieldDefinition('second', const EsmNumberLiteral(2)),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+    final original = const Codegen().generate(input, minify: true).code;
+
+    final transformed = const Transformer(
+      passes: [FieldDefinitionOptimizer(), IdentifierMangler()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(RegExp(r'Object\.defineProperty').allMatches(code), hasLength(1));
+    expect(code, contains('return Object.defineProperty'));
+    expect(code, isNot(contains(r'$defineField')));
+    expect(code.length, lessThan(original.length));
+  });
+
   test('release transformer leaves analyzability-opaque raw modules alone', () {
     const input = EsmModule(
       items: [
@@ -315,7 +481,7 @@ function __dartPrint(value) {
     expect(code, isNot(contains('function __dartStr')));
     expect(code, isNot(contains('function __dartPrint')));
     expect(code, contains('object.__dartStr'));
-    expect(code, contains('{ __dartStr: 1 }'));
+    expect(code, contains('{__dartStr:1}'));
     expect(code, contains('"__dartStr"'));
     expect(code, contains('export function main()'));
   });
@@ -337,6 +503,25 @@ function __dartPrint(value) {
 
     expect(release, 'export function main(){return 1;}\n');
     expect(release.length, lessThan(debug.length));
+  });
+
+  test('compact codegen preserves raw JavaScript token semantics', () {
+    const module = EsmModule(
+      items: [
+        EsmRawModuleItem(r'''
+function test(value) {
+  // The space is part of the regular expression.
+  return /* keep regex context */ /a b/.test(value) && value / 2 + +value;
+}
+'''),
+      ],
+    );
+
+    final code = const Codegen().generate(module, minify: true).code;
+
+    expect(code, contains('/a b/.test(value)'));
+    expect(code, contains('value/2+ +value'));
+    expect(code, isNot(contains('keep regex context')));
   });
 
   test('helper linker emits only symbol-reachable declarations', () {
@@ -536,6 +721,47 @@ export function main() {
     },
   );
 }
+
+EsmCall _fieldDefinition(String property, EsmExpression value) => EsmCall(
+  callee: const EsmPropertyAccess(
+    receiver: EsmIdentifier('Object'),
+    property: 'defineProperty',
+  ),
+  arguments: [
+    const EsmIdentifier('target'),
+    EsmStringLiteral(property),
+    EsmObjectLiteral([
+      EsmObjectLiteralProperty.static(key: 'value', value: value),
+      EsmObjectLiteralProperty.static(
+        key: 'writable',
+        value: const EsmBooleanLiteral(true),
+      ),
+      EsmObjectLiteralProperty.static(
+        key: 'enumerable',
+        value: const EsmBooleanLiteral(true),
+      ),
+      EsmObjectLiteralProperty.static(
+        key: 'configurable',
+        value: const EsmBooleanLiteral(true),
+      ),
+    ]),
+  ],
+);
+
+EsmObjectLiteralProperty _constantProperty(String key, num value) =>
+    EsmObjectLiteralProperty.static(
+      key: key,
+      value: EsmObjectLiteral([
+        EsmObjectLiteralProperty.static(
+          key: 'value',
+          value: EsmNumberLiteral(value),
+        ),
+        EsmObjectLiteralProperty.static(
+          key: 'enumerable',
+          value: const EsmBooleanLiteral(true),
+        ),
+      ]),
+    );
 
 final class _RecordingPass implements TransformPass {
   const _RecordingPass({

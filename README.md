@@ -50,11 +50,12 @@ possible and falls back to the browser frontend for web-only libraries.
 
 Use `--mode=debug` for readable stable output or `--mode=release` for safe
 control-flow pruning, member-level tree shaking, internal and local binding
-mangling, runtime relinking, and compact output. Exported names, runtime ABI
-contracts, dynamic member names, raw JavaScript properties, and string-visible
-Dart names remain stable. Linked runtime bindings are module-private and
-shortened only after dependency resolution. The minimum syntax contract is
-selected with `--target=es2022`, `--target=es2023`, or `--target=esnext`.
+mangling, private member shortening, constant compaction, runtime relinking, and
+compact output. Exported names, runtime ABI contracts, dynamic member names,
+raw JavaScript properties, and user-visible strings remain stable. Linked
+runtime bindings are module-private and shortened only after dependency
+resolution. The minimum syntax contract is selected with `--target=es2022`,
+`--target=es2023`, or `--target=esnext`.
 
 Use `--metrics` to print raw/gzip size, line count, and emitted helper count for
 the generated ESM module. Add `--compare-dart2js` to also compile the same Dart
@@ -72,12 +73,13 @@ chaining, and nullish coalescing where they preserve Kernel semantics. Release
 quality is gated by Dart VM versus Node behavior tests plus raw and gzip
 benchmarks.
 
-Property descriptors and frozen constant objects are intentionally retained for
-Dart semantics. Runtime helpers remain controlled raw ESM; their linked global
-bindings and whitespace are conservatively compacted, while property and string
-names stay untouched. Deeper helper optimization requires moving them into the
-structured AST. Source maps are not emitted yet and remain the main debug output
-quality gap.
+Release output uses numeric canonical-constant ids, compact frozen object
+literals, and one module-local helper for repeated writable field descriptors.
+On the checked-in YAML benchmark, release ESM is 175,963 raw bytes and 38,532
+gzip bytes versus 196,930 and 61,256 for dart2js `-O2` (0.894x raw, 0.629x
+gzip). Runtime helpers remain controlled raw ESM and are compacted with a
+token-aware printer. Source maps are not emitted yet and remain the main debug
+output quality gap.
 
 You can also compile an existing Kernel component:
 

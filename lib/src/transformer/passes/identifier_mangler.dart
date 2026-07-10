@@ -5,6 +5,151 @@ import '../helpers/runtime_helper_linker.dart';
 import '../helpers/runtime_helpers.dart';
 import '../transform_pass.dart';
 
+final class ConstantOptimizer implements TransformPass {
+  const ConstantOptimizer();
+
+  @override
+  TransformPassReturn apply(EsmModule module, TransformContext context) {
+    if (!context.profile.isRelease) {
+      return TransformPassReturn(module: module);
+    }
+
+    final keys = <String, int>{};
+    final rewriter = _IdentifierRenamer(
+      const {},
+      compactConstantObjects: true,
+      constantKeys: keys,
+    );
+    final rewritten = rewriter.module(module);
+    return TransformPassReturn(
+      module: keys.isEmpty && rewriter.constantObjectCount == 0
+          ? module
+          : rewritten,
+    );
+  }
+}
+
+final class PrivateMemberMangler implements TransformPass {
+  const PrivateMemberMangler();
+
+  @override
+  TransformPassReturn apply(EsmModule module, TransformContext context) {
+    if (!context.profile.isRelease ||
+        module.items.any((item) => item is EsmRawModuleItem)) {
+      return TransformPassReturn(module: module);
+    }
+
+    final semantic = context.lowering.semantic.semantic;
+    final targets = <String>{
+      for (final klass in semantic.classes) ...[
+        for (final constructor in klass.constructors)
+          if (constructor.node.name.isPrivate) constructor.name,
+        for (final field in klass.fields)
+          if (field.node.name.isPrivate) field.name,
+        for (final field in klass.staticFields)
+          if (field.node.name.isPrivate) field.name,
+        for (final procedure in klass.procedures)
+          if (procedure.node.name.isPrivate) procedure.name,
+        for (final procedure in klass.staticProcedures)
+          if (procedure.node.name.isPrivate) procedure.name,
+      ],
+      for (final extensionType in semantic.extensionTypes)
+        for (final member in extensionType.members)
+          if (member.descriptor.name.isPrivate) member.name,
+    }..remove('');
+    if (targets.isEmpty) return TransformPassReturn(module: module);
+
+    final occupied = collectEsmPropertyNames(module);
+    final generator = _ShortNameGenerator(occupied);
+    final names = <String, String>{};
+    String? pending;
+    for (final target in targets) {
+      pending ??= generator.next();
+      if (pending.length >= target.length) continue;
+      names[target] = pending;
+      occupied.add(pending);
+      pending = null;
+    }
+    if (names.isEmpty) return TransformPassReturn(module: module);
+
+    return TransformPassReturn(
+      module: _IdentifierRenamer(const {}, memberNames: names).module(module),
+    );
+  }
+}
+
+final class FieldDefinitionOptimizer implements TransformPass {
+  const FieldDefinitionOptimizer();
+
+  @override
+  TransformPassReturn apply(EsmModule module, TransformContext context) {
+    if (!context.profile.isRelease ||
+        module.items.any((item) => item is EsmRawModuleItem)) {
+      return TransformPassReturn(module: module);
+    }
+
+    final usedNames = {
+      ...collectEsmBindingNames(module),
+      ...collectEsmIdentifierReferences(module),
+      ...EsmRuntimeHelperRegistry.generatedGlobalNames,
+    };
+    final helperName = JsNameAllocator().freshIn(usedNames, r'$defineField');
+    final renamer = _IdentifierRenamer(const {}, defineFieldHelper: helperName);
+    final rewritten = renamer.module(module);
+    if (renamer.definedFieldCount < 2) {
+      return TransformPassReturn(module: module);
+    }
+
+    return TransformPassReturn(
+      module: EsmModule(
+        items: [_defineFieldHelper(helperName), ...rewritten.items],
+      ),
+    );
+  }
+
+  EsmFunction _defineFieldHelper(String name) => EsmFunction(
+    name: name,
+    export: false,
+    parameters: const [
+      EsmIdentifierParameter(name: 'o'),
+      EsmIdentifierParameter(name: 'k'),
+      EsmIdentifierParameter(name: 'v'),
+    ],
+    body: [
+      EsmReturnStatement(
+        EsmCall(
+          callee: const EsmPropertyAccess(
+            receiver: EsmIdentifier('Object'),
+            property: 'defineProperty',
+          ),
+          arguments: [
+            const EsmIdentifier('o'),
+            const EsmIdentifier('k'),
+            EsmObjectLiteral([
+              EsmObjectLiteralProperty.static(
+                key: 'value',
+                value: const EsmIdentifier('v'),
+              ),
+              EsmObjectLiteralProperty.static(
+                key: 'writable',
+                value: const EsmBooleanLiteral(true),
+              ),
+              EsmObjectLiteralProperty.static(
+                key: 'enumerable',
+                value: const EsmBooleanLiteral(true),
+              ),
+              EsmObjectLiteralProperty.static(
+                key: 'configurable',
+                value: const EsmBooleanLiteral(true),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
 final class IdentifierMangler implements TransformPass {
   const IdentifierMangler();
 
@@ -162,11 +307,26 @@ final class _ShortNameGenerator {
 }
 
 final class _IdentifierRenamer {
-  const _IdentifierRenamer(this.names);
+  _IdentifierRenamer(
+    this.names, {
+    this.compactConstantObjects = false,
+    this.constantKeys,
+    this.defineFieldHelper,
+    this.memberNames = const {},
+  });
 
   final Map<String, String> names;
+  final bool compactConstantObjects;
+  final Map<String, int>? constantKeys;
+  final String? defineFieldHelper;
+  final Map<String, String> memberNames;
+  int get constantObjectCount => _constantObjectCount;
+  int get definedFieldCount => _definedFieldCount;
+  var _constantObjectCount = 0;
+  var _definedFieldCount = 0;
 
   String name(String value) => names[value] ?? value;
+  String memberName(String value) => memberNames[value] ?? value;
 
   EsmModule module(EsmModule module) =>
       EsmModule(items: [for (final item in module.items) moduleItem(item)]);
@@ -227,7 +387,7 @@ final class _IdentifierRenamer {
 
   EsmObjectPatternBinding objectPatternBinding(EsmObjectPatternBinding value) =>
       EsmObjectPatternBinding(
-        property: value.property,
+        property: memberName(value.property),
         name: name(value.name),
         defaultValue: expressionOrNull(value.defaultValue),
       );
@@ -322,7 +482,7 @@ final class _IdentifierRenamer {
   );
 
   EsmPropertyKey propertyKey(EsmPropertyKey key) => switch (key) {
-    EsmStaticPropertyKey() => key,
+    EsmStaticPropertyKey() => EsmStaticPropertyKey(memberName(key.value)),
     EsmComputedPropertyKey() => EsmComputedPropertyKey(
       expression(key.expression),
     ),
@@ -393,30 +553,192 @@ final class _IdentifierRenamer {
       body: statements(value.body),
     ),
     EsmAwait() => EsmAwait(expression(value.expression)),
-    EsmCall() => EsmCall(
-      callee: expression(value.callee),
-      arguments: [for (final item in value.arguments) expression(item)],
-    ),
+    EsmCall() => call(value),
     EsmNew() => EsmNew(
       callee: expression(value.callee),
       arguments: [for (final item in value.arguments) expression(item)],
     ),
     EsmPropertyAccess() => EsmPropertyAccess(
       receiver: expression(value.receiver),
-      property: value.property,
+      property: memberName(value.property),
     ),
     EsmComputedPropertyAccess() => EsmComputedPropertyAccess(
       receiver: expression(value.receiver),
-      property: expression(value.property),
+      property: memberExpression(value.property),
     ),
     EsmOptionalPropertyAccess() => EsmOptionalPropertyAccess(
       receiver: expression(value.receiver),
-      property: value.property,
+      property: memberName(value.property),
     ),
     EsmOptionalMethodCall() => EsmOptionalMethodCall(
       receiver: expression(value.receiver),
-      property: value.property,
+      property: memberName(value.property),
       arguments: [for (final item in value.arguments) expression(item)],
     ),
   };
+
+  EsmCall call(EsmCall value) {
+    final constantObject = compactConstantObjects
+        ? _compactFrozenConstant(value)
+        : null;
+    if (constantObject != null) {
+      _constantObjectCount++;
+      return constantObject;
+    }
+
+    final fieldValue = _definedFieldValue(value);
+    final helper = defineFieldHelper;
+    if (fieldValue != null && helper != null) {
+      _definedFieldCount++;
+      return EsmCall(
+        callee: EsmIdentifier(helper),
+        arguments: [
+          expression(value.arguments[0]),
+          memberExpression(value.arguments[1]),
+          expression(fieldValue),
+        ],
+      );
+    }
+
+    final arguments = [for (final item in value.arguments) expression(item)];
+    if (_isObjectDefineProperty(value) && value.arguments.length >= 2) {
+      arguments[1] = memberExpression(value.arguments[1]);
+    }
+    final keys = constantKeys;
+    final key = switch ((value.callee, value.arguments)) {
+      (
+        EsmIdentifier(name: '__dartConst'),
+        [EsmStringLiteral(value: final key), ...],
+      ) =>
+        key,
+      _ => null,
+    };
+    if (keys != null && key != null) {
+      arguments[0] = EsmNumberLiteral(keys.putIfAbsent(key, () => keys.length));
+    }
+    return EsmCall(callee: expression(value.callee), arguments: arguments);
+  }
+
+  EsmCall? _compactFrozenConstant(EsmCall call) {
+    final (prototype, descriptors) = switch (call) {
+      EsmCall(
+        callee: EsmPropertyAccess(
+          receiver: EsmIdentifier(name: 'Object'),
+          property: 'freeze',
+        ),
+        arguments: [
+          EsmCall(
+            callee: EsmPropertyAccess(
+              receiver: EsmIdentifier(name: 'Object'),
+              property: 'create',
+            ),
+            arguments: [final prototype, EsmObjectLiteral(:final properties)],
+          ),
+        ],
+      ) =>
+        (prototype, properties),
+      _ => (null, null),
+    };
+    if (prototype == null ||
+        descriptors == null ||
+        !_isConstantPrototype(prototype)) {
+      return null;
+    }
+
+    final properties = <EsmObjectLiteralProperty>[];
+    for (final descriptor in descriptors) {
+      final value = _constantDescriptorValue(descriptor.value);
+      if (value == null) return null;
+      final key = switch (descriptor.key) {
+        EsmStaticPropertyKey(value: '__proto__') =>
+          const EsmComputedPropertyKey(EsmStringLiteral('__proto__')),
+        final key => propertyKey(key),
+      };
+      properties.add(
+        EsmObjectLiteralProperty(key: key, value: expression(value)),
+      );
+    }
+
+    return EsmCall(
+      callee: const EsmPropertyAccess(
+        receiver: EsmIdentifier('Object'),
+        property: 'freeze',
+      ),
+      arguments: [
+        EsmObjectLiteral([
+          EsmObjectLiteralProperty.static(
+            key: '__proto__',
+            value: expression(prototype),
+          ),
+          ...properties,
+        ]),
+      ],
+    );
+  }
+
+  bool _isConstantPrototype(EsmExpression expression) => switch (expression) {
+    EsmNullLiteral() => true,
+    EsmPropertyAccess(receiver: EsmIdentifier(), property: 'prototype') => true,
+    _ => false,
+  };
+
+  EsmExpression? _constantDescriptorValue(EsmExpression expression) {
+    if (expression case EsmObjectLiteral(:final properties)) {
+      final values = <String, EsmExpression>{};
+      for (final property in properties) {
+        if (property.key case EsmStaticPropertyKey(:final value)) {
+          values[value] = property.value;
+        } else {
+          return null;
+        }
+      }
+      final value = values['value'];
+      if (values.length == 2 &&
+          value != null &&
+          _isTrue(values['enumerable'])) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  EsmExpression memberExpression(EsmExpression value) => switch (value) {
+    EsmStringLiteral() => EsmStringLiteral(memberName(value.value)),
+    _ => expression(value),
+  };
+
+  EsmExpression? _definedFieldValue(EsmCall call) {
+    if (!_isObjectDefineProperty(call)) return null;
+    if (call.arguments case [_, _, EsmObjectLiteral(:final properties)]) {
+      final values = <String, EsmExpression>{};
+      for (final property in properties) {
+        if (property.key case EsmStaticPropertyKey(:final value)) {
+          values[value] = property.value;
+        } else {
+          return null;
+        }
+      }
+      final fieldValue = values['value'];
+      if (values.length == 4 &&
+          fieldValue != null &&
+          _isTrue(values['writable']) &&
+          _isTrue(values['enumerable']) &&
+          _isTrue(values['configurable'])) {
+        return fieldValue;
+      }
+    }
+    return null;
+  }
+
+  bool _isObjectDefineProperty(EsmCall call) => switch (call.callee) {
+    EsmPropertyAccess(
+      receiver: EsmIdentifier(name: 'Object'),
+      property: 'defineProperty',
+    ) =>
+      true,
+    _ => false,
+  };
+
+  bool _isTrue(EsmExpression? value) =>
+      value is EsmBooleanLiteral && value.value;
 }

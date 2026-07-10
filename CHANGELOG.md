@@ -15,6 +15,14 @@
 - Extend release mangling to parameters, local bindings, and linked runtime
   globals; reserve runtime ABI names during lowering so user locals cannot
   shadow compiler calls.
+- Shorten compiler-owned private member properties without changing exports,
+  dynamic names, raw JavaScript properties, or user-visible strings.
+- Replace structural constant cache keys with collision-free numeric ids and
+  emit frozen constant instances as compact native object literals.
+- Factor repeated writable field descriptors into one module-local helper and
+  compact structured operators plus linked raw runtime code.
+- Reduce the checked-in YAML release benchmark below dart2js `-O2`: 0.894x raw
+  and 0.629x gzip size on the current toolchain.
 - Define runtime helper ABI contracts for entry names, dependencies, host
   requirements, and conservative effects.
 - Replace the network-dependent language-spec test with a pinned, machine-

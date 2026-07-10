@@ -27,6 +27,9 @@ final class Transformer {
     this.passes = const [
       ModuleNormalizer(),
       ReleaseOptimizer(),
+      ConstantOptimizer(),
+      PrivateMemberMangler(),
+      FieldDefinitionOptimizer(),
       IdentifierMangler(),
       HelperLoadingPass(),
       RuntimeIdentifierMangler(),

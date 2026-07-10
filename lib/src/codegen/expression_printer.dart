@@ -65,7 +65,11 @@ extension _ExpressionPrinter on _EsmPrinter {
       expression.operator,
       isRight: true,
     );
-    return '$left ${_emitBinaryOperator(expression.operator)} $right';
+    final operator = _emitBinaryOperator(expression.operator);
+    if (compact && operator != 'instanceof' && operator != 'in') {
+      return '$left$operator$right';
+    }
+    return '$left $operator $right';
   }
 
   String _emitBinaryOperand(

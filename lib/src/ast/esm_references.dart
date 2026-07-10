@@ -12,9 +12,16 @@ Set<String> collectEsmBindingNames(EsmModule module) {
   return collector.bindings;
 }
 
+Set<String> collectEsmPropertyNames(EsmModule module) {
+  final collector = _EsmNameCollector();
+  collector.visitModuleItems(module.items);
+  return collector.properties;
+}
+
 final class _EsmNameCollector {
   final references = <String>{};
   final bindings = <String>{};
+  final properties = <String>{};
 
   void visitModuleItems(Iterable<EsmModuleItem> items) {
     for (final item in items) {
@@ -123,6 +130,7 @@ final class _EsmNameCollector {
         visitExpression(parameter.defaultValue);
       case EsmObjectPatternParameter():
         for (final binding in parameter.bindings) {
+          properties.add(binding.property);
           bindings.add(binding.name);
           visitExpression(binding.defaultValue);
         }
@@ -137,6 +145,7 @@ final class _EsmNameCollector {
         bindings.add(binding.name);
       case EsmObjectBindingPattern():
         for (final item in binding.bindings) {
+          properties.add(item.property);
           bindings.add(item.name);
           visitExpression(item.defaultValue);
         }
@@ -148,8 +157,11 @@ final class _EsmNameCollector {
   }
 
   void visitPropertyKey(EsmPropertyKey key) {
-    if (key case EsmComputedPropertyKey(:final expression)) {
-      visitExpression(expression);
+    switch (key) {
+      case EsmStaticPropertyKey(:final value):
+        properties.add(value);
+      case EsmComputedPropertyKey(:final expression):
+        visitExpression(expression);
     }
   }
 
@@ -158,8 +170,9 @@ final class _EsmNameCollector {
     switch (expression) {
       case EsmIdentifier():
         references.add(expression.name);
+      case EsmStringLiteral():
+        properties.add(expression.value);
       case EsmImportMeta() ||
-          EsmStringLiteral() ||
           EsmNumberLiteral() ||
           EsmBooleanLiteral() ||
           EsmNullLiteral() ||
@@ -219,13 +232,16 @@ final class _EsmNameCollector {
           visitExpression(argument);
         }
       case EsmPropertyAccess():
+        properties.add(expression.property);
         visitExpression(expression.receiver);
       case EsmComputedPropertyAccess():
         visitExpression(expression.receiver);
         visitExpression(expression.property);
       case EsmOptionalPropertyAccess():
+        properties.add(expression.property);
         visitExpression(expression.receiver);
       case EsmOptionalMethodCall():
+        properties.add(expression.property);
         visitExpression(expression.receiver);
         for (final argument in expression.arguments) {
           visitExpression(argument);

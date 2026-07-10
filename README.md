@@ -26,6 +26,13 @@ dart pub global activate dart2esm
 dart2esm bin/main.dart -o dist/main.mjs
 ```
 
+For a complete first run:
+
+```sh
+dart2esm example/hello.dart -o /tmp/hello.mjs
+node /tmp/hello.mjs
+```
+
 By default the generated module invokes `main()` at top level. Use
 `--no-run-main` when the output should be imported as a module without executing
 the Dart entrypoint:

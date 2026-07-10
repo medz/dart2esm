@@ -2,6 +2,7 @@
 .packages
 build/
 coverage/
-doc/
+doc/*
+!doc/compiler-architecture.md
 node_modules/
 pubspec.lock

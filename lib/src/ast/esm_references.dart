@@ -1,13 +1,27 @@
 import 'esm_ast.dart';
 
 Set<String> collectEsmIdentifierReferences(EsmModule module) {
-  final collector = _EsmIdentifierReferenceCollector();
+  final collector = _EsmNameCollector();
   collector.visitModuleItems(module.items);
   return collector.references;
 }
 
-final class _EsmIdentifierReferenceCollector {
+Set<String> collectEsmBindingNames(EsmModule module) {
+  final collector = _EsmNameCollector();
+  collector.visitModuleItems(module.items);
+  return collector.bindings;
+}
+
+Set<String> collectEsmPropertyNames(EsmModule module) {
+  final collector = _EsmNameCollector();
+  collector.visitModuleItems(module.items);
+  return collector.properties;
+}
+
+final class _EsmNameCollector {
   final references = <String>{};
+  final bindings = <String>{};
+  final properties = <String>{};
 
   void visitModuleItems(Iterable<EsmModuleItem> items) {
     for (final item in items) {
@@ -20,6 +34,7 @@ final class _EsmIdentifierReferenceCollector {
       case EsmRawModuleItem():
         break;
       case EsmClass():
+        bindings.add(item.name);
         visitExpression(item.superclass);
         final constructor = item.constructor;
         if (constructor != null) {
@@ -32,6 +47,7 @@ final class _EsmIdentifierReferenceCollector {
           visitStatements(method.body);
         }
       case EsmFunction():
+        bindings.add(item.name);
         visitParameters(item.parameters);
         visitStatements(item.body);
       case EsmStatement():
@@ -110,9 +126,12 @@ final class _EsmIdentifierReferenceCollector {
   void visitParameter(EsmParameter parameter) {
     switch (parameter) {
       case EsmIdentifierParameter():
+        bindings.add(parameter.name);
         visitExpression(parameter.defaultValue);
       case EsmObjectPatternParameter():
         for (final binding in parameter.bindings) {
+          properties.add(binding.property);
+          bindings.add(binding.name);
           visitExpression(binding.defaultValue);
         }
       case EsmArrayPatternParameter():
@@ -123,9 +142,11 @@ final class _EsmIdentifierReferenceCollector {
   void visitBinding(EsmBinding binding) {
     switch (binding) {
       case EsmIdentifierBinding():
-        break;
+        bindings.add(binding.name);
       case EsmObjectBindingPattern():
         for (final item in binding.bindings) {
+          properties.add(item.property);
+          bindings.add(item.name);
           visitExpression(item.defaultValue);
         }
       case EsmArrayBindingPattern():
@@ -136,8 +157,11 @@ final class _EsmIdentifierReferenceCollector {
   }
 
   void visitPropertyKey(EsmPropertyKey key) {
-    if (key case EsmComputedPropertyKey(:final expression)) {
-      visitExpression(expression);
+    switch (key) {
+      case EsmStaticPropertyKey(:final value):
+        properties.add(value);
+      case EsmComputedPropertyKey(:final expression):
+        visitExpression(expression);
     }
   }
 
@@ -146,8 +170,9 @@ final class _EsmIdentifierReferenceCollector {
     switch (expression) {
       case EsmIdentifier():
         references.add(expression.name);
+      case EsmStringLiteral():
+        properties.add(expression.value);
       case EsmImportMeta() ||
-          EsmStringLiteral() ||
           EsmNumberLiteral() ||
           EsmBooleanLiteral() ||
           EsmNullLiteral() ||
@@ -207,13 +232,16 @@ final class _EsmIdentifierReferenceCollector {
           visitExpression(argument);
         }
       case EsmPropertyAccess():
+        properties.add(expression.property);
         visitExpression(expression.receiver);
       case EsmComputedPropertyAccess():
         visitExpression(expression.receiver);
         visitExpression(expression.property);
       case EsmOptionalPropertyAccess():
+        properties.add(expression.property);
         visitExpression(expression.receiver);
       case EsmOptionalMethodCall():
+        properties.add(expression.property);
         visitExpression(expression.receiver);
         for (final argument in expression.arguments) {
           visitExpression(argument);

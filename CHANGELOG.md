@@ -1,3 +1,35 @@
+## Unreleased
+
+- Split CLI, compiler driver, Dart/CFE frontend, Kernel adapter, semantic core,
+  transforms, runtime linking, and code generation into explicit boundaries.
+- Add immutable compiler profiles for host, ECMAScript target, and debug or
+  release optimization; Kernel input now requires an explicit host profile.
+- Add stable structured diagnostics with codes, phases, and Kernel source
+  locations.
+- Add safe release optimization, runtime relinking, and compact ESM printing.
+- Add release-only member reachability for imported classes, including
+  conservative virtual, dynamic, `noSuchMethod`, and public API retention.
+- Mangle non-exported module bindings in release builds while preserving ESM
+  exports, dynamic members, raw JavaScript properties, string-visible names,
+  and lexical scope safety.
+- Extend release mangling to parameters, local bindings, and linked runtime
+  globals; reserve runtime ABI names during lowering so user locals cannot
+  shadow compiler calls.
+- Shorten compiler-owned private member properties without changing exports,
+  dynamic names, raw JavaScript properties, or user-visible strings.
+- Replace structural constant cache keys with collision-free numeric ids and
+  emit frozen constant instances as compact native object literals.
+- Factor repeated writable field descriptors into one module-local helper and
+  compact structured operators plus linked raw runtime code.
+- Reduce the checked-in YAML release benchmark below dart2js `-O2`: 0.894x raw
+  and 0.629x gzip size on the current toolchain.
+- Define runtime helper ABI contracts for entry names, dependencies, host
+  requirements, and conservative effects.
+- Replace the network-dependent language-spec test with a pinned, machine-
+  readable conformance manifest and offline coverage checks.
+- Add a reproducible debug/release benchmark command with optional dart2js
+  comparison.
+
 ## 0.1.1
 
 - Bundle the minimal Dart 3.12.2 Kernel reader required by the compiler instead

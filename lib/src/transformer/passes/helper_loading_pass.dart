@@ -9,10 +9,12 @@ final class HelperLoadingPass implements TransformPass {
     final loaded = context.helperLoader.load(
       module: module,
       helpers: context.lowering.runtimeHelpers,
+      platform: context.profile.platform,
     );
     return TransformPassReturn(
       module: loaded.module,
       linkedHelpers: loaded.helpers,
+      runtimeDeclarationCount: loaded.runtimeDeclarationCount,
     );
   }
 }

@@ -3,12 +3,13 @@ import 'package:dart2esm/src/codegen/esm_codegen.dart';
 import 'package:dart2esm/src/foundation/diagnostics/unsupported_compiler_feature.dart';
 import 'package:dart2esm/src/lowering/kernel_to_esm_ast.dart';
 import 'package:dart2esm/src/options.dart';
-import 'package:dart2esm/src/parser/kernel_parser.dart';
+import 'package:dart2esm/src/kernel/kernel_program.dart';
 import 'package:dart2esm/src/semantic/semantic.dart';
 import 'package:dart2esm/src/semantic/semantic_builder.dart';
 import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
 import 'package:dart2esm/src/transformer/helpers/helper_loader.dart';
 import 'package:dart2esm/src/transformer/module_transformer.dart';
+import 'package:dart2esm/src/transformer/passes/identifier_mangler.dart';
 import 'package:dart2esm/src/transformer/transform_pass.dart';
 import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 import 'package:test/test.dart';
@@ -71,12 +72,481 @@ void main() {
       EsmRuntimeHelper.print,
       EsmRuntimeHelper.stringify,
     ]);
+    expect(result.runtimeDeclarationCount, 2);
     expect(result.module.items, hasLength(3));
     expect((result.module.items.first as EsmFunction).name, '__dartPrint');
     final main = result.module.items.last as EsmFunction;
     expect(main.name, 'main');
     expect(main.body, hasLength(1));
     expect(main.body.single, isA<EsmExpressionStatement>());
+  });
+
+  test(
+    'release transformer removes constant branches and unreachable code',
+    () {
+      const input = EsmModule(
+        items: [
+          EsmFunction(
+            name: 'main',
+            export: true,
+            parameters: [],
+            body: [
+              EsmIfStatement(
+                condition: EsmBooleanLiteral(true),
+                thenBody: [
+                  EsmVariableDeclaration(
+                    binding: EsmIdentifierBinding('scoped'),
+                    initializer: EsmNumberLiteral(1),
+                    mutable: false,
+                  ),
+                ],
+                otherwiseBody: [
+                  EsmExpressionStatement(
+                    EsmCall(
+                      callee: EsmIdentifier('__dartPrint'),
+                      arguments: [EsmStringLiteral('unreachable')],
+                    ),
+                  ),
+                ],
+              ),
+              EsmReturnStatement(EsmNumberLiteral(1)),
+              EsmExpressionStatement(EsmStringLiteral('unreachable')),
+            ],
+          ),
+        ],
+      );
+
+      final result = const Transformer().transform(
+        _loweringForModule(
+          input,
+          runtimeHelpers: const [EsmRuntimeHelper.print],
+        ),
+        profile: const Dart2EsmCompilerProfile(
+          platform: Dart2EsmPlatform.node,
+          optimization: Dart2EsmOptimizationLevel.release,
+        ),
+      );
+      final code = const Codegen().generate(result.module, minify: true).code;
+
+      expect(code, contains('{const a=1;}return 1;'));
+      expect(code, isNot(contains('__dartPrint')));
+      expect(code, isNot(contains('unreachable')));
+    },
+  );
+
+  test('release transformer mangles only safe module bindings', () {
+    final input = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'veryLongInternalFunction',
+          export: false,
+          parameters: [
+            EsmIdentifierParameter(name: 'a'),
+            EsmIdentifierParameter(name: 'veryLongParameterName'),
+          ],
+          body: [
+            EsmVariableDeclaration(
+              binding: EsmIdentifierBinding('veryLongLocalName'),
+              initializer: EsmIdentifier('veryLongParameterName'),
+              mutable: false,
+            ),
+            EsmReturnStatement(EsmIdentifier('veryLongInternalValue')),
+          ],
+        ),
+        EsmVariableDeclaration(
+          binding: EsmIdentifierBinding('veryLongInternalValue'),
+          initializer: EsmNumberLiteral(1),
+          mutable: false,
+        ),
+        EsmClass(
+          name: 'VeryLongInternalClass',
+          export: false,
+          superclass: null,
+          constructor: null,
+          methods: [],
+        ),
+        EsmFunction(
+          name: '__dartPrint',
+          export: false,
+          parameters: [],
+          body: [],
+        ),
+        EsmVariableDeclaration(
+          binding: EsmIdentifierBinding('publicValue'),
+          initializer: EsmNumberLiteral(2),
+          mutable: false,
+          export: true,
+        ),
+        EsmVariableDeclaration(
+          binding: EsmObjectBindingPattern(
+            bindings: [
+              EsmObjectPatternBinding(property: 'value', name: 'publicAlias'),
+            ],
+          ),
+          initializer: EsmObjectLiteral([
+            EsmObjectLiteralProperty.static(
+              key: 'value',
+              value: EsmNumberLiteral(3),
+            ),
+          ]),
+          mutable: false,
+          export: true,
+        ),
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('veryLongInternalFunction'),
+                arguments: [EsmNumberLiteral(0), EsmNumberLiteral(1)],
+              ),
+            ),
+            EsmExpressionStatement(
+              EsmNew(
+                callee: EsmIdentifier('VeryLongInternalClass'),
+                arguments: [],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer().transform(
+      _loweringForModule(input),
+      profile: release,
+    );
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, isNot(contains('veryLongInternal')));
+    expect(code, isNot(contains('veryLongParameterName')));
+    expect(code, isNot(contains('veryLongLocalName')));
+    expect(code, isNot(contains('VeryLongInternalClass')));
+    expect(code, contains('export const publicValue=2;'));
+    expect(code, contains('export const {value:publicAlias}='));
+    expect(code, contains('export function main()'));
+    expect(code, isNot(contains('function __dartPrint()')));
+    expect(code, contains('(a,'));
+    final internalFunction = transformed.module.items
+        .whereType<EsmFunction>()
+        .singleWhere((item) => !item.export && item.parameters.length == 2);
+    expect(internalFunction.name, isNot('a'));
+
+    final debug = const Transformer().transform(_loweringForModule(input));
+    final debugCode = const Codegen().generate(debug.module).code;
+    expect(debugCode, contains('veryLongInternalFunction'));
+    expect(debugCode, contains('VeryLongInternalClass'));
+  });
+
+  test('release transformer replaces structural constant keys with ids', () {
+    const input = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartConst'),
+                arguments: [
+                  EsmStringLiteral('long structural key'),
+                  EsmArrowFunction(parameters: [], body: EsmNumberLiteral(1)),
+                ],
+              ),
+            ),
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartConst'),
+                arguments: [
+                  EsmStringLiteral('long structural key'),
+                  EsmArrowFunction(parameters: [], body: EsmNumberLiteral(2)),
+                ],
+              ),
+            ),
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartConst'),
+                arguments: [
+                  EsmStringLiteral('different structural key'),
+                  EsmArrowFunction(parameters: [], body: EsmNumberLiteral(3)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer(
+      passes: [ConstantOptimizer()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(RegExp(r'__dartConst\(0,').allMatches(code), hasLength(2));
+    expect(RegExp(r'__dartConst\(1,').allMatches(code), hasLength(1));
+    expect(code, isNot(contains('structural key')));
+  });
+
+  test('release transformer emits compact frozen constant objects', () {
+    final input = EsmModule(
+      items: [
+        const EsmClass(
+          name: 'Example',
+          export: false,
+          superclass: null,
+          constructor: null,
+          methods: [],
+        ),
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: const [],
+          body: [
+            EsmReturnStatement(
+              EsmCall(
+                callee: const EsmPropertyAccess(
+                  receiver: EsmIdentifier('Object'),
+                  property: 'freeze',
+                ),
+                arguments: [
+                  EsmCall(
+                    callee: const EsmPropertyAccess(
+                      receiver: EsmIdentifier('Object'),
+                      property: 'create',
+                    ),
+                    arguments: [
+                      const EsmPropertyAccess(
+                        receiver: EsmIdentifier('Example'),
+                        property: 'prototype',
+                      ),
+                      EsmObjectLiteral([
+                        _constantProperty('value', 1),
+                        _constantProperty('__proto__', 2),
+                      ]),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer(
+      passes: [ConstantOptimizer()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, isNot(contains('Object.create')));
+    expect(code, isNot(contains('Object.setPrototypeOf')));
+    expect(
+      code,
+      contains(
+        'Object.freeze({__proto__:Example.prototype,value:1,'
+        '["__proto__"]:2})',
+      ),
+    );
+  });
+
+  test('release transformer factors repeated field definitions', () {
+    final input = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmVariableDeclaration(
+              binding: EsmIdentifierBinding('target'),
+              initializer: EsmObjectLiteral([]),
+              mutable: false,
+            ),
+            EsmExpressionStatement(
+              _fieldDefinition('first', const EsmNumberLiteral(1)),
+            ),
+            EsmExpressionStatement(
+              _fieldDefinition('second', const EsmNumberLiteral(2)),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+    final original = const Codegen().generate(input, minify: true).code;
+
+    final transformed = const Transformer(
+      passes: [FieldDefinitionOptimizer(), IdentifierMangler()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(RegExp(r'Object\.defineProperty').allMatches(code), hasLength(1));
+    expect(code, contains('return Object.defineProperty'));
+    expect(code, isNot(contains(r'$defineField')));
+    expect(code.length, lessThan(original.length));
+  });
+
+  test('release transformer leaves analyzability-opaque raw modules alone', () {
+    const input = EsmModule(
+      items: [
+        EsmRawModuleItem('const alias = veryLongInternalFunction;\n'),
+        EsmFunction(
+          name: 'veryLongInternalFunction',
+          export: false,
+          parameters: [],
+          body: [],
+        ),
+        EsmFunction(name: 'main', export: true, parameters: [], body: []),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer().transform(
+      _loweringForModule(input),
+      profile: release,
+    );
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, contains('veryLongInternalFunction'));
+  });
+
+  test('release transformer shortens linked runtime bindings only', () {
+    const input = EsmModule(
+      items: [
+        EsmRawModuleItem('''
+function __dartStr(value) { return value; }
+function __dartPrint(value) {
+  return __dartStr(value) + object.__dartStr +
+    ({ __dartStr: 1 }).__dartStr + "__dartStr";
+}
+'''),
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmExpressionStatement(
+              EsmCall(
+                callee: EsmIdentifier('__dartPrint'),
+                arguments: [EsmNumberLiteral(1)],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    const release = Dart2EsmCompilerProfile(
+      platform: Dart2EsmPlatform.node,
+      optimization: Dart2EsmOptimizationLevel.release,
+    );
+
+    final transformed = const Transformer(
+      passes: [RuntimeIdentifierMangler()],
+    ).transform(_loweringForModule(input), profile: release);
+    final code = const Codegen()
+        .generate(transformed.module, minify: true)
+        .code;
+
+    expect(code, isNot(contains('function __dartStr')));
+    expect(code, isNot(contains('function __dartPrint')));
+    expect(code, contains('object.__dartStr'));
+    expect(code, contains('{__dartStr:1}'));
+    expect(code, contains('"__dartStr"'));
+    expect(code, contains('export function main()'));
+  });
+
+  test('compact codegen is smaller without changing the AST', () {
+    const module = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [EsmReturnStatement(EsmNumberLiteral(1))],
+        ),
+      ],
+    );
+
+    final debug = const Codegen().generate(module).code;
+    final release = const Codegen().generate(module, minify: true).code;
+
+    expect(release, 'export function main(){return 1;}\n');
+    expect(release.length, lessThan(debug.length));
+  });
+
+  test('compact codegen separates subtraction from a negative operand', () {
+    const module = EsmModule(
+      items: [
+        EsmFunction(
+          name: 'main',
+          export: true,
+          parameters: [],
+          body: [
+            EsmReturnStatement(
+              EsmBinary(
+                left: EsmNumberLiteral(1),
+                operator: EsmBinaryOperator.subtract,
+                right: EsmNumberLiteral(-2),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final code = const Codegen().generate(module, minify: true).code;
+
+    expect(code, 'export function main(){return 1- -2;}\n');
+  });
+
+  test('compact codegen preserves raw JavaScript token semantics', () {
+    const module = EsmModule(
+      items: [
+        EsmRawModuleItem(r'''
+function test(value) {
+  // The space is part of the regular expression.
+  return /* keep regex context */ /a b/.test(value) && value / 2 + +value;
+}
+'''),
+      ],
+    );
+
+    final code = const Codegen().generate(module, minify: true).code;
+
+    expect(code, contains('/a b/.test(value)'));
+    expect(code, contains('value/2+ +value'));
+    expect(code, isNot(contains('keep regex context')));
   });
 
   test('helper linker emits only symbol-reachable declarations', () {
@@ -94,6 +564,7 @@ void main() {
     final linked = const HelperLoader().load(
       module: module,
       helpers: const [EsmRuntimeHelper.mapOps],
+      platform: Dart2EsmPlatform.node,
     );
     final code = const Codegen().generate(linked.module).code;
 
@@ -109,8 +580,25 @@ void main() {
     );
 
     expect(
-      () => const HelperLoader().load(module: module, helpers: const []),
+      () => const HelperLoader().load(
+        module: module,
+        helpers: const [],
+        platform: Dart2EsmPlatform.node,
+      ),
       throwsStateError,
+    );
+  });
+
+  test('helper loader validates helpers against the active platform', () {
+    const module = EsmModule(items: []);
+
+    expect(
+      () => const HelperLoader().load(
+        module: module,
+        helpers: const [EsmRuntimeHelper.ioNode],
+        platform: Dart2EsmPlatform.browser,
+      ),
+      throwsA(isA<UnsupportedCompilerFeature>()),
     );
   });
 
@@ -277,6 +765,47 @@ export function main() {
   );
 }
 
+EsmCall _fieldDefinition(String property, EsmExpression value) => EsmCall(
+  callee: const EsmPropertyAccess(
+    receiver: EsmIdentifier('Object'),
+    property: 'defineProperty',
+  ),
+  arguments: [
+    const EsmIdentifier('target'),
+    EsmStringLiteral(property),
+    EsmObjectLiteral([
+      EsmObjectLiteralProperty.static(key: 'value', value: value),
+      EsmObjectLiteralProperty.static(
+        key: 'writable',
+        value: const EsmBooleanLiteral(true),
+      ),
+      EsmObjectLiteralProperty.static(
+        key: 'enumerable',
+        value: const EsmBooleanLiteral(true),
+      ),
+      EsmObjectLiteralProperty.static(
+        key: 'configurable',
+        value: const EsmBooleanLiteral(true),
+      ),
+    ]),
+  ],
+);
+
+EsmObjectLiteralProperty _constantProperty(String key, num value) =>
+    EsmObjectLiteralProperty.static(
+      key: key,
+      value: EsmObjectLiteral([
+        EsmObjectLiteralProperty.static(
+          key: 'value',
+          value: EsmNumberLiteral(value),
+        ),
+        EsmObjectLiteralProperty.static(
+          key: 'enumerable',
+          value: const EsmBooleanLiteral(true),
+        ),
+      ]),
+    );
+
 final class _RecordingPass implements TransformPass {
   const _RecordingPass({
     required this.name,
@@ -315,7 +844,7 @@ LowererReturn _loweringForModule(
   library.addProcedure(main);
   final component = k.Component(libraries: [library]);
   component.setMainMethodAndMode(main.reference, true);
-  final kernel = ParserReturn(component: component, main: main);
+  final kernel = KernelProgram(component: component, main: main);
   final semantic = SemanticBuilderReturn(
     kernel: kernel,
     semantic: Semantic(

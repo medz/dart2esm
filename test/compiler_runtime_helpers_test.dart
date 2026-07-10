@@ -1,9 +1,10 @@
+import 'package:dart2esm/src/options.dart';
 import 'package:dart2esm/src/transformer/helpers/runtime_helpers.dart';
 import 'package:test/test.dart';
 
 void main() {
   test('helper references record the required runtime helper', () {
-    final helpers = EsmRuntimeHelperUseSet();
+    final helpers = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
 
     final identifier = helpers.reference(
       const EsmRuntimeHelperRegistry(),
@@ -18,7 +19,7 @@ void main() {
   });
 
   test('helper requirements own transitive helper closure', () {
-    final helpers = EsmRuntimeHelperUseSet();
+    final helpers = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
 
     helpers.require(EsmRuntimeHelper.mapSet);
 
@@ -34,8 +35,22 @@ void main() {
     );
   });
 
+  test('runtime contracts expose ABI name dependencies host and effects', () {
+    const registry = EsmRuntimeHelperRegistry();
+    final file = registry.contract(EsmRuntimeHelper.ioNode);
+    final worker = registry.contract(EsmRuntimeHelper.isolateNode);
+    final map = registry.contract(EsmRuntimeHelper.mapSet);
+
+    expect(file.name, '__dartFile');
+    expect(file.host, EsmRuntimeHostRequirement.node);
+    expect(file.effects, contains(EsmRuntimeEffect.io));
+    expect(file.dependencies, contains(EsmRuntimeHelper.future));
+    expect(worker.effects, contains(EsmRuntimeEffect.worker));
+    expect(map.dependencies, contains(EsmRuntimeHelper.mapGet));
+  });
+
   test('iterable materialization helper is shared across runtime helpers', () {
-    final helpers = EsmRuntimeHelperUseSet();
+    final helpers = EsmRuntimeHelperUseSet(platform: Dart2EsmPlatform.node);
 
     helpers
       ..require(EsmRuntimeHelper.iterableJoin)

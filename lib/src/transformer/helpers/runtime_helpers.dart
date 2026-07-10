@@ -4,6 +4,7 @@ import '../../options.dart';
 import 'runtime_helper_linker.dart';
 
 part 'runtime_helper.dart';
+part 'runtime_helper_contract.dart';
 part 'runtime_helper_registry.dart';
 part 'runtime_helper_declarations.dart';
 part 'runtime_number_declarations.dart';

@@ -5,9 +5,11 @@ extension _BindingPrinter on _EsmPrinter {
     return switch (binding) {
       EsmIdentifierBinding() => binding.name,
       EsmObjectBindingPattern() =>
-        '{ ${binding.bindings.map(_emitObjectPatternBinding).join(', ')} }',
+        compact
+            ? '{${binding.bindings.map(_emitObjectPatternBinding).join(_comma)}}'
+            : '{ ${binding.bindings.map(_emitObjectPatternBinding).join(_comma)} }',
       EsmArrayBindingPattern() =>
-        '[${binding.elements.map(_emitBinding).join(', ')}]',
+        '[${binding.elements.map(_emitBinding).join(_comma)}]',
     };
   }
 
@@ -16,8 +18,9 @@ extension _BindingPrinter on _EsmPrinter {
       EsmIdentifierParameter() =>
         parameter.defaultValue == null
             ? parameter.name
-            : '${_emitBindingPattern(parameter)} = ${_emitExpression(parameter.defaultValue!)}',
-      EsmObjectPatternParameter() => '${_emitBindingPattern(parameter)} = {}',
+            : '${_emitBindingPattern(parameter)}$_assignment${_emitExpression(parameter.defaultValue!)}',
+      EsmObjectPatternParameter() =>
+        '${_emitBindingPattern(parameter)}$_assignment{}',
       EsmArrayPatternParameter() => _emitBindingPattern(parameter),
     };
   }
@@ -26,18 +29,22 @@ extension _BindingPrinter on _EsmPrinter {
     return switch (parameter) {
       EsmIdentifierParameter() => parameter.name,
       EsmObjectPatternParameter() =>
-        '{ ${parameter.bindings.map(_emitObjectPatternBinding).join(', ')} }',
+        compact
+            ? '{${parameter.bindings.map(_emitObjectPatternBinding).join(_comma)}}'
+            : '{ ${parameter.bindings.map(_emitObjectPatternBinding).join(_comma)} }',
       EsmArrayPatternParameter() =>
-        '[${parameter.elements.map(_emitBindingPattern).join(', ')}]',
+        '[${parameter.elements.map(_emitBindingPattern).join(_comma)}]',
     };
   }
 
   String _emitObjectPatternBinding(EsmObjectPatternBinding binding) {
     final property = _emitObjectPropertyName(binding.property);
-    final name = binding.property == binding.name ? '' : ': ${binding.name}';
+    final name = binding.property == binding.name
+        ? ''
+        : '$_colon${binding.name}';
     final defaultValue = binding.defaultValue == null
         ? ''
-        : ' = ${_emitExpression(binding.defaultValue!)}';
+        : '$_assignment${_emitExpression(binding.defaultValue!)}';
     return '$property$name$defaultValue';
   }
 }

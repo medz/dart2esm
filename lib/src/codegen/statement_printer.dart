@@ -23,7 +23,7 @@ extension _StatementPrinter on _EsmPrinter {
         _writeIndented(
           initializer == null
               ? '$exportPrefix$keyword $binding;'
-              : '$exportPrefix$keyword $binding = ${_emitExpression(initializer)};',
+              : '$exportPrefix$keyword $binding$_assignment${_emitExpression(initializer)};',
         );
       case EsmIfStatement():
         _emitIfStatement(statement);
@@ -85,7 +85,11 @@ extension _StatementPrinter on _EsmPrinter {
   }
 
   void _emitIfStatement(EsmIfStatement statement) {
-    _writeIndented('if (${_emitExpression(statement.condition)}) {');
+    _writeIndented(
+      compact
+          ? 'if(${_emitExpression(statement.condition)}){'
+          : 'if (${_emitExpression(statement.condition)}) {',
+    );
     _indent++;
     for (final child in statement.thenBody) {
       _emitStatement(child);
@@ -96,7 +100,7 @@ extension _StatementPrinter on _EsmPrinter {
       _writeIndented('}');
       return;
     }
-    _writeIndented('} else {');
+    _writeIndented(compact ? '}else{' : '} else {');
     _indent++;
     for (final child in otherwiseBody) {
       _emitStatement(child);
@@ -108,7 +112,9 @@ extension _StatementPrinter on _EsmPrinter {
   void _emitWhileStatement(EsmWhileStatement statement, {String? label}) {
     final prefix = label == null ? '' : '$label: ';
     _writeIndented(
-      '${prefix}while (${_emitExpression(statement.condition)}) {',
+      compact
+          ? '${prefix}while(${_emitExpression(statement.condition)}){'
+          : '${prefix}while (${_emitExpression(statement.condition)}) {',
     );
     _indent++;
     for (final child in statement.body) {
@@ -119,17 +125,25 @@ extension _StatementPrinter on _EsmPrinter {
   }
 
   void _emitDoStatement(EsmDoStatement statement) {
-    _writeIndented('do {');
+    _writeIndented(compact ? 'do{' : 'do {');
     _indent++;
     for (final child in statement.body) {
       _emitStatement(child);
     }
     _indent--;
-    _writeIndented('} while (${_emitExpression(statement.condition)});');
+    _writeIndented(
+      compact
+          ? '}while(${_emitExpression(statement.condition)});'
+          : '} while (${_emitExpression(statement.condition)});',
+    );
   }
 
   void _emitSwitchStatement(EsmSwitchStatement statement) {
-    _writeIndented('switch (${_emitExpression(statement.expression)}) {');
+    _writeIndented(
+      compact
+          ? 'switch(${_emitExpression(statement.expression)}){'
+          : 'switch (${_emitExpression(statement.expression)}) {',
+    );
     _indent++;
     for (final switchCase in statement.cases) {
       _emitSwitchCase(switchCase);
@@ -153,7 +167,7 @@ extension _StatementPrinter on _EsmPrinter {
   }
 
   void _emitTryStatement(EsmTryStatement statement) {
-    _writeIndented('try {');
+    _writeIndented(compact ? 'try{' : 'try {');
     _indent++;
     for (final child in statement.body) {
       _emitStatement(child);
@@ -165,7 +179,9 @@ extension _StatementPrinter on _EsmPrinter {
       final catchParameter = statement.catchParameter;
       _writeIndented(
         catchParameter == null
-            ? '} catch {'
+            ? (compact ? '}catch{' : '} catch {')
+            : compact
+            ? '}catch(${_emitBindingPattern(catchParameter)}){'
             : '} catch (${_emitBindingPattern(catchParameter)}) {',
       );
       _indent++;
@@ -175,7 +191,7 @@ extension _StatementPrinter on _EsmPrinter {
       _indent--;
     }
     if (finallyBody != null) {
-      _writeIndented('} finally {');
+      _writeIndented(compact ? '}finally{' : '} finally {');
       _indent++;
       for (final child in finallyBody) {
         _emitStatement(child);
@@ -190,8 +206,13 @@ extension _StatementPrinter on _EsmPrinter {
     final condition = statement.condition == null
         ? ''
         : _emitExpression(statement.condition!);
-    final updates = statement.updates.map(_emitExpression).join(', ');
-    _writeIndented('for ($initializer; $condition; $updates) {');
+    final updates = statement.updates.map(_emitExpression).join(_comma);
+    final separator = compact ? ';' : '; ';
+    _writeIndented(
+      compact
+          ? 'for($initializer$separator$condition$separator$updates)$_bodyOpen'
+          : 'for ($initializer$separator$condition$separator$updates)$_bodyOpen',
+    );
     _indent++;
     for (final child in statement.body) {
       _emitStatement(child);
@@ -206,12 +227,14 @@ extension _StatementPrinter on _EsmPrinter {
     }
     final mutable = initializers.first.mutable;
     final keyword = mutable ? 'let' : 'const';
-    return '$keyword ${initializers.map(_emitForInitializerBinding).join(', ')}';
+    return '$keyword ${initializers.map(_emitForInitializerBinding).join(_comma)}';
   }
 
   String _emitForInitializerBinding(EsmVariableDeclaration initializer) {
     final value = initializer.initializer;
     final binding = _emitBinding(initializer.binding);
-    return value == null ? binding : '$binding = ${_emitExpression(value)}';
+    return value == null
+        ? binding
+        : '$binding$_assignment${_emitExpression(value)}';
   }
 }

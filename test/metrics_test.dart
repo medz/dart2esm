@@ -20,6 +20,16 @@ const value = 2;
     expect(metrics.runtimeHelperCount, 2);
   });
 
+  test('accepts linker helper counts after release name mangling', () {
+    final metrics = CodeSizeMetrics.fromCode(
+      'release',
+      'function a() {}\n',
+      runtimeHelperCount: 2,
+    );
+
+    expect(metrics.runtimeHelperCount, 2);
+  });
+
   test('formats standalone and dart2js comparison reports', () {
     const dart2esm = CodeSizeMetrics(
       label: 'dart2esm',

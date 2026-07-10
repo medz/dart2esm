@@ -61,7 +61,7 @@ final class Lowerer {
   LowererReturn lower(
     SemanticBuilderReturn semanticReturn, {
     required bool runMain,
-    Dart2EsmPlatform platform = Dart2EsmPlatform.auto,
+    Dart2EsmPlatform platform = Dart2EsmPlatform.node,
   }) {
     final context = DartLoweringContext(
       semantic: semanticReturn.semantic,

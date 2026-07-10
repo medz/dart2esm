@@ -2,7 +2,7 @@ import 'package:dart2esm/src/third_party/kernel/kernel.dart' as k;
 
 import '../foundation/diagnostics/unsupported_compiler_feature.dart';
 import '../foundation/names/js_names.dart';
-import '../parser/kernel_parser.dart';
+import '../kernel/kernel_program.dart';
 import 'model/class_runtime_plan.dart';
 import 'model/program_model.dart';
 import 'semantic.dart';
@@ -10,7 +10,7 @@ import 'semantic.dart';
 final class SemanticBuilderReturn {
   const SemanticBuilderReturn({required this.kernel, required this.semantic});
 
-  final ParserReturn kernel;
+  final KernelProgram kernel;
   final Semantic semantic;
 }
 
@@ -19,8 +19,14 @@ final class SemanticBuilder {
 
   final Set<String> generatedGlobalNames;
 
-  SemanticBuilderReturn build(ParserReturn kernel) {
-    final model = buildEsmProgramModel(kernel.component);
+  SemanticBuilderReturn build(
+    KernelProgram kernel, {
+    bool treeShakeMembers = false,
+  }) {
+    final model = buildEsmProgramModel(
+      kernel.component,
+      treeShakeMembers: treeShakeMembers,
+    );
     final allocator = JsNameAllocator(
       generatedGlobalNames: generatedGlobalNames,
     );
@@ -43,6 +49,11 @@ final class SemanticBuilder {
           interfaceMarkerClasses: model.module.classRuntime
               .interfaceMarkersFor(klass.node)
               .toList(growable: false),
+          reachableConstructors: model.semantic.constructors,
+          reachableInstanceFields: model.semantic.instanceFields,
+          reachableStaticFields: model.semantic.staticFields,
+          reachableInstanceProcedures: model.semantic.instanceProcedures,
+          reachableStaticProcedures: model.semantic.staticProcedures,
         ),
       );
     }
@@ -134,6 +145,11 @@ final class SemanticBuilder {
     required k.Class? jsSuperclass,
     required bool requiresInterfaceMarker,
     required List<k.Class> interfaceMarkerClasses,
+    required Set<k.Constructor> reachableConstructors,
+    required Set<k.Field> reachableInstanceFields,
+    required Set<k.Field> reachableStaticFields,
+    required Set<k.Procedure> reachableInstanceProcedures,
+    required Set<k.Procedure> reachableStaticProcedures,
   }) {
     final usedNames = <String>{};
     final usedStaticNames = <String>{};
@@ -157,7 +173,9 @@ final class SemanticBuilder {
       interfaceMarkerClasses: interfaceMarkerClasses,
       constructors: [
         for (final constructor in klass.constructors)
-          if (!constructor.isExternal && !constructor.isSynthetic)
+          if (!constructor.isExternal &&
+              !constructor.isSynthetic &&
+              reachableConstructors.contains(constructor))
             EsmConstructorSymbol(
               node: constructor,
               name: constructor.name.text.isEmpty
@@ -170,7 +188,9 @@ final class SemanticBuilder {
       ],
       fields: [
         for (final field in klass.fields)
-          if (!field.isStatic && !field.isExternal)
+          if (!field.isStatic &&
+              !field.isExternal &&
+              reachableInstanceFields.contains(field))
             EsmInstanceFieldSymbol(
               node: field,
               name: _freshMemberName(usedNames, _memberJsBaseName(field.name)),
@@ -178,7 +198,9 @@ final class SemanticBuilder {
       ],
       staticFields: [
         for (final field in klass.fields)
-          if (field.isStatic && !field.isExternal)
+          if (field.isStatic &&
+              !field.isExternal &&
+              reachableStaticFields.contains(field))
             EsmStaticFieldSymbol(
               node: field,
               name: _freshMemberName(
@@ -193,44 +215,47 @@ final class SemanticBuilder {
       ],
       procedures: [
         for (final procedure in inheritedMixinProcedures)
-          if (_instanceProcedureKind(procedure) case final kind?)
-            EsmInstanceProcedureSymbol(
-              node: procedure,
-              name: _freshProcedureMemberName(
-                usedNames,
-                accessorNames,
-                _memberJsBaseName(procedure.name),
-                kind,
+          if (reachableInstanceProcedures.contains(procedure))
+            if (_instanceProcedureKind(procedure) case final kind?)
+              EsmInstanceProcedureSymbol(
+                node: procedure,
+                name: _freshProcedureMemberName(
+                  usedNames,
+                  accessorNames,
+                  _memberJsBaseName(procedure.name),
+                  kind,
+                ),
+                kind: kind,
+                emit: procedure.function.body != null,
               ),
-              kind: kind,
-              emit: procedure.function.body != null,
-            ),
         for (final procedure in klass.procedures)
-          if (_instanceProcedureKind(procedure) case final kind?)
-            EsmInstanceProcedureSymbol(
-              node: procedure,
-              name: _freshProcedureMemberName(
-                usedNames,
-                accessorNames,
-                _memberJsBaseName(procedure.name),
-                kind,
+          if (reachableInstanceProcedures.contains(procedure))
+            if (_instanceProcedureKind(procedure) case final kind?)
+              EsmInstanceProcedureSymbol(
+                node: procedure,
+                name: _freshProcedureMemberName(
+                  usedNames,
+                  accessorNames,
+                  _memberJsBaseName(procedure.name),
+                  kind,
+                ),
+                kind: kind,
               ),
-              kind: kind,
-            ),
       ],
       staticProcedures: [
         for (final procedure in klass.procedures)
-          if (_staticProcedureKind(procedure) case final kind?)
-            EsmStaticProcedureSymbol(
-              node: procedure,
-              name: _freshProcedureMemberName(
-                usedStaticNames,
-                staticAccessorNames,
-                _memberJsBaseName(procedure.name),
-                kind,
+          if (reachableStaticProcedures.contains(procedure))
+            if (_staticProcedureKind(procedure) case final kind?)
+              EsmStaticProcedureSymbol(
+                node: procedure,
+                name: _freshProcedureMemberName(
+                  usedStaticNames,
+                  staticAccessorNames,
+                  _memberJsBaseName(procedure.name),
+                  kind,
+                ),
+                kind: kind,
               ),
-              kind: kind,
-            ),
       ],
     );
   }

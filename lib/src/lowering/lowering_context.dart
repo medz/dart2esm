@@ -6,7 +6,7 @@ final class DartLoweringContext {
   DartLoweringContext({
     required this.semantic,
     required this.runtimeHelpers,
-    this.platform = Dart2EsmPlatform.auto,
+    this.platform = Dart2EsmPlatform.node,
   }) : helpers = EsmRuntimeHelperUseSet(platform: platform);
 
   final Semantic semantic;

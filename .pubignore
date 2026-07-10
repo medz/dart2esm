@@ -2,7 +2,7 @@
 /build/
 /bun.lock
 /coverage/
-/doc/
+/doc/api/
 /node_modules/
 /package.json
 /pubspec.lock
